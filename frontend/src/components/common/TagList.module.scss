@@ -1,0 +1,35 @@
+.tagList {
+  .tag {
+    margin-bottom: 4px;
+    cursor: default;
+    transition: all 0.3s;
+    
+    &:hover {
+      opacity: 0.85;
+    }
+    
+    :global {
+      .ant-tag-close-icon {
+        margin-left: 4px;
+        transition: all 0.3s;
+        
+        &:hover {
+          color: #ff4d4f;
+          transform: scale(1.2);
+        }
+      }
+    }
+  }
+  
+  .addTag {
+    background: #fff;
+    border-style: dashed;
+    cursor: pointer;
+    transition: all 0.3s;
+    
+    &:hover {
+      color: #1890ff;
+      border-color: #1890ff;
+    }
+  }
+}

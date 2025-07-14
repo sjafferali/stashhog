@@ -1,0 +1,57 @@
+.planSummary {
+  margin-bottom: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  
+  h4 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .status {
+    font-size: 14px;
+    font-weight: normal;
+  }
+}
+
+.progressSection {
+  margin: 24px 0;
+  
+  .progressHeader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+}
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.fieldRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  
+  .fieldName {
+    text-transform: capitalize;
+  }
+}
+
+.extractionConfig {
+  margin-top: 16px;
+  
+  .configTags {
+    margin-top: 8px;
+  }
+}

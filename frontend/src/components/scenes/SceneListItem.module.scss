@@ -1,0 +1,46 @@
+.sceneListItem {
+  padding: 16px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  transition: all 0.3s;
+  
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  
+  > span:first-child {
+    cursor: pointer;
+    color: #1890ff;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  
+  .rating {
+    color: #faad14;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+.metadata {
+  margin-top: 8px;
+  
+  .tags {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

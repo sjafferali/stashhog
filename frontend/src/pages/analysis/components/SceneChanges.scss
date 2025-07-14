@@ -1,0 +1,113 @@
+.scene-changes-card {
+  margin-bottom: 16px;
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  }
+  
+  .scene-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    
+    .ant-image {
+      border: 1px solid #f0f0f0;
+    }
+  }
+  
+  .scene-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    
+    .ant-progress {
+      margin-left: auto;
+    }
+  }
+  
+  .changes-list {
+    &.collapsed {
+      max-height: 300px;
+      overflow: hidden;
+      position: relative;
+      
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 40px;
+        background: linear-gradient(to bottom, transparent, white);
+      }
+    }
+    
+    &.expanded {
+      .ant-collapse {
+        border: none;
+        background: transparent;
+        
+        .ant-collapse-item {
+          border: 1px solid #f0f0f0;
+          margin-bottom: 8px;
+          border-radius: 4px;
+          
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+        
+        .ant-collapse-header {
+          padding: 8px 12px !important;
+          background: #fafafa;
+          border-radius: 4px 4px 0 0;
+          
+          .ant-badge {
+            margin-left: 8px;
+          }
+        }
+        
+        .ant-collapse-content-box {
+          padding: 12px !important;
+        }
+      }
+    }
+    
+    .change-preview {
+      margin-bottom: 8px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+  
+  // Responsive
+  @media (max-width: 768px) {
+    .scene-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      
+      .ant-space {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+    
+    .scene-stats {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      
+      .ant-progress {
+        width: 100%;
+        margin-left: 0;
+      }
+    }
+  }
+}

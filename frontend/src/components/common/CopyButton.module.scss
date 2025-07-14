@@ -1,0 +1,13 @@
+.copyButton {
+  transition: all 0.3s;
+  
+  &.copied {
+    color: #52c41a;
+    border-color: #52c41a;
+    
+    &:hover {
+      color: #52c41a;
+      border-color: #52c41a;
+    }
+  }
+}

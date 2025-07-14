@@ -1,0 +1,33 @@
+line-length = 88
+target-version = "py39"
+
+[lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "S",     # bandit
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "T20",   # flake8-print
+    "SIM",   # flake8-simplify
+    "ARG",   # flake8-unused-arguments
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "S101",  # use of assert (needed for tests)
+    "S105",  # possible hardcoded password
+    "S106",  # possible hardcoded password
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "ARG"]
+"app/core/config.py" = ["S105", "S106"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false

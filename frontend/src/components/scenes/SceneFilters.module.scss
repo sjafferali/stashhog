@@ -1,0 +1,39 @@
+.sceneFilters {
+  margin-bottom: 24px;
+  
+  .quickFilters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    
+    .label {
+      font-weight: 500;
+      color: rgba(0, 0, 0, 0.65);
+    }
+    
+    .quickFilter {
+      cursor: pointer;
+      transition: all 0.3s;
+      
+      &:hover {
+        transform: scale(1.05);
+      }
+    }
+  }
+  
+  .actions {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+    text-align: right;
+  }
+  
+  :global {
+    .ant-collapse-ghost > .ant-collapse-item > .ant-collapse-header {
+      padding-left: 0;
+    }
+  }
+}

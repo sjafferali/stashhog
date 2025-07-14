@@ -1,0 +1,58 @@
+.sceneCard {
+  transition: all 0.3s ease;
+  
+  &.selected {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  }
+
+  .ant-card-cover {
+    overflow: hidden;
+  }
+
+  .ant-card-body {
+    padding: 12px;
+  }
+}
+
+.coverWrapper {
+  position: relative;
+  
+  .thumbnail {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+  }
+
+  .duration {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    
+    .ant-checkbox {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+    }
+  }
+}
+
+.metadata {
+  font-size: 12px;
+  color: #666;
+  
+  .anticon {
+    font-size: 14px;
+  }
+}

@@ -1,0 +1,75 @@
+.jobCard {
+  margin-bottom: 16px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+  
+  .cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    h5 {
+      margin: 0;
+    }
+  }
+}
+
+.compactCard {
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+  
+  .compactHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+}
+
+.content {
+  .progressSection {
+    margin-bottom: 16px;
+    
+    .progressInfo {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+  }
+  
+  .details {
+    margin-bottom: 16px;
+  }
+  
+  .error {
+    padding: 12px;
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+    border-radius: 4px;
+    margin-top: 16px;
+    
+    > span:first-child {
+      margin-right: 8px;
+    }
+  }
+  
+  .metadata {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+    
+    > span:first-child {
+      display: block;
+      margin-bottom: 8px;
+    }
+  }
+}

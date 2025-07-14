@@ -1,0 +1,64 @@
+.jobProgress {
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    
+    h4 {
+      margin: 0;
+    }
+  }
+  
+  .progressSection {
+    margin-bottom: 20px;
+    
+    .progressInfo {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+  }
+  
+  .error {
+    margin-bottom: 20px;
+  }
+  
+  .logsSection {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #f0f0f0;
+    
+    .logsHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .logs {
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 12px;
+      background: #fafafa;
+      border-radius: 4px;
+      
+      .logEntry {
+        margin-bottom: 8px;
+        
+        .timestamp {
+          font-size: 12px;
+        }
+      }
+    }
+  }
+  
+  .result {
+    margin-top: 8px;
+    padding: 8px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+}

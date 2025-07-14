@@ -1,0 +1,83 @@
+.statCard {
+  height: 100%;
+  transition: all 0.3s;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 22px;
+}
+
+.icon {
+  font-size: 24px;
+  color: #1890ff;
+  opacity: 0.8;
+}
+
+.value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 38px;
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 8px;
+  
+  .suffix {
+    font-size: 20px;
+    font-weight: 400;
+    margin-left: 4px;
+  }
+}
+
+.trend {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  
+  &.positive {
+    color: #52c41a;
+  }
+  
+  &.negative {
+    color: #ff4d4f;
+  }
+  
+  .trendValue {
+    margin: 0 4px;
+    font-weight: 600;
+  }
+  
+  .trendLabel {
+    color: rgba(0, 0, 0, 0.45);
+  }
+}
+
+// Skeleton styles
+.titleSkeleton {
+  width: 60%;
+  height: 22px !important;
+  margin-bottom: 12px;
+}
+
+.valueSkeleton {
+  width: 80%;
+  height: 38px !important;
+  margin-bottom: 8px;
+}
+
+.trendSkeleton {
+  width: 40%;
+  height: 22px !important;
+}

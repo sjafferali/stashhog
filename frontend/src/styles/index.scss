@@ -1,0 +1,175 @@
+@import './variables.scss';
+
+// CSS Reset
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+}
+
+#root {
+  height: 100%;
+}
+
+// Ant Design Overrides
+.ant-layout {
+  background: $bg-light;
+}
+
+.ant-layout-header {
+  height: 64px;
+  line-height: 64px;
+}
+
+.ant-layout-sider-dark {
+  background: $sidebar-bg;
+}
+
+.ant-menu-dark {
+  background: $sidebar-bg;
+  
+  .ant-menu-item-selected {
+    background-color: $primary-color !important;
+  }
+}
+
+.ant-card {
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  &:hover {
+    box-shadow: $shadow-md;
+    transition: box-shadow 0.3s ease;
+  }
+}
+
+.ant-table {
+  .ant-table-thead > tr > th {
+    background: $bg-light;
+    font-weight: 600;
+  }
+}
+
+.ant-btn {
+  border-radius: $border-radius;
+  font-weight: 500;
+  
+  &-primary {
+    background: $primary-color;
+    border-color: $primary-color;
+    
+    &:hover {
+      background: $primary-hover;
+      border-color: $primary-hover;
+    }
+  }
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector {
+  border-radius: $border-radius !important;
+}
+
+// Utility Classes
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-muted {
+  color: $text-muted;
+}
+
+.text-small {
+  font-size: $font-size-sm;
+}
+
+.text-large {
+  font-size: $font-size-lg;
+}
+
+.mt-1 { margin-top: $spacing-sm; }
+.mt-2 { margin-top: $spacing-md; }
+.mt-3 { margin-top: $spacing-lg; }
+.mt-4 { margin-top: $spacing-xl; }
+
+.mb-1 { margin-bottom: $spacing-sm; }
+.mb-2 { margin-bottom: $spacing-md; }
+.mb-3 { margin-bottom: $spacing-lg; }
+.mb-4 { margin-bottom: $spacing-xl; }
+
+.p-1 { padding: $spacing-sm; }
+.p-2 { padding: $spacing-md; }
+.p-3 { padding: $spacing-lg; }
+.p-4 { padding: $spacing-xl; }
+
+// Flex utilities
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+// Loading states
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+// Animations
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+// Responsive utilities
+@media (max-width: $breakpoint-md) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: $breakpoint-md) {
+  .hide-desktop {
+    display: none !important;
+  }
+}

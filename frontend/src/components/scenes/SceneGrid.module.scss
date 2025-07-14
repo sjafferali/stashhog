@@ -1,0 +1,13 @@
+.sceneGrid {
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+  
+  .listContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

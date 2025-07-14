@@ -1,0 +1,214 @@
+import React, { useState } from 'react';
+import { Button, Dropdown, Modal, Progress, Space, Typography, message } from 'antd';
+import { SyncOutlined, DownOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import api from '@/services/api';
+import { SyncStatus, Job } from '@/types/models';
+import type { MenuProps } from 'antd';
+
+dayjs.extend(relativeTime);
+
+const { Text } = Typography;
+
+interface SyncButtonProps {
+  onSyncComplete?: () => void;
+}
+
+export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
+  const queryClient = useQueryClient();
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
+  const [currentJob, setCurrentJob] = useState<Job | null>(null);
+
+  // Fetch sync status
+  const { data: syncStatus } = useQuery<SyncStatus>(
+    'sync-status',
+    async () => {
+      const response = await api.get('/api/sync/status');
+      return response.data;
+    },
+    {
+      refetchInterval: (data) => {
+        // Refetch every 2 seconds if syncing
+        return data?.is_syncing ? 2000 : false;
+      },
+    }
+  );
+
+  // Sync mutation
+  const syncMutation = useMutation(
+    async (fullSync: boolean) => {
+      const response = await api.post('/api/sync/start', {
+        full_sync: fullSync,
+        sync_scenes: true,
+        sync_performers: true,
+        sync_tags: true,
+        sync_studios: true,
+      });
+      return response.data;
+    },
+    {
+      onSuccess: (data) => {
+        setCurrentJob(data.job);
+        setSyncModalVisible(true);
+        message.success('Sync started');
+        queryClient.invalidateQueries('sync-status');
+      },
+      onError: () => {
+        message.error('Failed to start sync');
+      },
+    }
+  );
+
+  // Poll job status
+  useQuery(
+    ['job', currentJob?.id],
+    async () => {
+      if (!currentJob?.id) return null;
+      const response = await api.get(`/api/jobs/${currentJob.id}`);
+      return response.data;
+    },
+    {
+      enabled: !!currentJob?.id && currentJob.status !== 'completed' && currentJob.status !== 'failed',
+      refetchInterval: 1000,
+      onSuccess: (data: Job) => {
+        if (data) {
+          setCurrentJob(data);
+          if (data.status === 'completed') {
+            message.success('Sync completed successfully');
+            setSyncModalVisible(false);
+            queryClient.invalidateQueries(['scenes']);
+            queryClient.invalidateQueries(['sync-status']);
+            onSyncComplete?.();
+          } else if (data.status === 'failed') {
+            message.error('Sync failed: ' + (data.error || 'Unknown error'));
+            setSyncModalVisible(false);
+          }
+        }
+      },
+    }
+  );
+
+  const handleFullSync = () => {
+    Modal.confirm({
+      title: 'Full Sync',
+      content: 'This will sync all data from Stash. This may take a while. Continue?',
+      onOk: () => syncMutation.mutate(true),
+    });
+  };
+
+  const handleIncrementalSync = () => {
+    syncMutation.mutate(false);
+  };
+
+  const syncMenuItems: MenuProps['items'] = [
+    {
+      key: 'incremental',
+      label: 'Quick Sync',
+      icon: <SyncOutlined />,
+      onClick: handleIncrementalSync,
+    },
+    {
+      key: 'full',
+      label: 'Full Sync',
+      icon: <SyncOutlined />,
+      onClick: handleFullSync,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'last-sync',
+      label: syncStatus?.last_sync ? (
+        <Space>
+          <ClockCircleOutlined />
+          <Text type="secondary">
+            Last sync: {dayjs(syncStatus.last_sync).fromNow()}
+          </Text>
+        </Space>
+      ) : (
+        <Text type="secondary">Never synced</Text>
+      ),
+      disabled: true,
+    },
+  ];
+
+  const isLoading = syncMutation.isLoading || syncStatus?.is_syncing;
+
+  return (
+    <>
+      <Dropdown menu={{ items: syncMenuItems }} placement="bottomRight">
+        <Button
+          icon={<SyncOutlined spin={isLoading} />}
+          loading={isLoading}
+          disabled={syncStatus?.is_syncing}
+        >
+          <Space>
+            Sync
+            <DownOutlined />
+          </Space>
+        </Button>
+      </Dropdown>
+
+      <Modal
+        title="Sync Progress"
+        open={syncModalVisible}
+        onCancel={() => setSyncModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setSyncModalVisible(false)}>
+            Close
+          </Button>,
+        ]}
+        width={600}
+      >
+        {currentJob && (
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <div>
+              <Text strong>Status: </Text>
+              <Text>{currentJob.status}</Text>
+            </div>
+
+            {currentJob.total > 0 && (
+              <>
+                <Progress
+                  percent={Math.round((currentJob.progress / currentJob.total) * 100)}
+                  status={
+                    currentJob.status === 'failed' ? 'exception' :
+                    currentJob.status === 'completed' ? 'success' : 'active'
+                  }
+                />
+                <div>
+                  <Text>
+                    {currentJob.progress} / {currentJob.total} items processed
+                  </Text>
+                </div>
+              </>
+            )}
+
+            {currentJob.metadata && (
+              <div>
+                <Text strong>Details:</Text>
+                <pre style={{ 
+                  background: '#f5f5f5', 
+                  padding: '8px', 
+                  borderRadius: '4px',
+                  fontSize: '12px'
+                }}>
+                  {JSON.stringify(currentJob.metadata, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {currentJob.error && (
+              <div>
+                <Text type="danger" strong>Error: </Text>
+                <Text type="danger">{currentJob.error}</Text>
+              </div>
+            )}
+          </Space>
+        )}
+      </Modal>
+    </>
+  );
+};

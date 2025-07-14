@@ -1,0 +1,47 @@
+.analysisOptionsForm {
+  .presetsCard {
+    margin-bottom: 16px;
+    background: #f0f2f5;
+    
+    .presetTag {
+      cursor: pointer;
+      transition: all 0.3s;
+      
+      &:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+    }
+  }
+  
+  .card {
+    margin-bottom: 16px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .presetActions {
+    margin-top: 16px;
+    text-align: center;
+  }
+  
+  :global {
+    .ant-collapse-ghost > .ant-collapse-item > .ant-collapse-header {
+      padding-left: 0;
+    }
+    
+    .ant-form-item {
+      margin-bottom: 16px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
+    .ant-switch {
+      margin-right: 8px;
+    }
+  }
+}

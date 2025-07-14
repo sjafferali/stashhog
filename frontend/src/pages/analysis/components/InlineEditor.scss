@@ -1,0 +1,58 @@
+.inline-editor {
+  position: relative;
+  width: 100%;
+  
+  &.array-editor {
+    .array-items {
+      margin-bottom: 8px;
+      min-height: 32px;
+      padding: 4px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      background-color: #fafafa;
+      
+      .ant-tag {
+        margin: 2px 4px;
+      }
+    }
+  }
+  
+  &.date-editor {
+    .ant-picker {
+      width: 200px;
+    }
+  }
+  
+  &.select-editor {
+    .ant-select {
+      min-width: 200px;
+    }
+  }
+  
+  &.textarea-editor {
+    .ant-input-textarea {
+      margin-bottom: 8px;
+    }
+  }
+  
+  .error-message {
+    color: #ff4d4f;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  
+  // Compact mode adjustments
+  .ant-space-compact {
+    .ant-btn {
+      &.ant-btn-primary {
+        background-color: #52c41a;
+        border-color: #52c41a;
+        
+        &:hover {
+          background-color: #73d13d;
+          border-color: #73d13d;
+        }
+      }
+    }
+  }
+}

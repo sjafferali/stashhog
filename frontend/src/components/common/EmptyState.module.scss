@@ -1,0 +1,22 @@
+.emptyState {
+  padding: 40px 0;
+  
+  .content {
+    text-align: center;
+  }
+  
+  .title {
+    font-size: 16px;
+    margin: 0 0 8px;
+    color: rgba(0, 0, 0, 0.85);
+  }
+  
+  .description {
+    color: rgba(0, 0, 0, 0.45);
+    margin: 0 0 16px;
+  }
+  
+  .action {
+    margin-top: 16px;
+  }
+}

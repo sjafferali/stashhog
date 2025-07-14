@@ -1,0 +1,28 @@
+.jobList {
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 4px;
+    flex-wrap: wrap;
+    
+    > div {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+  }
+  
+  .list {
+    margin-bottom: 24px;
+  }
+  
+  .pagination {
+    text-align: center;
+  }
+}

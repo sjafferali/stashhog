@@ -1,0 +1,92 @@
+.sceneChangesList {
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 8px 16px;
+    background: #fafafa;
+    border-radius: 4px;
+  }
+}
+
+.collapse {
+  :global {
+    .ant-collapse-header {
+      padding: 0 !important;
+    }
+    
+    .ant-collapse-content-box {
+      padding: 0 !important;
+    }
+  }
+}
+
+.panel {
+  margin-bottom: 8px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.sceneHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  width: 100%;
+  
+  &.selected {
+    background: #e6f7ff;
+  }
+  
+  &:hover {
+    background: #f5f5f5;
+  }
+  
+  .thumbnail {
+    flex-shrink: 0;
+  }
+  
+  .sceneInfo {
+    flex: 1;
+    min-width: 0;
+    
+    .sceneTitle {
+      margin: 0 !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  
+  .actions {
+    flex-shrink: 0;
+  }
+}
+
+.selectedCard {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.changeItem {
+  padding: 8px 16px;
+  
+  .changeContent {
+    width: 100%;
+  }
+  
+  .changeValues {
+    margin-top: 4px;
+    font-size: 12px;
+    
+    > span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
