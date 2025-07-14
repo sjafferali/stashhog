@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: stashhog-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    environment:
+      - APP_NAME=StashHog
+      - APP_ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - DATABASE_URL=sqlite:////data/stashhog_dev.db
+      - STASH_URL=${STASH_URL:-http://host.docker.internal:9999}
+      - STASH_API_KEY=${STASH_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - JWT_SECRET_KEY=dev-jwt-secret-change-in-production
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    networks:
+      - stashhog-network
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: stashhog-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - frontend-cache:/root/.cache
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+      - VITE_APP_NAME=StashHog
+      - VITE_APP_ENV=development
+      - NODE_ENV=development
+    command: npm run dev -- --host
+    networks:
+      - stashhog-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add Redis for caching in development
+  redis:
+    image: redis:7-alpine
+    container_name: stashhog-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - stashhog-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Add nginx for testing production-like setup
+  nginx:
+    image: nginx:alpine
+    container_name: stashhog-nginx-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/dist:/app/frontend/dist:ro
+    networks:
+      - stashhog-network
+    depends_on:
+      - backend
+      - frontend
+    profiles:
+      - with-nginx
+
+  # Optional: Database viewer
+  adminer:
+    image: adminer:latest
+    container_name: stashhog-adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - stashhog-network
+    profiles:
+      - tools
+
+volumes:
+  backend-cache:
+  frontend-cache:
+  redis-data:
+
+networks:
+  stashhog-network:
+    driver: bridge

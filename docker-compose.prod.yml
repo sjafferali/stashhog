@@ -1,0 +1,142 @@
+version: '3.8'
+
+# Production Docker Compose configuration
+# This runs the single production container with proper volumes and networking
+
+services:
+  stashhog:
+    image: stashhog/stashhog:${VERSION:-latest}
+    container_name: stashhog
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - stashhog-data:/data
+      - stashhog-logs:/logs
+    environment:
+      # Application
+      - APP_ENV=production
+      - APP_NAME=${APP_NAME:-StashHog}
+      - DEBUG=false
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      
+      # Security (MUST be changed in production!)
+      - SECRET_KEY=${SECRET_KEY:?Please set SECRET_KEY in .env file}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Please set JWT_SECRET_KEY in .env file}
+      
+      # Database
+      - DATABASE_URL=sqlite:////data/stashhog.db
+      
+      # API Configuration
+      - API_WORKERS=${API_WORKERS:-4}
+      
+      # Stash Integration
+      - STASH_URL=${STASH_URL:-http://stash:9999}
+      - STASH_API_KEY=${STASH_API_KEY}
+      
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Optional Admin User Creation
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+    
+    healthcheck:
+      test: ["/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - stashhog-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: Backup service
+  backup:
+    image: alpine:latest
+    container_name: stashhog-backup
+    profiles:
+      - backup
+    volumes:
+      - stashhog-data:/data:ro
+      - ./backups:/backups
+    environment:
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+    command: |
+      sh -c '
+        apk add --no-cache sqlite
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          echo "Creating backup: stashhog_$$timestamp.db"
+          sqlite3 /data/stashhog.db ".backup /backups/stashhog_$$timestamp.db"
+          
+          # Clean old backups
+          find /backups -name "stashhog_*.db" -mtime +$$BACKUP_RETENTION_DAYS -delete
+          
+          echo "Backup completed. Next backup in 24 hours."
+          sleep 86400
+        done
+      '
+    networks:
+      - stashhog-network
+
+  # Optional: Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: stashhog-prometheus
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - stashhog-network
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: stashhog-grafana
+    profiles:
+      - monitoring
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - stashhog-network
+
+volumes:
+  stashhog-data:
+    driver: local
+  stashhog-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  stashhog-network:
+    driver: bridge

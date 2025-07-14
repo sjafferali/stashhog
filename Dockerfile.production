@@ -1,0 +1,122 @@
+# Production Multi-stage Dockerfile for StashHog
+# Optimized for performance, security, and single-container deployment
+
+# Stage 1: Frontend Builder
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies with frozen lockfile
+RUN npm ci --frozen-lockfile
+
+# Copy source code
+COPY frontend/ ./
+
+# Build production bundle with optimizations
+ENV NODE_ENV=production
+RUN npm run build
+
+# Stage 2: Backend Builder
+FROM python:3.11-slim AS backend-builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    python3-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY backend/requirements.txt ./
+RUN pip install --user --no-cache-dir --no-warn-script-location -r requirements.txt
+
+# Copy backend source
+COPY backend/ ./backend/
+
+# Compile Python files for optimization
+RUN python -m compileall -b ./backend/
+
+# Stage 3: Production Image
+FROM python:3.11-slim AS production
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash appuser
+
+# Create necessary directories
+RUN mkdir -p /app /data /logs /run/nginx /var/log/supervisor \
+    && chown -R appuser:appuser /app /data /logs /run/nginx /var/log/supervisor
+
+WORKDIR /app
+
+# Copy Python dependencies from builder
+COPY --from=backend-builder --chown=appuser:appuser /root/.local /home/appuser/.local
+
+# Copy compiled backend code
+COPY --from=backend-builder --chown=appuser:appuser /app/backend ./backend
+
+# Copy frontend build
+COPY --from=frontend-builder --chown=appuser:appuser /app/dist ./frontend/dist
+
+# Copy configuration files
+COPY --chown=appuser:appuser nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=appuser:appuser supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY --chown=appuser:appuser scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=appuser:appuser scripts/healthcheck.sh /usr/local/bin/healthcheck.sh
+
+# Make scripts executable
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh
+
+# Set environment variables
+ENV PYTHONPATH=/app/backend \
+    PATH=/home/appuser/.local/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=production \
+    APP_DATA_DIR=/data \
+    APP_LOG_DIR=/logs
+
+# Create volume mount points
+VOLUME ["/data", "/logs"]
+
+# Expose port
+EXPOSE 80
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /usr/local/bin/healthcheck.sh || exit 1
+
+# Set build arguments for labels
+ARG BUILD_DATE
+ARG VERSION
+ARG VCS_REF
+
+# Labels
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.title="StashHog" \
+      org.opencontainers.image.description="AI-powered content tagging for Stash - Production Image" \
+      org.opencontainers.image.vendor="StashHog Project" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.source="https://github.com/stashhog/stashhog" \
+      maintainer="StashHog Team"
+
+# Start the application
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
