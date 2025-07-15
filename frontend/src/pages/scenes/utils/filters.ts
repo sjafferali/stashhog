@@ -28,41 +28,35 @@ export function buildFilterQuery(filters: SceneFilters): URLSearchParams {
 export function parseFilterQuery(params: URLSearchParams): SceneFilters {
   const filters: SceneFilters = {
     search: params.get('search') || '',
-    performers: [],
-    tags: [],
-    studios: [],
+    performer_ids: [],
+    tag_ids: [],
+    studio_id: undefined,
     organized: undefined,
-    has_details: undefined,
     date_from: params.get('date_from') || '',
     date_to: params.get('date_to') || '',
-    path_contains: params.get('path_contains') || '',
   };
 
   // Parse array values
-  const performers = params.get('performers');
-  if (performers) {
-    filters.performers = performers.split(',').filter(Boolean);
+  const performerIds = params.get('performer_ids');
+  if (performerIds) {
+    filters.performer_ids = performerIds.split(',').filter(Boolean);
   }
 
-  const tags = params.get('tags');
-  if (tags) {
-    filters.tags = tags.split(',').filter(Boolean);
+  const tagIds = params.get('tag_ids');
+  if (tagIds) {
+    filters.tag_ids = tagIds.split(',').filter(Boolean);
   }
 
-  const studios = params.get('studios');
-  if (studios) {
-    filters.studios = studios.split(',').filter(Boolean);
+  // Parse single studio ID
+  const studioId = params.get('studio_id');
+  if (studioId) {
+    filters.studio_id = studioId;
   }
 
   // Parse boolean values
   const organized = params.get('organized');
   if (organized !== null) {
     filters.organized = organized === 'true';
-  }
-
-  const hasDetails = params.get('has_details');
-  if (hasDetails !== null) {
-    filters.has_details = hasDetails === 'true';
   }
 
   return filters;
@@ -73,24 +67,21 @@ export function getActiveFilterCount(filters: SceneFilters): number {
 
   if (filters.search) count++;
   if (
-    filters.performers &&
-    Array.isArray(filters.performers) &&
-    filters.performers.length > 0
+    filters.performer_ids &&
+    Array.isArray(filters.performer_ids) &&
+    filters.performer_ids.length > 0
   )
-    count++;
-  if (filters.tags && Array.isArray(filters.tags) && filters.tags.length > 0)
     count++;
   if (
-    filters.studios &&
-    Array.isArray(filters.studios) &&
-    filters.studios.length > 0
+    filters.tag_ids &&
+    Array.isArray(filters.tag_ids) &&
+    filters.tag_ids.length > 0
   )
     count++;
+  if (filters.studio_id) count++;
   if (filters.organized !== undefined) count++;
-  if (filters.has_details !== undefined) count++;
   if (filters.date_from) count++;
   if (filters.date_to) count++;
-  if (filters.path_contains) count++;
 
   return count;
 }
@@ -98,14 +89,12 @@ export function getActiveFilterCount(filters: SceneFilters): number {
 export function getDefaultFilters(): SceneFilters {
   return {
     search: '',
-    performers: [],
-    tags: [],
-    studios: [],
+    performer_ids: [],
+    tag_ids: [],
+    studio_id: undefined,
     organized: undefined,
-    has_details: undefined,
     date_from: '',
     date_to: '',
-    path_contains: '',
   };
 }
 
@@ -117,9 +106,10 @@ export function mergeWithQueryParams(
     ...filters,
     ...queryParams,
     // Ensure arrays are properly merged
-    performers: Array.isArray(filters.performers) ? filters.performers : [],
-    tags: Array.isArray(filters.tags) ? filters.tags : [],
-    studios: Array.isArray(filters.studios) ? filters.studios : [],
+    performer_ids: Array.isArray(filters.performer_ids)
+      ? filters.performer_ids
+      : [],
+    tag_ids: Array.isArray(filters.tag_ids) ? filters.tag_ids : [],
   };
 }
 
@@ -127,14 +117,12 @@ export function mergeWithQueryParams(
 export function getFilterDisplayName(key: string | number): string {
   const displayNames: Record<string, string> = {
     search: 'Search',
-    performers: 'Performers',
-    tags: 'Tags',
-    studios: 'Studios',
+    performer_ids: 'Performers',
+    tag_ids: 'Tags',
+    studio_id: 'Studio',
     organized: 'Organized',
-    has_details: 'Has Details',
     date_from: 'Date From',
     date_to: 'Date To',
-    path_contains: 'Path Contains',
   };
 
   return displayNames[key as string] || String(key);

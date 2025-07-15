@@ -59,7 +59,7 @@ export const ListView: React.FC<ListViewProps> = ({
   } = useScenesStore();
 
   const sortBy = searchParams.get('sort_by') || 'created_at';
-  const sortDir = searchParams.get('sort_dir') || 'desc';
+  const sortOrder = searchParams.get('sort_order') || 'desc';
 
   const handleSortChange = useCallback(
     (column: string) => {
@@ -67,16 +67,16 @@ export const ListView: React.FC<ListViewProps> = ({
 
       if (sortBy === column) {
         // Toggle direction if same column
-        params.set('sort_dir', sortDir === 'asc' ? 'desc' : 'asc');
+        params.set('sort_order', sortOrder === 'asc' ? 'desc' : 'asc');
       } else {
         // New column, default to desc
         params.set('sort_by', column);
-        params.set('sort_dir', 'desc');
+        params.set('sort_order', 'desc');
       }
 
       setSearchParams(params);
     },
-    [searchParams, setSearchParams, sortBy, sortDir]
+    [searchParams, setSearchParams, sortBy, sortOrder]
   );
 
   const columns: ColumnsType<Scene> = useMemo(
@@ -135,7 +135,7 @@ export const ListView: React.FC<ListViewProps> = ({
         sorter: true,
         sortOrder:
           sortBy === 'title'
-            ? sortDir === 'asc'
+            ? sortOrder === 'asc'
               ? 'ascend'
               : 'descend'
             : null,
@@ -199,7 +199,11 @@ export const ListView: React.FC<ListViewProps> = ({
         width: 120,
         sorter: true,
         sortOrder:
-          sortBy === 'date' ? (sortDir === 'asc' ? 'ascend' : 'descend') : null,
+          sortBy === 'date'
+            ? sortOrder === 'asc'
+              ? 'ascend'
+              : 'descend'
+            : null,
         render: (date: string | null) =>
           date ? dayjs(date).format('YYYY-MM-DD') : 'N/A',
       },
@@ -211,7 +215,7 @@ export const ListView: React.FC<ListViewProps> = ({
         sorter: true,
         sortOrder:
           sortBy === 'duration'
-            ? sortDir === 'asc'
+            ? sortOrder === 'asc'
               ? 'ascend'
               : 'descend'
             : null,
@@ -275,7 +279,7 @@ export const ListView: React.FC<ListViewProps> = ({
       scenes,
       selectedScenes,
       sortBy,
-      sortDir,
+      sortOrder,
       onSceneSelect,
       toggleSceneSelection,
       selectAllScenes,

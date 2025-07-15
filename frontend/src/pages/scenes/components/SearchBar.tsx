@@ -47,10 +47,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     // Clear all filter-related params but keep pagination
     const params = new URLSearchParams();
     const page = searchParams.get('page');
-    const size = searchParams.get('size');
+    const perPage = searchParams.get('per_page');
 
     if (page) params.set('page', page);
-    if (size) params.set('size', size);
+    if (perPage) params.set('per_page', perPage);
 
     setSearchParams(params);
     setSearchValue('');

@@ -4,19 +4,17 @@ import { SceneQueryParams } from './useScenes';
 
 export type SceneFilters = Omit<
   SceneQueryParams,
-  'page' | 'size' | 'sort_by' | 'sort_dir'
+  'page' | 'per_page' | 'sort_by' | 'sort_order'
 >;
 
 const DEFAULT_FILTERS: SceneFilters = {
   search: '',
-  performers: [],
-  tags: [],
-  studios: [],
+  performer_ids: [],
+  tag_ids: [],
+  studio_id: undefined,
   organized: undefined,
-  has_details: undefined,
   date_from: '',
   date_to: '',
-  path_contains: '',
 };
 
 export function useSceneFilters() {
@@ -28,7 +26,6 @@ export function useSceneFilters() {
 
     // String filters
     params.search = searchParams.get('search') || '';
-    params.path_contains = searchParams.get('path_contains') || '';
     params.date_from = searchParams.get('date_from') || '';
     params.date_to = searchParams.get('date_to') || '';
 
@@ -38,25 +35,21 @@ export function useSceneFilters() {
       params.organized = organized === 'true';
     }
 
-    const hasDetails = searchParams.get('has_details');
-    if (hasDetails !== null) {
-      params.has_details = hasDetails === 'true';
-    }
-
     // Array filters (comma-separated IDs)
-    const performers = searchParams.get('performers');
-    if (performers) {
-      params.performers = performers.split(',').filter(Boolean);
+    const performerIds = searchParams.get('performer_ids');
+    if (performerIds) {
+      params.performer_ids = performerIds.split(',').filter(Boolean);
     }
 
-    const tags = searchParams.get('tags');
-    if (tags) {
-      params.tags = tags.split(',').filter(Boolean);
+    const tagIds = searchParams.get('tag_ids');
+    if (tagIds) {
+      params.tag_ids = tagIds.split(',').filter(Boolean);
     }
 
-    const studios = searchParams.get('studios');
-    if (studios) {
-      params.studios = studios.split(',').filter(Boolean);
+    // Single studio ID
+    const studioId = searchParams.get('studio_id');
+    if (studioId) {
+      params.studio_id = studioId;
     }
 
     return params;
@@ -119,7 +112,7 @@ export function useSceneFilters() {
   const resetFilters = () => {
     const newParams = new URLSearchParams();
     // Preserve pagination/sort params if they exist
-    ['page', 'size', 'sort_by', 'sort_dir'].forEach((key) => {
+    ['page', 'per_page', 'sort_by', 'sort_order'].forEach((key) => {
       const value = searchParams.get(key);
       if (value) {
         newParams.set(key, value);
@@ -133,24 +126,21 @@ export function useSceneFilters() {
     let count = 0;
     if (filters.search) count++;
     if (
-      filters.performers &&
-      Array.isArray(filters.performers) &&
-      filters.performers.length > 0
+      filters.performer_ids &&
+      Array.isArray(filters.performer_ids) &&
+      filters.performer_ids.length > 0
     )
-      count++;
-    if (filters.tags && Array.isArray(filters.tags) && filters.tags.length > 0)
       count++;
     if (
-      filters.studios &&
-      Array.isArray(filters.studios) &&
-      filters.studios.length > 0
+      filters.tag_ids &&
+      Array.isArray(filters.tag_ids) &&
+      filters.tag_ids.length > 0
     )
       count++;
+    if (filters.studio_id) count++;
     if (filters.organized !== undefined) count++;
-    if (filters.has_details !== undefined) count++;
     if (filters.date_from) count++;
     if (filters.date_to) count++;
-    if (filters.path_contains) count++;
     return count;
   }, [filters]);
 

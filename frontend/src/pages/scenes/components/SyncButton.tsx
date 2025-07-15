@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import api from '@/services/api';
+import apiClient from '@/services/apiClient';
 import { SyncStatus, Job } from '@/types/models';
 import type { MenuProps } from 'antd';
 
@@ -36,10 +37,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   // Fetch sync status
   const { data: syncStatus } = useQuery<SyncStatus>(
     'sync-status',
-    async () => {
-      const response = await api.get('/sync/status');
-      return response.data;
-    },
+    () => apiClient.getSyncStatus(),
     {
       refetchInterval: (data) => {
         // Refetch every 2 seconds if syncing
@@ -51,18 +49,15 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   // Sync mutation
   const syncMutation = useMutation(
     async (fullSync: boolean) => {
-      const response = await api.post('/sync/start', {
-        full_sync: fullSync,
-        sync_scenes: true,
-        sync_performers: true,
-        sync_tags: true,
-        sync_studios: true,
+      // Call the sync endpoint with force parameter for full sync
+      const response = await api.post('/sync/all', null, {
+        params: { force: fullSync },
       });
       return response.data;
     },
     {
       onSuccess: (data) => {
-        setCurrentJob(data.job);
+        setCurrentJob(data); // The response is the job itself
         setSyncModalVisible(true);
         void message.success('Sync started');
         void queryClient.invalidateQueries('sync-status');

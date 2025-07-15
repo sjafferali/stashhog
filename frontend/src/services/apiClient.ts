@@ -156,12 +156,12 @@ class ApiClient {
 
   // Sync
   async getSyncStatus(): Promise<SyncStatus> {
-    const response = await api.get('/sync/status');
+    const response = await api.get('/sync/stats');
     return response.data;
   }
 
   async startSync(): Promise<Job> {
-    const response = await api.post('/sync/start');
+    const response = await api.post('/sync/all');
     return response.data;
   }
 

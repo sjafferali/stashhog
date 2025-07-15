@@ -183,15 +183,15 @@ export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
-  size: number;
+  per_page: number;
   pages: number;
 }
 
 export interface FilterParams {
   page?: number;
-  size?: number;
+  per_page?: number;
   search?: string;
   sort_by?: string;
-  sort_dir?: 'asc' | 'desc';
+  sort_order?: 'asc' | 'desc';
   [key: string]: string | number | boolean | string[] | undefined;
 }

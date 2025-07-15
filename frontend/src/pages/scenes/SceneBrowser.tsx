@@ -31,20 +31,22 @@ const SceneBrowser: React.FC = () => {
 
   // Pagination state from URL
   const page = parseInt(searchParams.get('page') || '1', 10);
-  const pageSize = parseInt(searchParams.get('size') || '20', 10);
+  const pageSize = parseInt(searchParams.get('per_page') || '20', 10);
   const sortBy = searchParams.get('sort_by') || 'created_at';
-  const sortDir = (searchParams.get('sort_dir') || 'desc') as 'asc' | 'desc';
+  const sortOrder = (searchParams.get('sort_order') || 'desc') as
+    | 'asc'
+    | 'desc';
 
   // Build query params
   const queryParams = useMemo(
     () =>
       mergeWithQueryParams(filters, {
         page,
-        size: pageSize,
+        per_page: pageSize,
         sort_by: sortBy,
-        sort_dir: sortDir,
+        sort_order: sortOrder,
       }),
-    [filters, page, pageSize, sortBy, sortDir]
+    [filters, page, pageSize, sortBy, sortOrder]
   );
 
   // Fetch scenes
@@ -71,7 +73,7 @@ const SceneBrowser: React.FC = () => {
       const params = new URLSearchParams(searchParams);
       params.set('page', newPage.toString());
       if (newPageSize && newPageSize !== pageSize) {
-        params.set('size', newPageSize.toString());
+        params.set('per_page', newPageSize.toString());
       }
       setSearchParams(params);
     },
