@@ -66,7 +66,7 @@ jobs:
           npm test -- --watchAll=false --coverage
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./backend/coverage.xml,./frontend/coverage/lcov.info
           flags: unittests
