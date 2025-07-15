@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Backend Builder
-FROM python:3.11-slim AS backend-builder
+FROM python:3.13-slim AS backend-builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -43,7 +43,7 @@ COPY backend/ ./backend/
 RUN python -m compileall -b ./backend/
 
 # Stage 3: Production Image
-FROM python:3.11-slim AS production
+FROM python:3.13-slim AS production
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
