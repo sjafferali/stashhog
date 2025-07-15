@@ -154,13 +154,14 @@ def run_migrations() -> None:
                 with engine.begin() as conn:
                     conn.execute(text("SET statement_timeout = '300000'"))  # 5 minutes
                     logger.info("Set PostgreSQL statement timeout to 5 minutes")
-            
+
             command.upgrade(alembic_cfg, "head")
             logger.info("Database migrations completed successfully")
         except Exception as migration_error:
             logger.error(f"Migration failed with error: {migration_error}")
             logger.error(f"Error type: {type(migration_error).__name__}")
             import traceback
+
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 

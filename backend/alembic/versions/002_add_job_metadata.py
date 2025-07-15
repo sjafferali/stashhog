@@ -23,9 +23,9 @@ def upgrade() -> None:
     # Add metadata column to job table if it doesn't exist
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    columns = [col['name'] for col in inspector.get_columns('job')]
-    
-    if 'metadata' not in columns:
+    columns = [col["name"] for col in inspector.get_columns("job")]
+
+    if "metadata" not in columns:
         op.add_column(
             "job",
             sa.Column("metadata", sa.JSON(), nullable=True, default=dict),
@@ -34,7 +34,7 @@ def upgrade() -> None:
         print("Column 'metadata' already exists in 'job' table, skipping...")
 
     # For PostgreSQL, we need to handle enum updates differently
-    if conn.dialect.name == 'postgresql':
+    if conn.dialect.name == "postgresql":
         # Check existing enum values
         result = conn.execute(
             sa.text(
@@ -43,16 +43,23 @@ def upgrade() -> None:
             )
         )
         existing_values = {row[0] for row in result}
-        
+
         # Values to add
-        new_values = ['sync', 'sync_all', 'sync_scenes', 'sync_performers', 
-                      'sync_tags', 'sync_studios', 'generate_details']
-        
+        new_values = [
+            "sync",
+            "sync_all",
+            "sync_scenes",
+            "sync_performers",
+            "sync_tags",
+            "sync_studios",
+            "generate_details",
+        ]
+
         # Add only missing values
         for value in new_values:
             if value not in existing_values:
                 # Use raw SQL with proper transaction handling
-                conn.execute(sa.text(f"COMMIT"))  # Commit current transaction
+                conn.execute(sa.text("COMMIT"))  # Commit current transaction
                 conn.execute(sa.text(f"ALTER TYPE jobtype ADD VALUE '{value}'"))
     else:
         # For other databases, just log a warning
