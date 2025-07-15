@@ -54,14 +54,14 @@ WORKDIR /app
 COPY --from=backend-builder /root/.local /home/appuser/.local
 
 # Copy backend code
-COPY --chown=appuser:appuser backend/ ./backend/
+COPY --chown=appuser:appuser backend/ ./
 
-# Copy frontend build
-COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist ./frontend/dist
+# Copy frontend build to static directory
+COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist ./static
 
 # Set up environment
 ENV PATH=/home/appuser/.local/bin:$PATH \
-    PYTHONPATH=/app/backend
+    PYTHONPATH=/app
 
 # Switch to non-root user
 USER appuser
@@ -88,4 +88,4 @@ LABEL org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.licenses="MIT"
 
 # Start the application
-CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

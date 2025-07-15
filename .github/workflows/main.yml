@@ -256,59 +256,6 @@ jobs:
           type=sha,prefix=,suffix=,format=short
           type=raw,value=latest,enable={{is_default_branch}}
         
-    - name: Set up Node.js for frontend build
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-        
-    - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
-        
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
-        
-    - name: Copy frontend build to backend
-      run: |
-        # Create static directory in backend if it doesn't exist
-        mkdir -p backend/static
-        
-        # Copy built frontend files to backend static directory
-        cp -r frontend/build/* backend/static/
-        
-        # List contents to verify
-        echo "Contents of backend/static:"
-        ls -la backend/static/
-        
-    - name: Update static paths in index.html
-      run: |
-        cd backend/static
-        # Update paths to be relative to /static
-        sed -i 's|href="/|href="/static/|g' index.html
-        sed -i 's|src="/|src="/static/|g' index.html
-        
-        # Show the updated index.html for verification
-        echo "Updated index.html paths:"
-        grep -E '(href|src)="/static' index.html || true
-        
-    - name: Verify static files before Docker build
-      run: |
-        echo "Verifying static files structure..."
-        echo "Contents of backend/static:"
-        find backend/static -type f -name "*.js" -o -name "*.css" -o -name "*.html" | head -20
-        
-        if [ ! -f backend/static/index.html ]; then
-          echo "ERROR: index.html not found in backend/static!"
-          exit 1
-        fi
-        
-        echo "Static files successfully prepared for Docker build"
-        
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
