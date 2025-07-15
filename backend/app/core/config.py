@@ -94,7 +94,7 @@ class CORSSettings(BaseSettings):
     """CORS configuration settings."""
 
     origins: List[str] = Field(
-        ["http://localhost:3000", "http://localhost:5173"],
+        ["*"],
         description="Allowed origins",
     )
     credentials: bool = Field(True, description="Allow credentials")
