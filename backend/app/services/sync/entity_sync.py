@@ -214,7 +214,7 @@ class EntitySyncHandler:
         for tag in tags_with_parents:
             parent = db.query(Tag).filter(Tag.stash_id == tag.parent_stash_id).first()
             if parent:
-                tag.parent_id = parent.id  # type: ignore[assignment]
+                tag.parent_id = parent.id
             else:
                 logger.warning(
                     f"Parent tag {tag.parent_stash_id} not found for tag {tag.id}"
