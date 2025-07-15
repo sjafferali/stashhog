@@ -41,7 +41,7 @@ def map_job_type_to_schema(model_type: str) -> str:
     return mapping.get(model_type, model_type)
 
 
-@router.get("/", response_model=List[JobResponse])
+@router.get("", response_model=List[JobResponse])
 async def list_jobs(
     status: Optional[str] = Query(None, description="Filter by job status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
@@ -176,7 +176,7 @@ async def get_job(
     )
 
 
-@router.delete("/{job_id}")
+@router.post("/{job_id}/cancel")
 async def cancel_job(
     job_id: str,
     job_service: JobService = Depends(get_job_service),
@@ -307,3 +307,57 @@ async def job_progress_ws(  # type: ignore[no-untyped-def]
     finally:
         await manager.disconnect(websocket)
         await manager.unsubscribe_from_job(websocket, job_id)
+
+
+@router.post("/{job_id}/retry")
+async def retry_job(
+    job_id: str,
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Retry a failed or cancelled job.
+    """
+    # Get the original job from database
+    query = select(Job).where(Job.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
+        )
+
+    # Check if job can be retried
+    if job.status not in ["failed", "cancelled"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot retry a {job.status} job",
+        )
+
+    # Get job metadata
+    metadata_dict: Dict[str, Any] = (
+        job.job_metadata if isinstance(job.job_metadata, dict) else {}
+    )
+
+    # Create a new job with the same parameters
+    new_job_id = await job_service.create_job(
+        job_type=job.type,  # type: ignore[arg-type]
+        parameters=metadata_dict,
+        db=db,
+    )
+
+    # Start the job
+    success = await job_service.start_job(new_job_id, db)
+
+    if success:
+        return {
+            "success": True,
+            "message": f"Job {job_id} retried as new job {new_job_id}",
+            "new_job_id": new_job_id,
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retry job",
+        )

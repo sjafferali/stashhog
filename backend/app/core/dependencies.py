@@ -2,7 +2,7 @@
 Dependency injection functions for FastAPI.
 """
 
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Generator, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -159,7 +159,7 @@ def get_stash_service(settings: Settings = Depends(get_settings)) -> StashServic
 
 def get_sync_service(
     stash_service: StashService = Depends(get_stash_service),
-) -> SyncService:
+) -> Generator[SyncService, None, None]:
     """
     Get Sync service instance.
 
@@ -170,8 +170,16 @@ def get_sync_service(
         SyncService: Sync service instance
     """
     # Get a synchronous session for SyncService
-    db = next(get_sync_db())
-    return SyncService(stash_service=stash_service, db_session=db)
+    db_gen = get_sync_db()
+    db = next(db_gen)
+    try:
+        yield SyncService(stash_service=stash_service, db_session=db)
+    finally:
+        # Ensure the session is properly closed
+        try:
+            next(db_gen)
+        except StopIteration:
+            pass
 
 
 def get_analysis_service(

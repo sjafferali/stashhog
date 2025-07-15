@@ -165,10 +165,15 @@ class StashService:
         Returns:
             Tuple of (scenes list, total count)
         """
-        variables = {
+        # Build the filter for pagination
+        find_filter = {
             "page": page,
             "per_page": per_page,
-            "filter": filter or {},
+        }
+
+        variables = {
+            "filter": find_filter,
+            "scene_filter": filter or {},
             "sort": sort,
             "direction": "DESC" if sort else None,
         }
@@ -353,9 +358,13 @@ class StashService:
             return cached
 
         result = await self.execute_graphql(queries.GET_ALL_PERFORMERS)
-        performers = [
-            transformers.transform_performer(p) for p in result.get("allPerformers", [])
-        ]
+        raw_performers = result.get("allPerformers", [])
+
+        # Log for debugging
+        if not raw_performers:
+            logger.warning("No performers returned from Stash")
+
+        performers = [transformers.transform_performer(p) for p in raw_performers]
 
         # Cache the results
         self._entity_cache.set_performers(performers)
@@ -445,7 +454,13 @@ class StashService:
             return cached
 
         result = await self.execute_graphql(queries.GET_ALL_TAGS)
-        tags = [transformers.transform_tag(t) for t in result.get("allTags", [])]
+        raw_tags = result.get("allTags", [])
+
+        # Log for debugging
+        if not raw_tags:
+            logger.warning("No tags returned from Stash")
+
+        tags = [transformers.transform_tag(t) for t in raw_tags]
 
         # Cache the results
         self._entity_cache.set_tags(tags)
@@ -502,9 +517,13 @@ class StashService:
             return cached
 
         result = await self.execute_graphql(queries.GET_ALL_STUDIOS)
-        studios = [
-            transformers.transform_studio(s) for s in result.get("allStudios", [])
-        ]
+        raw_studios = result.get("allStudios", [])
+
+        # Log for debugging
+        if not raw_studios:
+            logger.warning("No studios returned from Stash")
+
+        studios = [transformers.transform_studio(s) for s in raw_studios]
 
         # Cache the results
         self._entity_cache.set_studios(studios)

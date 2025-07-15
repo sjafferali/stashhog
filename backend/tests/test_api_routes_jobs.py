@@ -130,7 +130,7 @@ class TestJobRoutes:
         mock_result.scalars.return_value = mock_scalars
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        response = client.get("/api/jobs/")
+        response = client.get("/api/jobs")
 
         assert response.status_code == 200
         data = response.json()
@@ -210,22 +210,46 @@ class TestJobRoutes:
         mock_job_service.get_job = AsyncMock(return_value=mock_job)
         mock_job_service.cancel_job = AsyncMock(return_value=True)
 
-        response = client.delete(f"/api/jobs/{mock_job.id}")
+        response = client.post(f"/api/jobs/{mock_job.id}/cancel")
 
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         mock_job_service.cancel_job.assert_called_once_with(str(mock_job.id), mock_db)
 
-    def test_retry_job(self, client, mock_job_service):
-        """Test retrying a failed job - endpoint doesn't exist."""
-        # Mock the job service to return None
-        mock_job_service.get_job = AsyncMock(return_value=None)
+    def test_retry_job(self, client, mock_db, mock_job_service):
+        """Test retrying a failed job."""
+        # Create a failed job to retry
+        failed_job = Mock(spec=Job)
+        failed_job.id = "test-id"
+        failed_job.type = JobType.SYNC_SCENES
+        failed_job.status = JobStatus.FAILED
+        failed_job.job_metadata = {"source": "api", "param1": "value1"}
+        failed_job.error = "Previous failure"
 
-        # This endpoint doesn't exist in the actual routes
+        # Mock database query to return the failed job
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = failed_job
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        # Mock job service to create and start a new job
+        new_job_id = str(uuid4())
+        mock_job_service.create_job = AsyncMock(return_value=new_job_id)
+        mock_job_service.start_job = AsyncMock(return_value=True)
+
         response = client.post("/api/jobs/test-id/retry")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["new_job_id"] == new_job_id
+        assert "retried as new job" in data["message"]
+
+        # Verify the job service was called correctly
+        mock_job_service.create_job.assert_called_once_with(
+            job_type=failed_job.type, parameters=failed_job.job_metadata, db=mock_db
+        )
+        mock_job_service.start_job.assert_called_once_with(new_job_id, mock_db)
 
     def test_get_job_logs(self, client, mock_job_service):
         """Test getting job logs - endpoint doesn't exist."""

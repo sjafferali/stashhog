@@ -298,7 +298,7 @@ class TestJobRoutes:
         app.dependency_overrides[get_job_service] = lambda: mock_job_service
 
         try:
-            response = client.delete("/api/jobs/job1")
+            response = client.post("/api/jobs/job1/cancel")
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True

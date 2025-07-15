@@ -5,7 +5,6 @@ Sync management endpoints.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
 
 from app.api.schemas import JobResponse
@@ -222,7 +221,6 @@ async def sync_studios(
 @router.post("/scene/{scene_id}", response_model=SyncResultResponse)
 async def sync_single_scene(
     scene_id: str,
-    db: AsyncSession = Depends(get_db),
     sync_service: SyncService = Depends(get_sync_service),
 ) -> SyncResultResponse:
     """
@@ -232,7 +230,6 @@ async def sync_single_scene(
 
     Args:
         scene_id: Scene ID to sync
-        db: Database session
         sync_service: Sync service instance
 
     Returns:
@@ -260,7 +257,7 @@ async def sync_single_scene(
 
 
 @router.get("/stats", response_model=SyncStatsResponse)
-async def get_sync_stats(db: AsyncSession = Depends(get_db)) -> SyncStatsResponse:
+async def get_sync_stats(db: AsyncDBSession = Depends(get_db)) -> SyncStatsResponse:
     """
     Get sync statistics.
 

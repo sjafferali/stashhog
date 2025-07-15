@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.tasks import TaskStatus, get_task_queue
 from app.models.job import Job, JobStatus, JobType
 from app.repositories.job_repository import job_repository
@@ -159,8 +158,9 @@ class JobService:
         message: Optional[str] = None,
     ) -> None:
         """Update job status in database and send WebSocket notification."""
-        db = next(get_db())
-        try:
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
             job = await job_repository.update_job_status(
                 job_id=job_id,
                 status=status,
@@ -183,8 +183,6 @@ class JobService:
                         "result": result,
                     },
                 )
-        finally:
-            db.close()
 
     async def _update_job_progress(
         self, job_id: str, progress: int, message: Optional[str] = None

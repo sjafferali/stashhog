@@ -366,15 +366,41 @@ class TestJobRoutes:
         mock_job_service.get_job = AsyncMock(return_value=job_mock)
         mock_job_service.cancel_job = AsyncMock(return_value=True)
 
-        response = client.delete("/api/jobs/j1")
+        response = client.post("/api/jobs/j1/cancel")
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
 
-    def test_retry_job(self, client):
-        """Test retrying a failed job - endpoint doesn't exist."""
+    def test_retry_job(self, client, mock_db, mock_job_service):
+        """Test retrying a failed job."""
+        # Mock the original job from database
+        mock_job = Mock(
+            spec=Job,
+            id="j1",
+            type=JobType.SYNC,
+            status=JobStatus.FAILED,
+            job_metadata={"param1": "value1"},
+            progress=0,
+            result=None,
+            error="Previous error",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+        )
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_job)
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        # Mock the job service to create and start a new job
+        mock_job_service.create_job = AsyncMock(return_value="new-job-id")
+        mock_job_service.start_job = AsyncMock(return_value=True)
+
         response = client.post("/api/jobs/j1/retry")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["new_job_id"] == "new-job-id"
 
 
 class TestAnalysisRoutes:
