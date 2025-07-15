@@ -53,7 +53,7 @@ class ScheduledTask(BaseModel):
     def is_valid_schedule(self) -> bool:
         """Check if the cron schedule is valid."""
         try:
-            croniter(self.schedule)
+            croniter(str(self.schedule))
             return True
         except (ValueError, TypeError):
             return False
@@ -72,8 +72,8 @@ class ScheduledTask(BaseModel):
             raise ValueError(f"Invalid cron schedule: {self.schedule}")
 
         base = base_time or datetime.utcnow()
-        cron = croniter(self.schedule, base)
-        return cron.get_next(datetime)  # type: ignore[no-any-return]
+        cron = croniter(str(self.schedule), base)
+        return cron.get_next(datetime)
 
     def update_next_run(self, base_time: Optional[datetime] = None) -> None:
         """Update the next_run field based on the schedule."""
