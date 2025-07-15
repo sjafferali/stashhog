@@ -233,7 +233,12 @@ const PlanDetail: React.FC = () => {
         type="error"
         showIcon
         action={
-          <Button size="small" onClick={() => navigate('/analysis/plans')}>
+          <Button
+            size="small"
+            onClick={() => {
+              void navigate('/analysis/plans');
+            }}
+          >
             Back to Plans
           </Button>
         }
@@ -248,7 +253,9 @@ const PlanDetail: React.FC = () => {
         <Space style={{ marginBottom: 8 }}>
           <Button
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/analysis/plans')}
+            onClick={() => {
+              void navigate('/analysis/plans');
+            }}
           >
             Back
           </Button>

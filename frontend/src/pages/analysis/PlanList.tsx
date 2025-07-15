@@ -21,7 +21,7 @@ const PlanList: React.FC = () => {
       title: 'Status',
       dataIndex: 'active',
       key: 'active',
-      render: (active: boolean) => (
+      render: (active: unknown) => (
         <Tag color={active ? 'green' : 'default'}>
           {active ? 'Active' : 'Inactive'}
         </Tag>
@@ -35,7 +35,9 @@ const PlanList: React.FC = () => {
           <Button
             type="link"
             icon={<EditOutlined />}
-            onClick={() => navigate(`/analysis/plans/${record.id}`)}
+            onClick={() => {
+              void navigate(`/analysis/plans/${record.id}`);
+            }}
           >
             Edit
           </Button>

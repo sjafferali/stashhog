@@ -80,14 +80,16 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({
               config.entity_types || ['scenes', 'performers', 'tags', 'studios']
             }
             onChange={(value: string[]) => handleChange('entity_types', value)}
-            options={[
-              { value: 'scenes', label: 'Scenes' },
-              { value: 'performers', label: 'Performers' },
-              { value: 'tags', label: 'Tags' },
-              { value: 'studios', label: 'Studios' },
-              { value: 'galleries', label: 'Galleries' },
-              { value: 'movies', label: 'Movies' },
-            ]}
+            options={
+              [
+                { value: 'scenes', label: 'Scenes' },
+                { value: 'performers', label: 'Performers' },
+                { value: 'tags', label: 'Tags' },
+                { value: 'studios', label: 'Studios' },
+                { value: 'galleries', label: 'Galleries' },
+                { value: 'movies', label: 'Movies' },
+              ] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+            }
           />
         </Space>
       </div>
@@ -295,19 +297,21 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({
             placeholder="Select what to clean up"
             value={config.cleanup_types || ['logs', 'temp_files']}
             onChange={(value: string[]) => handleChange('cleanup_types', value)}
-            options={[
-              { value: 'logs', label: 'Application Logs' },
-              { value: 'temp_files', label: 'Temporary Files' },
-              {
-                value: 'old_analysis',
-                label: 'Old Analysis Results',
-              },
-              {
-                value: 'orphaned_data',
-                label: 'Orphaned Database Records',
-              },
-              { value: 'cache', label: 'Cache Files' },
-            ]}
+            options={
+              [
+                { value: 'logs', label: 'Application Logs' },
+                { value: 'temp_files', label: 'Temporary Files' },
+                {
+                  value: 'old_analysis',
+                  label: 'Old Analysis Results',
+                },
+                {
+                  value: 'orphaned_data',
+                  label: 'Orphaned Database Records',
+                },
+                { value: 'cache', label: 'Cache Files' },
+              ] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+            }
           />
         </Space>
       </div>

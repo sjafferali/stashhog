@@ -73,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const handleMenuClick = ({ key }: { key: string }) => {
     // Only navigate if the key starts with '/' (is a route)
     if (key.startsWith('/')) {
-      navigate(key);
+      void navigate(key);
     }
   };
 

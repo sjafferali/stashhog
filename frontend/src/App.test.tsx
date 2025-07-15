@@ -12,11 +12,7 @@ describe('App Component', () => {
   });
 
   const renderApp = async () => {
-    const router = createMemoryRouter(routes, {
-      future: {
-        v7_relativeSplatPath: true,
-      },
-    });
+    const router = createMemoryRouter(routes);
 
     let result;
     await act(async () => {

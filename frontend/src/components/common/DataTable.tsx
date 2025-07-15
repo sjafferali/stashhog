@@ -1,9 +1,5 @@
 import { Table } from 'antd';
-import type {
-  TableProps,
-  ColumnsType,
-  TablePaginationConfig,
-} from 'antd/es/table';
+import type { TableProps, ColumnsType } from 'antd/es/table';
 import { EmptyState } from './EmptyState';
 import styles from './DataTable.module.scss';
 
@@ -12,7 +8,7 @@ export interface DataTableProps<T>
   columns: ColumnsType<T>;
   data: readonly T[];
   loading?: boolean;
-  pagination?: TablePaginationConfig | false;
+  pagination?: TableProps<T>['pagination'];
   onRow?: TableProps<T>['onRow'];
   emptyText?: string;
   emptyDescription?: string;
@@ -40,14 +36,14 @@ export function DataTable<T extends object>({
       columns={columns}
       dataSource={[...data]}
       loading={loading}
-      pagination={pagination}
+      pagination={pagination as any} // eslint-disable-line @typescript-eslint/no-explicit-any
       onRow={onRow}
       locale={{
         emptyText: (
           <EmptyState title={emptyText} description={emptyDescription} />
         ),
       }}
-      {...restProps}
+      {...(restProps as any)} // eslint-disable-line @typescript-eslint/no-explicit-any
     />
   );
 }

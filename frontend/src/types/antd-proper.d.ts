@@ -202,7 +202,7 @@ export interface TablePaginationConfig {
   current?: number;
   pageSize?: number;
   total?: number;
-  showSizeChanger?: boolean;
+  showSizeChanger?: boolean | SelectProps<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   showTotal?: (total: number, range: [number, number]) => ReactNode;
   onChange?: (page: number, pageSize: number) => void;
   onShowSizeChange?: (current: number, size: number) => void;

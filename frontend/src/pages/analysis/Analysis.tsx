@@ -47,7 +47,12 @@ const Analysis: React.FC = () => {
 
       <Card title="Quick Actions">
         <Space>
-          <Button type="primary" onClick={() => navigate('/analysis/plans')}>
+          <Button
+            type="primary"
+            onClick={() => {
+              void navigate('/analysis/plans');
+            }}
+          >
             Manage Plans
           </Button>
           <Button>Run Batch Analysis</Button>

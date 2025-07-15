@@ -16,7 +16,9 @@ const SceneDetail: React.FC = () => {
       <Space style={{ marginBottom: 16 }}>
         <Button
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/scenes')}
+          onClick={() => {
+            void navigate('/scenes');
+          }}
         >
           Back
         </Button>

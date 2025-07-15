@@ -95,7 +95,7 @@ const CronHelper: React.FC<CronHelperProps> = ({ expression }) => {
                   dataIndex: 'value',
                   key: 'value',
                   width: 80,
-                  render: (value) => <Tag color="blue">{value}</Tag>,
+                  render: (value) => <Tag color="blue">{String(value)}</Tag>,
                 },
                 {
                   title: 'Range',
@@ -128,7 +128,7 @@ const CronHelper: React.FC<CronHelperProps> = ({ expression }) => {
                 dataIndex: 'char',
                 key: 'char',
                 width: 100,
-                render: (char) => <Tag>{char}</Tag>,
+                render: (char) => <Tag>{String(char)}</Tag>,
               },
               {
                 title: 'Description',
@@ -150,7 +150,7 @@ const CronHelper: React.FC<CronHelperProps> = ({ expression }) => {
                 dataIndex: 'expression',
                 key: 'expression',
                 width: 150,
-                render: (expr) => <Tag color="green">{expr}</Tag>,
+                render: (expr) => <Tag color="green">{String(expr)}</Tag>,
               },
               {
                 title: 'Description',

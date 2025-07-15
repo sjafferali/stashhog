@@ -153,16 +153,18 @@ export const AdvancedFilters: React.FC = () => {
                 style={{ width: '100%' }}
                 filterOption={(
                   input: string,
-                  option?: { label?: React.ReactNode; value?: string }
+                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
                 ) =>
                   (typeof option?.label === 'string' &&
                     option.label.toLowerCase().includes(input.toLowerCase())) ||
                   false
                 }
-                options={performers?.map((p) => ({
-                  label: p.name,
-                  value: p.id.toString(),
-                }))}
+                options={
+                  performers?.map((p) => ({
+                    label: p.name,
+                    value: p.id.toString(),
+                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                }
                 maxTagCount="responsive"
               />
             </Spin>
@@ -190,16 +192,18 @@ export const AdvancedFilters: React.FC = () => {
                 style={{ width: '100%' }}
                 filterOption={(
                   input: string,
-                  option?: { label?: React.ReactNode; value?: string }
+                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
                 ) =>
                   (typeof option?.label === 'string' &&
                     option.label.toLowerCase().includes(input.toLowerCase())) ||
                   false
                 }
-                options={tags?.map((t) => ({
-                  label: t.name,
-                  value: t.id.toString(),
-                }))}
+                options={
+                  tags?.map((t) => ({
+                    label: t.name,
+                    value: t.id.toString(),
+                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                }
                 maxTagCount="responsive"
               />
             </Spin>
@@ -227,16 +231,18 @@ export const AdvancedFilters: React.FC = () => {
                 style={{ width: '100%' }}
                 filterOption={(
                   input: string,
-                  option?: { label?: React.ReactNode; value?: string }
+                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
                 ) =>
                   (typeof option?.label === 'string' &&
                     option.label.toLowerCase().includes(input.toLowerCase())) ||
                   false
                 }
-                options={studios?.map((s) => ({
-                  label: s.name,
-                  value: s.id.toString(),
-                }))}
+                options={
+                  studios?.map((s) => ({
+                    label: s.name,
+                    value: s.id.toString(),
+                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                }
                 maxTagCount="responsive"
               />
             </Spin>

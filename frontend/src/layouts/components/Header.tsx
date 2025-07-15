@@ -49,7 +49,9 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
           <Button
             type="text"
             icon={<SyncOutlined spin={isLoading} />}
-            onClick={() => navigate('/sync')}
+            onClick={() => {
+              void navigate('/sync');
+            }}
           />
         </Tooltip>
 
@@ -58,7 +60,9 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
             <Button
               type="text"
               icon={<BellOutlined />}
-              onClick={() => navigate('/jobs')}
+              onClick={() => {
+                void navigate('/jobs');
+              }}
             />
           </Badge>
         </Tooltip>
@@ -67,7 +71,9 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
           <Button
             type="text"
             icon={<SettingOutlined />}
-            onClick={() => navigate('/settings')}
+            onClick={() => {
+              void navigate('/settings');
+            }}
           />
         </Tooltip>
       </Space>

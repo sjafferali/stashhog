@@ -24,11 +24,7 @@ const theme = {
   },
 };
 
-const router = createBrowserRouter(routes, {
-  future: {
-    v7_relativeSplatPath: true,
-  },
-});
+const router = createBrowserRouter(routes);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

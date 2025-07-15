@@ -93,7 +93,7 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Schedule',
       dataIndex: 'schedule_id',
       key: 'schedule',
-      render: (schedule_id: number) => {
+      render: (schedule_id: unknown) => {
         const schedule = schedules.find((s) => s.id === schedule_id);
         return schedule ? (
           <Space direction="vertical" size={0}>
@@ -120,11 +120,11 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Started',
       dataIndex: 'started_at',
       key: 'started_at',
-      render: (date: string) => (
+      render: (date: unknown) => (
         <Space direction="vertical" size={0}>
-          <Text>{dayjs(date).format('YYYY-MM-DD HH:mm:ss')}</Text>
+          <Text>{dayjs(date as string).format('YYYY-MM-DD HH:mm:ss')}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {dayjs(date).fromNow()}
+            {dayjs(date as string).fromNow()}
           </Text>
         </Space>
       ),
@@ -136,7 +136,7 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Duration',
       dataIndex: 'duration',
       key: 'duration',
-      render: (duration: number | undefined, record: ScheduleRun) => {
+      render: (duration: unknown, record: ScheduleRun) => {
         if (record.status === 'running') {
           const elapsed = dayjs().diff(dayjs(record.started_at), 'second');
           return (
@@ -152,7 +152,7 @@ const RunHistory: React.FC<RunHistoryProps> = ({
             </Space>
           );
         }
-        return formatDuration(duration);
+        return formatDuration(duration as number | undefined);
       },
       sorter: (a: ScheduleRun, b: ScheduleRun) =>
         (a.duration || 0) - (b.duration || 0),
@@ -161,7 +161,8 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status: ScheduleRun['status']) => getStatusTag(status),
+      render: (status: unknown) =>
+        getStatusTag(status as ScheduleRun['status']),
       filters: [
         { text: 'Success', value: 'success' },
         { text: 'Failed', value: 'failed' },
@@ -175,8 +176,8 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Job ID',
       dataIndex: 'job_id',
       key: 'job_id',
-      render: (job_id?: string) =>
-        job_id ? (
+      render: (job_id: unknown) =>
+        job_id && typeof job_id === 'string' ? (
           <Tooltip title="View job details">
             <Button type="link" size="small">
               {job_id.substring(0, 8)}...
@@ -190,8 +191,8 @@ const RunHistory: React.FC<RunHistoryProps> = ({
       title: 'Error',
       dataIndex: 'error',
       key: 'error',
-      render: (error?: string) =>
-        error ? (
+      render: (error: unknown) =>
+        error && typeof error === 'string' ? (
           <Tooltip title={error}>
             <Text type="danger" ellipsis style={{ maxWidth: 200 }}>
               {error}

@@ -32,7 +32,7 @@ export function useWebSocket(
 
   const ws = useRef<WebSocket | null>(null);
   const reconnectCount = useRef(0);
-  const reconnectTimeout = useRef<NodeJS.Timeout>();
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const {
     reconnect = true,

@@ -17,17 +17,17 @@ const JobMonitor: React.FC = () => {
       title: 'Type',
       dataIndex: 'type',
       key: 'type',
-      render: (type: string) => {
+      render: (type: unknown) => {
         const color =
           type === 'sync' ? 'blue' : type === 'analysis' ? 'green' : 'purple';
-        return <Tag color={color}>{type.toUpperCase()}</Tag>;
+        return <Tag color={color}>{String(type).toUpperCase()}</Tag>;
       },
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
+      render: (status: unknown) => {
         const color =
           status === 'completed'
             ? 'green'
@@ -36,13 +36,16 @@ const JobMonitor: React.FC = () => {
               : status === 'running'
                 ? 'blue'
                 : 'default';
-        return <Tag color={color}>{status.toUpperCase()}</Tag>;
+        return <Tag color={color}>{String(status).toUpperCase()}</Tag>;
       },
     },
     {
       title: 'Progress',
       key: 'progress',
-      render: (record: { total: number; progress: number; status: string }) => (
+      render: (
+        _: unknown,
+        record: { total: number; progress: number; status: string }
+      ) => (
         <Progress
           percent={
             record.total > 0
@@ -56,7 +59,10 @@ const JobMonitor: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (record: { total: number; progress: number; status: string }) => (
+      render: (
+        _: unknown,
+        record: { total: number; progress: number; status: string }
+      ) => (
         <Space>
           {record.status === 'running' && (
             <Button
