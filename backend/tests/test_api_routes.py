@@ -1,7 +1,7 @@
 """Tests for API routes."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -187,15 +187,18 @@ class TestSceneRoutes:
 class TestJobRoutes:
     """Test job API routes."""
 
-    @patch("app.core.dependencies.JobService")
-    def test_list_jobs(self, mock_job_service_class, client, mock_db):
+    def test_list_jobs(self, client, mock_db):
         """Test listing jobs."""
         # Mock the JobService instance
+        from app.core.dependencies import get_job_service
+
         mock_job_service = Mock()
-        mock_job_service_class.return_value = mock_job_service
 
         # Mock active jobs from JobService
         mock_job_service.get_active_jobs = AsyncMock(return_value=[])
+
+        # Override the dependency
+        app.dependency_overrides[get_job_service] = lambda: mock_job_service
 
         # Mock database query for completed jobs
         from datetime import datetime
@@ -221,18 +224,22 @@ class TestJobRoutes:
         # Set up execute to return the jobs query result
         mock_db.execute.return_value = mock_jobs_result
 
-        response = client.get("/api/jobs")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == "job1"
+        try:
+            response = client.get("/api/jobs")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 1
+            assert data[0]["id"] == "job1"
+        finally:
+            # Clean up override
+            app.dependency_overrides.pop(get_job_service, None)
 
-    @patch("app.core.dependencies.JobService")
-    def test_get_job(self, mock_job_service_class, client, mock_db):
+    def test_get_job(self, client, mock_db):
         """Test getting a single job."""
         # Mock the JobService instance
+        from app.core.dependencies import get_job_service
+
         mock_job_service = Mock()
-        mock_job_service_class.return_value = mock_job_service
 
         # Mock job from JobService (not found in active queue)
         mock_job_service.get_job = AsyncMock(return_value=None)
@@ -242,6 +249,9 @@ class TestJobRoutes:
             if hasattr(mock_job_service, "get_job_logs")
             else None
         )
+
+        # Override the dependency
+        app.dependency_overrides[get_job_service] = lambda: mock_job_service
 
         # Mock job from database
         from datetime import datetime
@@ -263,30 +273,41 @@ class TestJobRoutes:
         mock_result.scalar_one_or_none.return_value = mock_job
         mock_db.execute.return_value = mock_result
 
-        response = client.get("/api/jobs/job1")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["id"] == "job1"
-        assert data["progress"] == 50
+        try:
+            response = client.get("/api/jobs/job1")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["id"] == "job1"
+            assert data["progress"] == 50
+        finally:
+            # Clean up override
+            app.dependency_overrides.pop(get_job_service, None)
 
-    @patch("app.core.dependencies.JobService")
-    def test_cancel_job(self, mock_job_service_class, client, mock_db):
+    def test_cancel_job(self, client, mock_db):
         """Test cancelling a job."""
+        from app.core.dependencies import get_job_service
+
         mock_job_service = Mock()
         # Mock an active job
         mock_active_job = Mock()
         mock_active_job.id = "job1"
         mock_job_service.get_job = AsyncMock(return_value=mock_active_job)
         mock_job_service.cancel_job = AsyncMock(return_value=True)
-        mock_job_service_class.return_value = mock_job_service
 
-        response = client.delete("/api/jobs/job1")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert "cancelled successfully" in data["message"]
+        # Override the dependency
+        app.dependency_overrides[get_job_service] = lambda: mock_job_service
 
-        mock_job_service.cancel_job.assert_called_once_with("job1", mock_db)
+        try:
+            response = client.delete("/api/jobs/job1")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "cancelled successfully" in data["message"]
+
+            mock_job_service.cancel_job.assert_called_once_with("job1", mock_db)
+        finally:
+            # Clean up override
+            app.dependency_overrides.pop(get_job_service, None)
 
 
 class TestAnalysisRoutes:

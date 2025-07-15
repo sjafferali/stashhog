@@ -204,4 +204,6 @@ def get_job_service() -> JobService:
     Returns:
         JobService: Job service
     """
-    return JobService()
+    from app.services.job_service import job_service
+
+    return job_service
