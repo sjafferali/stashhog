@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Note: Install types-croniter stub package for type checking
-from croniter import croniter  # type: ignore[import-untyped]
+from croniter import croniter
 from sqlalchemy import (
     JSON,
     Boolean,

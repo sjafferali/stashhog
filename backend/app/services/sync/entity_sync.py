@@ -234,7 +234,7 @@ class EntitySyncHandler:
                 .first()
             )
             if parent:
-                studio.parent_id = parent.id  # type: ignore[assignment]
+                studio.parent_id = parent.id
             else:
                 logger.warning(
                     f"Parent studio {studio.parent_stash_id} not found for studio {studio.id}"
