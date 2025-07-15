@@ -370,8 +370,8 @@ class SyncService:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to sync scene {scene_data.get('id')}: {str(e)}")
-            result.add_error("scene", scene_data.get("id", "unknown"), str(e))
+            logger.error(f"Failed to sync scene {scene_data.get('stash_id')}: {str(e)}")
+            result.add_error("scene", scene_data.get("stash_id", "unknown"), str(e))
 
     async def sync_performers(
         self,
@@ -538,7 +538,7 @@ class SyncService:
         self, scene_data: Dict[str, Any], result: SyncResult
     ) -> None:
         """Sync a single scene with conflict resolution"""
-        scene_id = scene_data.get("id")
+        scene_id = scene_data.get("stash_id")
 
         try:
             # Check if scene exists locally

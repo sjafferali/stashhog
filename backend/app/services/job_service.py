@@ -102,10 +102,7 @@ class JobService:
         if job.job_metadata is None:
             job.job_metadata = {}
         job.job_metadata = {**job.job_metadata, "task_id": task_id}  # type: ignore[assignment]
-        if hasattr(db, "commit"):
-            db.commit()
-        else:
-            await db.commit()  # type: ignore[misc]
+        await db.commit()  # type: ignore[misc]
 
         logger.info(f"Created job {job_id} of type {job_type.value}")
         return job

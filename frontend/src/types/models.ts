@@ -139,15 +139,25 @@ export interface AnalysisResult {
 
 export interface Job {
   id: string;
-  name: string;
-  type: 'sync' | 'analysis' | 'batch_analysis';
+  name?: string;
+  type:
+    | 'scene_sync'
+    | 'scene_analysis'
+    | 'batch_analysis'
+    | 'settings_test'
+    | 'sync_all'
+    | 'sync'
+    | 'sync_scenes'
+    | 'sync_performers'
+    | 'analysis';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
-  total: number;
+  total?: number;
+  parameters?: Record<string, unknown>;
   error?: string;
   result?: Record<string, unknown>;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   started_at?: string;
   completed_at?: string;
   metadata?: Record<string, string | number | boolean | null>;

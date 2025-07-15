@@ -81,8 +81,11 @@ export const JobCard: React.FC<JobCardProps> = ({
   const getJobTypeLabel = () => {
     switch (job.type) {
       case 'sync':
+      case 'sync_all':
+      case 'sync_scenes':
+      case 'sync_performers':
         return 'Synchronization';
-      case 'analysis':
+      case 'scene_analysis':
         return 'Scene Analysis';
       case 'batch_analysis':
         return 'Batch Analysis';
@@ -113,7 +116,10 @@ export const JobCard: React.FC<JobCardProps> = ({
     return `${seconds}s`;
   };
 
-  const progressPercent = job.total > 0 ? (job.progress / job.total) * 100 : 0;
+  const progressPercent =
+    job.total && job.total > 0
+      ? (job.progress / job.total) * 100
+      : job.progress;
 
   const actions = [];
 
@@ -175,7 +181,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className={styles.compactHeader}>
           <Space>
             {getStatusIcon()}
-            <Text strong>{job.name}</Text>
+            <Text strong>{job.name || `${job.type} Job`}</Text>
             <Tag color={getStatusColor()}>{job.status}</Tag>
           </Space>
           <Space>{actions}</Space>
@@ -184,7 +190,11 @@ export const JobCard: React.FC<JobCardProps> = ({
           <Progress
             percent={progressPercent}
             size="small"
-            format={() => `${job.progress}/${job.total}`}
+            format={() =>
+              job.total
+                ? `${job.progress}/${job.total}`
+                : `${Math.round(job.progress)}%`
+            }
           />
         )}
       </div>
@@ -198,7 +208,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className={styles.cardHeader}>
           <Space>
             {getStatusIcon()}
-            <Title level={5}>{job.name}</Title>
+            <Title level={5}>{job.name || `${job.type} Job`}</Title>
           </Space>
           <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
         </div>
@@ -210,7 +220,9 @@ export const JobCard: React.FC<JobCardProps> = ({
           <div className={styles.progressInfo}>
             <Text type="secondary">Progress</Text>
             <Text>
-              {job.progress} / {job.total}
+              {job.total
+                ? `${job.progress} / ${job.total}`
+                : `${Math.round(job.progress)}%`}
             </Text>
           </div>
           <Progress

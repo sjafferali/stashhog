@@ -117,7 +117,7 @@ class ApiClient {
   }
 
   // Jobs
-  async getJobs(params?: FilterParams): Promise<PaginatedResponse<Job>> {
+  async getJobs(params?: FilterParams): Promise<Job[]> {
     const response = await api.get('/jobs', { params });
     return response.data;
   }

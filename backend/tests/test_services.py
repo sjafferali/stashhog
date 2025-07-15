@@ -25,6 +25,8 @@ class TestJobService:
     async def test_create_job(self, job_service):
         """Test creating a new job."""
         mock_db = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
         mock_job = Mock(id="job123", type=JobType.SYNC, job_metadata={})
 
         # Register a mock handler for SYNC job type

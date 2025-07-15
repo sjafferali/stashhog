@@ -22,8 +22,8 @@ class TestJobService:
     def mock_db(self):
         """Create mock database session."""
         db = Mock()
-        db.commit = Mock()
-        db.refresh = Mock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
         db.add = Mock()
         return db
 
@@ -126,10 +126,16 @@ class TestJobService:
         handler = AsyncMock(return_value=result)
         job_service.register_handler(job_type, handler)
 
-        # Setup mocks
+        # Setup mocks - get_db is a function that returns a generator
         mock_db = MagicMock()
-        mock_get_db.return_value.__enter__.return_value = mock_db
-        mock_get_db.return_value.__exit__.return_value = None
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        mock_db.close = Mock()
+
+        def get_db_generator():
+            yield mock_db
+
+        mock_get_db.side_effect = get_db_generator
 
         mock_job.id = job_id
         mock_job.result = None  # Initialize result
@@ -190,10 +196,16 @@ class TestJobService:
         handler = AsyncMock(side_effect=Exception(error_msg))
         job_service.register_handler(job_type, handler)
 
-        # Setup mocks
+        # Setup mocks - get_db is a function that returns a generator
         mock_db = MagicMock()
-        mock_get_db.return_value.__enter__.return_value = mock_db
-        mock_get_db.return_value.__exit__.return_value = None
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        mock_db.close = Mock()
+
+        def get_db_generator():
+            yield mock_db
+
+        mock_get_db.side_effect = get_db_generator
 
         mock_job.id = job_id
         mock_job.result = None

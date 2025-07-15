@@ -182,11 +182,13 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
               <Text>{currentJob.status}</Text>
             </div>
 
-            {currentJob.total > 0 && (
+            {currentJob.total && currentJob.total > 0 && (
               <>
                 <Progress
                   percent={Math.round(
-                    (currentJob.progress / currentJob.total) * 100
+                    currentJob.total
+                      ? (currentJob.progress / currentJob.total) * 100
+                      : currentJob.progress
                   )}
                   status={
                     currentJob.status === 'failed'
@@ -198,7 +200,9 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
                 />
                 <div>
                   <Text>
-                    {currentJob.progress} / {currentJob.total} items processed
+                    {currentJob.total
+                      ? `${currentJob.progress} / ${currentJob.total} items processed`
+                      : `${Math.round(currentJob.progress)}% complete`}
                   </Text>
                 </div>
               </>

@@ -108,7 +108,8 @@ export const JobList: React.FC<JobListProps> = ({
 
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      if (!job.name.toLowerCase().includes(searchLower)) return false;
+      const jobName = job.name || job.type;
+      if (!jobName.toLowerCase().includes(searchLower)) return false;
     }
 
     if (filters.dateRange) {

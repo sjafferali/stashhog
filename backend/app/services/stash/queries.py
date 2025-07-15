@@ -65,7 +65,7 @@ fragment SceneData on Scene {
 # Get scenes with pagination
 GET_SCENES = (
     """
-query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
+query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
     findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
         count
         scenes {
@@ -159,7 +159,7 @@ query AllStudios {
 # Find scenes with complex filters
 FIND_SCENES = (
     """
-query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
+query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
     findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
         count
         scenes {

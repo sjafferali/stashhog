@@ -39,7 +39,7 @@ class EntitySyncHandler:
 
             except Exception as e:
                 logger.error(
-                    f"Failed to sync performer {performer_data.get('id')}: {str(e)}"
+                    f"Failed to sync performer {performer_data.get('stash_id')}: {str(e)}"
                 )
                 stats["failed"] += 1
 
@@ -60,7 +60,7 @@ class EntitySyncHandler:
                 stats[result] += 1
 
             except Exception as e:
-                logger.error(f"Failed to sync tag {tag_data.get('id')}: {str(e)}")
+                logger.error(f"Failed to sync tag {tag_data.get('stash_id')}: {str(e)}")
                 stats["failed"] += 1
 
         return stats
@@ -80,7 +80,9 @@ class EntitySyncHandler:
                 stats[result] += 1
 
             except Exception as e:
-                logger.error(f"Failed to sync studio {studio_data.get('id')}: {str(e)}")
+                logger.error(
+                    f"Failed to sync studio {studio_data.get('stash_id')}: {str(e)}"
+                )
                 stats["failed"] += 1
 
         return stats
@@ -106,7 +108,7 @@ class EntitySyncHandler:
         force: bool = False,
     ) -> str:
         """Sync a single entity and return the action taken"""
-        entity_id = entity_data.get("id")
+        entity_id = entity_data.get("stash_id")
         if not entity_id:
             raise ValueError("Entity ID is required")
 

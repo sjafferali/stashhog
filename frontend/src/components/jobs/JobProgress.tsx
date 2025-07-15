@@ -138,7 +138,10 @@ export const JobProgress: React.FC<JobProgressProps> = ({
     );
   }
 
-  const progressPercent = job.total > 0 ? (job.progress / job.total) * 100 : 0;
+  const progressPercent =
+    job.total && job.total > 0
+      ? (job.progress / job.total) * 100
+      : job.progress;
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -184,7 +187,7 @@ export const JobProgress: React.FC<JobProgressProps> = ({
       <div className={styles.header}>
         <Space>
           {getStatusIcon()}
-          <Title level={4}>{job.name}</Title>
+          <Title level={4}>{job.name || `${job.type} Job`}</Title>
           <Tag
             color={
               job.status === 'completed'
@@ -208,7 +211,10 @@ export const JobProgress: React.FC<JobProgressProps> = ({
       <div className={styles.progressSection}>
         <div className={styles.progressInfo}>
           <Text>
-            Progress: {job.progress} / {job.total}
+            Progress:{' '}
+            {job.total
+              ? `${job.progress} / ${job.total}`
+              : `${Math.round(job.progress)}%`}
           </Text>
           <Text type="secondary">{progressPercent.toFixed(0)}%</Text>
         </div>
