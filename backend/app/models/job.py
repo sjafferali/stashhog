@@ -65,6 +65,7 @@ class Job(BaseModel):
     # Results and errors
     result = Column(JSON, nullable=True)  # Job-specific results
     error = Column(Text, nullable=True)  # Error message if failed
+    job_metadata = Column("metadata", JSON, nullable=True, default=dict)  # Job metadata
 
     # Timestamps
     started_at = Column(DateTime(timezone=True), nullable=True, index=True)

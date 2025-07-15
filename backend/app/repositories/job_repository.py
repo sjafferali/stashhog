@@ -24,7 +24,7 @@ class JobRepository:
             type=job_type.value if hasattr(job_type, "value") else job_type,
             status=JobStatus.PENDING.value,
             progress=0,
-            metadata=metadata or {},
+            job_metadata=metadata or {},
         )
         db.add(job)
         if isinstance(db, AsyncSession):
@@ -63,9 +63,9 @@ class JobRepository:
         if error is not None:
             job.error = error  # type: ignore[assignment]
         if message is not None:
-            if not job.metadata:
-                job.metadata = {}
-            job.metadata = {**job.metadata, "last_message": message}
+            if not job.job_metadata:
+                job.job_metadata = {}  # type: ignore[assignment]
+            job.job_metadata = {**job.job_metadata, "last_message": message}  # type: ignore[assignment]
 
     def _update_job_timestamps(self, job: Job, status: JobStatus) -> None:
         """Update job timestamps based on status."""

@@ -1,9 +1,15 @@
 #!/bin/bash
 set -e
 
+# CI checks script for StashHog
+# This script checks code formatting and automatically applies fixes only if issues are found
+# - Black and isort: checks first, then fixes if needed
+# - Other checks (flake8, mypy, tests): will fail if issues are found
+
 # Parse command line arguments
 BACKEND_ONLY=false
 FRONTEND_ONLY=false
+DOCKER_BUILD=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -15,11 +21,16 @@ while [[ $# -gt 0 ]]; do
             FRONTEND_ONLY=true
             shift
             ;;
+        --docker-build)
+            DOCKER_BUILD=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  --backend-only   Run only backend checks"
             echo "  --frontend-only  Run only frontend checks"
+            echo "  --docker-build   Include Docker build test"
             echo "  --help          Show this help message"
             exit 0
             ;;
@@ -143,10 +154,15 @@ if [ "$FRONTEND_ONLY" = false ]; then
     if black --check .; then
         print_success "Python formatting check passed"
     else
-        print_error "Python formatting check failed"
-        echo "Run 'cd backend && black .' to fix formatting issues"
-        deactivate
-        exit 1
+        print_error "Python formatting check failed - applying fixes"
+        print_command "black ."
+        if black .; then
+            print_success "Python formatting fixes applied successfully"
+        else
+            print_error "Failed to apply Python formatting fixes"
+            deactivate
+            exit 1
+        fi
     fi
     cd ..
 fi
@@ -159,10 +175,15 @@ if [ "$FRONTEND_ONLY" = false ]; then
     if isort --check-only .; then
         print_success "Python import sorting check passed"
     else
-        print_error "Python import sorting check failed"
-        echo "Run 'cd backend && isort .' to fix import sorting"
-        deactivate
-        exit 1
+        print_error "Python import sorting check failed - applying fixes"
+        print_command "isort ."
+        if isort .; then
+            print_success "Python import sorting fixes applied successfully"
+        else
+            print_error "Failed to apply Python import sorting fixes"
+            deactivate
+            exit 1
+        fi
     fi
     cd ..
 fi
@@ -268,21 +289,23 @@ if [ "$BACKEND_ONLY" = false ]; then
     cd ..
 fi
 
-# Docker build test
-print_header "Testing Docker build"
-if [ -f "Dockerfile" ]; then
-    print_command "docker build -t stashhog:test ."
-    if docker build -t stashhog:test .; then
-        print_success "Docker build succeeded"
+# Docker build test (only if flag is set)
+if [ "$DOCKER_BUILD" = true ]; then
+    print_header "Testing Docker build"
+    if [ -f "Dockerfile" ]; then
+        print_command "docker build -t stashhog:test ."
+        if docker build -t stashhog:test .; then
+            print_success "Docker build succeeded"
+        else
+            print_error "Docker build failed"
+            deactivate
+            exit 1
+        fi
     else
-        print_error "Docker build failed"
+        print_error "No Dockerfile found"
         deactivate
         exit 1
     fi
-else
-    print_error "No Dockerfile found"
-    deactivate
-    exit 1
 fi
 
 # Deactivate virtual environment

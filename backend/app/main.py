@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import api_router
 from app.api.error_handlers import register_error_handlers
 from app.core.config import get_settings
-from app.core.database import close_db, init_db
+from app.core.database import close_db
 from app.core.logging import configure_logging
 from app.core.middleware import (
     ErrorHandlingMiddleware,
@@ -24,6 +24,7 @@ from app.core.middleware import (
     RequestIDMiddleware,
     TimingMiddleware,
 )
+from app.core.migrations import run_migrations_async
 from app.core.tasks import get_task_queue
 from app.jobs import register_all_jobs
 from app.services.job_service import job_service
@@ -52,9 +53,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
 
     try:
-        # Initialize database
-        logger.info("Initializing database...")
-        await init_db()
+        # Skip migrations in test environment
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            logger.info("Skipping migrations in test environment")
+        else:
+            # Run database migrations (this handles all schema management)
+            logger.info("Running database migrations...")
+            await run_migrations_async()
 
         # Initialize background task queue
         logger.info("Starting background workers...")

@@ -211,7 +211,7 @@ class TestJobRoutes:
         mock_job.updated_at = datetime.now()
         mock_job.completed_at = datetime.now()
         mock_job.progress = 100
-        mock_job.metadata = {}
+        mock_job.job_metadata = {}
         mock_job.result = {}
         mock_job.error = None
 
@@ -264,7 +264,7 @@ class TestJobRoutes:
         mock_job.created_at = datetime.now()
         mock_job.updated_at = datetime.now()
         mock_job.completed_at = None
-        mock_job.metadata = {"scenes": 100}
+        mock_job.job_metadata = {"scenes": 100}
         mock_job.result = None
         mock_job.error = None
 
@@ -330,7 +330,7 @@ class TestAnalysisRoutes:
         mock_plan.analyzed_scenes = 5
         mock_plan.created_at = datetime.now()
         mock_plan.completed_at = None
-        mock_plan.metadata = {}
+        mock_plan.plan_metadata = {}
 
         # Mock plans query
         mock_scalars = Mock()
@@ -371,7 +371,7 @@ class TestAnalysisRoutes:
         mock_plan.created_at = datetime.now()
         mock_plan.completed_at = datetime.now()
         mock_plan.changes = []
-        mock_plan.metadata = {}
+        mock_plan.plan_metadata = {}
 
         # Mock execute for plan query
         mock_plan_result = Mock()

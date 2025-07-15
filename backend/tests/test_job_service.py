@@ -35,7 +35,7 @@ class TestJobService:
         job.type = JobType.SYNC_SCENES
         job.status = JobStatus.PENDING
         job.progress = 0
-        job.metadata = {}
+        job.job_metadata = {}
         job.created_at = datetime.utcnow()
         job.updated_at = datetime.utcnow()
         return job
@@ -274,7 +274,7 @@ class TestJobService:
         """Test canceling a job."""
         job_id = "job123"
         mock_job.status = JobStatus.RUNNING
-        mock_job.metadata = {}
+        mock_job.job_metadata = {}
         mock_job_repo.get_job = AsyncMock(return_value=mock_job)
         mock_job_repo.cancel_job = AsyncMock()
         mock_ws_manager.broadcast_json = AsyncMock()

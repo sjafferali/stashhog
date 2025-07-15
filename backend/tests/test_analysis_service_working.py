@@ -433,7 +433,7 @@ class TestAnalysisService:
         mock_empty_plan.status = PlanStatus.DRAFT
         mock_empty_plan.total_scenes = 0
         mock_empty_plan.scenes_with_changes = 0
-        mock_empty_plan.metadata = {"reason": "No scenes found"}
+        mock_empty_plan.plan_metadata = {"reason": "No scenes found"}
 
         # Mock plan creation
         analysis_service.plan_manager.create_plan = AsyncMock(

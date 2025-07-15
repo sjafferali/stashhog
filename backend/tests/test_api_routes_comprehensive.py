@@ -406,7 +406,7 @@ class TestAnalysisRoutes:
         plan1.name = "Plan 1"
         plan1.status = "pending"
         plan1.created_at = datetime.utcnow()
-        plan1.metadata = {}
+        plan1.plan_metadata = {}
         plan1.total_scenes = 5
         plan1.total_changes = 10
 
@@ -415,7 +415,7 @@ class TestAnalysisRoutes:
         plan2.name = "Plan 2"
         plan2.status = "applied"
         plan2.created_at = datetime.utcnow()
-        plan2.metadata = {}
+        plan2.plan_metadata = {}
         plan2.total_scenes = 3
         plan2.total_changes = 5
 
@@ -460,7 +460,7 @@ class TestAnalysisRoutes:
         plan.name = "Test Plan"
         plan.status = "pending"
         plan.created_at = datetime.utcnow()
-        plan.metadata = {}
+        plan.plan_metadata = {}
         plan.total_scenes = 1
         plan.total_changes = 1
 

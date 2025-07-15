@@ -640,10 +640,10 @@ class SyncService:
             job.status = status  # type: ignore[assignment]
             if hasattr(job, "message"):
                 job.message = message
-            elif hasattr(job, "metadata"):
-                if job.metadata is None:
-                    job.metadata = {}
-                job.metadata = {**job.metadata, "message": message}
+            elif hasattr(job, "job_metadata"):
+                if job.job_metadata is None:
+                    job.job_metadata = {}
+                job.job_metadata = {**job.job_metadata, "message": message}  # type: ignore[assignment]
             if status in [JobStatus.COMPLETED, JobStatus.FAILED]:
                 job.completed_at = datetime.utcnow()  # type: ignore[assignment]
             self.db.commit()

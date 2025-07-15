@@ -185,7 +185,7 @@ async def list_plans(
                 created_at=plan.created_at,  # type: ignore[attr-defined]
                 total_scenes=total_scenes,
                 total_changes=total_changes,
-                metadata=plan.metadata or {},  # type: ignore[attr-defined]
+                metadata=plan.plan_metadata or {},  # type: ignore[attr-defined]
             )
         )
 
@@ -258,7 +258,7 @@ async def get_plan(
         created_at=plan.created_at,  # type: ignore[arg-type]
         total_scenes=len(scenes),
         total_changes=total_changes,
-        metadata=plan.metadata or {},
+        metadata=dict(plan.plan_metadata) if plan.plan_metadata else {},
         scenes=scenes,
     )
 

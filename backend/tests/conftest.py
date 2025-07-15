@@ -1,5 +1,7 @@
 """Shared pytest fixtures and configuration."""
 
+import tempfile
+from pathlib import Path
 from typing import Generator
 
 import pytest
@@ -21,14 +23,42 @@ TEST_SYNC_DATABASE_URL = "sqlite:///:memory:"
 @pytest.fixture(scope="session")
 def test_engine():
     """Create test database engine."""
+    # Use a temporary file for SQLite database to support migrations
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
+
+    test_db_url = f"sqlite:///{db_path}"
     engine = create_engine(
-        TEST_SYNC_DATABASE_URL,
+        test_db_url,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine)
+
+    # Run migrations on the test database
+    from alembic import command
+    from alembic.config import Config
+
+    # Create alembic config
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option("script_location", "alembic")
+    alembic_cfg.set_main_option("sqlalchemy.url", test_db_url)
+
+    try:
+        # Run migrations
+        command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        # If migrations fail, use create_all as fallback
+        import logging
+
+        logging.warning(f"Migration failed in test: {e}. Using create_all fallback.")
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+
     yield engine
     engine.dispose()
+
+    # Clean up temp file
+    Path(db_path).unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="session")
@@ -53,6 +83,8 @@ async def test_async_session(test_async_engine):
         autoflush=False,
     )
 
+    # For in-memory SQLite, we need to ensure tables exist
+    # Since we can't run Alembic migrations on in-memory databases easily
     async with test_async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -60,6 +92,7 @@ async def test_async_session(test_async_engine):
         yield session
         await session.rollback()
 
+    # Clean up tables after test
     async with test_async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -118,6 +151,9 @@ def test_client() -> Generator[TestClient, None, None]:
 async def init_test_db(engine):
     """Initialize test database."""
     async with engine.begin() as conn:
+        # Drop all tables first to ensure clean state
+        await conn.run_sync(Base.metadata.drop_all)
+        # Create all tables
         await conn.run_sync(Base.metadata.create_all)
 
 

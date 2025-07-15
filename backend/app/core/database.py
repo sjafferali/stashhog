@@ -83,19 +83,8 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-def init_database() -> None:
-    """
-    Initialize database by creating all tables.
-
-    This should be called on application startup.
-    """
-    Base.metadata.create_all(bind=sync_engine)
-
-
-async def init_db() -> None:
-    """Initialize database tables asynchronously."""
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# Note: Database initialization is handled by Alembic migrations
+# See app.core.migrations for migration management
 
 
 async def close_db() -> None:

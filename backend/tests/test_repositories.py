@@ -42,7 +42,7 @@ class TestJobRepository:
         mock_job.type = job_type
         mock_job.status = JobStatus.PENDING
         mock_job.progress = 0
-        mock_job.metadata = metadata
+        mock_job.job_metadata = metadata
 
         # Set up refresh to update the mock
         mock_db.refresh = Mock(side_effect=lambda x: setattr(x, "id", job_id))

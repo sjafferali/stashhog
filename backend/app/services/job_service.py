@@ -99,9 +99,9 @@ class JobService:
         )
 
         # Store task ID in job metadata
-        if job.metadata is None:
-            job.metadata = {}
-        job.metadata = {**job.metadata, "task_id": task_id}
+        if job.job_metadata is None:
+            job.job_metadata = {}
+        job.job_metadata = {**job.job_metadata, "task_id": task_id}  # type: ignore[assignment]
         if hasattr(db, "commit"):
             db.commit()
         else:
@@ -136,8 +136,8 @@ class JobService:
             return False
 
         # Cancel task if running
-        if job.metadata is not None and "task_id" in job.metadata:
-            task_id = job.metadata["task_id"]
+        if job.job_metadata is not None and "task_id" in job.job_metadata:
+            task_id = str(job.job_metadata["task_id"])
             task_queue = get_task_queue()
             await task_queue.cancel_task(task_id)
 

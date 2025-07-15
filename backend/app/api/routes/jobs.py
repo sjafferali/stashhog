@@ -83,6 +83,11 @@ async def list_jobs(
     # Convert to response models
     job_responses = []
     for job in all_jobs:
+        # Ensure metadata is a dict
+        metadata_dict: Dict[str, Any] = (
+            job.job_metadata if isinstance(job.job_metadata, dict) else {}
+        )
+
         job_responses.append(
             JobResponse(
                 id=str(job.id),
@@ -95,7 +100,7 @@ async def list_jobs(
                     job.status.value if hasattr(job.status, "value") else job.status
                 ),
                 progress=float(job.progress or 0),
-                parameters=job.metadata or {},
+                parameters=metadata_dict,
                 result=job.result,  # type: ignore[arg-type]
                 error=job.error,  # type: ignore[arg-type]
                 created_at=job.created_at,  # type: ignore[arg-type]
@@ -144,6 +149,11 @@ async def get_job(
         else None
     )
 
+    # Ensure metadata is a dict
+    metadata_dict: Dict[str, Any] = (
+        job.job_metadata if isinstance(job.job_metadata, dict) else {}
+    )
+
     return JobDetailResponse(
         id=str(job.id),
         type=SchemaJobType(
@@ -155,14 +165,14 @@ async def get_job(
             job.status.value if hasattr(job.status, "value") else job.status
         ),
         progress=float(job.progress or 0),
-        parameters=job.metadata or {},
+        parameters=metadata_dict,
         result=job.result,  # type: ignore[arg-type]
         error=job.error,  # type: ignore[arg-type]
         created_at=job.created_at,  # type: ignore[arg-type]
         updated_at=job.updated_at,  # type: ignore[arg-type]
         completed_at=job.completed_at,  # type: ignore[arg-type]
         logs=logs,
-        metadata=job.metadata,
+        metadata=metadata_dict,
     )
 
 
@@ -266,7 +276,9 @@ async def job_progress_ws(  # type: ignore[no-untyped-def]
                     "status": status_value,
                     "progress": job.progress or 0,
                     "message": (
-                        job.metadata.get("last_message") if job.metadata else None
+                        job.job_metadata.get("last_message")
+                        if isinstance(job.job_metadata, dict)
+                        else None
                     ),
                     "result": job.result,
                     "error": job.error,

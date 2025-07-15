@@ -25,7 +25,7 @@ class TestJobService:
     async def test_create_job(self, job_service):
         """Test creating a new job."""
         mock_db = Mock()
-        mock_job = Mock(id="job123", type=JobType.SYNC, metadata={})
+        mock_job = Mock(id="job123", type=JobType.SYNC, job_metadata={})
 
         # Register a mock handler for SYNC job type
         mock_handler = AsyncMock(return_value={"status": "success"})
@@ -73,7 +73,7 @@ class TestJobService:
     async def test_cancel_job(self, job_service):
         """Test canceling a job."""
         mock_job = Mock(
-            id="job123", status=JobStatus.RUNNING, metadata={"task_id": "task123"}
+            id="job123", status=JobStatus.RUNNING, job_metadata={"task_id": "task123"}
         )
         mock_db = Mock()
 

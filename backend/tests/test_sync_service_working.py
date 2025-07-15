@@ -68,7 +68,7 @@ class TestSyncService:
         """Test full sync functionality."""
         # Mock job in database
         mock_job = Mock(spec=Job)
-        mock_job.metadata = {}  # Initialize metadata as dict
+        mock_job.job_metadata = {}  # Initialize metadata as dict
         mock_job.status = JobStatus.RUNNING
         mock_db.query.return_value.filter.return_value.first.return_value = mock_job
 

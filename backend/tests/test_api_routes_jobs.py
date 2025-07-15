@@ -95,7 +95,7 @@ def mock_job():
     job.updated_at = datetime.utcnow()
     job.started_at = datetime.utcnow()
     job.completed_at = None
-    job.metadata = {"source": "api"}
+    job.job_metadata = {"source": "api"}
     job.to_dict = Mock(
         return_value={
             "id": job.id,
@@ -109,7 +109,7 @@ def mock_job():
             "updated_at": job.updated_at.isoformat(),
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            "metadata": job.metadata,
+            "metadata": job.job_metadata,
         }
     )
     return job
