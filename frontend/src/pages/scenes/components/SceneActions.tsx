@@ -48,7 +48,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   // Analyze mutation
   const analyzeMutation = useMutation(
     async (sceneIds: string[]) => {
-      const response = await api.post('/api/analysis/batch', {
+      const response = await api.post('/analysis/batch', {
         scene_ids: sceneIds.map((id) => parseInt(id, 10)),
       });
       return response.data;
@@ -77,7 +77,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       action: 'add' | 'remove';
     }) => {
       const endpoint =
-        action === 'add' ? '/api/scenes/add-tags' : '/api/scenes/remove-tags';
+        action === 'add' ? '/scenes/add-tags' : '/scenes/remove-tags';
       const response = await api.post(endpoint, {
         scene_ids: sceneIds.map((id) => parseInt(id, 10)),
         tag_ids: tagIds,

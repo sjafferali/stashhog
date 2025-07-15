@@ -37,7 +37,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   const { data: syncStatus } = useQuery<SyncStatus>(
     'sync-status',
     async () => {
-      const response = await api.get('/api/sync/status');
+      const response = await api.get('/sync/status');
       return response.data;
     },
     {
@@ -51,7 +51,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   // Sync mutation
   const syncMutation = useMutation(
     async (fullSync: boolean) => {
-      const response = await api.post('/api/sync/start', {
+      const response = await api.post('/sync/start', {
         full_sync: fullSync,
         sync_scenes: true,
         sync_performers: true,
@@ -78,7 +78,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     ['job', currentJob?.id],
     async () => {
       if (!currentJob?.id) return null;
-      const response = await api.get(`/api/jobs/${currentJob.id}`);
+      const response = await api.get(`/jobs/${currentJob.id}`);
       return response.data;
     },
     {
