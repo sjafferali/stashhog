@@ -42,7 +42,7 @@ class Tag(BaseModel):
 
     # Hierarchy
     parent_id = Column(
-        Integer, ForeignKey("tag.id", ondelete="SET NULL"), nullable=True
+        String, ForeignKey("tag.id", ondelete="SET NULL"), nullable=True
     )
     parent_stash_id = Column(String, nullable=True)  # Temporary field for sync
 
