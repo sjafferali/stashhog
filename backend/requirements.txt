@@ -4,7 +4,7 @@ annotated-types==0.7.0
 anyio==4.9.0
 APScheduler==3.10.4
 Authlib==1.6.0
-bandit==1.7.10
+bandit==1.8.6
 bcrypt==4.3.0
 black==25.1.0
 certifi==2025.7.14
@@ -40,7 +40,7 @@ MarkupSafe==3.0.2
 marshmallow==4.0.0
 mccabe==0.7.0
 mdurl==0.1.2
-mypy==1.7.1
+mypy==1.17.0
 mypy_extensions==1.1.0
 nltk==3.9.1
 openai==1.35.3
@@ -59,9 +59,9 @@ pydantic-settings==2.10.1
 pydantic_core==2.23.4
 pyflakes==3.4.0
 Pygments==2.19.2
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
+pytest==8.4.1
+pytest-asyncio==1.0.0
+pytest-cov==6.2.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 PyJWT==2.10.1
@@ -75,7 +75,7 @@ rich==14.0.0
 rsa==4.9.1
 ruamel.yaml==0.18.14
 ruamel.yaml.clib==0.2.12
-ruff==0.1.7
+ruff==0.12.3
 setuptools==80.9.0
 shellingham==1.5.4
 six==1.17.0
