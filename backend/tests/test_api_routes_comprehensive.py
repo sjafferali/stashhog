@@ -392,9 +392,9 @@ class TestJobRoutes:
         mock_result.scalar_one_or_none = Mock(return_value=mock_job)
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        # Mock the job service to create and start a new job
-        mock_job_service.create_job = AsyncMock(return_value="new-job-id")
-        mock_job_service.start_job = AsyncMock(return_value=True)
+        # Mock the job service to create a new job
+        new_job = Mock(spec=Job, id="new-job-id")
+        mock_job_service.create_job = AsyncMock(return_value=new_job)
 
         response = client.post("/api/jobs/j1/retry")
         assert response.status_code == 200

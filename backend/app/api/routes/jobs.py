@@ -341,23 +341,14 @@ async def retry_job(
     )
 
     # Create a new job with the same parameters
-    new_job_id = await job_service.create_job(
+    new_job = await job_service.create_job(
         job_type=job.type,  # type: ignore[arg-type]
-        parameters=metadata_dict,
+        metadata=metadata_dict,
         db=db,
     )
 
-    # Start the job
-    success = await job_service.start_job(new_job_id, db)
-
-    if success:
-        return {
-            "success": True,
-            "message": f"Job {job_id} retried as new job {new_job_id}",
-            "new_job_id": new_job_id,
-        }
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retry job",
-        )
+    return {
+        "success": True,
+        "message": f"Job {job_id} retried as new job {new_job.id}",
+        "new_job_id": new_job.id,
+    }

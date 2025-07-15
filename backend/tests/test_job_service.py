@@ -113,7 +113,7 @@ class TestJobService:
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
     @patch("app.services.job_service.get_task_queue")
-    @patch("app.services.job_service.get_db")
+    @patch("app.core.database.get_db")
     async def test_task_wrapper_success(
         self, mock_get_db, mock_get_task_queue, mock_job_repo, job_service, mock_job
     ):
@@ -183,7 +183,7 @@ class TestJobService:
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
     @patch("app.services.job_service.get_task_queue")
-    @patch("app.services.job_service.get_db")
+    @patch("app.core.database.get_db")
     async def test_task_wrapper_failure(
         self, mock_get_db, mock_get_task_queue, mock_job_repo, job_service, mock_job
     ):

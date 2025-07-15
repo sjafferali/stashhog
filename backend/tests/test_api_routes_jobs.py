@@ -232,10 +232,10 @@ class TestJobRoutes:
         mock_result.scalar_one_or_none.return_value = failed_job
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        # Mock job service to create and start a new job
+        # Mock job service to create a new job
         new_job_id = str(uuid4())
-        mock_job_service.create_job = AsyncMock(return_value=new_job_id)
-        mock_job_service.start_job = AsyncMock(return_value=True)
+        new_job = Mock(spec=Job, id=new_job_id)
+        mock_job_service.create_job = AsyncMock(return_value=new_job)
 
         response = client.post("/api/jobs/test-id/retry")
 
@@ -247,9 +247,8 @@ class TestJobRoutes:
 
         # Verify the job service was called correctly
         mock_job_service.create_job.assert_called_once_with(
-            job_type=failed_job.type, parameters=failed_job.job_metadata, db=mock_db
+            job_type=failed_job.type, metadata=failed_job.job_metadata, db=mock_db
         )
-        mock_job_service.start_job.assert_called_once_with(new_job_id, mock_db)
 
     def test_get_job_logs(self, client, mock_job_service):
         """Test getting job logs - endpoint doesn't exist."""
