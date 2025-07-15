@@ -57,13 +57,133 @@ StashHog enhances your Stash experience by providing intelligent content analysi
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
 
-### Docker Setup (Development)
+### Docker Setup
+
+StashHog can be run using Docker Compose with either SQLite (default) or PostgreSQL as the database.
+
+#### Using SQLite (Default)
 
 ```bash
-docker-compose up
+# Create a docker-compose.yml file with the following content:
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  stashhog:
+    image: docker.io/sjafferali/stashhog:latest
+    container_name: stashhog
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=StashHog
+      - DATABASE_URL=sqlite:///app/data/stashhog.db
+      - STASH_URL=http://your-stash-instance:9999
+      - STASH_API_KEY=your-stash-api-key
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4-vision-preview
+      - SECRET_KEY=change-this-to-a-random-secret-key
+      - APP_ENVIRONMENT=production
+    volumes:
+      - ./stashhog-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  stashhog-data:
+EOF
+
+# Start the application
+docker-compose up -d
 ```
 
-This will start both frontend and backend services with hot reload enabled.
+#### Using PostgreSQL
+
+```bash
+# Create a docker-compose.postgres.yml file with the following content:
+cat > docker-compose.postgres.yml << 'EOF'
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stashhog-postgres
+    environment:
+      - POSTGRES_USER=stashhog
+      - POSTGRES_PASSWORD=stashhog-password
+      - POSTGRES_DB=stashhog
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stashhog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  stashhog:
+    image: docker.io/sjafferali/stashhog:latest
+    container_name: stashhog
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=StashHog
+      - DATABASE_URL=postgresql://stashhog:stashhog-password@postgres:5432/stashhog
+      - STASH_URL=http://your-stash-instance:9999
+      - STASH_API_KEY=your-stash-api-key
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4-vision-preview
+      - SECRET_KEY=change-this-to-a-random-secret-key
+      - APP_ENVIRONMENT=production
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+EOF
+
+# Start the application with PostgreSQL
+docker-compose -f docker-compose.postgres.yml up -d
+```
+
+#### Docker Compose Commands
+
+```bash
+# Start services
+docker-compose up -d                    # SQLite version
+docker-compose -f docker-compose.postgres.yml up -d  # PostgreSQL version
+
+# View logs
+docker-compose logs -f stashhog
+
+# Stop services
+docker-compose down
+
+# Stop and remove volumes (WARNING: This will delete your data!)
+docker-compose down -v
+```
+
+#### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `DATABASE_URL` | Database connection string | Yes | `sqlite:///app/data/stashhog.db` |
+| `STASH_URL` | URL of your Stash instance | Yes | - |
+| `STASH_API_KEY` | API key for Stash | Yes | - |
+| `OPENAI_API_KEY` | OpenAI API key | Yes | - |
+| `OPENAI_MODEL` | OpenAI model to use | No | `gpt-4-vision-preview` |
+| `SECRET_KEY` | Secret key for sessions | Yes | - |
+| `APP_ENVIRONMENT` | Environment (development/production) | No | `production` |
+
+#### Notes
+
+- For SQLite, data is persisted in the `./stashhog-data` directory
+- For PostgreSQL, data is persisted in a named Docker volume
+- The application will automatically run database migrations on startup
+- Make sure to change the `SECRET_KEY` to a random value for security
+- Ensure your Stash instance is accessible from the Docker container
 
 ## Architecture
 

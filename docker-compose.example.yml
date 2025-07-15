@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  stashhog:
+    image: docker.io/sjafferali/stashhog:latest
+    container_name: stashhog
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=StashHog
+      - DATABASE_URL=sqlite:///app/data/stashhog.db
+      - STASH_URL=http://your-stash-instance:9999
+      - STASH_API_KEY=your-stash-api-key
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4-vision-preview
+      - SECRET_KEY=change-this-to-a-random-secret-key
+      - APP_ENVIRONMENT=production
+    volumes:
+      - ./stashhog-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  stashhog-data:
