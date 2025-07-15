@@ -26,10 +26,17 @@ sync_engine = create_engine(
 )
 
 # Create async engine
+# Convert database URL to async format
+async_url = settings.database.url
+if async_url.startswith("sqlite://"):
+    async_url = async_url.replace("sqlite://", "sqlite+aiosqlite://")
+elif async_url.startswith("postgresql://"):
+    async_url = async_url.replace("postgresql://", "postgresql+asyncpg://")
+elif async_url.startswith("postgres://"):
+    async_url = async_url.replace("postgres://", "postgresql+asyncpg://")
+
 async_engine = create_async_engine(
-    settings.database.url.replace(
-        "sqlite://", "sqlite+aiosqlite://"
-    ),  # Convert to async URL
+    async_url,
     echo=settings.database.echo,
     pool_recycle=settings.database.pool_recycle,
     pool_pre_ping=True,
