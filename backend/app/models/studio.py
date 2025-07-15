@@ -46,7 +46,7 @@ class Studio(BaseModel):
 
     # Hierarchy
     parent_id = Column(
-        Integer, ForeignKey("studio.id", ondelete="SET NULL"), nullable=True
+        String, ForeignKey("studio.id", ondelete="SET NULL"), nullable=True
     )
     parent_stash_id = Column(String, nullable=True)  # Temporary field for sync
 
