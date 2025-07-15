@@ -1,25 +1,24 @@
 import React from 'react';
-import { 
-  Descriptions, 
-  Tag, 
-  Space, 
-  Button, 
-  Card, 
-  Row, 
+import {
+  Descriptions,
+  Tag,
+  Space,
+  Button,
+  Card,
+  Row,
   Col,
   Divider,
   Typography,
   Tooltip,
-  Rate
+  Rate,
 } from 'antd';
-import { 
-  EditOutlined, 
-  AnalysisOutlined,
+import {
+  EditOutlined,
+  ExperimentOutlined,
   PlayCircleOutlined,
   DownloadOutlined,
   LinkOutlined,
   FolderOpenOutlined,
-  StarFilled
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneCard } from './SceneCard';
@@ -45,7 +44,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -58,12 +57,12 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = size;
-    
+
     while (value >= 1024 && unitIndex < units.length - 1) {
       value /= 1024;
       unitIndex++;
     }
-    
+
     return `${value.toFixed(2)} ${units[unitIndex]}`;
   };
 
@@ -83,22 +82,22 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
             <div className={styles.header}>
               <Title level={2}>{scene.title}</Title>
               <Space>
-                <Button 
-                  type="primary" 
+                <Button
+                  type="primary"
                   icon={<PlayCircleOutlined />}
                   size="large"
                 >
                   Play
                 </Button>
-                <Button 
-                  icon={<AnalysisOutlined />}
+                <Button
+                  icon={<ExperimentOutlined />}
                   onClick={onAnalyze}
                   loading={false}
                 >
                   Analyze
                 </Button>
                 <Tooltip title="Edit Scene">
-                  <Button 
+                  <Button
                     icon={<EditOutlined />}
                     onClick={() => onEdit?.('all')}
                   />
@@ -128,81 +127,83 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               <Descriptions.Item label="Date">
                 {scene.date ? new Date(scene.date).toLocaleDateString() : 'N/A'}
                 {onEdit && (
-                  <Button 
-                    type="link" 
-                    icon={<EditOutlined />} 
+                  <Button
+                    type="link"
+                    icon={<EditOutlined />}
                     size="small"
                     onClick={() => onEdit('date')}
                   />
                 )}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Director">
                 {scene.director || 'N/A'}
                 {onEdit && (
-                  <Button 
-                    type="link" 
-                    icon={<EditOutlined />} 
+                  <Button
+                    type="link"
+                    icon={<EditOutlined />}
                     size="small"
                     onClick={() => onEdit('director')}
                   />
                 )}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Studio">
                 {scene.studio ? (
                   <Tag color="blue">{scene.studio.name}</Tag>
-                ) : 'N/A'}
+                ) : (
+                  'N/A'
+                )}
                 {onEdit && (
-                  <Button 
-                    type="link" 
-                    icon={<EditOutlined />} 
+                  <Button
+                    type="link"
+                    icon={<EditOutlined />}
                     size="small"
                     onClick={() => onEdit('studio')}
                   />
                 )}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Rating">
                 <Rate value={scene.rating || 0} disabled />
                 {onEdit && (
-                  <Button 
-                    type="link" 
-                    icon={<EditOutlined />} 
+                  <Button
+                    type="link"
+                    icon={<EditOutlined />}
                     size="small"
                     onClick={() => onEdit('rating')}
                   />
                 )}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Duration">
                 {formatDuration(scene.duration)}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="File Size">
                 {formatFileSize(scene.size)}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Resolution">
                 {scene.width}x{scene.height}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Frame Rate">
                 {scene.framerate ? `${scene.framerate} fps` : 'N/A'}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Bitrate">
                 {formatBitrate(scene.bitrate)}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Codec">
                 {scene.codec || 'N/A'}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="O-Counter">
                 {scene.o_counter || 0}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Organized">
                 <Tag color={scene.organized ? 'green' : 'red'}>
                   {scene.organized ? 'Yes' : 'No'}
@@ -213,13 +214,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
             <Divider>Performers</Divider>
             <div className={styles.performers}>
               {scene.performers && scene.performers.length > 0 ? (
-                <Space size={[8, 8]} wrap>
-                  {scene.performers.map(performer => (
-                    <Tag 
-                      key={performer.id} 
-                      color="purple"
-                      icon={performer.favorite ? <StarFilled /> : null}
-                    >
+                <Space size={8} wrap>
+                  {scene.performers.map((performer) => (
+                    <Tag key={performer.id} color="purple">
                       {performer.name}
                     </Tag>
                   ))}
@@ -228,9 +225,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 <span className={styles.empty}>No performers</span>
               )}
               {onEdit && (
-                <Button 
-                  type="link" 
-                  icon={<EditOutlined />} 
+                <Button
+                  type="link"
+                  icon={<EditOutlined />}
                   size="small"
                   onClick={() => onEdit('performers')}
                 >
@@ -242,8 +239,8 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
             <Divider>Tags</Divider>
             <div className={styles.tags}>
               {scene.tags && scene.tags.length > 0 ? (
-                <Space size={[8, 8]} wrap>
-                  {scene.tags.map(tag => (
+                <Space size={8} wrap>
+                  {scene.tags.map((tag) => (
                     <Tag key={tag.id}>{tag.name}</Tag>
                   ))}
                 </Space>
@@ -251,9 +248,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 <span className={styles.empty}>No tags</span>
               )}
               {onEdit && (
-                <Button 
-                  type="link" 
-                  icon={<EditOutlined />} 
+                <Button
+                  type="link"
+                  icon={<EditOutlined />}
                   size="small"
                   onClick={() => onEdit('tags')}
                 >
@@ -270,30 +267,36 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                   <code>{scene.path}</code>
                 </Space>
               </Descriptions.Item>
-              
+
               {scene.url && (
                 <Descriptions.Item label="URL">
                   <Space>
                     <LinkOutlined />
-                    <a href={scene.url} target="_blank" rel="noopener noreferrer">
+                    <a
+                      href={scene.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       {scene.url}
                     </a>
                   </Space>
                 </Descriptions.Item>
               )}
-              
+
               <Descriptions.Item label="Last Modified">
-                {scene.file_mod_time ? new Date(scene.file_mod_time).toLocaleString() : 'N/A'}
+                {scene.file_mod_time
+                  ? new Date(scene.file_mod_time).toLocaleString()
+                  : 'N/A'}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Added to Database">
                 {new Date(scene.created_at).toLocaleString()}
               </Descriptions.Item>
-              
+
               <Descriptions.Item label="Last Updated">
                 {new Date(scene.updated_at).toLocaleString()}
               </Descriptions.Item>
-              
+
               {scene.analyzed_at && (
                 <Descriptions.Item label="Last Analyzed">
                   {new Date(scene.analyzed_at).toLocaleString()}
@@ -310,11 +313,13 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 <div key={result.id} className={styles.analysisResult}>
                   <Tag color="blue">{result.plan?.name || 'Analysis'}</Tag>
                   <div className={styles.extractedData}>
-                    {Object.entries(result.extracted_data).map(([key, value]) => (
-                      <div key={key}>
-                        <strong>{key}:</strong> {JSON.stringify(value)}
-                      </div>
-                    ))}
+                    {Object.entries(result.extracted_data).map(
+                      ([key, value]) => (
+                        <div key={key}>
+                          <strong>{key}:</strong> {JSON.stringify(value)}
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               ))}
@@ -324,7 +329,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
           {relatedScenes.length > 0 && (
             <Card title="Related Scenes" className={styles.sideCard}>
               <div className={styles.relatedScenes}>
-                {relatedScenes.map(relatedScene => (
+                {relatedScenes.map((relatedScene) => (
                   <SceneCard
                     key={relatedScene.id}
                     scene={relatedScene}
@@ -337,13 +342,13 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
 
           <Card title="Actions" className={styles.sideCard}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Button block icon={<DownloadOutlined />}>
+              <Button icon={<DownloadOutlined />} style={{ width: '100%' }}>
                 Download
               </Button>
-              <Button block icon={<LinkOutlined />}>
+              <Button icon={<LinkOutlined />} style={{ width: '100%' }}>
                 Open in Stash
               </Button>
-              <Button block danger>
+              <Button danger style={{ width: '100%' }}>
                 Delete Scene
               </Button>
             </Space>

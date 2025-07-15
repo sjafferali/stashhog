@@ -1,9 +1,10 @@
 """
 API router aggregation.
 """
+
 from fastapi import APIRouter
 
-from app.api.routes import health, scenes, analysis, jobs, settings, sync, entities
+from app.api.routes import analysis, entities, health, jobs, scenes, settings, sync
 
 # Create main API router
 api_router = APIRouter()

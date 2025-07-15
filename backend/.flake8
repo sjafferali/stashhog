@@ -1,0 +1,37 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, E266, E501, W503
+# E203: Whitespace before ':' (conflicts with Black)
+# E266: Too many leading '#' for block comment
+# E501: Line too long (handled by Black)
+# W503: Line break occurred before a binary operator (conflicts with Black)
+
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg,
+    .venv,
+    venv,
+    env,
+    migrations,
+    .tox,
+    .mypy_cache,
+    .pytest_cache,
+    .coverage,
+    htmlcov,
+    docs,
+    tests/fixtures
+
+per-file-ignores =
+    # Imported but unused in __init__.py files
+    __init__.py:F401
+    # Allow assert in tests
+    test_*.py:S101
+    tests/*.py:S101
+
+# Compatibility with Black
+max-complexity = 10
+select = B,C,E,F,W,T4,B9

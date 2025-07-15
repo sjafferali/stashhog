@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react-dom/test-utils';
 import ErrorBoundary from './ErrorBoundary';
 
 // Component that throws an error
@@ -27,7 +28,7 @@ describe('ErrorBoundary Component', () => {
         <div>Test content</div>
       </ErrorBoundary>
     );
-    
+
     expect(screen.getByText('Test content')).toBeInTheDocument();
   });
 
@@ -37,7 +38,7 @@ describe('ErrorBoundary Component', () => {
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>
     );
-    
+
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
     expect(screen.getByText('Test error')).toBeInTheDocument();
     expect(screen.getByText('Back to Home')).toBeInTheDocument();
@@ -45,39 +46,45 @@ describe('ErrorBoundary Component', () => {
 
   it('resets error state when clicking Back to Home', async () => {
     const user = userEvent.setup();
-    
+
     // Mock window.location.href
-    delete (window as any).location;
-    window.location = { href: '' } as any;
-    
+    Object.defineProperty(window, 'location', {
+      value: { href: '' },
+      writable: true,
+    });
+
     render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>
     );
-    
+
     const button = screen.getByText('Back to Home');
     await user.click(button);
-    
+
     expect(window.location.href).toBe('/');
   });
 
-  it('catches errors in child components', () => {
+  it('catches errors in child components', async () => {
     const { rerender } = render(
       <ErrorBoundary>
         <ThrowError shouldThrow={false} />
       </ErrorBoundary>
     );
-    
+
     expect(screen.getByText('No error')).toBeInTheDocument();
-    
+
     // Trigger an error
-    rerender(
-      <ErrorBoundary>
-        <ThrowError shouldThrow={true} />
-      </ErrorBoundary>
-    );
-    
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    await act(async () => {
+      rerender(
+        <ErrorBoundary>
+          <ThrowError shouldThrow={true} />
+        </ErrorBoundary>
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    });
   });
 });

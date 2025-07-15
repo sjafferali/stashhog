@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
-import { 
-  List, 
-  Card, 
-  Badge, 
-  Tag, 
-  Space, 
-  Button, 
+import {
+  List,
+  Card,
+  Badge,
+  Tag,
+  Space,
+  Button,
   Collapse,
   Typography,
   Checkbox,
   Empty,
   Tooltip,
-  Avatar
+  Avatar,
 } from 'antd';
-import { 
-  ExpandOutlined, 
+import {
+  ExpandOutlined,
   CompressOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  EditOutlined,
-  PlayCircleOutlined
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { ProposedChange } from './ChangePreview';
 import { Scene } from '@/types/models';
@@ -46,6 +45,18 @@ export interface SceneChangesListProps {
   selectable?: boolean;
   selectedSceneIds?: string[];
   onSelectionChange?: (sceneIds: string[]) => void;
+  onAcceptChange?: (sceneId: string, changeId: string) => void;
+  onRejectChange?: (sceneId: string, changeId: string) => void;
+  onEditChange?: (
+    changeId: string,
+    proposedValue:
+      | string
+      | number
+      | boolean
+      | string[]
+      | Record<string, unknown>
+      | null
+  ) => Promise<void>;
 }
 
 export const SceneChangesList: React.FC<SceneChangesListProps> = ({
@@ -61,7 +72,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   onSelectionChange,
 }) => {
   const [expandedKeys, setExpandedKeys] = useState<string[]>(
-    expandedByDefault ? sceneChanges.map(sc => sc.scene.stash_id) : []
+    expandedByDefault ? sceneChanges.map((sc) => sc.scene.stash_id) : []
   );
   const [expandAll, setExpandAll] = useState(expandedByDefault);
 
@@ -69,7 +80,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     if (expandAll) {
       setExpandedKeys([]);
     } else {
-      setExpandedKeys(sceneChanges.map(sc => sc.scene.stash_id));
+      setExpandedKeys(sceneChanges.map((sc) => sc.scene.stash_id));
     }
     setExpandAll(!expandAll);
   };
@@ -77,7 +88,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   const handleSelectAll = (checked: boolean) => {
     if (onSelectionChange) {
       if (checked) {
-        onSelectionChange(sceneChanges.map(sc => sc.scene.stash_id));
+        onSelectionChange(sceneChanges.map((sc) => sc.scene.stash_id));
       } else {
         onSelectionChange([]);
       }
@@ -89,22 +100,22 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       if (checked) {
         onSelectionChange([...selectedSceneIds, sceneId]);
       } else {
-        onSelectionChange(selectedSceneIds.filter(id => id !== sceneId));
+        onSelectionChange(selectedSceneIds.filter((id) => id !== sceneId));
       }
     }
   };
 
   const getChangeStats = (changes: ProposedChange[]) => {
-    const accepted = changes.filter(c => c.accepted).length;
-    const rejected = changes.filter(c => c.rejected).length;
-    const pending = changes.filter(c => !c.accepted && !c.rejected).length;
-    
+    const accepted = changes.filter((c) => c.accepted).length;
+    const rejected = changes.filter((c) => c.rejected).length;
+    const pending = changes.filter((c) => !c.accepted && !c.rejected).length;
+
     return { accepted, rejected, pending, total: changes.length };
   };
 
   const getSceneStatus = (sceneChanges: SceneChanges) => {
     const stats = getChangeStats(sceneChanges.changes);
-    
+
     if (sceneChanges.allAccepted || stats.accepted === stats.total) {
       return { color: 'green', text: 'All Accepted' };
     }
@@ -137,15 +148,19 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     const isChecked = selectedSceneIds.includes(scene.stash_id);
 
     return (
-      <div className={`${styles.sceneHeader} ${isSelected ? styles.selected : ''}`}>
+      <div
+        className={`${styles.sceneHeader} ${isSelected ? styles.selected : ''}`}
+      >
         {selectable && (
           <Checkbox
             checked={isChecked}
-            onChange={(e) => handleSelectScene(scene.stash_id, e.target.checked)}
-            onClick={(e) => e.stopPropagation()}
+            onChange={(e) =>
+              handleSelectScene(scene.stash_id, e.target.checked)
+            }
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
           />
         )}
-        
+
         <Avatar
           src={`/api/scenes/${scene.id}/thumbnail`}
           size="large"
@@ -154,7 +169,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
         >
           {scene.title.charAt(0)}
         </Avatar>
-        
+
         <div className={styles.sceneInfo}>
           <Title level={5} className={styles.sceneTitle}>
             {scene.title}
@@ -165,18 +180,21 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
               {stats.total} change{stats.total !== 1 ? 's' : ''}
             </Text>
             {stats.pending > 0 && (
-              <Badge count={stats.pending} style={{ backgroundColor: '#faad14' }} />
+              <Badge
+                count={stats.pending}
+                style={{ backgroundColor: '#faad14' }}
+              />
             )}
           </Space>
         </div>
-        
-        <Space className={styles.actions}>
+
+        <Space>
           {onPreviewScene && (
             <Tooltip title="Preview Scene">
               <Button
                 type="text"
                 icon={<PlayCircleOutlined />}
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   onPreviewScene(scene);
                 }}
@@ -188,7 +206,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
               <Button
                 type="text"
                 icon={<CheckCircleOutlined />}
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   onAcceptAll(scene.stash_id);
                 }}
@@ -201,7 +219,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 type="text"
                 danger
                 icon={<CloseCircleOutlined />}
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   onRejectAll(scene.stash_id);
                 }}
@@ -216,9 +234,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   const renderChangesList = (changes: ProposedChange[]) => {
     return (
       <List
-        size="small"
         dataSource={changes}
-        renderItem={(change) => (
+        renderItem={(change: ProposedChange) => (
           <List.Item className={styles.changeItem}>
             <div className={styles.changeContent}>
               <Space>
@@ -231,7 +248,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
               </Space>
               <div className={styles.changeValues}>
                 <Text type="secondary">
-                  {JSON.stringify(change.currentValue)} → {JSON.stringify(change.proposedValue)}
+                  {JSON.stringify(change.currentValue)} →{' '}
+                  {JSON.stringify(change.proposedValue)}
                 </Text>
               </div>
             </div>
@@ -247,8 +265,14 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
         {selectable && (
           <Checkbox
             onChange={(e) => handleSelectAll(e.target.checked)}
-            checked={selectedSceneIds.length === sceneChanges.length && sceneChanges.length > 0}
-            indeterminate={selectedSceneIds.length > 0 && selectedSceneIds.length < sceneChanges.length}
+            checked={
+              selectedSceneIds.length === sceneChanges.length &&
+              sceneChanges.length > 0
+            }
+            indeterminate={
+              selectedSceneIds.length > 0 &&
+              selectedSceneIds.length < sceneChanges.length
+            }
           >
             Select All
           </Checkbox>
@@ -264,19 +288,23 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
 
       <Collapse
         activeKey={expandedKeys}
-        onChange={setExpandedKeys}
-        className={styles.collapse}
+        onChange={(keys: string | string[]) =>
+          setExpandedKeys(Array.isArray(keys) ? keys : [keys])
+        }
       >
         {sceneChanges.map((sceneChange) => (
           <Panel
             key={sceneChange.scene.stash_id}
             header={renderSceneHeader(sceneChange)}
-            className={styles.panel}
           >
             <Card
               size="small"
               onClick={() => onSelectScene?.(sceneChange.scene.stash_id)}
-              className={selectedSceneId === sceneChange.scene.stash_id ? styles.selectedCard : ''}
+              className={
+                selectedSceneId === sceneChange.scene.stash_id
+                  ? styles.selectedCard
+                  : ''
+              }
             >
               {renderChangesList(sceneChange.changes)}
             </Card>

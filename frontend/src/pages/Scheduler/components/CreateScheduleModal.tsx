@@ -1,6 +1,20 @@
 import React, { useState } from 'react';
-import { Modal, Steps, Form, Input, Select, Button, Space, Typography, Alert } from 'antd';
-import { CalendarOutlined, SettingOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import {
+  Modal,
+  Steps,
+  Form,
+  Input,
+  Select,
+  Button,
+  Space,
+  Typography,
+  Alert,
+} from 'antd';
+import {
+  CalendarOutlined,
+  SettingOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons';
 import ScheduleBuilder from './ScheduleBuilder';
 import TaskConfigurator from './TaskConfigurator';
 import { useSchedules } from '../hooks/useSchedules';
@@ -16,7 +30,11 @@ interface CreateScheduleModalProps {
   onSuccess: () => void;
 }
 
-const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onClose, onSuccess }) => {
+const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
+  visible,
+  onClose,
+  onSuccess,
+}) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -32,7 +50,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
     try {
       await form.validateFields();
       setCurrentStep(currentStep + 1);
-    } catch (error) {
+    } catch {
       // Validation failed
     }
   };
@@ -45,7 +63,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
     try {
       setLoading(true);
       const values = await form.validateFields();
-      
+
       const scheduleData: CreateScheduleData = {
         name: values.name,
         description: values.description,
@@ -73,9 +91,11 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
             <Title level={4}>Select Task Type</Title>
-            <Text type="secondary">Choose what type of task you want to schedule</Text>
+            <Text type="secondary">
+              Choose what type of task you want to schedule
+            </Text>
           </div>
-          
+
           <Form.Item
             name="task_type"
             rules={[{ required: true, message: 'Please select a task type' }]}
@@ -84,36 +104,48 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
               size="large"
               placeholder="Select task type"
               options={[
-                { 
-                  value: 'sync', 
-                  label: 'Sync Task',
-                  description: 'Synchronize data from Stash'
+                {
+                  value: 'sync',
+                  label: (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>Sync Task</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Synchronize data from Stash
+                      </Text>
+                    </Space>
+                  ),
                 },
-                { 
-                  value: 'analysis', 
-                  label: 'Analysis Task',
-                  description: 'Analyze scenes and generate tagging plans'
+                {
+                  value: 'analysis',
+                  label: (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>Analysis Task</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Analyze scenes and generate tagging plans
+                      </Text>
+                    </Space>
+                  ),
                 },
-                { 
-                  value: 'cleanup', 
-                  label: 'Cleanup Task',
-                  description: 'Clean up old data and logs'
+                {
+                  value: 'cleanup',
+                  label: (
+                    <Space direction="vertical" size={0}>
+                      <Text strong>Cleanup Task</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Clean up old data and logs
+                      </Text>
+                    </Space>
+                  ),
                 },
               ]}
-              optionRender={(option) => (
-                <Space direction="vertical" size={0}>
-                  <Text strong>{option.label}</Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {option.data.description}
-                  </Text>
-                </Space>
-              )}
             />
           </Form.Item>
 
           <Form.Item
             name="name"
-            rules={[{ required: true, message: 'Please enter a schedule name' }]}
+            rules={[
+              { required: true, message: 'Please enter a schedule name' },
+            ]}
           >
             <Input
               size="large"
@@ -123,10 +155,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
           </Form.Item>
 
           <Form.Item name="description">
-            <TextArea
-              placeholder="Description (optional)"
-              rows={3}
-            />
+            <TextArea placeholder="Description (optional)" rows={3} />
           </Form.Item>
         </Space>
       ),
@@ -140,7 +169,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
             <Title level={4}>Configure Task</Title>
             <Text type="secondary">Set up task-specific options</Text>
           </div>
-          
+
           <Form.Item shouldUpdate>
             {() => {
               const taskType = form.getFieldValue('task_type');
@@ -150,10 +179,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
                   onChange={(config) => form.setFieldValue('config', config)}
                 />
               ) : (
-                <Alert
-                  message="Please select a task type first"
-                  type="info"
-                />
+                <Alert message="Please select a task type first" type="info" />
               );
             }}
           </Form.Item>
@@ -169,7 +195,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
             <Title level={4}>Set Schedule</Title>
             <Text type="secondary">Define when the task should run</Text>
           </div>
-          
+
           <Form.Item
             name="schedule"
             rules={[{ required: true, message: 'Please set a schedule' }]}
@@ -188,7 +214,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
             <Title level={4}>Review Schedule</Title>
             <Text type="secondary">Confirm your schedule settings</Text>
           </div>
-          
+
           <Form.Item shouldUpdate>
             {() => {
               const values = form.getFieldsValue();
@@ -198,11 +224,20 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
                     message="Schedule Summary"
                     description={
                       <Space direction="vertical">
-                        <div><strong>Name:</strong> {values.name || 'Not set'}</div>
-                        <div><strong>Type:</strong> {values.task_type || 'Not set'}</div>
-                        <div><strong>Schedule:</strong> {values.schedule || 'Not set'}</div>
+                        <div>
+                          <strong>Name:</strong> {values.name || 'Not set'}
+                        </div>
+                        <div>
+                          <strong>Type:</strong> {values.task_type || 'Not set'}
+                        </div>
+                        <div>
+                          <strong>Schedule:</strong>{' '}
+                          {values.schedule || 'Not set'}
+                        </div>
                         {values.description && (
-                          <div><strong>Description:</strong> {values.description}</div>
+                          <div>
+                            <strong>Description:</strong> {values.description}
+                          </div>
                         )}
                       </Space>
                     }
@@ -225,35 +260,29 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({ visible, onCl
       width={800}
       footer={null}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        size="large"
-      >
+      <Form form={form} layout="vertical" size="large">
         <Steps current={currentStep} style={{ marginBottom: 24 }}>
           {steps.map((step) => (
             <Step key={step.title} title={step.title} icon={step.icon} />
           ))}
         </Steps>
 
-        <div style={{ minHeight: 300 }}>
-          {steps[currentStep].content}
-        </div>
+        <div style={{ minHeight: 300 }}>{steps[currentStep].content}</div>
 
         <div style={{ marginTop: 24, textAlign: 'right' }}>
           <Space>
-            {currentStep > 0 && (
-              <Button onClick={handlePrev}>
-                Previous
-              </Button>
-            )}
+            {currentStep > 0 && <Button onClick={handlePrev}>Previous</Button>}
             {currentStep < steps.length - 1 && (
-              <Button type="primary" onClick={handleNext}>
+              <Button type="primary" onClick={() => void handleNext()}>
                 Next
               </Button>
             )}
             {currentStep === steps.length - 1 && (
-              <Button type="primary" onClick={handleSubmit} loading={loading}>
+              <Button
+                type="primary"
+                onClick={() => void handleSubmit()}
+                loading={loading}
+              >
                 Create Schedule
               </Button>
             )}

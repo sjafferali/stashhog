@@ -1,10 +1,10 @@
-import React from 'react'
-import { Card, Table, Button, Space, Tag } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import React from 'react';
+import { Card, Table, Button, Space, Tag } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 
 const PlanList: React.FC = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const columns = [
     {
@@ -30,7 +30,7 @@ const PlanList: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: any) => (
+      render: (_: unknown, record: { id: number }) => (
         <Space>
           <Button
             type="link"
@@ -45,7 +45,7 @@ const PlanList: React.FC = () => {
         </Space>
       ),
     },
-  ]
+  ];
 
   return (
     <div>
@@ -65,7 +65,7 @@ const PlanList: React.FC = () => {
         />
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default PlanList
+export default PlanList;

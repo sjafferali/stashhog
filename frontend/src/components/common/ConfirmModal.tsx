@@ -37,12 +37,16 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     <Modal
       title={
         <span>
-          {danger && <ExclamationCircleOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />}
+          {danger && (
+            <ExclamationCircleOutlined
+              style={{ color: '#ff4d4f', marginRight: 8 }}
+            />
+          )}
           {title}
         </span>
       }
       open={open}
-      onOk={handleConfirm}
+      onOk={() => void handleConfirm()}
       onCancel={onCancel}
       okText="Confirm"
       cancelText="Cancel"
@@ -57,7 +61,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   );
 };
 
-export const confirmModal = (props: Omit<ConfirmModalProps, 'open' | 'onCancel'>) => {
+export const confirmModal = (
+  props: Omit<ConfirmModalProps, 'open' | 'onCancel'>
+) => {
   return new Promise<void>((resolve, reject) => {
     Modal.confirm({
       title: props.title,

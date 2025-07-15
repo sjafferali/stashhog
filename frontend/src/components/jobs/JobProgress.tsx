@@ -1,22 +1,22 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  Card, 
-  Progress, 
-  Space, 
-  Button, 
+import {
+  Card,
+  Progress,
+  Space,
+  Button,
   Typography,
   Timeline,
   Tag,
   Alert,
-  Spin
+  Spin,
 } from 'antd';
-import { 
-  CheckCircleOutlined, 
+import {
+  CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
   DownOutlined,
   UpOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
 // import { useWebSocketStore } from '@/store/websocket';
@@ -26,7 +26,7 @@ const { Text, Title } = Typography;
 
 export interface JobProgressProps {
   jobId: string;
-  onComplete?: (result: any) => void;
+  onComplete?: (result: Record<string, unknown>) => void;
   showDetails?: boolean;
   autoScroll?: boolean;
   maxLogEntries?: number;
@@ -40,22 +40,22 @@ interface LogEntry {
 
 export const JobProgress: React.FC<JobProgressProps> = ({
   jobId,
-  onComplete,
+  // onComplete,
   showDetails = true,
   autoScroll = true,
-  maxLogEntries = 100,
+  // maxLogEntries = 100,
 }) => {
   const [job, setJob] = useState<Job | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const logsEndRef = useRef<HTMLDivElement>(null);
-  
+
   // const { subscribe, unsubscribe } = useWebSocketStore();
 
   useEffect(() => {
     // Fetch initial job data
-    fetchJob();
+    void fetchJob();
 
     // Subscribe to job updates
     // TODO: Implement WebSocket subscription when available
@@ -73,7 +73,7 @@ export const JobProgress: React.FC<JobProgressProps> = ({
     // Poll for updates as a temporary solution
     const interval = setInterval(() => {
       if (job && (job.status === 'running' || job.status === 'pending')) {
-        fetchJob();
+        void fetchJob();
       }
     }, 2000);
 
@@ -81,7 +81,8 @@ export const JobProgress: React.FC<JobProgressProps> = ({
       clearInterval(interval);
       // unsubscribeJob();
     };
-  }, [jobId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]); // fetchJob is stable and job dependency would cause re-polling issues
 
   useEffect(() => {
     if (autoScroll && showLogs && logsEndRef.current) {
@@ -101,15 +102,15 @@ export const JobProgress: React.FC<JobProgressProps> = ({
     }
   };
 
-  const addLog = (log: LogEntry) => {
-    setLogs(prev => {
-      const newLogs = [...prev, log];
-      if (newLogs.length > maxLogEntries) {
-        return newLogs.slice(-maxLogEntries);
-      }
-      return newLogs;
-    });
-  };
+  // const _addLog = (log: LogEntry) => {
+  //   setLogs((prev) => {
+  //     const newLogs = [...prev, log];
+  //     if (newLogs.length > maxLogEntries) {
+  //       return newLogs.slice(-maxLogEntries);
+  //     }
+  //     return newLogs;
+  //   });
+  // };
 
   const handleCancel = async () => {
     try {
@@ -181,16 +182,24 @@ export const JobProgress: React.FC<JobProgressProps> = ({
   return (
     <Card className={styles.jobProgress}>
       <div className={styles.header}>
-        <Space align="center">
+        <Space>
           {getStatusIcon()}
           <Title level={4}>{job.name}</Title>
-          <Tag color={job.status === 'completed' ? 'green' : job.status === 'failed' ? 'red' : 'blue'}>
+          <Tag
+            color={
+              job.status === 'completed'
+                ? 'green'
+                : job.status === 'failed'
+                  ? 'red'
+                  : 'blue'
+            }
+          >
             {job.status.toUpperCase()}
           </Tag>
         </Space>
-        
+
         {job.status === 'running' && (
-          <Button danger onClick={handleCancel}>
+          <Button danger onClick={() => void handleCancel()}>
             Cancel
           </Button>
         )}
@@ -201,18 +210,22 @@ export const JobProgress: React.FC<JobProgressProps> = ({
           <Text>
             Progress: {job.progress} / {job.total}
           </Text>
-          <Text type="secondary">
-            {progressPercent.toFixed(0)}%
-          </Text>
+          <Text type="secondary">{progressPercent.toFixed(0)}%</Text>
         </div>
         <Progress
           percent={progressPercent}
           status={
-            job.status === 'failed' ? 'exception' :
-            job.status === 'completed' ? 'success' :
-            'active'
+            job.status === 'failed'
+              ? 'exception'
+              : job.status === 'completed'
+                ? 'success'
+                : 'active'
           }
-          strokeColor={job.status === 'running' ? { '0%': '#108ee9', '100%': '#87d068' } : undefined}
+          strokeColor={
+            job.status === 'running'
+              ? { '0%': '#108ee9', '100%': '#87d068' }
+              : undefined
+          }
         />
       </div>
 
@@ -239,7 +252,7 @@ export const JobProgress: React.FC<JobProgressProps> = ({
               {showLogs ? 'Hide' : 'Show'} Logs
             </Button>
           </div>
-          
+
           {showLogs && (
             <div className={styles.logs}>
               <Timeline>

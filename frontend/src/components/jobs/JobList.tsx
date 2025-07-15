@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  List, 
-  Space, 
-  Button, 
-  Select, 
-  Tag,
+import React, { useState, useEffect, ChangeEvent } from 'react';
+import dayjs from 'dayjs';
+import {
+  List,
+  Space,
+  Button,
+  Select,
   Empty,
   Pagination,
-  Spin,
   Input,
-  DatePicker
+  DatePicker,
 } from 'antd';
-import { 
-  FilterOutlined, 
+import {
   ReloadOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined,
-  SearchOutlined
+  SearchOutlined,
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
 import { JobCard } from './JobCard';
@@ -48,7 +46,7 @@ interface JobFilters {
 
 export const JobList: React.FC<JobListProps> = ({
   jobs,
-  onJobClick,
+  onJobClick: _onJobClick,
   showFilters = true,
   autoRefresh = true,
   refreshInterval = 5000,
@@ -61,14 +59,18 @@ export const JobList: React.FC<JobListProps> = ({
 }) => {
   const [filters, setFilters] = useState<JobFilters>({});
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [sortBy, setSortBy] = useState<'created_at' | 'updated_at'>('created_at');
+  const [sortBy, setSortBy] = useState<'created_at' | 'updated_at'>(
+    'created_at'
+  );
   const [currentPage, setCurrentPage] = useState(1);
-  const [showActiveFilters, setShowActiveFilters] = useState(false);
+  const [_showActiveFilters, _setShowActiveFilters] = useState(false);
 
   useEffect(() => {
     if (autoRefresh && onRefresh) {
       const interval = setInterval(() => {
-        const hasRunningJobs = jobs.some(job => job.status === 'running' || job.status === 'pending');
+        const hasRunningJobs = jobs.some(
+          (job) => job.status === 'running' || job.status === 'pending'
+        );
         if (hasRunningJobs) {
           onRefresh();
         }
@@ -78,8 +80,11 @@ export const JobList: React.FC<JobListProps> = ({
     }
   }, [autoRefresh, refreshInterval, onRefresh, jobs]);
 
-  const handleFilterChange = (key: keyof JobFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  const handleFilterChange = (
+    key: keyof JobFilters,
+    value: string | string[] | [Date, Date] | undefined
+  ) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setCurrentPage(1);
   };
 
@@ -89,35 +94,40 @@ export const JobList: React.FC<JobListProps> = ({
   };
 
   const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
   };
 
-  const filteredJobs = jobs.filter(job => {
+  const filteredJobs = jobs.filter((job) => {
     if (filters.status && filters.status.length > 0) {
       if (!filters.status.includes(job.status)) return false;
     }
-    
+
     if (filters.type && filters.type.length > 0) {
       if (!filters.type.includes(job.type)) return false;
     }
-    
+
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       if (!job.name.toLowerCase().includes(searchLower)) return false;
     }
-    
+
     if (filters.dateRange) {
       const jobDate = new Date(job.created_at);
-      if (jobDate < filters.dateRange[0] || jobDate > filters.dateRange[1]) return false;
+      if (jobDate < filters.dateRange[0] || jobDate > filters.dateRange[1])
+        return false;
     }
-    
+
     return true;
   });
 
   const sortedJobs = [...filteredJobs].sort((a, b) => {
-    const dateA = new Date(sortBy === 'created_at' ? a.created_at : a.updated_at || a.created_at).getTime();
-    const dateB = new Date(sortBy === 'created_at' ? b.created_at : b.updated_at || b.created_at).getTime();
-    
+    const dateA = new Date(
+      sortBy === 'created_at' ? a.created_at : a.updated_at || a.created_at
+    ).getTime();
+    const dateB = new Date(
+      sortBy === 'created_at' ? b.created_at : b.updated_at || b.created_at
+    ).getTime();
+
     return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
@@ -126,8 +136,8 @@ export const JobList: React.FC<JobListProps> = ({
     currentPage * pageSize
   );
 
-  const activeFilterCount = Object.values(filters).filter(v => 
-    v !== undefined && (Array.isArray(v) ? v.length > 0 : true)
+  const activeFilterCount = Object.values(filters).filter(
+    (v) => v !== undefined && (Array.isArray(v) ? v.length > 0 : true)
   ).length;
 
   const statusOptions = [
@@ -157,69 +167,83 @@ export const JobList: React.FC<JobListProps> = ({
               prefix={<SearchOutlined />}
               placeholder="Search jobs..."
               value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                handleFilterChange('search', e.target.value)
+              }
               style={{ width: 200 }}
               allowClear
             />
-            
+
             <Select
               mode="multiple"
               placeholder="Filter by status"
               value={filters.status}
               onChange={(value) => handleFilterChange('status', value)}
               style={{ minWidth: 150 }}
-            >
-              {statusOptions.map(option => (
-                <Select.Option key={option.value} value={option.value}>
-                  <Tag color={option.color}>{option.label}</Tag>
-                </Select.Option>
-              ))}
-            </Select>
-            
+              options={statusOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+
             <Select
               mode="multiple"
               placeholder="Filter by type"
               value={filters.type}
               onChange={(value) => handleFilterChange('type', value)}
               style={{ minWidth: 150 }}
-            >
-              {typeOptions.map(option => (
-                <Select.Option key={option.value} value={option.value}>
-                  {option.label}
-                </Select.Option>
-              ))}
-            </Select>
-            
+              options={typeOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+
             <RangePicker
-              value={filters.dateRange as any}
-              onChange={(dates) => handleFilterChange('dateRange', dates as [Date, Date])}
+              value={
+                filters.dateRange
+                  ? [dayjs(filters.dateRange[0]), dayjs(filters.dateRange[1])]
+                  : null
+              }
+              onChange={(dates) =>
+                handleFilterChange(
+                  'dateRange',
+                  dates ? [dates[0]!.toDate(), dates[1]!.toDate()] : undefined
+                )
+              }
               style={{ width: 240 }}
             />
-            
+
             {activeFilterCount > 0 && (
               <Button onClick={clearFilters}>
                 Clear Filters ({activeFilterCount})
               </Button>
             )}
           </Space>
-          
+
           <Space>
             <Select
               value={sortBy}
               onChange={setSortBy}
               style={{ width: 120 }}
-            >
-              <Select.Option value="created_at">Created</Select.Option>
-              <Select.Option value="updated_at">Updated</Select.Option>
-            </Select>
-            
+              options={[
+                { value: 'created_at', label: 'Created' },
+                { value: 'updated_at', label: 'Updated' },
+              ]}
+            />
+
             <Button
-              icon={sortOrder === 'asc' ? <SortAscendingOutlined /> : <SortDescendingOutlined />}
+              icon={
+                sortOrder === 'asc' ? (
+                  <SortAscendingOutlined />
+                ) : (
+                  <SortDescendingOutlined />
+                )
+              }
               onClick={toggleSortOrder}
             >
               {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
             </Button>
-            
+
             {onRefresh && (
               <Button
                 icon={<ReloadOutlined />}
@@ -235,13 +259,16 @@ export const JobList: React.FC<JobListProps> = ({
 
       {paginatedJobs.length === 0 ? (
         <Empty
-          description={filters.search || activeFilterCount > 0 ? "No jobs match your filters" : "No jobs found"}
+          description={
+            filters.search || activeFilterCount > 0
+              ? 'No jobs match your filters'
+              : 'No jobs found'
+          }
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       ) : (
         <>
           <List
-            className={styles.list}
             loading={loading}
             dataSource={paginatedJobs}
             renderItem={(job) => (
@@ -254,7 +281,7 @@ export const JobList: React.FC<JobListProps> = ({
               />
             )}
           />
-          
+
           {filteredJobs.length > pageSize && (
             <Pagination
               current={currentPage}
@@ -262,7 +289,9 @@ export const JobList: React.FC<JobListProps> = ({
               pageSize={pageSize}
               onChange={setCurrentPage}
               showSizeChanger={false}
-              showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} jobs`}
+              showTotal={(total: number, range: [number, number]) =>
+                `${range[0]}-${range[1]} of ${total} jobs`
+              }
               className={styles.pagination}
             />
           )}

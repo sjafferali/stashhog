@@ -3,9 +3,9 @@ import api from '@/services/api';
 import { Scene, PaginatedResponse, FilterParams } from '@/types/models';
 
 export interface SceneQueryParams extends FilterParams {
-  performers?: number[];
-  tags?: number[];
-  studios?: number[];
+  performers?: string[];
+  tags?: string[];
+  studios?: string[];
   organized?: boolean;
   has_details?: boolean;
   date_from?: string;

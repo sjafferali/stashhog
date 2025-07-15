@@ -26,10 +26,10 @@ const TIME_PATTERNS: TimePattern[] = [
       let hour = parseInt(match[1]);
       const minute = match[2] ? parseInt(match[2]) : 0;
       const meridiem = match[3]?.toLowerCase();
-      
+
       if (meridiem === 'pm' && hour < 12) hour += 12;
       if (meridiem === 'am' && hour === 12) hour = 0;
-      
+
       return `${minute} ${hour} * * *`;
     },
   },
@@ -55,7 +55,8 @@ const TIME_PATTERNS: TimePattern[] = [
   },
   // Every specific day of week
   {
-    pattern: /every (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+    pattern:
+      /every (monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
     handler: (match) => {
       const days: Record<string, number> = {
         sunday: 0,
@@ -72,7 +73,8 @@ const TIME_PATTERNS: TimePattern[] = [
   },
   // Specific day at time
   {
-    pattern: /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s? at (\d{1,2}):?(\d{2})?\s*(am|pm)?/i,
+    pattern:
+      /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s? at (\d{1,2}):?(\d{2})?\s*(am|pm)?/i,
     handler: (match) => {
       const days: Record<string, number> = {
         sunday: 0,
@@ -87,10 +89,10 @@ const TIME_PATTERNS: TimePattern[] = [
       let hour = parseInt(match[2]);
       const minute = match[3] ? parseInt(match[3]) : 0;
       const meridiem = match[4]?.toLowerCase();
-      
+
       if (meridiem === 'pm' && hour < 12) hour += 12;
       if (meridiem === 'am' && hour === 12) hour = 0;
-      
+
       return `${minute} ${hour} * * ${day}`;
     },
   },
@@ -134,10 +136,10 @@ const TIME_PATTERNS: TimePattern[] = [
       let hour = parseInt(match[1]);
       const minute = match[2] ? parseInt(match[2]) : 0;
       const meridiem = match[3]?.toLowerCase();
-      
+
       if (meridiem === 'pm' && hour < 12) hour += 12;
       if (meridiem === 'am' && hour === 12) hour = 0;
-      
+
       return `${minute} ${hour} * * *`;
     },
   },
@@ -170,7 +172,7 @@ const TIME_PATTERNS: TimePattern[] = [
 
 export function parseNaturalLanguage(input: string): string | null {
   const normalizedInput = input.trim().toLowerCase();
-  
+
   for (const { pattern, handler } of TIME_PATTERNS) {
     const match = normalizedInput.match(pattern);
     if (match) {
@@ -181,7 +183,7 @@ export function parseNaturalLanguage(input: string): string | null {
       }
     }
   }
-  
+
   return null;
 }
 
@@ -195,11 +197,11 @@ export function suggestNaturalLanguageExamples(input: string): string[] {
     'monthly on the 1st',
     'every 30 minutes',
   ];
-  
+
   if (!input) return suggestions.slice(0, 5);
-  
+
   const normalizedInput = input.toLowerCase();
   return suggestions
-    .filter(s => s.toLowerCase().includes(normalizedInput))
+    .filter((s) => s.toLowerCase().includes(normalizedInput))
     .slice(0, 5);
 }

@@ -1,9 +1,9 @@
-import React from 'react'
-import { Result, Button } from 'antd'
-import { useNavigate } from 'react-router-dom'
+import React from 'react';
+import { Result, Button } from 'antd';
+import { useNavigate } from 'react-router-dom';
 
 const NotFound: React.FC = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <Result
@@ -16,7 +16,7 @@ const NotFound: React.FC = () => {
         </Button>
       }
     />
-  )
-}
+  );
+};
 
-export default NotFound
+export default NotFound;

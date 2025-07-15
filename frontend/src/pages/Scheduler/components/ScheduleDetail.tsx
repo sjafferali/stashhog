@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
-import { Modal, Descriptions, Tag, Space, Button, Form, Input, Switch, Typography, Divider, Alert, Statistic, Row, Col } from 'antd';
-import { 
-  EditOutlined, 
-  PlayCircleOutlined, 
+import {
+  Modal,
+  Descriptions,
+  Tag,
+  Space,
+  Button,
+  Form,
+  Input,
+  Switch,
+  Typography,
+  Divider,
+  Alert,
+  Statistic,
+  Row,
+  Col,
+} from 'antd';
+import {
+  EditOutlined,
+  PlayCircleOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { Schedule, UpdateScheduleData } from '../types';
 import { useSchedules, useScheduleHistory } from '../hooks/useSchedules';
@@ -25,7 +40,12 @@ interface ScheduleDetailProps {
   onUpdate?: () => void;
 }
 
-const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onClose, onUpdate }) => {
+const ScheduleDetail: React.FC<ScheduleDetailProps> = ({
+  schedule,
+  visible,
+  onClose,
+  onUpdate,
+}) => {
   const [editMode, setEditMode] = useState(false);
   const [form] = Form.useForm();
   const { updateSchedule, deleteSchedule, runScheduleNow } = useSchedules();
@@ -52,7 +72,7 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
         config: values.config,
         enabled: values.enabled,
       };
-      
+
       await updateSchedule(schedule.id, updateData);
       setEditMode(false);
       onUpdate?.();
@@ -99,7 +119,7 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
 
   return (
     <Modal
-      title={editMode ? "Edit Schedule" : "Schedule Details"}
+      title={editMode ? 'Edit Schedule' : 'Schedule Details'}
       open={visible}
       onCancel={onClose}
       width={800}
@@ -107,16 +127,28 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
         editMode ? (
           <Space>
             <Button onClick={() => setEditMode(false)}>Cancel</Button>
-            <Button type="primary" onClick={handleSave}>Save Changes</Button>
+            <Button type="primary" onClick={() => void handleSave()}>
+              Save Changes
+            </Button>
           </Space>
         ) : (
           <Space>
             <Button onClick={onClose}>Close</Button>
-            <Button icon={<EditOutlined />} onClick={handleEdit}>Edit</Button>
-            <Button icon={<PlayCircleOutlined />} onClick={handleRunNow} type="primary">
+            <Button icon={<EditOutlined />} onClick={handleEdit}>
+              Edit
+            </Button>
+            <Button
+              icon={<PlayCircleOutlined />}
+              onClick={() => void handleRunNow()}
+              type="primary"
+            >
               Run Now
             </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => void handleDelete()}
+            >
               Delete
             </Button>
           </Space>
@@ -128,7 +160,9 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
           <Form.Item
             name="name"
             label="Schedule Name"
-            rules={[{ required: true, message: 'Please enter a schedule name' }]}
+            rules={[
+              { required: true, message: 'Please enter a schedule name' },
+            ]}
           >
             <Input size="large" />
           </Form.Item>
@@ -163,7 +197,7 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
             <Descriptions.Item label="Name" span={2}>
               <Text strong>{schedule.name}</Text>
             </Descriptions.Item>
-            
+
             {schedule.description && (
               <Descriptions.Item label="Description" span={2}>
                 {schedule.description}
@@ -171,10 +205,15 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
             )}
 
             <Descriptions.Item label="Task Type">
-              <Tag color={
-                schedule.task_type === 'sync' ? 'blue' :
-                schedule.task_type === 'analysis' ? 'green' : 'orange'
-              }>
+              <Tag
+                color={
+                  schedule.task_type === 'sync'
+                    ? 'blue'
+                    : schedule.task_type === 'analysis'
+                      ? 'green'
+                      : 'orange'
+                }
+              >
                 {schedule.task_type.toUpperCase()}
               </Tag>
             </Descriptions.Item>
@@ -206,8 +245,12 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
               <Descriptions.Item label="Next Run" span={2}>
                 <Space>
                   <ClockCircleOutlined />
-                  <Text>{dayjs(schedule.next_run).format('YYYY-MM-DD HH:mm:ss')}</Text>
-                  <Text type="secondary">({dayjs(schedule.next_run).fromNow()})</Text>
+                  <Text>
+                    {dayjs(schedule.next_run).format('YYYY-MM-DD HH:mm:ss')}
+                  </Text>
+                  <Text type="secondary">
+                    ({dayjs(schedule.next_run).fromNow()})
+                  </Text>
                 </Space>
               </Descriptions.Item>
             )}
@@ -229,13 +272,20 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
                 <Col xs={24} sm={8}>
                   <Statistic
                     title="Success Rate"
-                    value={stats.total_runs > 0 
-                      ? Math.round((stats.successful_runs / stats.total_runs) * 100)
-                      : 0}
+                    value={
+                      stats.total_runs > 0
+                        ? Math.round(
+                            (stats.successful_runs / stats.total_runs) * 100
+                          )
+                        : 0
+                    }
                     suffix="%"
-                    prefix={stats.successful_runs > stats.failed_runs ? 
-                      <CheckCircleOutlined style={{ color: '#52c41a' }} /> :
-                      <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                    prefix={
+                      stats.successful_runs > stats.failed_runs ? (
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      ) : (
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      )
                     }
                   />
                 </Col>
@@ -243,7 +293,9 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
                   <Statistic
                     title="Failed Runs"
                     value={stats.failed_runs}
-                    valueStyle={{ color: stats.failed_runs > 0 ? '#ff4d4f' : undefined }}
+                    valueStyle={{
+                      color: stats.failed_runs > 0 ? '#ff4d4f' : undefined,
+                    }}
                   />
                 </Col>
               </Row>
@@ -262,13 +314,20 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
                     </div>
                     <div>
                       <Text type="secondary">Status:</Text>{' '}
-                      <Tag color={getLastRun()!.status === 'success' ? 'success' : 'error'}>
+                      <Tag
+                        color={
+                          getLastRun()!.status === 'success'
+                            ? 'success'
+                            : 'error'
+                        }
+                      >
                         {getLastRun()!.status}
                       </Tag>
                     </div>
                     {getLastRun()?.duration && (
                       <div>
-                        <Text type="secondary">Duration:</Text> {Math.round(getLastRun()!.duration / 60)}m
+                        <Text type="secondary">Duration:</Text>{' '}
+                        {Math.round((getLastRun()?.duration ?? 0) / 60)}m
                       </div>
                     )}
                   </Space>
@@ -281,13 +340,15 @@ const ScheduleDetail: React.FC<ScheduleDetailProps> = ({ schedule, visible, onCl
           <Divider />
 
           <Title level={5}>Configuration</Title>
-          <pre style={{ 
-            background: '#f5f5f5', 
-            padding: '12px', 
-            borderRadius: '4px',
-            overflow: 'auto',
-            maxHeight: '200px'
-          }}>
+          <pre
+            style={{
+              background: '#f5f5f5',
+              padding: '12px',
+              borderRadius: '4px',
+              overflow: 'auto',
+              maxHeight: '200px',
+            }}
+          >
             {JSON.stringify(schedule.config, null, 2)}
           </pre>
         </Space>

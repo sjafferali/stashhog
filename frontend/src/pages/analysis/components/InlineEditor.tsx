@@ -1,19 +1,28 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Input, Select, DatePicker, Tag, Space, Button } from 'antd'
-import { CheckOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons'
-import moment from 'moment'
-import './InlineEditor.scss'
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  ChangeEvent,
+  KeyboardEvent,
+  MouseEvent,
+} from 'react';
+import { Input, Select, DatePicker, Tag, Space, Button } from 'antd';
+import { CheckOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import moment from 'moment';
+import './InlineEditor.scss';
 
-const { TextArea } = Input
+const { TextArea } = Input;
 
 export interface InlineEditorProps {
-  value: any
-  type: 'text' | 'textarea' | 'array' | 'date' | 'number' | 'object'
-  onSave: (value: any) => void
-  onCancel: () => void
-  placeholder?: string
-  options?: Array<{ label: string; value: any }>
-  validator?: (value: any) => boolean | string
+  value: string | number | boolean | string[] | Date | null;
+  type: 'text' | 'textarea' | 'array' | 'date' | 'number' | 'object';
+  onSave: (value: string | number | boolean | string[] | Date | null) => void;
+  onCancel: () => void;
+  placeholder?: string;
+  options?: Array<{ label: string; value: string | number }>;
+  validator?: (
+    value: string | number | boolean | string[] | Date | null
+  ) => boolean | string;
 }
 
 const InlineEditor: React.FC<InlineEditorProps> = ({
@@ -23,45 +32,52 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
   onCancel,
   placeholder,
   options,
-  validator
+  validator,
 }) => {
-  const [editValue, setEditValue] = useState<any>(value)
-  const [arrayInput, setArrayInput] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<any>(null)
+  const [editValue, setEditValue] = useState<
+    string | number | boolean | string[] | Date | null
+  >(value);
+  const [arrayInput, setArrayInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     // Focus input on mount
     setTimeout(() => {
-      inputRef.current?.focus()
-    }, 100)
-  }, [])
+      inputRef.current?.focus();
+    }, 100);
+  }, []);
 
   const handleSave = () => {
     // Validate if validator provided
     if (validator) {
-      const validationResult = validator(editValue)
+      const validationResult = validator(editValue);
       if (validationResult !== true) {
-        setError(typeof validationResult === 'string' ? validationResult : 'Invalid value')
-        return
+        setError(
+          typeof validationResult === 'string'
+            ? validationResult
+            : 'Invalid value'
+        );
+        return;
       }
     }
 
-    onSave(editValue)
-  }
+    onSave(editValue);
+  };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey && type !== 'textarea') {
-      e.preventDefault()
-      handleSave()
+      e.preventDefault();
+      handleSave();
     } else if (e.key === 'Escape') {
-      onCancel()
+      onCancel();
     }
-  }
+  };
 
   // Render array editor
   if (type === 'array') {
-    const items = Array.isArray(editValue) ? editValue : []
+    const items = Array.isArray(editValue) ? editValue : [];
 
     return (
       <div className="inline-editor array-editor">
@@ -71,29 +87,31 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
               <Tag
                 key={index}
                 closable
-                onClose={() => {
-                  const newItems = [...items]
-                  newItems.splice(index, 1)
-                  setEditValue(newItems)
+                onClose={(_e?: MouseEvent<HTMLElement>) => {
+                  const newItems = [...items];
+                  newItems.splice(index, 1);
+                  setEditValue(newItems);
                 }}
               >
                 {item}
               </Tag>
             ))}
           </div>
-          
+
           <Space.Compact style={{ width: '100%' }}>
             <Input
               ref={inputRef}
               value={arrayInput}
-              onChange={e => setArrayInput(e.target.value)}
-              onKeyDown={e => {
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setArrayInput(e.target.value)
+              }
+              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === 'Enter' && arrayInput.trim()) {
-                  e.preventDefault()
-                  setEditValue([...items, arrayInput.trim()])
-                  setArrayInput('')
+                  e.preventDefault();
+                  setEditValue([...items, arrayInput.trim()]);
+                  setArrayInput('');
                 } else if (e.key === 'Escape') {
-                  onCancel()
+                  onCancel();
                 }
               }}
               placeholder="Add item..."
@@ -102,13 +120,13 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
               icon={<PlusOutlined />}
               onClick={() => {
                 if (arrayInput.trim()) {
-                  setEditValue([...items, arrayInput.trim()])
-                  setArrayInput('')
+                  setEditValue([...items, arrayInput.trim()]);
+                  setArrayInput('');
                 }
               }}
             />
           </Space.Compact>
-          
+
           <Space>
             <Button
               type="primary"
@@ -118,17 +136,13 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
             >
               Save
             </Button>
-            <Button
-              size="small"
-              icon={<CloseOutlined />}
-              onClick={onCancel}
-            >
+            <Button size="small" icon={<CloseOutlined />} onClick={onCancel}>
               Cancel
             </Button>
           </Space>
         </Space>
       </div>
-    )
+    );
   }
 
   // Render date editor
@@ -138,8 +152,14 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
         <Space>
           <DatePicker
             ref={inputRef}
-            value={editValue ? moment(editValue) : null}
-            onChange={date => setEditValue(date?.toISOString())}
+            value={
+              editValue &&
+              typeof editValue !== 'boolean' &&
+              !Array.isArray(editValue)
+                ? moment(editValue)
+                : null
+            }
+            onChange={(date) => setEditValue(date?.toISOString() || null)}
             format="YYYY-MM-DD"
           />
           <Button
@@ -148,14 +168,10 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
             icon={<CheckOutlined />}
             onClick={handleSave}
           />
-          <Button
-            size="small"
-            icon={<CloseOutlined />}
-            onClick={onCancel}
-          />
+          <Button size="small" icon={<CloseOutlined />} onClick={onCancel} />
         </Space>
       </div>
-    )
+    );
   }
 
   // Render select editor (for options)
@@ -164,31 +180,27 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
       <div className="inline-editor select-editor">
         <Space.Compact style={{ width: '100%' }}>
           <Select
-            ref={inputRef}
             value={editValue}
-            onChange={setEditValue}
+            onChange={(
+              value: string | number | boolean | string[] | Date | null
+            ) => setEditValue(value)}
             style={{ width: '100%' }}
             placeholder={placeholder}
             onKeyDown={handleKeyDown}
-          >
-            {options.map(opt => (
-              <Select.Option key={opt.value} value={opt.value}>
-                {opt.label}
-              </Select.Option>
-            ))}
-          </Select>
+            options={options.map((opt) => ({
+              value: opt.value,
+              label: opt.label,
+            }))}
+          />
           <Button
             type="primary"
             icon={<CheckOutlined />}
             onClick={handleSave}
           />
-          <Button
-            icon={<CloseOutlined />}
-            onClick={onCancel}
-          />
+          <Button icon={<CloseOutlined />} onClick={onCancel} />
         </Space.Compact>
       </div>
-    )
+    );
   }
 
   // Render textarea editor
@@ -196,9 +208,11 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
     return (
       <div className="inline-editor textarea-editor">
         <TextArea
-          ref={inputRef}
-          value={editValue}
-          onChange={e => setEditValue(e.target.value)}
+          ref={textAreaRef}
+          value={editValue !== null ? String(editValue) : ''}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+            setEditValue(e.target.value)
+          }
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoSize={{ minRows: 2, maxRows: 6 }}
@@ -214,16 +228,12 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
           >
             Save
           </Button>
-          <Button
-            size="small"
-            icon={<CloseOutlined />}
-            onClick={onCancel}
-          >
+          <Button size="small" icon={<CloseOutlined />} onClick={onCancel}>
             Cancel
           </Button>
         </Space>
       </div>
-    )
+    );
   }
 
   // Render number editor
@@ -234,8 +244,10 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
           <Input
             ref={inputRef}
             type="number"
-            value={editValue}
-            onChange={e => setEditValue(parseFloat(e.target.value) || 0)}
+            value={editValue !== null ? String(editValue) : ''}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setEditValue(parseFloat(e.target.value) || 0)
+            }
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             status={error ? 'error' : undefined}
@@ -245,14 +257,11 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
             icon={<CheckOutlined />}
             onClick={handleSave}
           />
-          <Button
-            icon={<CloseOutlined />}
-            onClick={onCancel}
-          />
+          <Button icon={<CloseOutlined />} onClick={onCancel} />
         </Space.Compact>
         {error && <div className="error-message">{error}</div>}
       </div>
-    )
+    );
   }
 
   // Default text editor
@@ -261,25 +270,20 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
       <Space.Compact style={{ width: '100%' }}>
         <Input
           ref={inputRef}
-          value={editValue}
-          onChange={e => setEditValue(e.target.value)}
+          value={editValue !== null ? String(editValue) : ''}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setEditValue(e.target.value)
+          }
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           status={error ? 'error' : undefined}
         />
-        <Button
-          type="primary"
-          icon={<CheckOutlined />}
-          onClick={handleSave}
-        />
-        <Button
-          icon={<CloseOutlined />}
-          onClick={onCancel}
-        />
+        <Button type="primary" icon={<CheckOutlined />} onClick={handleSave} />
+        <Button icon={<CloseOutlined />} onClick={onCancel} />
       </Space.Compact>
       {error && <div className="error-message">{error}</div>}
     </div>
-  )
-}
+  );
+};
 
-export default InlineEditor
+export default InlineEditor;

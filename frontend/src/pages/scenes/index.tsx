@@ -1,24 +1,32 @@
-import React, { useState, useCallback } from 'react';
-import { Box, Container, Stack, IconButton, Tooltip, Typography } from '@mui/material';
-import { GridView as GridViewIcon, ViewList as ListViewIcon } from '@mui/icons-material';
-import { useSearchParams } from 'react-router-dom';
-import { useSceneFilters } from './hooks/useSceneFilters';
+import { useState, useCallback } from 'react';
+import {
+  // Space,
+  // Button,
+  Typography,
+  Tooltip,
+} from 'antd';
+import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
+// import { useSearchParams } from 'react-router-dom';
+// import { useSceneFilters } from './hooks/useSceneFilters';
 import { SearchBar } from './components/SearchBar';
 import { AdvancedFilters } from './components/AdvancedFilters';
 import { SceneListContainer } from './components/SceneListContainer';
 import { SceneActions } from './components/SceneActions';
 import { SyncButton } from './components/SyncButton';
 import { SceneDetailModal } from './components/SceneDetailModal';
-import { Scene } from '../../types/api';
+import { Scene } from '../../types/models';
 import { useScenesStore } from '../../store/slices/scenes';
 
+type ViewMode = 'grid' | 'list';
+
 export function ScenesPage() {
-  const [searchParams] = useSearchParams();
-  const filters = useSceneFilters();
+  // const [searchParams] = useSearchParams();
+  // const filters = useSceneFilters();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
-  
-  const { viewMode, setViewMode, selectedScenes, clearSelection } = useScenesStore();
+
+  const { selectedScenes, clearSelection } = useScenesStore();
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const handleSceneSelect = useCallback((scene: Scene) => {
     setSelectedScene(scene);
@@ -37,37 +45,43 @@ export function ScenesPage() {
   }, [showAdvancedFilters]);
 
   return (
-    <Container maxWidth={false} sx={{ py: 3 }}>
-      <Stack spacing={3}>
+    <div style={{ padding: '24px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Typography variant="h4" component="h1">
-            Scenes
-          </Typography>
-          <Stack direction="row" spacing={1}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Typography.Title level={2}>Scenes</Typography.Title>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <SyncButton />
             <Tooltip title={viewMode === 'grid' ? 'List view' : 'Grid view'}>
-              <IconButton onClick={toggleViewMode}>
-                {viewMode === 'grid' ? <ListViewIcon /> : <GridViewIcon />}
-              </IconButton>
+              <div onClick={toggleViewMode} style={{ cursor: 'pointer' }}>
+                {viewMode === 'grid' ? (
+                  <UnorderedListOutlined />
+                ) : (
+                  <AppstoreOutlined />
+                )}
+              </div>
             </Tooltip>
-          </Stack>
-        </Box>
+          </div>
+        </div>
 
         {/* Search Bar */}
-        <SearchBar 
+        <SearchBar
           onToggleAdvancedFilters={handleToggleFilters}
           showingAdvancedFilters={showAdvancedFilters}
         />
 
         {/* Advanced Filters */}
-        {showAdvancedFilters && (
-          <AdvancedFilters filters={filters} />
-        )}
+        {showAdvancedFilters && <AdvancedFilters />}
 
         {/* Bulk Actions */}
         {selectedScenes.size > 0 && (
-          <SceneActions 
+          <SceneActions
             selectedCount={selectedScenes.size}
             onClearSelection={clearSelection}
           />
@@ -75,20 +89,20 @@ export function ScenesPage() {
 
         {/* Scene List */}
         <SceneListContainer
-          filters={filters}
+          scenes={[]}
           viewMode={viewMode}
           onSceneSelect={handleSceneSelect}
         />
-      </Stack>
+      </div>
 
       {/* Scene Detail Modal */}
       {selectedScene && (
         <SceneDetailModal
           scene={selectedScene}
-          open={!!selectedScene}
+          visible={!!selectedScene}
           onClose={handleCloseModal}
         />
       )}
-    </Container>
+    </div>
   );
 }

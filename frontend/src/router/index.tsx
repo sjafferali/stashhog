@@ -1,16 +1,16 @@
-import { RouteObject } from 'react-router-dom'
-import MainLayout from '@/layouts/MainLayout'
-import Dashboard from '@/pages/Dashboard'
-import SceneBrowser from '@/pages/scenes/SceneBrowser'
-import SceneDetail from '@/pages/scenes/SceneDetail'
-import Analysis from '@/pages/analysis/Analysis'
-import PlanList from '@/pages/analysis/PlanList'
-import PlanDetail from '@/pages/analysis/PlanDetail'
-import JobMonitor from '@/pages/jobs/JobMonitor'
-import Settings from '@/pages/settings/Settings'
-import SyncManagement from '@/pages/sync/SyncManagement'
-import Scheduler from '@/pages/Scheduler'
-import NotFound from '@/pages/NotFound'
+import { RouteObject } from 'react-router-dom';
+import MainLayout from '@/layouts/MainLayout';
+import Dashboard from '@/pages/Dashboard';
+import SceneBrowser from '@/pages/scenes/SceneBrowser';
+import SceneDetail from '@/pages/scenes/SceneDetail';
+import Analysis from '@/pages/analysis/Analysis';
+import PlanList from '@/pages/analysis/PlanList';
+import PlanDetail from '@/pages/analysis/PlanDetail';
+import JobMonitor from '@/pages/jobs/JobMonitor';
+import Settings from '@/pages/settings/Settings';
+import SyncManagement from '@/pages/sync/SyncManagement';
+import Scheduler from '@/pages/Scheduler';
+import NotFound from '@/pages/NotFound';
 
 export const routes: RouteObject[] = [
   {
@@ -78,4 +78,4 @@ export const routes: RouteObject[] = [
     path: '*',
     element: <NotFound />,
   },
-]
+];

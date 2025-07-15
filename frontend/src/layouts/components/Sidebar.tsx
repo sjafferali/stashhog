@@ -1,6 +1,6 @@
-import React from 'react'
-import { Layout, Menu } from 'antd'
-import { useNavigate, useLocation } from 'react-router-dom'
+import React from 'react';
+import { Layout, Menu } from 'antd';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
   VideoCameraOutlined,
@@ -10,17 +10,17 @@ import {
   SyncOutlined,
   SettingOutlined,
   CalendarOutlined,
-} from '@ant-design/icons'
+} from '@ant-design/icons';
 
-const { Sider } = Layout
+const { Sider } = Layout;
 
 interface SidebarProps {
-  collapsed: boolean
+  collapsed: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const menuItems = [
     {
@@ -34,7 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       label: 'Scenes',
     },
     {
-      key: '/analysis',
+      key: 'analysis-menu',
       icon: <BulbOutlined />,
       label: 'Analysis',
       children: [
@@ -68,44 +68,52 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       icon: <SettingOutlined />,
       label: 'Settings',
     },
-  ]
+  ];
 
   const handleMenuClick = ({ key }: { key: string }) => {
-    navigate(key)
-  }
+    // Only navigate if the key starts with '/' (is a route)
+    if (key.startsWith('/')) {
+      navigate(key);
+    }
+  };
 
   // Find the active menu key based on current path
   const getSelectedKeys = () => {
-    const path = location.pathname
-    if (path === '/') return ['/']
-    
-    // Check for exact match first
-    const exactMatch = menuItems.find(item => item.key === path)
-    if (exactMatch) return [path]
-    
-    // Check for parent match
-    const parentMatch = menuItems.find(item => 
-      item.children?.some(child => child.key === path)
-    )
-    if (parentMatch) return [path]
-    
-    // Check for prefix match
-    const prefixMatch = menuItems.find(item => 
-      path.startsWith(item.key) && item.key !== '/'
-    )
-    if (prefixMatch) return [prefixMatch.key]
-    
-    return []
-  }
+    const path = location.pathname;
+    if (path === '/') return ['/'];
+
+    // Check for exact match in all items and their children
+    for (const item of menuItems) {
+      if (item.key === path && !item.children) return [path];
+
+      if (item.children) {
+        const childMatch = item.children.find((child) => child.key === path);
+        if (childMatch) return [path];
+      }
+    }
+
+    // Check for prefix match in children
+    for (const item of menuItems) {
+      if (item.children) {
+        const childPrefixMatch = item.children.find(
+          (child) => path.startsWith(child.key) && child.key !== '/'
+        );
+        if (childPrefixMatch) return [childPrefixMatch.key];
+      }
+    }
+
+    // Check for prefix match in top-level items
+    const prefixMatch = menuItems.find(
+      (item) => !item.children && path.startsWith(item.key) && item.key !== '/'
+    );
+    if (prefixMatch) return [prefixMatch.key];
+
+    return [];
+  };
 
   return (
-    <Sider 
-      trigger={null} 
-      collapsible 
-      collapsed={collapsed}
-      theme="dark"
-    >
-      <div 
+    <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+      <div
         style={{
           height: 64,
           display: 'flex',
@@ -127,7 +135,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         items={menuItems}
       />
     </Sider>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;

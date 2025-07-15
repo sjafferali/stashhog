@@ -1,50 +1,71 @@
 import React, { useState } from 'react';
-import { 
-  Card, 
-  Tag, 
-  Button, 
-  Space, 
-  Tooltip, 
+import {
+  Card,
+  Tag,
+  Button,
+  Space,
+  Tooltip,
   Progress,
   Typography,
   Input,
   Select,
   DatePicker,
-  Modal
+  Modal,
 } from 'antd';
-import { 
-  CheckOutlined, 
-  CloseOutlined, 
+import {
+  CheckOutlined,
+  CloseOutlined,
   EditOutlined,
-  InfoCircleOutlined,
-  DiffOutlined
+  DiffOutlined,
 } from '@ant-design/icons';
 import { DiffViewer } from './DiffViewer';
 import styles from './ChangePreview.module.scss';
 import dayjs from 'dayjs';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 export interface ProposedChange {
   id: string;
+  sceneId?: string | number;
   field: string;
   fieldLabel: string;
-  currentValue: any;
-  proposedValue: any;
+  currentValue:
+    | string
+    | number
+    | boolean
+    | string[]
+    | Record<string, unknown>
+    | null;
+  proposedValue:
+    | string
+    | number
+    | boolean
+    | string[]
+    | Record<string, unknown>
+    | null;
   confidence: number;
   type: 'text' | 'array' | 'object' | 'date' | 'number';
   accepted?: boolean;
   rejected?: boolean;
-  editedValue?: any;
+  editedValue?:
+    | string
+    | number
+    | boolean
+    | string[]
+    | Record<string, unknown>
+    | null;
 }
 
 export interface ChangePreviewProps {
   change: ProposedChange;
   onAccept?: () => void;
   onReject?: () => void;
-  onEdit?: (value: any) => void;
+  onEdit?: (
+    value: string | number | boolean | string[] | Record<string, unknown> | null
+  ) => void;
   showDiff?: boolean;
   editable?: boolean;
+  compact?: boolean;
 }
 
 export const ChangePreview: React.FC<ChangePreviewProps> = ({
@@ -81,7 +102,16 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
     setIsEditing(false);
   };
 
-  const renderValue = (value: any, type: string) => {
+  const renderValue = (
+    value:
+      | string
+      | number
+      | boolean
+      | string[]
+      | Record<string, unknown>
+      | null,
+    type: string
+  ) => {
     if (value === null || value === undefined) {
       return <Text type="secondary">None</Text>;
     }
@@ -90,18 +120,18 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
       case 'array':
         return (
           <Space size={4} wrap>
-            {value.map((item: any, index: number) => (
+            {(value as string[]).map((item: string, index: number) => (
               <Tag key={index}>{item}</Tag>
             ))}
           </Space>
         );
-      
+
       case 'date':
-        return dayjs(value).format('YYYY-MM-DD');
-      
+        return dayjs(value as string | number).format('YYYY-MM-DD');
+
       case 'object':
         return <code>{JSON.stringify(value, null, 2)}</code>;
-      
+
       default:
         return value.toString();
     }
@@ -112,12 +142,14 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
       case 'text':
         return (
           <Input.TextArea
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            value={editValue as string | number | readonly string[] | undefined}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setEditValue(e.target.value)
+            }
             autoSize={{ minRows: 1, maxRows: 4 }}
           />
         );
-      
+
       case 'array':
         return (
           <Select
@@ -127,30 +159,32 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
             style={{ width: '100%' }}
           />
         );
-      
+
       case 'date':
         return (
           <DatePicker
-            value={editValue ? dayjs(editValue) : null}
-            onChange={(date) => setEditValue(date?.toISOString())}
+            value={editValue ? dayjs(editValue as string | number) : null}
+            onChange={(date: any) => setEditValue(date?.toISOString())} // eslint-disable-line @typescript-eslint/no-explicit-any
             style={{ width: '100%' }}
           />
         );
-      
+
       case 'number':
         return (
           <Input
             type="number"
-            value={editValue}
-            onChange={(e) => setEditValue(Number(e.target.value))}
+            value={editValue as string | undefined}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setEditValue(Number(e.target.value))
+            }
           />
         );
-      
+
       default:
         return (
           <Input.TextArea
             value={JSON.stringify(editValue, null, 2)}
-            onChange={(e) => {
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
               try {
                 setEditValue(JSON.parse(e.target.value));
               } catch {
@@ -176,13 +210,15 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
           <div className={styles.fieldInfo}>
             <Text strong>{change.fieldLabel}</Text>
             {statusTag}
-            <Tooltip title={`Confidence: ${(change.confidence * 100).toFixed(0)}%`}>
+            <Tooltip
+              title={`Confidence: ${(change.confidence * 100).toFixed(0)}%`}
+            >
               <Tag color={getConfidenceColor(change.confidence)}>
                 {getConfidenceLabel(change.confidence)} Confidence
               </Tag>
             </Tooltip>
           </div>
-          
+
           <Space>
             {showDiff && (
               <Tooltip title="View Diff">
@@ -214,18 +250,20 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
                   {renderValue(change.currentValue, change.type)}
                 </div>
               </div>
-              
+
               <div className={styles.arrow}>→</div>
-              
+
               <div className={styles.valueSection}>
                 <Text type="secondary">Proposed:</Text>
                 <div className={styles.value}>
                   {renderValue(
-                    change.editedValue !== undefined ? change.editedValue : change.proposedValue, 
+                    change.editedValue !== undefined
+                      ? change.editedValue
+                      : change.proposedValue,
                     change.type
                   )}
                   {change.editedValue !== undefined && (
-                    <Tag color="blue" size="small">Edited</Tag>
+                    <Tag color="blue">Edited</Tag>
                   )}
                 </div>
               </div>
@@ -234,7 +272,7 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
             <div className={styles.editSection}>
               <Text type="secondary">Edit value:</Text>
               {renderEditInput()}
-              <Space className={styles.editActions}>
+              <Space>
                 <Button size="small" onClick={handleCancelEdit}>
                   Cancel
                 </Button>
@@ -255,11 +293,7 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
               className={styles.confidenceBar}
             />
             <Space>
-              <Button
-                icon={<CloseOutlined />}
-                onClick={onReject}
-                danger
-              >
+              <Button icon={<CloseOutlined />} onClick={onReject} danger>
                 Reject
               </Button>
               <Button
@@ -283,8 +317,16 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
       >
         <DiffViewer
           current={change.currentValue}
-          proposed={change.editedValue !== undefined ? change.editedValue : change.proposedValue}
-          type={change.type}
+          proposed={
+            change.editedValue !== undefined
+              ? change.editedValue
+              : change.proposedValue
+          }
+          type={
+            change.type === 'number' || change.type === 'date'
+              ? 'text'
+              : change.type
+          }
         />
       </Modal>
     </>

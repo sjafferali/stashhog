@@ -12,9 +12,24 @@ const config: Config = {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: {
         jsx: 'react-jsx',
+        target: 'es2022',
+        module: 'es2022',
+      },
+      babelConfig: {
+        plugins: [
+          ['babel-plugin-transform-vite-meta-env', {
+            env: {
+              VITE_API_URL: 'http://localhost:8000',
+              VITE_WS_URL: 'ws://localhost:8000',
+            }
+          }]
+        ]
       },
     }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(.*\\.mjs$))'
+  ],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -24,8 +39,13 @@ const config: Config = {
     '^@store/(.*)$': '<rootDir>/src/store/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@/hooks/useWebSocket$': '<rootDir>/src/__mocks__/hooks/useWebSocket.ts',
   },
+  setupFiles: ['<rootDir>/jest.setup.js'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
@@ -44,8 +64,15 @@ const config: Config = {
   },
   coverageReporters: ['text', 'lcov', 'html'],
   globals: {
-    'ts-jest': {
-      isolatedModules: true,
+    'import.meta': {
+      env: {
+        VITE_API_URL: 'http://localhost:8000',
+        VITE_WS_URL: 'ws://localhost:8000',
+        MODE: 'test',
+        DEV: false,
+        PROD: false,
+        SSR: false,
+      },
     },
   },
 };

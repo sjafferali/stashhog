@@ -1,9 +1,9 @@
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-import { AppSlice, createAppSlice } from './slices/app'
-import { SettingsSlice, createSettingsSlice } from './slices/settings'
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+import { AppSlice, createAppSlice } from './slices/app';
+import { SettingsSlice, createSettingsSlice } from './slices/settings';
 
-export type StoreState = AppSlice & SettingsSlice
+export type StoreState = AppSlice & SettingsSlice;
 
 const useAppStore = create<StoreState>()(
   devtools(
@@ -15,6 +15,6 @@ const useAppStore = create<StoreState>()(
       name: 'app-store',
     }
   )
-)
+);
 
-export default useAppStore
+export default useAppStore;

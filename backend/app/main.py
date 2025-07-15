@@ -1,28 +1,36 @@
 """
 StashHog FastAPI application.
 """
+
 import logging
+import warnings
 from contextlib import asynccontextmanager
-from typing import Dict
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.core.config import get_settings
-from app.core.database import init_db, close_db
-from app.core.middleware import (
-    RequestIDMiddleware,
-    LoggingMiddleware,
-    TimingMiddleware,
-    ErrorHandlingMiddleware
-)
-from app.api.error_handlers import register_error_handlers
 from app.api import api_router
+from app.api.error_handlers import register_error_handlers
+from app.core.config import get_settings
+from app.core.database import close_db, init_db
 from app.core.logging import configure_logging
+from app.core.middleware import (
+    ErrorHandlingMiddleware,
+    LoggingMiddleware,
+    RequestIDMiddleware,
+    TimingMiddleware,
+)
 from app.core.tasks import get_task_queue
 from app.jobs import register_all_jobs
+from app.services.job_service import job_service
+
+# Suppress passlib's crypt deprecation warning in Python 3.11+
+warnings.filterwarnings(
+    "ignore", message="'crypt' is deprecated", category=DeprecationWarning
+)
 
 # Configure logging
 configure_logging()
@@ -33,56 +41,56 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan manager.
-    
+
     Handles startup and shutdown events.
     """
     # Startup
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
-    
+
     try:
         # Initialize database
         logger.info("Initializing database...")
         await init_db()
-        
+
         # Initialize background task queue
         logger.info("Starting background workers...")
         task_queue = get_task_queue()
         await task_queue.start()
-        
+
         # Register job handlers
         logger.info("Registering job handlers...")
-        register_all_jobs()
-        
+        register_all_jobs(job_service)
+
         # TODO: Test external connections
         # logger.info("Testing external connections...")
         # await test_connections()
-        
+
         logger.info("Application startup complete")
-        
+
     except Exception as e:
         logger.error(f"Failed to start application: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info(f"Shutting down {settings.app.name}")
-    
+
     try:
         # Stop background workers
         logger.info("Stopping background workers...")
         task_queue = get_task_queue()
         await task_queue.stop()
-        
+
         # Close database connections
         logger.info("Closing database connections...")
         await close_db()
-        
+
         logger.info("Application shutdown complete")
-        
+
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
@@ -126,6 +134,7 @@ if settings.app.environment == "production":
     except RuntimeError:
         logger.warning("Static files directory not found, skipping mount")
 
+
 # Root endpoint
 @app.get("/", include_in_schema=False)
 async def root() -> Dict[str, str]:
@@ -133,8 +142,9 @@ async def root() -> Dict[str, str]:
     return {
         "name": settings.app.name,
         "version": settings.app.version,
-        "message": "Welcome to StashHog API"
+        "message": "Welcome to StashHog API",
     }
+
 
 # Health check endpoint (outside of API prefix for monitoring)
 @app.get("/health", include_in_schema=False)
@@ -142,12 +152,13 @@ async def health_check() -> Dict[str, str]:
     """Basic health check endpoint."""
     return {"status": "healthy"}
 
+
 # Ready check endpoint (more comprehensive)
 @app.get("/ready", include_in_schema=False)
 async def ready_check(request: Request) -> JSONResponse:
     """
     Readiness check endpoint.
-    
+
     Checks if the application is ready to handle requests.
     """
     checks = {
@@ -155,7 +166,7 @@ async def ready_check(request: Request) -> JSONResponse:
         "stash": False,
         "openai": False,
     }
-    
+
     # TODO: Implement actual checks
     # try:
     #     # Check database
@@ -163,26 +174,26 @@ async def ready_check(request: Request) -> JSONResponse:
     #     checks["database"] = True
     # except Exception as e:
     #     logger.error(f"Database check failed: {e}")
-    
+
     # Check if all critical services are ready
-    all_ready = all([
-        checks["database"],
-        # Other critical checks
-    ])
-    
+    all_ready = all(
+        [
+            checks["database"],
+            # Other critical checks
+        ]
+    )
+
     status_code = 200 if all_ready else 503
-    
+
     return JSONResponse(
         status_code=status_code,
-        content={
-            "status": "ready" if all_ready else "not ready",
-            "checks": checks
-        }
+        content={"status": "ready" if all_ready else "not ready", "checks": checks},
     )
+
 
 # Version endpoint
 @app.get("/version", include_in_schema=False)
-async def version_info() -> Dict[str, str]:
+async def version_info() -> Dict[str, Any]:
     """Get application version information."""
     return {
         "name": settings.app.name,

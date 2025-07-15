@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  Form, 
-  Input, 
-  Select, 
-  DatePicker, 
-  Button, 
+import {
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  Button,
   Space,
   Row,
   Col,
@@ -12,16 +12,15 @@ import {
   Tag,
   InputNumber,
   Switch,
-  Collapse
+  Collapse,
 } from 'antd';
-import { 
-  SearchOutlined, 
+import {
+  SearchOutlined,
   ClearOutlined,
   FilterOutlined,
-  CalendarOutlined,
   UserOutlined,
   TagsOutlined,
-  HomeOutlined
+  HomeOutlined,
 } from '@ant-design/icons';
 import { Performer, Tag as TagModel, Studio } from '@/types/models';
 import styles from './SceneFilters.module.scss';
@@ -31,9 +30,9 @@ const { Panel } = Collapse;
 
 export interface SceneFilterValues {
   search?: string;
-  performers?: number[];
-  tags?: number[];
-  studios?: number[];
+  performers?: string[];
+  tags?: string[];
+  studios?: string[];
   dateRange?: [Date, Date];
   minDuration?: number;
   maxDuration?: number;
@@ -64,13 +63,18 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
 }) => {
   const [form] = Form.useForm();
 
-  const handleValuesChange = (_: any, allValues: any) => {
+  const handleValuesChange = (
+    _: unknown,
+    allValues: Record<string, unknown>
+  ) => {
     const processedValues: SceneFilterValues = {
       ...allValues,
-      dateRange: allValues.dateRange ? [
-        allValues.dateRange[0].toDate(),
-        allValues.dateRange[1].toDate()
-      ] : undefined,
+      dateRange:
+        allValues.dateRange &&
+        Array.isArray(allValues.dateRange) &&
+        allValues.dateRange.length === 2
+          ? [allValues.dateRange[0].toDate(), allValues.dateRange[1].toDate()]
+          : undefined,
     };
     onChange(processedValues);
   };
@@ -80,9 +84,9 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
     onChange({});
   };
 
-  const handleQuickFilter = (type: string, value: any) => {
+  const handleQuickFilter = (type: string, _value: unknown) => {
     const updates: SceneFilterValues = { ...filters };
-    
+
     switch (type) {
       case 'analyzed':
         updates.isAnalyzed = true;
@@ -96,14 +100,15 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
       case 'hasDetails':
         updates.hasDetails = true;
         break;
-      case 'recent':
+      case 'recent': {
         const lastWeek = new Date();
         lastWeek.setDate(lastWeek.getDate() - 7);
         updates.dateRange = [lastWeek, new Date()];
         break;
+      }
     }
-    
-    form.setFieldsValue(updates);
+
+    void form.setFieldsValue(updates);
     onChange(updates);
   };
 
@@ -126,7 +131,7 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
         <div className={styles.quickFilters}>
           <span className={styles.label}>Quick Filters:</span>
           <Space>
-            {quickFilters.map(filter => (
+            {quickFilters.map((filter) => (
               <Tag
                 key={filter.value}
                 color={filter.color}
@@ -156,12 +161,16 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 mode="multiple"
                 placeholder="Select performers"
                 showSearch
-                filterOption={(input, option) =>
-                  option?.label.toLowerCase().includes(input.toLowerCase())
+                filterOption={(input: string, option) =>
+                  !!(
+                    option?.label &&
+                    typeof option.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())
+                  )
                 }
-                options={performers.map(p => ({
+                options={performers.map((p) => ({
                   label: p.name,
-                  value: p.id,
+                  value: String(p.id),
                 }))}
                 suffixIcon={<UserOutlined />}
               />
@@ -174,12 +183,16 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 mode="multiple"
                 placeholder="Select tags"
                 showSearch
-                filterOption={(input, option) =>
-                  option?.label.toLowerCase().includes(input.toLowerCase())
+                filterOption={(input: string, option) =>
+                  !!(
+                    option?.label &&
+                    typeof option.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())
+                  )
                 }
-                options={tags.map(t => ({
+                options={tags.map((t) => ({
                   label: t.name,
-                  value: t.id,
+                  value: String(t.id),
                 }))}
                 suffixIcon={<TagsOutlined />}
               />
@@ -192,12 +205,16 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 mode="multiple"
                 placeholder="Select studios"
                 showSearch
-                filterOption={(input, option) =>
-                  option?.label.toLowerCase().includes(input.toLowerCase())
+                filterOption={(input: string, option) =>
+                  !!(
+                    option?.label &&
+                    typeof option.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())
+                  )
                 }
-                options={studios.map(s => ({
+                options={studios.map((s) => ({
                   label: s.name,
-                  value: s.id,
+                  value: String(s.id),
                 }))}
                 suffixIcon={<HomeOutlined />}
               />
@@ -206,10 +223,7 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
 
           <Col xs={24} md={12} lg={8}>
             <Form.Item name="dateRange" label="Date Range">
-              <RangePicker
-                style={{ width: '100%' }}
-                suffixIcon={<CalendarOutlined />}
-              />
+              <RangePicker style={{ width: '100%' }} />
             </Form.Item>
           </Col>
 
@@ -251,9 +265,9 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 </Col>
 
                 <Col xs={8} md={8} lg={4}>
-                  <Form.Item 
-                    name="hasDetails" 
-                    label="Has Details" 
+                  <Form.Item
+                    name="hasDetails"
+                    label="Has Details"
                     valuePropName="checked"
                   >
                     <Switch />
@@ -261,9 +275,9 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 </Col>
 
                 <Col xs={8} md={8} lg={4}>
-                  <Form.Item 
-                    name="isAnalyzed" 
-                    label="Analyzed" 
+                  <Form.Item
+                    name="isAnalyzed"
+                    label="Analyzed"
                     valuePropName="checked"
                   >
                     <Switch />
@@ -271,9 +285,9 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 </Col>
 
                 <Col xs={8} md={8} lg={4}>
-                  <Form.Item 
-                    name="isOrganized" 
-                    label="Organized" 
+                  <Form.Item
+                    name="isOrganized"
+                    label="Organized"
                     valuePropName="checked"
                   >
                     <Switch />
@@ -286,17 +300,10 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
 
         <div className={styles.actions}>
           <Space>
-            <Button 
-              onClick={handleReset}
-              icon={<ClearOutlined />}
-            >
+            <Button onClick={handleReset} icon={<ClearOutlined />}>
               Clear Filters
             </Button>
-            <Button 
-              type="primary"
-              icon={<FilterOutlined />}
-              loading={loading}
-            >
+            <Button type="primary" icon={<FilterOutlined />} loading={loading}>
               Apply Filters
             </Button>
           </Space>

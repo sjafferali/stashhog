@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Input, Select, Space, Typography, Tabs, Row, Col, Alert, Tag } from 'antd';
+import React, { useState, useEffect, ChangeEvent } from 'react';
+import {
+  Input,
+  Select,
+  Space,
+  Typography,
+  Tabs,
+  Row,
+  Col,
+  Alert,
+  Tag,
+} from 'antd';
 import { ClockCircleOutlined, CalendarOutlined } from '@ant-design/icons';
 import { SCHEDULE_PRESETS } from '../types';
 import { useNextRuns } from '../hooks/useSchedules';
@@ -9,18 +19,22 @@ import cronstrue from 'cronstrue';
 
 const { Text, Title } = Typography;
 const { TabPane } = Tabs;
-const { Option } = Select;
 
 interface ScheduleBuilderProps {
   value?: string;
   onChange?: (value: string) => void;
 }
 
-const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange }) => {
-  const [mode, setMode] = useState<'preset' | 'builder' | 'natural' | 'advanced'>('preset');
+const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({
+  value = '',
+  onChange,
+}) => {
+  const [mode, setMode] = useState<
+    'preset' | 'builder' | 'natural' | 'advanced'
+  >('preset');
   const [expression, setExpression] = useState(value);
   const [naturalInput, setNaturalInput] = useState('');
-  
+
   // Cron builder state
   const [minute, setMinute] = useState('0');
   const [hour, setHour] = useState('0');
@@ -80,18 +94,19 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
         placeholder="Select a preset"
         value={expression}
         onChange={handleExpressionChange}
-      >
-        {SCHEDULE_PRESETS.map((preset) => (
-          <Option key={preset.expression} value={preset.expression}>
+        options={SCHEDULE_PRESETS.map((preset) => ({
+          key: preset.expression,
+          value: preset.expression,
+          label: (
             <Space direction="vertical" size={0}>
               <Text strong>{preset.name}</Text>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {preset.description}
               </Text>
             </Space>
-          </Option>
-        ))}
-      </Select>
+          ),
+        }))}
+      />
     </Space>
   );
 
@@ -104,117 +119,122 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
           <Select
             style={{ width: '100%' }}
             value={minute}
-            onChange={(val) => {
+            onChange={(val: string) => {
               setMinute(val);
               handleBuilderChange();
             }}
-          >
-            <Option value="*">Every minute</Option>
-            <Option value="0">At minute 0</Option>
-            <Option value="*/5">Every 5 minutes</Option>
-            <Option value="*/10">Every 10 minutes</Option>
-            <Option value="*/15">Every 15 minutes</Option>
-            <Option value="*/30">Every 30 minutes</Option>
-            {Array.from({ length: 60 }, (_, i) => (
-              <Option key={i} value={i.toString()}>
-                At minute {i}
-              </Option>
-            ))}
-          </Select>
+            options={[
+              { value: '*', label: 'Every minute' },
+              { value: '0', label: 'At minute 0' },
+              { value: '*/5', label: 'Every 5 minutes' },
+              { value: '*/10', label: 'Every 10 minutes' },
+              { value: '*/15', label: 'Every 15 minutes' },
+              { value: '*/30', label: 'Every 30 minutes' },
+              ...Array.from({ length: 60 }, (_, i) => ({
+                key: i,
+                value: i.toString(),
+                label: `At minute ${i}`,
+              })),
+            ]}
+          />
         </Col>
-        
+
         <Col xs={24} sm={12}>
           <Text type="secondary">Hour (0-23)</Text>
           <Select
             style={{ width: '100%' }}
             value={hour}
-            onChange={(val) => {
+            onChange={(val: string) => {
               setHour(val);
               handleBuilderChange();
             }}
-          >
-            <Option value="*">Every hour</Option>
-            <Option value="*/2">Every 2 hours</Option>
-            <Option value="*/3">Every 3 hours</Option>
-            <Option value="*/6">Every 6 hours</Option>
-            <Option value="*/12">Every 12 hours</Option>
-            {Array.from({ length: 24 }, (_, i) => (
-              <Option key={i} value={i.toString()}>
-                At {i}:00 ({i < 12 ? 'AM' : 'PM'})
-              </Option>
-            ))}
-          </Select>
+            options={[
+              { value: '*', label: 'Every hour' },
+              { value: '*/2', label: 'Every 2 hours' },
+              { value: '*/3', label: 'Every 3 hours' },
+              { value: '*/6', label: 'Every 6 hours' },
+              { value: '*/12', label: 'Every 12 hours' },
+              ...Array.from({ length: 24 }, (_, i) => ({
+                key: i,
+                value: i.toString(),
+                label: `At ${i}:00 (${i < 12 ? 'AM' : 'PM'})`,
+              })),
+            ]}
+          />
         </Col>
-        
+
         <Col xs={24} sm={8}>
           <Text type="secondary">Day of Month</Text>
           <Select
             style={{ width: '100%' }}
             value={dayOfMonth}
-            onChange={(val) => {
+            onChange={(val: string) => {
               setDayOfMonth(val);
               handleBuilderChange();
             }}
-          >
-            <Option value="*">Every day</Option>
-            <Option value="1">1st</Option>
-            <Option value="15">15th</Option>
-            <Option value="L">Last day</Option>
-            {Array.from({ length: 31 }, (_, i) => (
-              <Option key={i + 1} value={(i + 1).toString()}>
-                {i + 1}{['st', 'nd', 'rd'][i] || 'th'}
-              </Option>
-            ))}
-          </Select>
+            options={[
+              { value: '*', label: 'Every day' },
+              { value: '1', label: '1st' },
+              { value: '15', label: '15th' },
+              { value: 'L', label: 'Last day' },
+              ...Array.from({ length: 31 }, (_, i) => ({
+                key: i + 1,
+                value: (i + 1).toString(),
+                label: `${i + 1}${['st', 'nd', 'rd'][i] || 'th'}`,
+              })),
+            ]}
+          />
         </Col>
-        
+
         <Col xs={24} sm={8}>
           <Text type="secondary">Month</Text>
           <Select
             style={{ width: '100%' }}
             value={month}
-            onChange={(val) => {
+            onChange={(val: string) => {
               setMonth(val);
               handleBuilderChange();
             }}
-          >
-            <Option value="*">Every month</Option>
-            <Option value="1">January</Option>
-            <Option value="2">February</Option>
-            <Option value="3">March</Option>
-            <Option value="4">April</Option>
-            <Option value="5">May</Option>
-            <Option value="6">June</Option>
-            <Option value="7">July</Option>
-            <Option value="8">August</Option>
-            <Option value="9">September</Option>
-            <Option value="10">October</Option>
-            <Option value="11">November</Option>
-            <Option value="12">December</Option>
-          </Select>
+            options={[
+              { value: '*', label: 'Every month' },
+              { value: '1', label: 'January' },
+              { value: '2', label: 'February' },
+              { value: '3', label: 'March' },
+              { value: '4', label: 'April' },
+              { value: '5', label: 'May' },
+              { value: '6', label: 'June' },
+              { value: '7', label: 'July' },
+              { value: '8', label: 'August' },
+              { value: '9', label: 'September' },
+              { value: '10', label: 'October' },
+              { value: '11', label: 'November' },
+              { value: '12', label: 'December' },
+            ]}
+          />
         </Col>
-        
+
         <Col xs={24} sm={8}>
           <Text type="secondary">Day of Week</Text>
           <Select
             style={{ width: '100%' }}
             value={dayOfWeek}
-            onChange={(val) => {
+            onChange={(val: string) => {
               setDayOfWeek(val);
               handleBuilderChange();
             }}
-          >
-            <Option value="*">Every day</Option>
-            <Option value="1">Monday</Option>
-            <Option value="2">Tuesday</Option>
-            <Option value="3">Wednesday</Option>
-            <Option value="4">Thursday</Option>
-            <Option value="5">Friday</Option>
-            <Option value="6">Saturday</Option>
-            <Option value="0">Sunday</Option>
-            <Option value="1-5">Weekdays</Option>
-            <Option value="0,6">Weekends</Option>
-          </Select>
+            options={[
+              { value: '*', label: 'Every day' },
+              { value: '1', label: 'Monday' },
+              { value: '2', label: 'Tuesday' },
+              { value: '3', label: 'Wednesday' },
+              { value: '4', label: 'Thursday' },
+              { value: '5', label: 'Friday' },
+              { value: '6', label: 'Saturday' },
+              { value: '0', label: 'Sunday' },
+              { value: '1-5', label: 'Weekdays' },
+              { value: '0,6', label: 'Weekends' },
+            ]}
+          />
         </Col>
       </Row>
     </Space>
@@ -224,12 +244,15 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
     <Space direction="vertical" style={{ width: '100%' }}>
       <Title level={5}>Describe your schedule in plain English</Title>
       <Text type="secondary">
-        Examples: "every day at 3am", "every Monday at noon", "twice a day"
+        Examples: {'"'}every day at 3am{'"'}, {'"'}every Monday at noon{'"'},{' '}
+        {'"'}twice a day{'"'}
       </Text>
       <Input.Search
         placeholder="Type your schedule..."
         value={naturalInput}
-        onChange={(e) => setNaturalInput(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          setNaturalInput(e.target.value)
+        }
         onSearch={handleNaturalLanguageSubmit}
         enterButton="Parse"
         size="large"
@@ -243,7 +266,9 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
       <Input
         placeholder="* * * * *"
         value={expression}
-        onChange={(e) => handleExpressionChange(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          handleExpressionChange(e.target.value)
+        }
         prefix={<ClockCircleOutlined />}
         size="large"
       />
@@ -253,7 +278,12 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
-      <Tabs activeKey={mode} onChange={(key: any) => setMode(key)}>
+      <Tabs
+        activeKey={mode}
+        onChange={(key: string) =>
+          setMode(key as 'preset' | 'builder' | 'natural' | 'advanced')
+        }
+      >
         <TabPane tab="Presets" key="preset">
           {renderPresetTab()}
         </TabPane>
@@ -285,7 +315,8 @@ const ScheduleBuilder: React.FC<ScheduleBuilderProps> = ({ value = '', onChange 
               <Text type="secondary">Next runs:</Text>
               <Space direction="vertical" size={4} style={{ marginTop: 8 }}>
                 {nextRuns.map((run, index) => (
-                  <Tag key={index} icon={<ClockCircleOutlined />}>
+                  <Tag key={index}>
+                    <ClockCircleOutlined />
                     {run.toLocaleString()}
                   </Tag>
                 ))}

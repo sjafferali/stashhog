@@ -1,11 +1,11 @@
-import React from 'react'
-import { Card, Row, Col, Statistic } from 'antd'
+import React from 'react';
+import { Card, Row, Col, Statistic } from 'antd';
 import {
   VideoCameraOutlined,
   UserOutlined,
   TagsOutlined,
   HomeOutlined,
-} from '@ant-design/icons'
+} from '@ant-design/icons';
 
 const Dashboard: React.FC = () => {
   return (
@@ -23,34 +23,22 @@ const Dashboard: React.FC = () => {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="Performers"
-              value={0}
-              prefix={<UserOutlined />}
-            />
+            <Statistic title="Performers" value={0} prefix={<UserOutlined />} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="Tags"
-              value={0}
-              prefix={<TagsOutlined />}
-            />
+            <Statistic title="Tags" value={0} prefix={<TagsOutlined />} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic
-              title="Studios"
-              value={0}
-              prefix={<HomeOutlined />}
-            />
+            <Statistic title="Studios" value={0} prefix={<HomeOutlined />} />
           </Card>
         </Col>
       </Row>
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;

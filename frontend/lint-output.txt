@@ -1,0 +1,27 @@
+
+> stashhog-frontend@0.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/components/analysis/DiffViewer.tsx
+  70:6  warning  React Hook useMemo has a missing dependency: 'formatValue'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/components/jobs/JobProgress.tsx
+  84:6  warning  React Hook useEffect has missing dependencies: 'fetchJob' and 'job'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/pages/Scheduler/hooks/useSchedules.ts
+  197:6  warning  React Hook useEffect has missing dependencies: 'fetchHistory' and 'runs'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  252:6  warning  React Hook useEffect has a missing dependency: 'fetchNextRuns'. Either include it or remove the dependency array              react-hooks/exhaustive-deps
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/pages/analysis/hooks/usePlanDetail.ts
+  75:6  warning  React Hook useEffect has a missing dependency: 'fetchPlan'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/pages/scenes/components/GridView.tsx
+  194:5  warning  React Hook useMemo has missing dependencies: 'handleCardClick' and 'handleCheckboxClick'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/sjafferali/github/personal/stashhog/frontend/src/pages/scenes/components/SearchBar.tsx
+  39:6  warning  React Hook useEffect has missing dependencies: 'searchParams' and 'setSearchParams'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 7 problems (0 errors, 7 warnings)
+
+ESLint found too many warnings (maximum: 0).

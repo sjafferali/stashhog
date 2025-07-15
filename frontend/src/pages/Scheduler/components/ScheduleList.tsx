@@ -1,9 +1,22 @@
-import React, { useState } from 'react';
-import { List, Card, Tag, Space, Button, Typography, Switch, Popconfirm, Row, Col, Tooltip, Badge } from 'antd';
-import { 
-  PlayCircleOutlined, 
-  EditOutlined, 
-  DeleteOutlined, 
+import React, { useState, MouseEvent } from 'react';
+import {
+  List,
+  Card,
+  Tag,
+  Space,
+  Button,
+  Typography,
+  Switch,
+  Popconfirm,
+  Row,
+  Col,
+  Tooltip,
+  Badge,
+} from 'antd';
+import {
+  PlayCircleOutlined,
+  EditOutlined,
+  DeleteOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
@@ -21,8 +34,14 @@ interface ScheduleListProps {
   onRefresh?: () => void;
 }
 
-const ScheduleList: React.FC<ScheduleListProps> = ({ schedules, onScheduleClick, onRefresh }) => {
-  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+const ScheduleList: React.FC<ScheduleListProps> = ({
+  schedules,
+  onScheduleClick,
+  onRefresh,
+}) => {
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
+    null
+  );
   const [detailVisible, setDetailVisible] = useState(false);
   const { toggleSchedule, deleteSchedule, runScheduleNow } = useSchedules();
 
@@ -92,33 +111,34 @@ const ScheduleList: React.FC<ScheduleListProps> = ({ schedules, onScheduleClick,
                 hoverable
                 onClick={() => onScheduleClick?.(schedule)}
                 actions={[
-                  <Tooltip title="Run now">
+                  <Tooltip key="run" title="Run now">
                     <Button
                       type="text"
                       icon={<PlayCircleOutlined />}
-                      onClick={(e) => {
+                      onClick={(e: MouseEvent<HTMLElement>) => {
                         e.stopPropagation();
-                        handleRunNow(schedule.id);
+                        void handleRunNow(schedule.id);
                       }}
                       disabled={!schedule.enabled}
                     />
                   </Tooltip>,
-                  <Tooltip title="View details">
+                  <Tooltip key="edit" title="View details">
                     <Button
                       type="text"
                       icon={<EditOutlined />}
-                      onClick={(e) => {
+                      onClick={(e: MouseEvent<HTMLElement>) => {
                         e.stopPropagation();
                         handleDetailClick(schedule);
                       }}
                     />
                   </Tooltip>,
                   <Popconfirm
+                    key="delete"
                     title="Delete Schedule"
                     description="Are you sure you want to delete this schedule?"
-                    onConfirm={(e) => {
+                    onConfirm={(e?: MouseEvent<HTMLElement>) => {
                       e?.stopPropagation();
-                      handleDelete(schedule.id);
+                      void handleDelete(schedule.id);
                     }}
                     okText="Yes"
                     cancelText="No"
@@ -158,8 +178,11 @@ const ScheduleList: React.FC<ScheduleListProps> = ({ schedules, onScheduleClick,
                     <Col>
                       <Switch
                         checked={schedule.enabled}
-                        onChange={() => handleToggle(schedule)}
-                        onClick={(_, e) => e?.stopPropagation?.()}
+                        onChange={() => void handleToggle(schedule)}
+                        onClick={(
+                          _: boolean,
+                          e?: MouseEvent<HTMLButtonElement>
+                        ) => e?.stopPropagation?.()}
                       />
                     </Col>
                   </Row>
@@ -172,7 +195,8 @@ const ScheduleList: React.FC<ScheduleListProps> = ({ schedules, onScheduleClick,
 
                   <div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      <ClockCircleOutlined /> {getCronDescription(schedule.schedule)}
+                      <ClockCircleOutlined />{' '}
+                      {getCronDescription(schedule.schedule)}
                     </Text>
                   </div>
 

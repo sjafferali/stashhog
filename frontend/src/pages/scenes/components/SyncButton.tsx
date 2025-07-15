@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
-import { Button, Dropdown, Modal, Progress, Space, Typography, message } from 'antd';
-import { SyncOutlined, DownOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  Button,
+  Dropdown,
+  Modal,
+  Progress,
+  Space,
+  Typography,
+  message,
+} from 'antd';
+import {
+  SyncOutlined,
+  DownOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -52,11 +64,11 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
       onSuccess: (data) => {
         setCurrentJob(data.job);
         setSyncModalVisible(true);
-        message.success('Sync started');
-        queryClient.invalidateQueries('sync-status');
+        void message.success('Sync started');
+        void queryClient.invalidateQueries('sync-status');
       },
       onError: () => {
-        message.error('Failed to start sync');
+        void message.error('Failed to start sync');
       },
     }
   );
@@ -70,19 +82,24 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
       return response.data;
     },
     {
-      enabled: !!currentJob?.id && currentJob.status !== 'completed' && currentJob.status !== 'failed',
+      enabled:
+        !!currentJob?.id &&
+        currentJob.status !== 'completed' &&
+        currentJob.status !== 'failed',
       refetchInterval: 1000,
       onSuccess: (data: Job) => {
         if (data) {
           setCurrentJob(data);
           if (data.status === 'completed') {
-            message.success('Sync completed successfully');
+            void message.success('Sync completed successfully');
             setSyncModalVisible(false);
-            queryClient.invalidateQueries(['scenes']);
-            queryClient.invalidateQueries(['sync-status']);
+            void queryClient.invalidateQueries(['scenes']);
+            void queryClient.invalidateQueries(['sync-status']);
             onSyncComplete?.();
           } else if (data.status === 'failed') {
-            message.error('Sync failed: ' + (data.error || 'Unknown error'));
+            void message.error(
+              'Sync failed: ' + (data.error || 'Unknown error')
+            );
             setSyncModalVisible(false);
           }
         }
@@ -93,7 +110,8 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   const handleFullSync = () => {
     Modal.confirm({
       title: 'Full Sync',
-      content: 'This will sync all data from Stash. This may take a while. Continue?',
+      content:
+        'This will sync all data from Stash. This may take a while. Continue?',
       onOk: () => syncMutation.mutate(true),
     });
   };
@@ -172,10 +190,15 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
             {currentJob.total > 0 && (
               <>
                 <Progress
-                  percent={Math.round((currentJob.progress / currentJob.total) * 100)}
+                  percent={Math.round(
+                    (currentJob.progress / currentJob.total) * 100
+                  )}
                   status={
-                    currentJob.status === 'failed' ? 'exception' :
-                    currentJob.status === 'completed' ? 'success' : 'active'
+                    currentJob.status === 'failed'
+                      ? 'exception'
+                      : currentJob.status === 'completed'
+                        ? 'success'
+                        : 'active'
                   }
                 />
                 <div>
@@ -189,12 +212,14 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
             {currentJob.metadata && (
               <div>
                 <Text strong>Details:</Text>
-                <pre style={{ 
-                  background: '#f5f5f5', 
-                  padding: '8px', 
-                  borderRadius: '4px',
-                  fontSize: '12px'
-                }}>
+                <pre
+                  style={{
+                    background: '#f5f5f5',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                  }}
+                >
                   {JSON.stringify(currentJob.metadata, null, 2)}
                 </pre>
               </div>
@@ -202,7 +227,9 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
 
             {currentJob.error && (
               <div>
-                <Text type="danger" strong>Error: </Text>
+                <Text type="danger" strong>
+                  Error:{' '}
+                </Text>
                 <Text type="danger">{currentJob.error}</Text>
               </div>
             )}

@@ -1,18 +1,33 @@
-import React from 'react'
-import { Card, Button, Space, Statistic, Row, Col, Alert, Timeline } from 'antd'
-import { SyncOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons'
+import React from 'react';
+import {
+  Card,
+  Button,
+  Space,
+  Statistic,
+  Row,
+  Col,
+  Alert,
+  Timeline,
+} from 'antd';
+import {
+  SyncOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+} from '@ant-design/icons';
 
 const SyncManagement: React.FC = () => {
-  const isSyncing = false
+  const isSyncing = false;
 
   return (
     <div>
       <h1>Sync Management</h1>
-      
+
       <Alert
         message="Sync Status"
-        description={isSyncing ? "Sync is currently running..." : "Sync is idle"}
-        type={isSyncing ? "info" : "success"}
+        description={
+          isSyncing ? 'Sync is currently running...' : 'Sync is idle'
+        }
+        type={isSyncing ? 'info' : 'success'}
         showIcon
         style={{ marginBottom: 24 }}
       />
@@ -46,7 +61,9 @@ const SyncManagement: React.FC = () => {
           <Space>
             <Button
               type="primary"
-              icon={isSyncing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+              icon={
+                isSyncing ? <PauseCircleOutlined /> : <PlayCircleOutlined />
+              }
               loading={false}
             >
               {isSyncing ? 'Stop Sync' : 'Start Sync'}
@@ -70,7 +87,7 @@ const SyncManagement: React.FC = () => {
         </Timeline>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default SyncManagement
+export default SyncManagement;

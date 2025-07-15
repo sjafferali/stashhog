@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  Card, 
-  Form, 
-  Input, 
-  Select, 
-  DatePicker, 
-  InputNumber, 
-  Switch, 
-  Button, 
+import {
+  Card,
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  InputNumber,
+  Switch,
+  Button,
   Space,
   Collapse,
   Row,
-  Col
+  Col,
 } from 'antd';
 import { FilterOutlined, ClearOutlined } from '@ant-design/icons';
 import styles from './FilterPanel.module.scss';
@@ -19,23 +19,38 @@ import styles from './FilterPanel.module.scss';
 const { RangePicker } = DatePicker;
 const { Panel } = Collapse;
 
-export type FilterType = 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'boolean';
+export type FilterType =
+  | 'text'
+  | 'select'
+  | 'multiselect'
+  | 'date'
+  | 'daterange'
+  | 'number'
+  | 'boolean';
 
 export interface FilterConfig {
   name: string;
   label: string;
   type: FilterType;
   placeholder?: string;
-  options?: { label: string; value: any }[];
-  defaultValue?: any;
+  options?: { label: string; value: string | number }[];
+  defaultValue?: string | number | boolean | string[] | [string, string] | null;
   span?: number; // Grid column span (1-24)
   section?: string; // Group filters into collapsible sections
 }
 
 export interface FilterPanelProps {
   filters: FilterConfig[];
-  values: Record<string, any>;
-  onChange: (values: Record<string, any>) => void;
+  values: Record<
+    string,
+    string | number | boolean | string[] | [string, string] | null | undefined
+  >;
+  onChange: (
+    values: Record<
+      string,
+      string | number | boolean | string[] | [string, string] | null | undefined
+    >
+  ) => void;
   onReset: () => void;
   loading?: boolean;
   collapsible?: boolean;
@@ -52,7 +67,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const [form] = Form.useForm();
   const [activeKeys, setActiveKeys] = useState<string[]>(['filters']);
 
-  const handleValuesChange = (changedValues: any, allValues: any) => {
+  const handleValuesChange = (
+    _changedValues: Record<string, unknown>,
+    allValues: Record<
+      string,
+      string | number | boolean | string[] | [string, string] | null | undefined
+    >
+  ) => {
     onChange(allValues);
   };
 
@@ -62,17 +83,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   };
 
   const renderFilter = (filter: FilterConfig) => {
-    const { name, label, type, placeholder, options, defaultValue } = filter;
+    const { label, type, placeholder, options } = filter;
 
     switch (type) {
       case 'text':
         return (
-          <Input 
-            placeholder={placeholder || `Search ${label}`} 
-            allowClear
-          />
+          <Input placeholder={placeholder || `Search ${label}`} allowClear />
         );
-      
+
       case 'select':
         return (
           <Select
@@ -81,7 +99,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             allowClear
           />
         );
-      
+
       case 'multiselect':
         return (
           <Select
@@ -91,47 +109,45 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             allowClear
           />
         );
-      
+
       case 'date':
         return (
-          <DatePicker 
+          <DatePicker
             style={{ width: '100%' }}
             placeholder={placeholder || `Select ${label}`}
           />
         );
-      
+
       case 'daterange':
-        return (
-          <RangePicker 
-            style={{ width: '100%' }}
-            placeholder={placeholder ? [placeholder, placeholder] : [`Start ${label}`, `End ${label}`]}
-          />
-        );
-      
+        return <RangePicker style={{ width: '100%' }} />;
+
       case 'number':
         return (
-          <InputNumber 
+          <InputNumber
             style={{ width: '100%' }}
             placeholder={placeholder || `Enter ${label}`}
           />
         );
-      
+
       case 'boolean':
         return <Switch />;
-      
+
       default:
         return null;
     }
   };
 
-  const groupedFilters = filters.reduce((acc, filter) => {
-    const section = filter.section || 'Filters';
-    if (!acc[section]) {
-      acc[section] = [];
-    }
-    acc[section].push(filter);
-    return acc;
-  }, {} as Record<string, FilterConfig[]>);
+  const groupedFilters = filters.reduce(
+    (acc, filter) => {
+      const section = filter.section || 'Filters';
+      if (!acc[section]) {
+        acc[section] = [];
+      }
+      acc[section].push(filter);
+      return acc;
+    },
+    {} as Record<string, FilterConfig[]>
+  );
 
   const content = (
     <Form
@@ -162,18 +178,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       ))}
       <div className={styles.actions}>
         <Space>
-          <Button 
-            icon={<ClearOutlined />} 
+          <Button
+            icon={<ClearOutlined />}
             onClick={handleReset}
             disabled={loading}
           >
             Reset
           </Button>
-          <Button 
-            type="primary" 
-            icon={<FilterOutlined />}
-            loading={loading}
-          >
+          <Button type="primary" icon={<FilterOutlined />} loading={loading}>
             Apply Filters
           </Button>
         </Space>
@@ -185,14 +197,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     return (
       <Collapse
         activeKey={activeKeys}
-        onChange={setActiveKeys}
-        className={styles.filterPanel}
+        onChange={(key) => setActiveKeys(Array.isArray(key) ? key : [key])}
       >
-        <Panel 
-          header="Filters" 
-          key="filters"
-          extra={<FilterOutlined />}
-        >
+        <Panel header="Filters" key="filters">
           {content}
         </Panel>
       </Collapse>

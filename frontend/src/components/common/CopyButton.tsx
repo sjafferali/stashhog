@@ -26,16 +26,16 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      message.success('Copied to clipboard');
+      void message.success('Copied to clipboard');
       onCopy?.();
-      
+
       // Reset icon after 2 seconds
       setTimeout(() => {
         setCopied(false);
       }, 2000);
     } catch (error) {
       console.error('Failed to copy:', error);
-      message.error('Failed to copy to clipboard');
+      void message.error('Failed to copy to clipboard');
     }
   };
 
@@ -45,7 +45,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
         type={type}
         size={size}
         icon={copied ? <CheckOutlined /> : <CopyOutlined />}
-        onClick={handleCopy}
+        onClick={() => void handleCopy()}
         className={`${styles.copyButton} ${copied ? styles.copied : ''}`}
       >
         {showText && (copied ? 'Copied!' : buttonText)}

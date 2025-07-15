@@ -156,7 +156,7 @@ Return JSON with the match:
 {{
   "matched_performer": "Official Performer Name",
   "confidence": 0.95,
-  "reason": "Exact alias match" 
+  "reason": "Exact alias match"
 }}
 
 If no match found, return:

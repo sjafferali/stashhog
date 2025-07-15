@@ -1,22 +1,21 @@
 import React from 'react';
-import { 
-  Card, 
-  Statistic, 
-  Row, 
-  Col, 
-  Progress, 
-  Tag, 
-  Button, 
+import {
+  Card,
+  Statistic,
+  Row,
+  Col,
+  Progress,
+  Tag,
+  Button,
   Space,
   Divider,
   Typography,
   Tooltip,
   Descriptions,
-  Badge
+  Badge,
 } from 'antd';
-import { 
-  CheckCircleOutlined, 
-  CloseCircleOutlined, 
+import {
+  CheckCircleOutlined,
   SyncOutlined,
   DeleteOutlined,
   BarChartOutlined,
@@ -24,7 +23,7 @@ import {
   FileTextOutlined,
   UserOutlined,
   TagsOutlined,
-  HomeOutlined
+  HomeOutlined,
 } from '@ant-design/icons';
 import { AnalysisPlan } from '@/types/models';
 import styles from './PlanSummary.module.scss';
@@ -66,13 +65,15 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
   onDelete,
   loading = false,
 }) => {
-  const acceptanceRate = statistics.totalChanges > 0 
-    ? (statistics.acceptedChanges / statistics.totalChanges) * 100 
-    : 0;
-    
-  const completionRate = statistics.totalScenes > 0
-    ? (statistics.analyzedScenes / statistics.totalScenes) * 100
-    : 0;
+  const acceptanceRate =
+    statistics.totalChanges > 0
+      ? (statistics.acceptedChanges / statistics.totalChanges) * 100
+      : 0;
+
+  const completionRate =
+    statistics.totalScenes > 0
+      ? (statistics.analyzedScenes / statistics.totalScenes) * 100
+      : 0;
 
   const getStatusColor = () => {
     if (!plan.active) return 'default';
@@ -95,7 +96,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
     performers: <UserOutlined />,
     tags: <TagsOutlined />,
     studio: <HomeOutlined />,
-    custom: <BarChartOutlined />
+    custom: <BarChartOutlined />,
   };
 
   return (
@@ -104,15 +105,20 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
         <div>
           <Title level={4}>
             {plan.name}
-            <Badge 
-              status={getStatusColor() as any}
+            <Badge
+              status={
+                getStatusColor() as
+                  | 'success'
+                  | 'processing'
+                  | 'default'
+                  | 'error'
+                  | 'warning'
+              }
               text={getStatusText()}
               className={styles.status}
             />
           </Title>
-          {plan.description && (
-            <Text type="secondary">{plan.description}</Text>
-          )}
+          {plan.description && <Text type="secondary">{plan.description}</Text>}
         </div>
         <Space>
           {onApply && (
@@ -128,11 +134,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           )}
           {onDelete && (
             <Tooltip title="Delete Plan">
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={onDelete}
-              />
+              <Button danger icon={<DeleteOutlined />} onClick={onDelete} />
             </Tooltip>
           )}
         </Space>
@@ -180,8 +182,8 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           <Text>Analysis Progress</Text>
           <Text>{completionRate.toFixed(0)}%</Text>
         </div>
-        <Progress 
-          percent={completionRate} 
+        <Progress
+          percent={completionRate}
           showInfo={false}
           status={completionRate === 100 ? 'success' : 'active'}
         />
@@ -207,38 +209,46 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
               </div>
               <div className={styles.statRow}>
                 <Text>Acceptance Rate</Text>
-                <Progress 
-                  percent={acceptanceRate} 
-                  size="small" 
-                  status={acceptanceRate >= 80 ? 'success' : acceptanceRate >= 50 ? 'normal' : 'exception'}
+                <Progress
+                  percent={acceptanceRate}
+                  size="small"
+                  status={
+                    acceptanceRate >= 80
+                      ? 'success'
+                      : acceptanceRate >= 50
+                        ? 'normal'
+                        : 'exception'
+                  }
                 />
               </div>
               <div className={styles.statRow}>
                 <Text>Avg Confidence</Text>
-                <Progress 
-                  percent={statistics.avgConfidence * 100} 
+                <Progress
+                  percent={statistics.avgConfidence * 100}
                   size="small"
-                  format={(percent) => `${percent?.toFixed(0)}%`}
+                  format={(percent?: number) => `${percent?.toFixed(0)}%`}
                 />
               </div>
             </Space>
           </Card>
         </Col>
-        
+
         <Col xs={24} md={12}>
           <Card size="small" title="Field Breakdown">
             <Space direction="vertical" style={{ width: '100%' }}>
-              {Object.entries(statistics.fieldBreakdown).map(([field, count]) => (
-                <div key={field} className={styles.fieldRow}>
-                  <Space>
-                    {fieldIcons[field as keyof typeof fieldIcons]}
-                    <Text className={styles.fieldName}>
-                      {field.charAt(0).toUpperCase() + field.slice(1)}
-                    </Text>
-                  </Space>
-                  <Tag>{count}</Tag>
-                </div>
-              ))}
+              {Object.entries(statistics.fieldBreakdown).map(
+                ([field, count]) => (
+                  <div key={field} className={styles.fieldRow}>
+                    <Space>
+                      {fieldIcons[field as keyof typeof fieldIcons]}
+                      <Text className={styles.fieldName}>
+                        {field.charAt(0).toUpperCase() + field.slice(1)}
+                      </Text>
+                    </Space>
+                    <Tag>{count}</Tag>
+                  </div>
+                )
+              )}
             </Space>
           </Card>
         </Col>
@@ -263,7 +273,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
 
       <div className={styles.extractionConfig}>
         <Text type="secondary">Extraction Configuration:</Text>
-        <Space wrap className={styles.configTags}>
+        <Space wrap>
           {plan.extract_performers && <Tag color="purple">Performers</Tag>}
           {plan.extract_tags && <Tag color="cyan">Tags</Tag>}
           {plan.extract_studio && <Tag color="blue">Studio</Tag>}
@@ -271,7 +281,9 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           {plan.extract_date && <Tag color="orange">Date</Tag>}
           {plan.extract_details && <Tag color="magenta">Details</Tag>}
           {plan.custom_fields && Object.keys(plan.custom_fields).length > 0 && (
-            <Tag color="red">{Object.keys(plan.custom_fields).length} Custom Fields</Tag>
+            <Tag color="red">
+              {Object.keys(plan.custom_fields).length} Custom Fields
+            </Tag>
           )}
         </Space>
       </div>

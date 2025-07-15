@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
-    
+
     // Log to external service if needed
     if (process.env.NODE_ENV === 'production') {
       // logErrorToService(error, errorInfo);
@@ -54,21 +54,21 @@ export class ErrorBoundary extends Component<Props, State> {
           title="Something went wrong"
           subTitle={error?.message || 'An unexpected error occurred'}
           extra={[
-            <Button 
+            <Button
               key="reset"
-              type="primary" 
+              type="primary"
               icon={<ReloadOutlined />}
               onClick={this.handleReset}
             >
               Try Again
             </Button>,
-            <Button 
+            <Button
               key="home"
               icon={<HomeOutlined />}
               onClick={this.handleGoHome}
             >
               Back to Home
-            </Button>
+            </Button>,
           ]}
         />
       );

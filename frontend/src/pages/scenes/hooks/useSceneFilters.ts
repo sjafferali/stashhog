@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SceneQueryParams } from './useScenes';
 
-export interface SceneFilters extends Omit<SceneQueryParams, 'page' | 'size' | 'sort_by' | 'sort_dir'> {
-  // All filter fields from SceneQueryParams except pagination/sort
-}
+export type SceneFilters = Omit<
+  SceneQueryParams,
+  'page' | 'size' | 'sort_by' | 'sort_dir'
+>;
 
 const DEFAULT_FILTERS: SceneFilters = {
   search: '',
@@ -45,39 +46,46 @@ export function useSceneFilters() {
     // Array filters (comma-separated IDs)
     const performers = searchParams.get('performers');
     if (performers) {
-      params.performers = performers.split(',').map(Number).filter(Boolean);
+      params.performers = performers.split(',').filter(Boolean);
     }
 
     const tags = searchParams.get('tags');
     if (tags) {
-      params.tags = tags.split(',').map(Number).filter(Boolean);
+      params.tags = tags.split(',').filter(Boolean);
     }
 
     const studios = searchParams.get('studios');
     if (studios) {
-      params.studios = studios.split(',').map(Number).filter(Boolean);
+      params.studios = studios.split(',').filter(Boolean);
     }
 
     return params;
   }, [searchParams]);
 
   // Update a single filter
-  const updateFilter = (key: keyof SceneFilters, value: any) => {
+  const updateFilter = (
+    key: keyof SceneFilters,
+    value: string | number | boolean | string[] | undefined
+  ) => {
     const newParams = new URLSearchParams(searchParams);
 
-    if (value === undefined || value === null || value === '' || 
-        (Array.isArray(value) && value.length === 0)) {
+    if (
+      value === undefined ||
+      value === null ||
+      value === '' ||
+      (Array.isArray(value) && value.length === 0)
+    ) {
       // Remove empty values
-      newParams.delete(key);
+      newParams.delete(key as string);
     } else if (Array.isArray(value)) {
       // Handle array values
-      newParams.set(key, value.join(','));
+      newParams.set(key as string, value.join(','));
     } else if (typeof value === 'boolean') {
       // Handle boolean values
-      newParams.set(key, value.toString());
+      newParams.set(key as string, value.toString());
     } else {
       // Handle other values
-      newParams.set(key, value.toString());
+      newParams.set(key as string, value.toString());
     }
 
     setSearchParams(newParams);
@@ -88,8 +96,12 @@ export function useSceneFilters() {
     const newParams = new URLSearchParams(searchParams);
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '' || 
-          (Array.isArray(value) && value.length === 0)) {
+      if (
+        value === undefined ||
+        value === null ||
+        value === '' ||
+        (Array.isArray(value) && value.length === 0)
+      ) {
         newParams.delete(key);
       } else if (Array.isArray(value)) {
         newParams.set(key, value.join(','));
@@ -107,7 +119,7 @@ export function useSceneFilters() {
   const resetFilters = () => {
     const newParams = new URLSearchParams();
     // Preserve pagination/sort params if they exist
-    ['page', 'size', 'sort_by', 'sort_dir'].forEach(key => {
+    ['page', 'size', 'sort_by', 'sort_dir'].forEach((key) => {
       const value = searchParams.get(key);
       if (value) {
         newParams.set(key, value);
@@ -120,9 +132,20 @@ export function useSceneFilters() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.search) count++;
-    if (filters.performers && filters.performers.length > 0) count++;
-    if (filters.tags && filters.tags.length > 0) count++;
-    if (filters.studios && filters.studios.length > 0) count++;
+    if (
+      filters.performers &&
+      Array.isArray(filters.performers) &&
+      filters.performers.length > 0
+    )
+      count++;
+    if (filters.tags && Array.isArray(filters.tags) && filters.tags.length > 0)
+      count++;
+    if (
+      filters.studios &&
+      Array.isArray(filters.studios) &&
+      filters.studios.length > 0
+    )
+      count++;
     if (filters.organized !== undefined) count++;
     if (filters.has_details !== undefined) count++;
     if (filters.date_from) count++;

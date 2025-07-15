@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Row, Col, List, Empty, Segmented } from 'antd';
+import { Row, Col, Empty, Segmented } from 'antd';
 import { AppstoreOutlined, BarsOutlined } from '@ant-design/icons';
 import VirtualList from 'rc-virtual-list';
 import { Scene } from '@/types/models';
@@ -73,7 +73,7 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
             if (onSelectionChange) {
               const newIds = selected
                 ? [...selectedIds, scene.stash_id]
-                : selectedIds.filter(id => id !== scene.stash_id);
+                : selectedIds.filter((id) => id !== scene.stash_id);
               onSelectionChange(newIds);
             }
           }}
@@ -92,12 +92,10 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
     );
   };
 
-  const content = layout === 'grid' ? (
-    <Row gutter={[16, 16]}>
-      {scenes.map(renderScene)}
-    </Row>
-  ) : virtualScroll && scenes.length > 20 ? (
-    <List>
+  const content =
+    layout === 'grid' ? (
+      <Row gutter={[16, 16]}>{scenes.map(renderScene)}</Row>
+    ) : virtualScroll && scenes.length > 20 ? (
       <VirtualList
         data={scenes}
         height={containerHeight}
@@ -106,12 +104,9 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
       >
         {(scene) => renderScene(scene)}
       </VirtualList>
-    </List>
-  ) : (
-    <div className={styles.listContainer}>
-      {scenes.map(renderScene)}
-    </div>
-  );
+    ) : (
+      <div className={styles.listContainer}>{scenes.map(renderScene)}</div>
+    );
 
   return (
     <div className={styles.sceneGrid}>
@@ -120,7 +115,7 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
           <Segmented
             options={layoutOptions}
             value={layout}
-            onChange={onLayoutChange as any}
+            onChange={onLayoutChange}
           />
         </div>
       )}

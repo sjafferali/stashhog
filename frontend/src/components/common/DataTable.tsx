@@ -1,15 +1,19 @@
-import React from 'react';
-import { Table, TableProps } from 'antd';
-import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import { Table } from 'antd';
+import type {
+  TableProps,
+  ColumnsType,
+  TablePaginationConfig,
+} from 'antd/es/table';
 import { EmptyState } from './EmptyState';
 import styles from './DataTable.module.scss';
 
-export interface DataTableProps<T> extends Omit<TableProps<T>, 'columns'> {
+export interface DataTableProps<T>
+  extends Omit<TableProps<T>, 'columns' | 'dataSource'> {
   columns: ColumnsType<T>;
-  data: T[];
+  data: readonly T[];
   loading?: boolean;
   pagination?: TablePaginationConfig | false;
-  onRow?: (record: T) => TableProps<T>['onRow'];
+  onRow?: TableProps<T>['onRow'];
   emptyText?: string;
   emptyDescription?: string;
 }
@@ -21,7 +25,8 @@ export function DataTable<T extends object>({
   pagination = {
     pageSize: 10,
     showSizeChanger: true,
-    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+    showTotal: (total: number, range: [number, number]) =>
+      `${range[0]}-${range[1]} of ${total} items`,
   },
   onRow,
   emptyText = 'No data',
@@ -33,16 +38,13 @@ export function DataTable<T extends object>({
     <Table<T>
       className={`${styles.dataTable} ${className || ''}`}
       columns={columns}
-      dataSource={data}
+      dataSource={[...data]}
       loading={loading}
       pagination={pagination}
       onRow={onRow}
       locale={{
         emptyText: (
-          <EmptyState
-            title={emptyText}
-            description={emptyDescription}
-          />
+          <EmptyState title={emptyText} description={emptyDescription} />
         ),
       }}
       {...restProps}

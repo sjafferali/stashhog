@@ -1,19 +1,20 @@
 """Data transformation utilities for Stash API."""
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 def transform_scene(stash_scene: Dict) -> Dict:
     """Convert Stash scene to internal format."""
     if not stash_scene:
         return {}
-    
+
     # Extract primary path
     primary_path = ""
     if stash_scene.get("paths"):
-        primary_path = stash_scene["paths"][0].get("path", "") if stash_scene["paths"] else ""
-    
+        primary_path = (
+            stash_scene["paths"][0].get("path", "") if stash_scene["paths"] else ""
+        )
+
     # Transform to internal format
     return {
         "stash_id": stash_scene.get("id"),
@@ -27,14 +28,20 @@ def transform_scene(stash_scene: Dict) -> Dict:
         "o_counter": stash_scene.get("o_counter", 0),
         "created_at": stash_scene.get("created_at"),
         "updated_at": stash_scene.get("updated_at"),
-        "studio": transform_studio(stash_scene.get("studio")) if stash_scene.get("studio") else None,
-        "performers": [transform_performer(p) for p in stash_scene.get("performers", [])],
+        "studio": (
+            transform_studio(stash_scene.get("studio", {}))
+            if stash_scene.get("studio") is not None
+            else None
+        ),
+        "performers": [
+            transform_performer(p) for p in stash_scene.get("performers", [])
+        ],
         "tags": [transform_tag(t) for t in stash_scene.get("tags", [])],
         "file": transform_file_info(stash_scene.get("file")),
         "galleries": stash_scene.get("galleries", []),
         "movies": stash_scene.get("movies", []),
         "interactive": stash_scene.get("interactive", False),
-        "interactive_speed": stash_scene.get("interactive_speed")
+        "interactive_speed": stash_scene.get("interactive_speed"),
     }
 
 
@@ -42,7 +49,7 @@ def transform_performer(stash_performer: Dict) -> Dict:
     """Convert Stash performer to internal format."""
     if not stash_performer:
         return {}
-    
+
     return {
         "stash_id": stash_performer.get("id"),
         "name": stash_performer.get("name", ""),
@@ -67,7 +74,7 @@ def transform_performer(stash_performer: Dict) -> Dict:
         "weight": stash_performer.get("weight"),
         "twitter": stash_performer.get("twitter"),
         "instagram": stash_performer.get("instagram"),
-        "ignore_auto_tag": stash_performer.get("ignore_auto_tag", False)
+        "ignore_auto_tag": stash_performer.get("ignore_auto_tag", False),
     }
 
 
@@ -75,7 +82,7 @@ def transform_tag(stash_tag: Dict) -> Dict:
     """Convert Stash tag to internal format."""
     if not stash_tag:
         return {}
-    
+
     return {
         "stash_id": stash_tag.get("id"),
         "name": stash_tag.get("name", ""),
@@ -87,15 +94,15 @@ def transform_tag(stash_tag: Dict) -> Dict:
         "movie_count": stash_tag.get("movie_count", 0),
         "gallery_count": stash_tag.get("gallery_count", 0),
         "image_count": stash_tag.get("image_count", 0),
-        "ignore_auto_tag": stash_tag.get("ignore_auto_tag", False)
+        "ignore_auto_tag": stash_tag.get("ignore_auto_tag", False),
     }
 
 
-def transform_studio(stash_studio: Dict) -> Dict:
+def transform_studio(stash_studio: Dict[Any, Any]) -> Dict:
     """Convert Stash studio to internal format."""
     if not stash_studio:
         return {}
-    
+
     return {
         "stash_id": stash_studio.get("id"),
         "name": stash_studio.get("name", ""),
@@ -104,7 +111,7 @@ def transform_studio(stash_studio: Dict) -> Dict:
         "rating": stash_studio.get("rating100"),
         "scene_count": stash_studio.get("scene_count", 0),
         "aliases": stash_studio.get("aliases", []),
-        "ignore_auto_tag": stash_studio.get("ignore_auto_tag", False)
+        "ignore_auto_tag": stash_studio.get("ignore_auto_tag", False),
     }
 
 
@@ -112,7 +119,7 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
     """Transform file information."""
     if not file_info:
         return {}
-    
+
     return {
         "size": file_info.get("size", 0),
         "duration": file_info.get("duration", 0),
@@ -121,7 +128,7 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
         "width": file_info.get("width", 0),
         "height": file_info.get("height", 0),
         "framerate": file_info.get("framerate", 0),
-        "bitrate": file_info.get("bitrate", 0)
+        "bitrate": file_info.get("bitrate", 0),
     }
 
 
@@ -136,40 +143,38 @@ def prepare_scene_update(updates: Dict[str, Any]) -> Dict[str, Any]:
         "performer_ids": "performer_ids",
         "tag_ids": "tag_ids",
         "movie_ids": "movie_ids",
-        "gallery_ids": "gallery_ids"
+        "gallery_ids": "gallery_ids",
     }
-    
-    stash_updates = {}
-    
+
+    stash_updates: Dict[str, Any] = {}
+
     for key, value in updates.items():
         # Skip None values
         if value is None:
             continue
-            
+
         # Map field names
         stash_key = field_mapping.get(key, key)
-        
+
         # Handle special cases
         if key == "performers" and isinstance(value, list):
             # Convert performer objects to IDs
             stash_updates["performer_ids"] = [
-                p.get("stash_id") if isinstance(p, dict) else p 
-                for p in value
+                p.get("stash_id") if isinstance(p, dict) else p for p in value
             ]
         elif key == "tags" and isinstance(value, list):
             # Convert tag objects to IDs
             stash_updates["tag_ids"] = [
-                t.get("stash_id") if isinstance(t, dict) else t 
-                for t in value
+                t.get("stash_id") if isinstance(t, dict) else t for t in value
             ]
         elif key == "studio" and isinstance(value, dict):
             # Convert studio object to ID
-            stash_updates["studio_id"] = value.get("stash_id")
+            stash_updates["studio_id"] = value.get("stash_id") if value else None
         elif key == "studio_id":
             stash_updates["studio_id"] = value
         else:
             stash_updates[stash_key] = value
-    
+
     return stash_updates
 
 

@@ -1,23 +1,22 @@
 import React from 'react';
-import { 
-  Card, 
-  Progress, 
-  Tag, 
-  Space, 
-  Button, 
+import {
+  Card,
+  Progress,
+  Tag,
+  Space,
+  Button,
   Typography,
   Tooltip,
-  Descriptions
+  Descriptions,
 } from 'antd';
-import { 
-  ClockCircleOutlined, 
-  CheckCircleOutlined, 
+import {
+  ClockCircleOutlined,
+  CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
   PauseCircleOutlined,
-  PlayCircleOutlined,
   RedoOutlined,
-  DeleteOutlined
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
 import styles from './JobCard.module.scss';
@@ -41,7 +40,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onRetry,
   onDelete,
   onPause,
-  onResume,
+  onResume: _onResume,
   compact = false,
   showDetails = true,
 }) => {
@@ -94,15 +93,17 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const formatDuration = () => {
     if (!job.started_at) return null;
-    
+
     const start = new Date(job.started_at).getTime();
-    const end = job.completed_at ? new Date(job.completed_at).getTime() : Date.now();
+    const end = job.completed_at
+      ? new Date(job.completed_at).getTime()
+      : Date.now();
     const duration = end - start;
-    
+
     const seconds = Math.floor(duration / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes % 60}m`;
     }
@@ -115,24 +116,33 @@ export const JobCard: React.FC<JobCardProps> = ({
   const progressPercent = job.total > 0 ? (job.progress / job.total) * 100 : 0;
 
   const actions = [];
-  
+
   if (job.status === 'running') {
     if (onPause) {
       actions.push(
         <Tooltip key="pause" title="Pause">
-          <Button type="text" icon={<PauseCircleOutlined />} onClick={onPause} />
+          <Button
+            type="text"
+            icon={<PauseCircleOutlined />}
+            onClick={onPause}
+          />
         </Tooltip>
       );
     }
     if (onCancel) {
       actions.push(
         <Tooltip key="cancel" title="Cancel">
-          <Button type="text" danger icon={<CloseCircleOutlined />} onClick={onCancel} />
+          <Button
+            type="text"
+            danger
+            icon={<CloseCircleOutlined />}
+            onClick={onCancel}
+          />
         </Tooltip>
       );
     }
   }
-  
+
   if (job.status === 'failed' && onRetry) {
     actions.push(
       <Tooltip key="retry" title="Retry">
@@ -140,11 +150,21 @@ export const JobCard: React.FC<JobCardProps> = ({
       </Tooltip>
     );
   }
-  
-  if ((job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && onDelete) {
+
+  if (
+    (job.status === 'completed' ||
+      job.status === 'failed' ||
+      job.status === 'cancelled') &&
+    onDelete
+  ) {
     actions.push(
       <Tooltip key="delete" title="Delete">
-        <Button type="text" danger icon={<DeleteOutlined />} onClick={onDelete} />
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={onDelete}
+        />
       </Tooltip>
     );
   }
@@ -161,9 +181,9 @@ export const JobCard: React.FC<JobCardProps> = ({
           <Space>{actions}</Space>
         </div>
         {job.status === 'running' && (
-          <Progress 
-            percent={progressPercent} 
-            size="small" 
+          <Progress
+            percent={progressPercent}
+            size="small"
             format={() => `${job.progress}/${job.total}`}
           />
         )}
@@ -189,11 +209,19 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className={styles.progressSection}>
           <div className={styles.progressInfo}>
             <Text type="secondary">Progress</Text>
-            <Text>{job.progress} / {job.total}</Text>
+            <Text>
+              {job.progress} / {job.total}
+            </Text>
           </div>
-          <Progress 
-            percent={progressPercent} 
-            status={job.status === 'failed' ? 'exception' : job.status === 'running' ? 'active' : undefined}
+          <Progress
+            percent={progressPercent}
+            status={
+              job.status === 'failed'
+                ? 'exception'
+                : job.status === 'running'
+                  ? 'active'
+                  : undefined
+            }
           />
         </div>
 
@@ -223,7 +251,9 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         {job.error && (
           <div className={styles.error}>
-            <Text type="danger" strong>Error:</Text>
+            <Text type="danger" strong>
+              Error:
+            </Text>
             <Text type="danger">{job.error}</Text>
           </div>
         )}

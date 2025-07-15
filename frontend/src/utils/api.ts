@@ -1,118 +1,125 @@
-import { AxiosError } from 'axios'
-import { ApiError } from '@/types/api'
+import { AxiosError } from 'axios';
+import { ApiError } from '@/types/api';
 
 export const extractErrorMessage = (error: unknown): string => {
   if (error instanceof AxiosError) {
-    const data = error.response?.data as ApiError
+    const data = error.response?.data as ApiError;
     if (data?.detail) {
-      return data.detail
+      return data.detail;
     }
     if (data?.msg) {
-      return data.msg
+      return data.msg;
     }
     if (error.message) {
-      return error.message
+      return error.message;
     }
   }
-  
-  if (error instanceof Error) {
-    return error.message
-  }
-  
-  return 'An unknown error occurred'
-}
 
-export const buildQueryString = (params: Record<string, any>): string => {
-  const searchParams = new URLSearchParams()
-  
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'An unknown error occurred';
+};
+
+export const buildQueryString = (
+  params: Record<
+    string,
+    string | number | boolean | string[] | undefined | null
+  >
+): string => {
+  const searchParams = new URLSearchParams();
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       if (Array.isArray(value)) {
-        value.forEach(v => searchParams.append(key, String(v)))
+        value.forEach((v) => searchParams.append(key, String(v)));
       } else {
-        searchParams.append(key, String(value))
+        searchParams.append(key, String(value));
       }
     }
-  })
-  
-  const queryString = searchParams.toString()
-  return queryString ? `?${queryString}` : ''
-}
+  });
 
-export const parseQueryString = (queryString: string): Record<string, any> => {
-  const params = new URLSearchParams(queryString)
-  const result: Record<string, any> = {}
-  
+  const queryString = searchParams.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
+export const parseQueryString = (
+  queryString: string
+): Record<string, string | string[]> => {
+  const params = new URLSearchParams(queryString);
+  const result: Record<string, string | string[]> = {};
+
   params.forEach((value, key) => {
     if (result[key]) {
       if (Array.isArray(result[key])) {
-        result[key].push(value)
+        result[key].push(value);
       } else {
-        result[key] = [result[key], value]
+        result[key] = [result[key], value];
       }
     } else {
-      result[key] = value
+      result[key] = value;
     }
-  })
-  
-  return result
-}
+  });
 
-export const debounce = <T extends (...args: any[]) => any>(
+  return result;
+};
+
+export const debounce = <T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): ((...args: Parameters<T>) => void) => {
-  let timeout: NodeJS.Timeout | null = null
-  
+  let timeout: NodeJS.Timeout | null = null;
+
   return (...args: Parameters<T>) => {
     if (timeout) {
-      clearTimeout(timeout)
+      clearTimeout(timeout);
     }
-    
-    timeout = setTimeout(() => {
-      func(...args)
-    }, wait)
-  }
-}
 
-export const throttle = <T extends (...args: any[]) => any>(
+    timeout = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
+};
+
+export const throttle = <T extends (...args: unknown[]) => unknown>(
   func: T,
   limit: number
 ): ((...args: Parameters<T>) => void) => {
-  let inThrottle = false
-  
+  let inThrottle = false;
+
   return (...args: Parameters<T>) => {
     if (!inThrottle) {
-      func(...args)
-      inThrottle = true
+      func(...args);
+      inThrottle = true;
       setTimeout(() => {
-        inThrottle = false
-      }, limit)
+        inThrottle = false;
+      }, limit);
     }
-  }
-}
+  };
+};
 
 export const sleep = (ms: number): Promise<void> => {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
 export const retry = async <T>(
   fn: () => Promise<T>,
   maxAttempts = 3,
   delay = 1000
 ): Promise<T> => {
-  let lastError: any
-  
+  let lastError: unknown;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await fn()
+      return await fn();
     } catch (error) {
-      lastError = error
+      lastError = error;
       if (attempt < maxAttempts) {
-        await sleep(delay * attempt)
+        await sleep(delay * attempt);
       }
     }
   }
-  
-  throw lastError
-}
+
+  throw lastError;
+};

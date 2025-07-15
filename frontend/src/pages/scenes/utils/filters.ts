@@ -41,17 +41,17 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
   // Parse array values
   const performers = params.get('performers');
   if (performers) {
-    filters.performers = performers.split(',').map(Number).filter(Boolean);
+    filters.performers = performers.split(',').filter(Boolean);
   }
 
   const tags = params.get('tags');
   if (tags) {
-    filters.tags = tags.split(',').map(Number).filter(Boolean);
+    filters.tags = tags.split(',').filter(Boolean);
   }
 
   const studios = params.get('studios');
   if (studios) {
-    filters.studios = studios.split(',').map(Number).filter(Boolean);
+    filters.studios = studios.split(',').filter(Boolean);
   }
 
   // Parse boolean values
@@ -72,9 +72,20 @@ export function getActiveFilterCount(filters: SceneFilters): number {
   let count = 0;
 
   if (filters.search) count++;
-  if (filters.performers && filters.performers.length > 0) count++;
-  if (filters.tags && filters.tags.length > 0) count++;
-  if (filters.studios && filters.studios.length > 0) count++;
+  if (
+    filters.performers &&
+    Array.isArray(filters.performers) &&
+    filters.performers.length > 0
+  )
+    count++;
+  if (filters.tags && Array.isArray(filters.tags) && filters.tags.length > 0)
+    count++;
+  if (
+    filters.studios &&
+    Array.isArray(filters.studios) &&
+    filters.studios.length > 0
+  )
+    count++;
   if (filters.organized !== undefined) count++;
   if (filters.has_details !== undefined) count++;
   if (filters.date_from) count++;
@@ -106,15 +117,15 @@ export function mergeWithQueryParams(
     ...filters,
     ...queryParams,
     // Ensure arrays are properly merged
-    performers: filters.performers || [],
-    tags: filters.tags || [],
-    studios: filters.studios || [],
+    performers: Array.isArray(filters.performers) ? filters.performers : [],
+    tags: Array.isArray(filters.tags) ? filters.tags : [],
+    studios: Array.isArray(filters.studios) ? filters.studios : [],
   };
 }
 
 // Helper to format filter display names
-export function getFilterDisplayName(key: keyof SceneFilters): string {
-  const displayNames: Record<keyof SceneFilters, string> = {
+export function getFilterDisplayName(key: string | number): string {
+  const displayNames: Record<string, string> = {
     search: 'Search',
     performers: 'Performers',
     tags: 'Tags',
@@ -126,11 +137,11 @@ export function getFilterDisplayName(key: keyof SceneFilters): string {
     path_contains: 'Path Contains',
   };
 
-  return displayNames[key] || key;
+  return displayNames[key as string] || String(key);
 }
 
 // Helper to check if a filter value is empty
-export function isFilterEmpty(value: any): boolean {
+export function isFilterEmpty(value: unknown): boolean {
   if (value === undefined || value === null || value === '') {
     return true;
   }

@@ -1,15 +1,15 @@
 import React from 'react';
 import { List, Tag, Space, Checkbox, Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
-import { 
-  CalendarOutlined, 
+import {
+  CalendarOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
   EyeOutlined,
   EditOutlined,
-  AnalysisOutlined,
+  ExperimentOutlined,
   MoreOutlined,
-  StarFilled
+  StarFilled,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneAction } from './SceneCard';
@@ -37,7 +37,7 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -50,16 +50,16 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = size;
-    
+
     while (value >= 1024 && unitIndex < units.length - 1) {
       value /= 1024;
       unitIndex++;
     }
-    
+
     return `${value.toFixed(1)} ${units[unitIndex]}`;
   };
 
-  const menuItems: MenuProps['items'] = actions.map(action => ({
+  const menuItems: MenuProps['items'] = actions.map((action) => ({
     key: action.key,
     label: action.label,
     icon: action.icon,
@@ -82,7 +82,7 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
       type="text"
       size="small"
       icon={<EditOutlined />}
-      onClick={() => actions.find(a => a.key === 'edit')?.onClick(scene)}
+      onClick={() => actions.find((a) => a.key === 'edit')?.onClick(scene)}
     >
       Edit
     </Button>,
@@ -90,8 +90,8 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
       key="analyze"
       type="text"
       size="small"
-      icon={<AnalysisOutlined />}
-      onClick={() => actions.find(a => a.key === 'analyze')?.onClick(scene)}
+      icon={<ExperimentOutlined />}
+      onClick={() => actions.find((a) => a.key === 'analyze')?.onClick(scene)}
     >
       Analyze
     </Button>,
@@ -121,12 +121,14 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
       }
     >
       <List.Item.Meta
-        avatar={selectable && (
-          <Checkbox
-            checked={selected}
-            onChange={(e) => onSelect?.(e.target.checked)}
-          />
-        )}
+        avatar={
+          selectable && (
+            <Checkbox
+              checked={selected}
+              onChange={(e) => onSelect?.(e.target.checked)}
+            />
+          )
+        }
         title={
           <div className={styles.title}>
             <span onClick={() => onClick?.(scene)}>{scene.title}</span>
@@ -135,9 +137,7 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
                 <StarFilled /> {scene.rating}
               </span>
             )}
-            {scene.analyzed_at && (
-              <Tag color="green">Analyzed</Tag>
-            )}
+            {scene.analyzed_at && <Tag color="green">Analyzed</Tag>}
           </div>
         }
         description={
@@ -145,7 +145,8 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
             <Space size="middle" wrap>
               {scene.date && (
                 <span>
-                  <CalendarOutlined /> {new Date(scene.date).toLocaleDateString()}
+                  <CalendarOutlined />{' '}
+                  {new Date(scene.date).toLocaleDateString()}
                 </span>
               )}
               <span>
@@ -154,17 +155,17 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
               <span>
                 <DatabaseOutlined /> {formatFileSize(scene.size)}
               </span>
-              <span>{scene.width}x{scene.height}</span>
+              <span>
+                {scene.width}x{scene.height}
+              </span>
             </Space>
-            
+
             <div className={styles.tags}>
-              {scene.studio && (
-                <Tag color="blue">{scene.studio.name}</Tag>
-              )}
-              
+              {scene.studio && <Tag color="blue">{scene.studio.name}</Tag>}
+
               {scene.performers && scene.performers.length > 0 && (
                 <Space size={4}>
-                  {scene.performers.slice(0, 3).map(performer => (
+                  {scene.performers.slice(0, 3).map((performer) => (
                     <Tag key={performer.id} color="purple">
                       {performer.name}
                     </Tag>
@@ -174,10 +175,10 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
                   )}
                 </Space>
               )}
-              
+
               {scene.tags && scene.tags.length > 0 && (
                 <Space size={4}>
-                  {scene.tags.slice(0, 5).map(tag => (
+                  {scene.tags.slice(0, 5).map((tag) => (
                     <Tag key={tag.id}>{tag.name}</Tag>
                   ))}
                   {scene.tags.length > 5 && (

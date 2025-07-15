@@ -11,7 +11,7 @@ interface CronHelperProps {
 
 const CronHelper: React.FC<CronHelperProps> = ({ expression }) => {
   const fields = expression ? expression.split(' ') : ['*', '*', '*', '*', '*'];
-  
+
   const fieldDescriptions = [
     {
       name: 'Minute',
@@ -66,7 +66,10 @@ const CronHelper: React.FC<CronHelperProps> = ({ expression }) => {
     { expression: '0 0 * * 0', description: 'Weekly on Sunday' },
     { expression: '0 0 1 * *', description: 'Monthly on the 1st' },
     { expression: '*/5 * * * *', description: 'Every 5 minutes' },
-    { expression: '0 9-17 * * 1-5', description: 'Every hour during business hours' },
+    {
+      expression: '0 9-17 * * 1-5',
+      description: 'Every hour during business hours',
+    },
     { expression: '0 0 L * *', description: 'Last day of every month' },
   ];
 

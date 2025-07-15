@@ -4,7 +4,7 @@ export interface Schedule {
   description?: string;
   task_type: 'sync' | 'analysis' | 'cleanup';
   schedule: string; // cron expression
-  config: Record<string, any>;
+  config: TaskConfig;
   enabled: boolean;
   last_run?: Date;
   next_run?: Date;
@@ -19,7 +19,7 @@ export interface ScheduleRun {
   completed_at?: Date;
   status: 'success' | 'failed' | 'running' | 'cancelled';
   job_id?: string;
-  result?: any;
+  result?: Record<string, unknown>;
   error?: string;
   duration?: number; // in seconds
 }
@@ -29,7 +29,7 @@ export interface CreateScheduleData {
   description?: string;
   task_type: Schedule['task_type'];
   schedule: string;
-  config: Record<string, any>;
+  config: TaskConfig;
   enabled?: boolean;
 }
 
@@ -37,7 +37,7 @@ export interface UpdateScheduleData {
   name?: string;
   description?: string;
   schedule?: string;
-  config?: Record<string, any>;
+  config?: TaskConfig;
   enabled?: boolean;
 }
 
@@ -60,7 +60,7 @@ export interface TaskConfig {
   full_sync?: boolean;
   entity_types?: string[];
   force_update?: boolean;
-  
+
   // Analysis task config
   scene_filters?: {
     min_duration?: number;
@@ -74,7 +74,7 @@ export interface TaskConfig {
   };
   plan_name_template?: string;
   auto_apply_threshold?: number;
-  
+
   // Cleanup task config
   older_than_days?: number;
   cleanup_types?: string[];
@@ -87,11 +87,39 @@ export interface SchedulePreset {
 }
 
 export const SCHEDULE_PRESETS: SchedulePreset[] = [
-  { name: 'Every hour', expression: '0 * * * *', description: 'Runs at the start of every hour' },
-  { name: 'Every 30 minutes', expression: '*/30 * * * *', description: 'Runs every 30 minutes' },
-  { name: 'Daily at midnight', expression: '0 0 * * *', description: 'Runs every day at midnight' },
-  { name: 'Daily at 3 AM', expression: '0 3 * * *', description: 'Runs every day at 3 AM' },
-  { name: 'Weekly on Sunday', expression: '0 0 * * 0', description: 'Runs every Sunday at midnight' },
-  { name: 'Monthly on 1st', expression: '0 0 1 * *', description: 'Runs on the 1st of every month' },
-  { name: 'Every weekday', expression: '0 9 * * 1-5', description: 'Runs Monday-Friday at 9 AM' },
+  {
+    name: 'Every hour',
+    expression: '0 * * * *',
+    description: 'Runs at the start of every hour',
+  },
+  {
+    name: 'Every 30 minutes',
+    expression: '*/30 * * * *',
+    description: 'Runs every 30 minutes',
+  },
+  {
+    name: 'Daily at midnight',
+    expression: '0 0 * * *',
+    description: 'Runs every day at midnight',
+  },
+  {
+    name: 'Daily at 3 AM',
+    expression: '0 3 * * *',
+    description: 'Runs every day at 3 AM',
+  },
+  {
+    name: 'Weekly on Sunday',
+    expression: '0 0 * * 0',
+    description: 'Runs every Sunday at midnight',
+  },
+  {
+    name: 'Monthly on 1st',
+    expression: '0 0 1 * *',
+    description: 'Runs on the 1st of every month',
+  },
+  {
+    name: 'Every weekday',
+    expression: '0 9 * * 1-5',
+    description: 'Runs Monday-Friday at 9 AM',
+  },
 ];

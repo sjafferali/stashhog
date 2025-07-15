@@ -63,7 +63,8 @@ fragment SceneData on Scene {
 """
 
 # Get scenes with pagination
-GET_SCENES = """
+GET_SCENES = (
+    """
 query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
     findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
         count
@@ -72,16 +73,21 @@ query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_id
         }
     }
 }
-""" + SCENE_FRAGMENT
+"""
+    + SCENE_FRAGMENT
+)
 
 # Get single scene by ID
-GET_SCENE_BY_ID = """
+GET_SCENE_BY_ID = (
+    """
 query FindScene($id: ID!) {
     findScene(id: $id) {
         ...SceneData
     }
 }
-""" + SCENE_FRAGMENT
+"""
+    + SCENE_FRAGMENT
+)
 
 # Get all performers
 GET_ALL_PERFORMERS = """
@@ -151,7 +157,8 @@ query AllStudios {
 """
 
 # Find scenes with complex filters
-FIND_SCENES = """
+FIND_SCENES = (
+    """
 query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
     findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
         count
@@ -160,7 +167,9 @@ query FindScenes($filter: SceneFilterType, $scene_filter: SceneFilter, $scene_id
         }
     }
 }
-""" + SCENE_FRAGMENT
+"""
+    + SCENE_FRAGMENT
+)
 
 # Get stats
 GET_STATS = """

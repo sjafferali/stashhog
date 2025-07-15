@@ -1,33 +1,33 @@
-import React, { Component, ReactNode } from 'react'
-import { Result, Button } from 'antd'
+import React, { Component, ReactNode } from 'react';
+import { Result, Button } from 'antd';
 
 interface Props {
-  children: ReactNode
+  children: ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  error: Error | null
+  hasError: boolean;
+  error: Error | null;
 }
 
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
-    super(props)
-    this.state = { hasError: false, error: null }
+    super(props);
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
+    console.error('Error caught by boundary:', error, errorInfo);
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null })
-    window.location.href = '/'
-  }
+    this.setState({ hasError: false, error: null });
+    window.location.href = '/';
+  };
 
   render() {
     if (this.state.hasError) {
@@ -42,11 +42,11 @@ class ErrorBoundary extends Component<Props, State> {
             </Button>
           }
         />
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
-export default ErrorBoundary
+export default ErrorBoundary;

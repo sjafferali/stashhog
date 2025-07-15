@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, ChangeEvent } from 'react';
 import { Card, Input, Space, Switch, Typography, Button } from 'antd';
-import { 
-  SearchOutlined, 
-  ExpandOutlined, 
+import {
+  SearchOutlined,
+  ExpandOutlined,
   CompressOutlined,
-  CopyOutlined
 } from '@ant-design/icons';
 import { CopyButton } from './CopyButton';
 import styles from './JsonViewer.module.scss';
@@ -13,7 +12,7 @@ const { Text } = Typography;
 const { Search } = Input;
 
 export interface JsonViewerProps {
-  data: any;
+  data: unknown;
   collapsed?: boolean;
   theme?: 'light' | 'dark';
   height?: number | string;
@@ -38,7 +37,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
   const jsonString = useMemo(() => {
     try {
       return JSON.stringify(data, null, 2);
-    } catch (error) {
+    } catch {
       return 'Invalid JSON data';
     }
   }, [data]);
@@ -48,8 +47,8 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
     const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
-    
-    return jsonString.split(regex).map((part, index) => {
+
+    return jsonString.split(regex).map((part, _index) => {
       if (regex.test(part)) {
         return `<mark class="${styles.highlight}">${part}</mark>`;
       }
@@ -59,7 +58,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
   const renderJson = () => {
     const lines = jsonString.split('\n');
-    
+
     if (isCollapsed) {
       const collapsedLines = lines.slice(0, 10);
       return (
@@ -77,15 +76,22 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
     if (searchTerm) {
       // When searching, render with highlights
       return (
-        <div 
-          dangerouslySetInnerHTML={{ 
-            __html: highlightedJson.join('').split('\n').map((line, index) => 
-              `<div class="${styles.line}">
+        <div
+          dangerouslySetInnerHTML={{
+            __html: (Array.isArray(highlightedJson)
+              ? highlightedJson.join('')
+              : highlightedJson
+            )
+              .split('\n')
+              .map(
+                (line: string, index: number) =>
+                  `<div class="${styles.line}">
                 ${showLineNumbers ? `<span class="${styles.lineNumber}">${index + 1}</span>` : ''}
                 <span class="${styles.content}">${line}</span>
               </div>`
-            ).join('')
-          }} 
+              )
+              .join(''),
+          }}
         />
       );
     }
@@ -112,23 +118,27 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
             placeholder="Search..."
             allowClear
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              setSearchTerm(e.target.value)
+            }
             style={{ width: 200 }}
             size="small"
             prefix={<SearchOutlined />}
           />
         )}
-        
-        <Space split="|">
+
+        <Space>
           <Space size="small">
-            <Text type="secondary" style={{ fontSize: 12 }}>Line Numbers</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Line Numbers
+            </Text>
             <Switch
               size="small"
               checked={showLineNumbers}
               onChange={setShowLineNumbers}
             />
           </Space>
-          
+
           <Button
             type="text"
             size="small"
@@ -137,7 +147,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
           >
             {isCollapsed ? 'Expand' : 'Collapse'}
           </Button>
-          
+
           <CopyButton text={jsonString} showText />
         </Space>
       </Space>
@@ -145,7 +155,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
   );
 
   const content = (
-    <div 
+    <div
       className={`${styles.jsonContent} ${theme === 'dark' ? styles.dark : ''}`}
       style={{ height: typeof height === 'number' ? `${height}px` : height }}
     >
@@ -155,8 +165,8 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
   if (title) {
     return (
-      <Card 
-        title={title} 
+      <Card
+        title={title}
         size="small"
         extra={toolbar}
         className={styles.jsonViewer}

@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Switch, Select, InputNumber, Input, Space, Typography, Divider, Slider } from 'antd';
+import React, { useState, useEffect, ChangeEvent } from 'react';
+import {
+  Form,
+  Switch,
+  Select,
+  InputNumber,
+  Input,
+  Space,
+  Typography,
+  Divider,
+  Slider,
+} from 'antd';
 import { TaskConfig } from '../types';
 
 const { Text, Title } = Typography;
-const { Option } = Select;
 
 interface TaskConfiguratorProps {
   taskType: 'sync' | 'analysis' | 'cleanup';
@@ -11,14 +20,21 @@ interface TaskConfiguratorProps {
   onChange?: (config: TaskConfig) => void;
 }
 
-const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, onChange }) => {
+const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({
+  taskType,
+  value,
+  onChange,
+}) => {
   const [config, setConfig] = useState<TaskConfig>(value || {});
 
   useEffect(() => {
     setConfig(value || {});
   }, [value]);
 
-  const handleChange = (field: string, fieldValue: any) => {
+  const handleChange = (
+    field: string,
+    fieldValue: string | number | boolean | string[] | Record<string, unknown>
+  ) => {
     const newConfig = { ...config, [field]: fieldValue };
     setConfig(newConfig);
     onChange?.(newConfig);
@@ -28,7 +44,9 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div>
         <Title level={5}>Sync Configuration</Title>
-        <Text type="secondary">Configure how data should be synchronized from Stash</Text>
+        <Text type="secondary">
+          Configure how data should be synchronized from Stash
+        </Text>
       </div>
 
       <div>
@@ -37,13 +55,16 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
           <Form.Item>
             <Switch
               checked={config.full_sync}
-              onChange={(checked) => handleChange('full_sync', checked)}
+              onChange={(checked: boolean) =>
+                handleChange('full_sync', checked)
+              }
               checkedChildren="Full Sync"
               unCheckedChildren="Incremental"
             />
           </Form.Item>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Full sync retrieves all data, incremental only gets changes since last sync
+            Full sync retrieves all data, incremental only gets changes since
+            last sync
           </Text>
         </Space>
       </div>
@@ -55,16 +76,19 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             mode="multiple"
             style={{ width: '100%' }}
             placeholder="Select entities to sync"
-            value={config.entity_types || ['scenes', 'performers', 'tags', 'studios']}
-            onChange={(value) => handleChange('entity_types', value)}
-          >
-            <Option value="scenes">Scenes</Option>
-            <Option value="performers">Performers</Option>
-            <Option value="tags">Tags</Option>
-            <Option value="studios">Studios</Option>
-            <Option value="galleries">Galleries</Option>
-            <Option value="movies">Movies</Option>
-          </Select>
+            value={
+              config.entity_types || ['scenes', 'performers', 'tags', 'studios']
+            }
+            onChange={(value: string[]) => handleChange('entity_types', value)}
+            options={[
+              { value: 'scenes', label: 'Scenes' },
+              { value: 'performers', label: 'Performers' },
+              { value: 'tags', label: 'Tags' },
+              { value: 'studios', label: 'Studios' },
+              { value: 'galleries', label: 'Galleries' },
+              { value: 'movies', label: 'Movies' },
+            ]}
+          />
         </Space>
       </div>
 
@@ -74,11 +98,13 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
           <Form.Item>
             <Switch
               checked={config.force_update}
-              onChange={(checked) => handleChange('force_update', checked)}
+              onChange={(checked: boolean) =>
+                handleChange('force_update', checked)
+              }
             />
           </Form.Item>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Force update even if data hasn't changed
+            Force update even if data hasn{"'"}t changed
           </Text>
         </Space>
       </div>
@@ -101,10 +127,12 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             style={{ width: '100%' }}
             min={0}
             value={config.scene_filters?.min_duration || 60}
-            onChange={(value) => handleChange('scene_filters', {
-              ...config.scene_filters,
-              min_duration: value,
-            })}
+            onChange={(value: number | null) =>
+              handleChange('scene_filters', {
+                ...config.scene_filters,
+                min_duration: value,
+              })
+            }
             placeholder="60"
           />
         </Space>
@@ -118,10 +146,12 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             style={{ width: '100%' }}
             placeholder="Enter tags to filter by"
             value={config.scene_filters?.tags || []}
-            onChange={(value) => handleChange('scene_filters', {
-              ...config.scene_filters,
-              tags: value,
-            })}
+            onChange={(value: string[]) =>
+              handleChange('scene_filters', {
+                ...config.scene_filters,
+                tags: value,
+              })
+            }
           />
           <Text type="secondary" style={{ fontSize: 12 }}>
             Only analyze scenes with these tags
@@ -137,10 +167,12 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             style={{ width: '100%' }}
             placeholder="Enter performer names"
             value={config.scene_filters?.performers || []}
-            onChange={(value) => handleChange('scene_filters', {
-              ...config.scene_filters,
-              performers: value,
-            })}
+            onChange={(value: string[]) =>
+              handleChange('scene_filters', {
+                ...config.scene_filters,
+                performers: value,
+              })
+            }
           />
         </Space>
       </div>
@@ -152,32 +184,38 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
           <Form.Item>
             <Switch
               checked={config.analysis_options?.enable_deduplication !== false}
-              onChange={(checked) => handleChange('analysis_options', {
-                ...config.analysis_options,
-                enable_deduplication: checked,
-              })}
+              onChange={(checked: boolean) =>
+                handleChange('analysis_options', {
+                  ...config.analysis_options,
+                  enable_deduplication: checked,
+                })
+              }
             />
             <Text style={{ marginLeft: 8 }}>Enable Deduplication</Text>
           </Form.Item>
-          
+
           <Form.Item>
             <Switch
               checked={config.analysis_options?.enable_quality_check !== false}
-              onChange={(checked) => handleChange('analysis_options', {
-                ...config.analysis_options,
-                enable_quality_check: checked,
-              })}
+              onChange={(checked: boolean) =>
+                handleChange('analysis_options', {
+                  ...config.analysis_options,
+                  enable_quality_check: checked,
+                })
+              }
             />
             <Text style={{ marginLeft: 8 }}>Enable Quality Check</Text>
           </Form.Item>
-          
+
           <Form.Item>
             <Switch
               checked={config.analysis_options?.enable_tagging !== false}
-              onChange={(checked) => handleChange('analysis_options', {
-                ...config.analysis_options,
-                enable_tagging: checked,
-              })}
+              onChange={(checked: boolean) =>
+                handleChange('analysis_options', {
+                  ...config.analysis_options,
+                  enable_tagging: checked,
+                })
+              }
             />
             <Text style={{ marginLeft: 8 }}>Enable Auto-Tagging</Text>
           </Form.Item>
@@ -189,7 +227,9 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
           <Text>Plan Name Template</Text>
           <Input
             value={config.plan_name_template || 'Analysis_{date}_{time}'}
-            onChange={(e) => handleChange('plan_name_template', e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              handleChange('plan_name_template', e.target.value)
+            }
             placeholder="Analysis_{date}_{time}"
           />
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -205,7 +245,9 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             min={0}
             max={100}
             value={config.auto_apply_threshold || 0}
-            onChange={(value) => handleChange('auto_apply_threshold', value)}
+            onChange={(value: number) =>
+              handleChange('auto_apply_threshold', value || 0)
+            }
             marks={{
               0: 'Disabled',
               50: '50%',
@@ -236,7 +278,9 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             style={{ width: '100%' }}
             min={1}
             value={config.older_than_days || 30}
-            onChange={(value) => handleChange('older_than_days', value)}
+            onChange={(value: number | null) =>
+              handleChange('older_than_days', value || 30)
+            }
             placeholder="30"
           />
         </Space>
@@ -250,14 +294,21 @@ const TaskConfigurator: React.FC<TaskConfiguratorProps> = ({ taskType, value, on
             style={{ width: '100%' }}
             placeholder="Select what to clean up"
             value={config.cleanup_types || ['logs', 'temp_files']}
-            onChange={(value) => handleChange('cleanup_types', value)}
-          >
-            <Option value="logs">Application Logs</Option>
-            <Option value="temp_files">Temporary Files</Option>
-            <Option value="old_analysis">Old Analysis Results</Option>
-            <Option value="orphaned_data">Orphaned Database Records</Option>
-            <Option value="cache">Cache Files</Option>
-          </Select>
+            onChange={(value: string[]) => handleChange('cleanup_types', value)}
+            options={[
+              { value: 'logs', label: 'Application Logs' },
+              { value: 'temp_files', label: 'Temporary Files' },
+              {
+                value: 'old_analysis',
+                label: 'Old Analysis Results',
+              },
+              {
+                value: 'orphaned_data',
+                label: 'Orphaned Database Records',
+              },
+              { value: 'cache', label: 'Cache Files' },
+            ]}
+          />
         </Space>
       </div>
 

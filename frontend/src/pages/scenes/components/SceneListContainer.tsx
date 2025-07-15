@@ -27,14 +27,8 @@ export const SceneListContainer: React.FC<SceneListContainerProps> = ({
   }
 
   return viewMode === 'grid' ? (
-    <GridView 
-      scenes={scenes} 
-      onSceneSelect={onSceneSelect} 
-    />
+    <GridView scenes={scenes} onSceneSelect={onSceneSelect} />
   ) : (
-    <ListView 
-      scenes={scenes} 
-      onSceneSelect={onSceneSelect} 
-    />
+    <ListView scenes={scenes} onSceneSelect={onSceneSelect} />
   );
 };

@@ -1,27 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Collapse, 
-  Select, 
-  DatePicker, 
-  Switch, 
-  Input, 
-  Space, 
-  Button, 
+import React, { useState, ChangeEvent } from 'react';
+import {
+  Card,
+  Collapse,
+  Select,
+  DatePicker,
+  // Switch,
+  Input,
+  Space,
+  Button,
   Tag,
   Spin,
   Row,
-  Col
+  Col,
 } from 'antd';
-import { 
-  UserOutlined, 
-  TagsOutlined, 
-  HomeOutlined, 
+import {
+  UserOutlined,
+  TagsOutlined,
+  HomeOutlined,
   CalendarOutlined,
   FolderOutlined,
   ClearOutlined,
   CheckCircleOutlined,
-  FileTextOutlined
+  // FileTextOutlined,
 } from '@ant-design/icons';
 import { useQuery } from 'react-query';
 import dayjs from 'dayjs';
@@ -33,17 +33,20 @@ const { Panel } = Collapse;
 const { RangePicker } = DatePicker;
 
 export const AdvancedFilters: React.FC = () => {
-  const { filters, updateFilter, updateFilters, resetFilters } = useSceneFilters();
-  const [expandedPanels, setExpandedPanels] = useState<string[]>(['performers', 'tags']);
+  const { filters, updateFilter, updateFilters, resetFilters } =
+    useSceneFilters();
+  const [expandedPanels, setExpandedPanels] = useState<string[]>([
+    'performers',
+    'tags',
+  ]);
 
   // Fetch filter options
-  const { data: performers, isLoading: loadingPerformers } = useQuery<Performer[]>(
-    'performers',
-    async () => {
-      const response = await api.get('/performers', { params: { size: 1000 } });
-      return response.data.items;
-    }
-  );
+  const { data: performers, isLoading: loadingPerformers } = useQuery<
+    Performer[]
+  >('performers', async () => {
+    const response = await api.get('/performers', { params: { size: 1000 } });
+    return response.data.items;
+  });
 
   const { data: tags, isLoading: loadingTags } = useQuery<TagType[]>(
     'tags',
@@ -61,7 +64,9 @@ export const AdvancedFilters: React.FC = () => {
     }
   );
 
-  const handleDateRangeChange = (dates: any) => {
+  const handleDateRangeChange = (
+    dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null
+  ) => {
     if (dates) {
       updateFilters({
         date_from: dates[0] ? dates[0].format('YYYY-MM-DD') : '',
@@ -75,12 +80,17 @@ export const AdvancedFilters: React.FC = () => {
     }
   };
 
-  const dateRange = filters.date_from || filters.date_to
-    ? [
-        filters.date_from ? dayjs(filters.date_from) : null,
-        filters.date_to ? dayjs(filters.date_to) : null,
-      ]
-    : null;
+  const dateRange =
+    filters.date_from || filters.date_to
+      ? [
+          filters.date_from && typeof filters.date_from === 'string'
+            ? dayjs(filters.date_from)
+            : null,
+          filters.date_to && typeof filters.date_to === 'string'
+            ? dayjs(filters.date_to)
+            : null,
+        ]
+      : null;
 
   const renderFilterCount = (count: number) => {
     if (count === 0) return null;
@@ -90,11 +100,17 @@ export const AdvancedFilters: React.FC = () => {
   return (
     <Card size="small">
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <h4 style={{ margin: 0 }}>Advanced Filters</h4>
-          <Button 
-            size="small" 
-            icon={<ClearOutlined />} 
+          <Button
+            size="small"
+            icon={<ClearOutlined />}
             onClick={resetFilters}
             danger
           >
@@ -102,35 +118,50 @@ export const AdvancedFilters: React.FC = () => {
           </Button>
         </div>
 
-        <Collapse 
+        <Collapse
           activeKey={expandedPanels}
-          onChange={setExpandedPanels}
+          onChange={(key: string | string[]) =>
+            setExpandedPanels(Array.isArray(key) ? key : [key])
+          }
           ghost
         >
           {/* Performers Filter */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <UserOutlined />
                 Performers
-                {renderFilterCount(filters.performers?.length || 0)}
+                {renderFilterCount(
+                  Array.isArray(filters.performers)
+                    ? filters.performers.length
+                    : 0
+                )}
               </Space>
-            } 
+            }
             key="performers"
           >
             <Spin spinning={loadingPerformers}>
               <Select
                 mode="multiple"
                 placeholder="Select performers..."
-                value={filters.performers}
-                onChange={(value) => updateFilter('performers', value)}
-                style={{ width: '100%' }}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase()) || false
+                value={
+                  Array.isArray(filters.performers) ? filters.performers : []
                 }
-                options={performers?.map(p => ({
+                onChange={(value: string[]) =>
+                  updateFilter('performers', value)
+                }
+                style={{ width: '100%' }}
+                filterOption={(
+                  input: string,
+                  option?: { label?: React.ReactNode; value?: string }
+                ) =>
+                  (typeof option?.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())) ||
+                  false
+                }
+                options={performers?.map((p) => ({
                   label: p.name,
-                  value: p.id,
+                  value: p.id.toString(),
                 }))}
                 maxTagCount="responsive"
               />
@@ -138,29 +169,36 @@ export const AdvancedFilters: React.FC = () => {
           </Panel>
 
           {/* Tags Filter */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <TagsOutlined />
                 Tags
-                {renderFilterCount(filters.tags?.length || 0)}
+                {renderFilterCount(
+                  Array.isArray(filters.tags) ? filters.tags.length : 0
+                )}
               </Space>
-            } 
+            }
             key="tags"
           >
             <Spin spinning={loadingTags}>
               <Select
                 mode="multiple"
                 placeholder="Select tags..."
-                value={filters.tags}
-                onChange={(value) => updateFilter('tags', value)}
+                value={Array.isArray(filters.tags) ? filters.tags : []}
+                onChange={(value: string[]) => updateFilter('tags', value)}
                 style={{ width: '100%' }}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase()) || false
+                filterOption={(
+                  input: string,
+                  option?: { label?: React.ReactNode; value?: string }
+                ) =>
+                  (typeof option?.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())) ||
+                  false
                 }
-                options={tags?.map(t => ({
+                options={tags?.map((t) => ({
                   label: t.name,
-                  value: t.id,
+                  value: t.id.toString(),
                 }))}
                 maxTagCount="responsive"
               />
@@ -168,29 +206,36 @@ export const AdvancedFilters: React.FC = () => {
           </Panel>
 
           {/* Studios Filter */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <HomeOutlined />
                 Studios
-                {renderFilterCount(filters.studios?.length || 0)}
+                {renderFilterCount(
+                  Array.isArray(filters.studios) ? filters.studios.length : 0
+                )}
               </Space>
-            } 
+            }
             key="studios"
           >
             <Spin spinning={loadingStudios}>
               <Select
                 mode="multiple"
                 placeholder="Select studios..."
-                value={filters.studios}
-                onChange={(value) => updateFilter('studios', value)}
+                value={Array.isArray(filters.studios) ? filters.studios : []}
+                onChange={(value: string[]) => updateFilter('studios', value)}
                 style={{ width: '100%' }}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase()) || false
+                filterOption={(
+                  input: string,
+                  option?: { label?: React.ReactNode; value?: string }
+                ) =>
+                  (typeof option?.label === 'string' &&
+                    option.label.toLowerCase().includes(input.toLowerCase())) ||
+                  false
                 }
-                options={studios?.map(s => ({
+                options={studios?.map((s) => ({
                   label: s.name,
-                  value: s.id,
+                  value: s.id.toString(),
                 }))}
                 maxTagCount="responsive"
               />
@@ -198,18 +243,20 @@ export const AdvancedFilters: React.FC = () => {
           </Panel>
 
           {/* Date Range Filter */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <CalendarOutlined />
                 Date Range
                 {(filters.date_from || filters.date_to) && renderFilterCount(1)}
               </Space>
-            } 
+            }
             key="date"
           >
             <RangePicker
-              value={dateRange as any}
+              value={
+                dateRange as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null
+              }
               onChange={handleDateRangeChange}
               style={{ width: '100%' }}
               format="YYYY-MM-DD"
@@ -217,18 +264,19 @@ export const AdvancedFilters: React.FC = () => {
           </Panel>
 
           {/* Status Filters */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <CheckCircleOutlined />
                 Status
-                {((filters.organized !== undefined) || (filters.has_details !== undefined)) && 
+                {(filters.organized !== undefined ||
+                  filters.has_details !== undefined) &&
                   renderFilterCount(
-                    (filters.organized !== undefined ? 1 : 0) + 
-                    (filters.has_details !== undefined ? 1 : 0)
+                    (filters.organized !== undefined ? 1 : 0) +
+                      (filters.has_details !== undefined ? 1 : 0)
                   )}
               </Space>
-            } 
+            }
             key="status"
           >
             <Row gutter={16}>
@@ -236,50 +284,70 @@ export const AdvancedFilters: React.FC = () => {
                 <Space>
                   <span>Organized:</span>
                   <Select
-                    value={filters.organized}
-                    onChange={(value) => updateFilter('organized', value)}
+                    value={
+                      typeof filters.organized === 'boolean'
+                        ? filters.organized
+                        : undefined
+                    }
+                    onChange={(value: boolean | undefined) =>
+                      updateFilter('organized', value)
+                    }
                     style={{ width: 120 }}
                     placeholder="Any"
                     allowClear
-                  >
-                    <Select.Option value={true}>Yes</Select.Option>
-                    <Select.Option value={false}>No</Select.Option>
-                  </Select>
+                    options={[
+                      { value: true, label: 'Yes' },
+                      { value: false, label: 'No' },
+                    ]}
+                  />
                 </Space>
               </Col>
               <Col span={12}>
                 <Space>
                   <span>Has Details:</span>
                   <Select
-                    value={filters.has_details}
-                    onChange={(value) => updateFilter('has_details', value)}
+                    value={
+                      typeof filters.has_details === 'boolean'
+                        ? filters.has_details
+                        : undefined
+                    }
+                    onChange={(value: boolean | undefined) =>
+                      updateFilter('has_details', value)
+                    }
                     style={{ width: 120 }}
                     placeholder="Any"
                     allowClear
-                  >
-                    <Select.Option value={true}>Yes</Select.Option>
-                    <Select.Option value={false}>No</Select.Option>
-                  </Select>
+                    options={[
+                      { value: true, label: 'Yes' },
+                      { value: false, label: 'No' },
+                    ]}
+                  />
                 </Space>
               </Col>
             </Row>
           </Panel>
 
           {/* Path Filter */}
-          <Panel 
+          <Panel
             header={
               <Space>
                 <FolderOutlined />
                 Path Contains
                 {filters.path_contains && renderFilterCount(1)}
               </Space>
-            } 
+            }
             key="path"
           >
             <Input
               placeholder="Filter by path..."
-              value={filters.path_contains}
-              onChange={(e) => updateFilter('path_contains', e.target.value)}
+              value={
+                typeof filters.path_contains === 'string'
+                  ? filters.path_contains
+                  : ''
+              }
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                updateFilter('path_contains', e.target.value)
+              }
               allowClear
             />
           </Panel>

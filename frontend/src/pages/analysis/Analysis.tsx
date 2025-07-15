@@ -1,15 +1,19 @@
-import React from 'react'
-import { Card, Button, Space, Statistic, Row, Col } from 'antd'
-import { useNavigate } from 'react-router-dom'
-import { BulbOutlined, FileTextOutlined, RocketOutlined } from '@ant-design/icons'
+import React from 'react';
+import { Card, Button, Space, Statistic, Row, Col } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import {
+  BulbOutlined,
+  FileTextOutlined,
+  RocketOutlined,
+} from '@ant-design/icons';
 
 const Analysis: React.FC = () => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <div>
       <h1>Analysis Overview</h1>
-      
+
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={8}>
           <Card>
@@ -51,7 +55,7 @@ const Analysis: React.FC = () => {
         </Space>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Analysis
+export default Analysis;

@@ -1,23 +1,21 @@
 import React, { useState } from 'react';
-import { 
-  Card, 
-  Space, 
-  Button, 
-  Dropdown, 
-  Modal, 
+import {
+  Card,
+  Space,
+  Button,
+  Dropdown,
+  Modal,
   Select,
   message,
-  Tag
+  Tag,
 } from 'antd';
-import { 
-  ExperimentOutlined, 
-  TagsOutlined, 
+import {
+  ExperimentOutlined,
   ExportOutlined,
-  DeleteOutlined,
   ClearOutlined,
   DownOutlined,
   PlusOutlined,
-  MinusOutlined
+  MinusOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import api from '@/services/api';
@@ -31,69 +29,71 @@ interface SceneActionsProps {
   onClearSelection: () => void;
 }
 
-export const SceneActions: React.FC<SceneActionsProps> = ({ 
-  selectedCount, 
-  onClearSelection 
+export const SceneActions: React.FC<SceneActionsProps> = ({
+  selectedCount,
+  onClearSelection,
 }) => {
   const { selectedScenes } = useScenesStore();
   const queryClient = useQueryClient();
   const [tagModalVisible, setTagModalVisible] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<number[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagAction, setTagAction] = useState<'add' | 'remove'>('add');
 
   // Fetch tags for the modal
-  const { data: tags } = useQuery<TagType[]>(
-    'tags',
-    async () => {
-      const response = await api.get('/tags', { params: { size: 1000 } });
-      return response.data.items;
-    }
-  );
+  const { data: tags } = useQuery<TagType[]>('tags', async () => {
+    const response = await api.get('/tags', { params: { size: 1000 } });
+    return response.data.items;
+  });
 
   // Analyze mutation
   const analyzeMutation = useMutation(
     async (sceneIds: string[]) => {
       const response = await api.post('/api/analysis/batch', {
-        scene_ids: sceneIds.map(id => parseInt(id, 10)),
+        scene_ids: sceneIds.map((id) => parseInt(id, 10)),
       });
       return response.data;
     },
     {
       onSuccess: () => {
-        message.success(`Started analysis for ${selectedCount} scenes`);
+        void message.success(`Started analysis for ${selectedCount} scenes`);
         onClearSelection();
-        queryClient.invalidateQueries('jobs');
+        void queryClient.invalidateQueries('jobs');
       },
       onError: () => {
-        message.error('Failed to start analysis');
+        void message.error('Failed to start analysis');
       },
     }
   );
 
   // Tag mutation
   const tagMutation = useMutation(
-    async ({ sceneIds, tagIds, action }: { 
-      sceneIds: string[], 
-      tagIds: number[], 
-      action: 'add' | 'remove' 
+    async ({
+      sceneIds,
+      tagIds,
+      action,
+    }: {
+      sceneIds: string[];
+      tagIds: number[];
+      action: 'add' | 'remove';
     }) => {
-      const endpoint = action === 'add' ? '/api/scenes/add-tags' : '/api/scenes/remove-tags';
+      const endpoint =
+        action === 'add' ? '/api/scenes/add-tags' : '/api/scenes/remove-tags';
       const response = await api.post(endpoint, {
-        scene_ids: sceneIds.map(id => parseInt(id, 10)),
+        scene_ids: sceneIds.map((id) => parseInt(id, 10)),
         tag_ids: tagIds,
       });
       return response.data;
     },
     {
       onSuccess: (_, variables) => {
-        message.success(
+        void message.success(
           `${variables.action === 'add' ? 'Added' : 'Removed'} tags for ${selectedCount} scenes`
         );
         onClearSelection();
-        queryClient.invalidateQueries('scenes');
+        void queryClient.invalidateQueries('scenes');
       },
       onError: () => {
-        message.error('Failed to update tags');
+        void message.error('Failed to update tags');
       },
     }
   );
@@ -114,13 +114,13 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
 
   const handleTagModalOk = () => {
     if (selectedTags.length === 0) {
-      message.warning('Please select at least one tag');
+      void message.warning('Please select at least one tag');
       return;
     }
 
     tagMutation.mutate({
       sceneIds: Array.from(selectedScenes),
-      tagIds: selectedTags,
+      tagIds: selectedTags.map((id) => parseInt(id, 10)),
       action: tagAction,
     });
 
@@ -131,19 +131,27 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const handleExport = async (format: 'csv' | 'json') => {
     try {
       // Fetch full scene data for selected scenes
-      const selectedIds = Array.from(selectedScenes).map(id => parseInt(id, 10));
-      const response = await api.post('/scenes/bulk-fetch', { ids: selectedIds });
+      const selectedIds = Array.from(selectedScenes).map((id) =>
+        parseInt(id, 10)
+      );
+      const response = await api.post('/scenes/bulk-fetch', {
+        ids: selectedIds,
+      });
       const scenes = response.data;
-      
+
       if (format === 'csv') {
-        exportToCSV(scenes);
+        exportToCSV(scenes, 'scenes-export');
       } else {
-        exportToJSON(scenes);
+        exportToJSON(scenes, 'scenes-export');
       }
-      
-      message.success(`Exported ${selectedCount} scenes to ${format.toUpperCase()}`);
+
+      void message.success(
+        `Exported ${selectedCount} scenes to ${format.toUpperCase()}`
+      );
     } catch (error) {
-      message.error(`Failed to export scenes: ${(error as Error).message}`);
+      void message.error(
+        `Failed to export scenes: ${(error as Error).message}`
+      );
     }
   };
 
@@ -173,23 +181,26 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       key: 'export-csv',
       label: 'Export as CSV',
       icon: <ExportOutlined />,
-      onClick: () => handleExport('csv'),
+      onClick: () => void handleExport('csv'),
     },
     {
       key: 'export-json',
       label: 'Export as JSON',
       icon: <ExportOutlined />,
-      onClick: () => handleExport('json'),
+      onClick: () => void handleExport('json'),
     },
   ];
 
   return (
     <>
       <Card size="small">
-        <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Space
+          size="middle"
+          style={{ width: '100%', justifyContent: 'space-between' }}
+        >
           <Space>
             <Tag color="blue">{selectedCount} selected</Tag>
-            
+
             <Button
               icon={<ExperimentOutlined />}
               onClick={handleAnalyze}
@@ -208,11 +219,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
             </Dropdown>
           </Space>
 
-          <Button
-            icon={<ClearOutlined />}
-            onClick={onClearSelection}
-            danger
-          >
+          <Button icon={<ClearOutlined />} onClick={onClearSelection} danger>
             Clear Selection
           </Button>
         </Space>
@@ -229,20 +236,23 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
         confirmLoading={tagMutation.isLoading}
       >
         <p>
-          Select tags to {tagAction} {tagAction === 'add' ? 'to' : 'from'} {selectedCount} selected scenes:
+          Select tags to {tagAction} {tagAction === 'add' ? 'to' : 'from'}{' '}
+          {selectedCount} selected scenes:
         </p>
         <Select
           mode="multiple"
           placeholder={`Select tags to ${tagAction}...`}
           value={selectedTags}
-          onChange={setSelectedTags}
+          onChange={(value: string[]) => setSelectedTags(value)}
           style={{ width: '100%' }}
           filterOption={(input, option) =>
-            option?.label?.toLowerCase().includes(input.toLowerCase()) || false
+            (typeof option?.label === 'string' &&
+              option.label.toLowerCase().includes(input.toLowerCase())) ||
+            false
           }
-          options={tags?.map(t => ({
+          options={tags?.map((t) => ({
             label: t.name,
-            value: t.id,
+            value: t.id.toString(),
           }))}
         />
       </Modal>

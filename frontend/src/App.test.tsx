@@ -1,27 +1,61 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { render, screen, waitFor } from '@testing-library/react';
+import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import { act } from 'react';
+import { routes } from './router';
 
 describe('App Component', () => {
-  it('renders without crashing', () => {
-    render(<App />);
-    expect(screen.getByText('StashHog')).toBeInTheDocument();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
   });
 
-  it('renders the welcome message', () => {
-    render(<App />);
-    expect(screen.getByText('Welcome to StashHog')).toBeInTheDocument();
+  const renderApp = async () => {
+    const router = createMemoryRouter(routes, {
+      future: {
+        v7_relativeSplatPath: true,
+      },
+    });
+
+    let result;
+    await act(async () => {
+      result = render(
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      );
+    });
+    return result!;
+  };
+
+  it('renders without crashing', async () => {
+    const { container } = await renderApp();
+    expect(container).toBeInTheDocument();
   });
 
-  it('renders the tagline', () => {
-    render(<App />);
-    expect(
-      screen.getByText('AI-powered content tagging and organization for Stash')
-    ).toBeInTheDocument();
+  it('renders the sidebar with logo', async () => {
+    await renderApp();
+    await waitFor(() => {
+      expect(screen.getByText('StashHog')).toBeInTheDocument();
+    });
   });
 
-  it('renders the footer', () => {
-    render(<App />);
+  it('renders the navigation menu', async () => {
+    await renderApp();
+    await waitFor(() => {
+      expect(screen.getAllByText('Dashboard')[0]).toBeInTheDocument();
+      expect(screen.getByText('Scenes')).toBeInTheDocument();
+    });
+  });
+
+  it('renders the footer', async () => {
+    await renderApp();
     const currentYear = new Date().getFullYear();
-    expect(screen.getByText(`StashHog ©${currentYear}`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(new RegExp(`StashHog ©${currentYear}`))
+      ).toBeInTheDocument();
+    });
   });
 });

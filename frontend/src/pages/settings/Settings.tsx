@@ -1,17 +1,27 @@
-import React from 'react'
-import { Card, Form, Input, Button, Switch, Select, Space, Divider, InputNumber } from 'antd'
-import { SaveOutlined, ApiOutlined } from '@ant-design/icons'
+import React from 'react';
+import {
+  Card,
+  Form,
+  Input,
+  Button,
+  Switch,
+  Select,
+  Space,
+  Divider,
+  InputNumber,
+} from 'antd';
+import { SaveOutlined, ApiOutlined } from '@ant-design/icons';
 
 const Settings: React.FC = () => {
-  const [form] = Form.useForm()
+  const [form] = Form.useForm();
 
-  const handleSave = (values: any) => {
-    console.log('Saving settings:', values)
-  }
+  const handleSave = (values: Record<string, unknown>) => {
+    console.log('Saving settings:', values);
+  };
 
   const handleTestConnection = () => {
-    console.log('Testing connection...')
-  }
+    console.log('Testing connection...');
+  };
 
   return (
     <div>
@@ -30,7 +40,7 @@ const Settings: React.FC = () => {
           }}
         >
           <Divider orientation="left">Stash Configuration</Divider>
-          
+
           <Form.Item
             label="Stash URL"
             name="stash_url"
@@ -58,16 +68,20 @@ const Settings: React.FC = () => {
           <Form.Item
             label="OpenAI API Key"
             name="openai_api_key"
-            rules={[{ required: true, message: 'Please enter your OpenAI API key' }]}
+            rules={[
+              { required: true, message: 'Please enter your OpenAI API key' },
+            ]}
           >
             <Input.Password placeholder="sk-..." />
           </Form.Item>
 
           <Form.Item label="Model" name="openai_model">
-            <Select>
-              <Select.Option value="gpt-4">GPT-4</Select.Option>
-              <Select.Option value="gpt-3.5-turbo">GPT-3.5 Turbo</Select.Option>
-            </Select>
+            <Select
+              options={[
+                { value: 'gpt-4', label: 'GPT-4' },
+                { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+              ]}
+            />
           </Form.Item>
 
           <Form.Item label="Temperature" name="openai_temperature">
@@ -84,22 +98,31 @@ const Settings: React.FC = () => {
             <Switch /> Auto-analyze new scenes
           </Form.Item>
 
-          <Form.Item name="enable_websocket_notifications" valuePropName="checked">
+          <Form.Item
+            name="enable_websocket_notifications"
+            valuePropName="checked"
+          >
             <Switch /> Enable WebSocket notifications
           </Form.Item>
 
           <Form.Item label="Log Level" name="log_level">
-            <Select>
-              <Select.Option value="debug">Debug</Select.Option>
-              <Select.Option value="info">Info</Select.Option>
-              <Select.Option value="warning">Warning</Select.Option>
-              <Select.Option value="error">Error</Select.Option>
-            </Select>
+            <Select
+              options={[
+                { value: 'debug', label: 'Debug' },
+                { value: 'info', label: 'Info' },
+                { value: 'warning', label: 'Warning' },
+                { value: 'error', label: 'Error' },
+              ]}
+            />
           </Form.Item>
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit" icon={<SaveOutlined />}>
+              <Button
+                type="primary"
+                icon={<SaveOutlined />}
+                onClick={() => form.submit()}
+              >
                 Save Settings
               </Button>
               <Button onClick={() => form.resetFields()}>Reset</Button>
@@ -108,7 +131,7 @@ const Settings: React.FC = () => {
         </Form>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default Settings
+export default Settings;

@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { message } from 'antd';
-import { Schedule, ScheduleRun, CreateScheduleData, UpdateScheduleData, ScheduleStats } from '../types';
+import {
+  Schedule,
+  ScheduleRun,
+  CreateScheduleData,
+  UpdateScheduleData,
+  ScheduleStats,
+} from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -15,17 +21,17 @@ export function useSchedules() {
       const response = await fetch(`${API_BASE}/api/schedules`, {
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch schedules');
       }
-      
+
       const data = await response.json();
       setSchedules(data.schedules || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      message.error('Failed to fetch schedules');
+      void message.error('Failed to fetch schedules');
     } finally {
       setLoading(false);
     }
@@ -41,19 +47,19 @@ export function useSchedules() {
         credentials: 'include',
         body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to create schedule');
       }
-      
+
       const newSchedule = await response.json();
-      setSchedules(prev => [...prev, newSchedule]);
-      message.success('Schedule created successfully');
+      setSchedules((prev) => [...prev, newSchedule]);
+      void message.success('Schedule created successfully');
       return newSchedule;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      message.error(errorMessage);
+      void message.error(errorMessage);
       throw err;
     }
   };
@@ -68,17 +74,19 @@ export function useSchedules() {
         credentials: 'include',
         body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to update schedule');
       }
-      
+
       const updatedSchedule = await response.json();
-      setSchedules(prev => prev.map(s => s.id === id ? updatedSchedule : s));
-      message.success('Schedule updated successfully');
+      setSchedules((prev) =>
+        prev.map((s) => (s.id === id ? updatedSchedule : s))
+      );
+      void message.success('Schedule updated successfully');
       return updatedSchedule;
     } catch (err) {
-      message.error('Failed to update schedule');
+      void message.error('Failed to update schedule');
       throw err;
     }
   };
@@ -89,15 +97,15 @@ export function useSchedules() {
         method: 'DELETE',
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to delete schedule');
       }
-      
-      setSchedules(prev => prev.filter(s => s.id !== id));
-      message.success('Schedule deleted successfully');
+
+      setSchedules((prev) => prev.filter((s) => s.id !== id));
+      void message.success('Schedule deleted successfully');
     } catch (err) {
-      message.error('Failed to delete schedule');
+      void message.error('Failed to delete schedule');
       throw err;
     }
   };
@@ -112,22 +120,22 @@ export function useSchedules() {
         method: 'POST',
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to trigger schedule');
       }
-      
+
       const result = await response.json();
-      message.success('Schedule triggered successfully');
+      void message.success('Schedule triggered successfully');
       return result;
     } catch (err) {
-      message.error('Failed to trigger schedule');
+      void message.error('Failed to trigger schedule');
       throw err;
     }
   };
 
   useEffect(() => {
-    fetchSchedules();
+    void fetchSchedules();
   }, []);
 
   return {
@@ -152,18 +160,18 @@ export function useScheduleHistory(scheduleId?: number) {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const url = scheduleId 
+      const url = scheduleId
         ? `${API_BASE}/api/schedules/${scheduleId}/runs`
         : `${API_BASE}/api/schedule-runs`;
-      
+
       const response = await fetch(url, {
         credentials: 'include',
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch schedule history');
       }
-      
+
       const data = await response.json();
       setRuns(data.runs || []);
       setStats(data.stats || null);
@@ -176,17 +184,18 @@ export function useScheduleHistory(scheduleId?: number) {
   };
 
   useEffect(() => {
-    fetchHistory();
-    
+    void fetchHistory();
+
     // Poll for updates every 5 seconds if there are running tasks
     const interval = setInterval(() => {
-      if (runs.some(run => run.status === 'running')) {
-        fetchHistory();
+      if (runs.some((run) => run.status === 'running')) {
+        void fetchHistory();
       }
     }, 5000);
-    
+
     return () => clearInterval(interval);
-  }, [scheduleId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleId]); // fetchHistory is stable and runs dependency would cause unnecessary re-renders
 
   return {
     runs,
@@ -218,12 +227,12 @@ export function useNextRuns(expression: string, count: number = 5) {
         credentials: 'include',
         body: JSON.stringify({ expression, count }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Invalid cron expression');
       }
-      
+
       const data = await response.json();
       setNextRuns(data.next_runs.map((run: string) => new Date(run)));
       setError(null);
@@ -237,11 +246,12 @@ export function useNextRuns(expression: string, count: number = 5) {
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
-      fetchNextRuns();
+      void fetchNextRuns();
     }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [expression, count]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expression, count]); // fetchNextRuns is stable
 
   return { nextRuns, loading, error };
 }

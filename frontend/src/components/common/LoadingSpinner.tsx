@@ -14,8 +14,13 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   text,
   fullScreen = false,
 }) => {
-  const antIcon = <LoadingOutlined style={{ fontSize: size === 'small' ? 24 : size === 'large' ? 48 : 32 }} spin />;
-  
+  const antIcon = (
+    <LoadingOutlined
+      style={{ fontSize: size === 'small' ? 24 : size === 'large' ? 48 : 32 }}
+      spin
+    />
+  );
+
   const spinner = (
     <div className={styles.spinnerContainer}>
       <Spin indicator={antIcon} size={size} tip={text} />
@@ -23,11 +28,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   );
 
   if (fullScreen) {
-    return (
-      <div className={styles.fullScreenOverlay}>
-        {spinner}
-      </div>
-    );
+    return <div className={styles.fullScreenOverlay}>{spinner}</div>;
   }
 
   return spinner;

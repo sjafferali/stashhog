@@ -41,9 +41,21 @@ export const StatCard: React.FC<StatCardProps> = ({
     <Card className={styles.statCard} bordered={false}>
       {loading ? (
         <>
-          <Skeleton.Input active size="small" className={styles.titleSkeleton} />
-          <Skeleton.Input active size="large" className={styles.valueSkeleton} />
-          <Skeleton.Input active size="small" className={styles.trendSkeleton} />
+          <Skeleton.Input
+            active
+            size="small"
+            className={styles.titleSkeleton}
+          />
+          <Skeleton.Input
+            active
+            size="large"
+            className={styles.valueSkeleton}
+          />
+          <Skeleton.Input
+            active
+            size="small"
+            className={styles.trendSkeleton}
+          />
         </>
       ) : (
         <>
@@ -56,7 +68,9 @@ export const StatCard: React.FC<StatCardProps> = ({
             {suffix && <span className={styles.suffix}>{suffix}</span>}
           </div>
           {trend && (
-            <div className={`${styles.trend} ${trend.isPositive ? styles.positive : styles.negative}`}>
+            <div
+              className={`${styles.trend} ${trend.isPositive ? styles.positive : styles.negative}`}
+            >
               {trend.isPositive ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
               <span className={styles.trendValue}>
                 {Math.abs(trend.value).toFixed(1)}%

@@ -1,15 +1,14 @@
 import React from 'react';
 import { Card, Tag, Space, Tooltip, Badge, Dropdown, Button } from 'antd';
 import type { MenuProps } from 'antd';
-import { 
-  PlayCircleOutlined, 
-  CalendarOutlined, 
+import {
+  CalendarOutlined,
   ClockCircleOutlined,
   EyeOutlined,
   EditOutlined,
-  AnalysisOutlined,
+  ExperimentOutlined,
   MoreOutlined,
-  StarFilled
+  StarFilled,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import styles from './SceneCard.module.scss';
@@ -40,7 +39,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -53,16 +52,16 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = size;
-    
+
     while (value >= 1024 && unitIndex < units.length - 1) {
       value /= 1024;
       unitIndex++;
     }
-    
+
     return `${value.toFixed(1)} ${units[unitIndex]}`;
   };
 
-  const menuItems: MenuProps['items'] = actions.map(action => ({
+  const menuItems: MenuProps['items'] = actions.map((action) => ({
     key: action.key,
     label: action.label,
     icon: action.icon,
@@ -82,14 +81,14 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       <Button
         type="text"
         icon={<EditOutlined />}
-        onClick={() => actions.find(a => a.key === 'edit')?.onClick(scene)}
+        onClick={() => actions.find((a) => a.key === 'edit')?.onClick(scene)}
       />
     </Tooltip>,
     <Tooltip key="analyze" title="Analyze">
       <Button
         type="text"
-        icon={<AnalysisOutlined />}
-        onClick={() => actions.find(a => a.key === 'analyze')?.onClick(scene)}
+        icon={<ExperimentOutlined />}
+        onClick={() => actions.find((a) => a.key === 'analyze')?.onClick(scene)}
       />
     </Tooltip>,
   ];
@@ -103,7 +102,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   }
 
   return (
-    <Badge.Ribbon 
+    <Badge.Ribbon
       text={scene.analyzed_at ? 'Analyzed' : 'Not Analyzed'}
       color={scene.analyzed_at ? 'green' : 'gray'}
     >
@@ -113,8 +112,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         onClick={() => onClick?.(scene)}
         cover={
           <div className={styles.thumbnail}>
-            <img 
-              alt={scene.title} 
+            <img
+              alt={scene.title}
               src={`/api/scenes/${scene.id}/thumbnail`}
               onError={(e) => {
                 (e.target as HTMLImageElement).src = '/placeholder-scene.png';
@@ -142,16 +141,17 @@ export const SceneCard: React.FC<SceneCardProps> = ({
             <div className={styles.metadata}>
               {scene.date && (
                 <div className={styles.date}>
-                  <CalendarOutlined /> {new Date(scene.date).toLocaleDateString()}
+                  <CalendarOutlined />{' '}
+                  {new Date(scene.date).toLocaleDateString()}
                 </div>
               )}
-              
-              {scene.studio && (
-                <Tag color="blue">{scene.studio.name}</Tag>
-              )}
-              
+
+              {scene.studio && <Tag color="blue">{scene.studio.name}</Tag>}
+
               <div className={styles.fileInfo}>
-                <span>{scene.width}x{scene.height}</span>
+                <span>
+                  {scene.width}x{scene.height}
+                </span>
                 <span>{formatFileSize(scene.size)}</span>
               </div>
 
@@ -160,7 +160,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
                   {scene.performers && scene.performers.length > 0 && (
                     <div className={styles.performers}>
                       <Space size={4} wrap>
-                        {scene.performers.slice(0, 3).map(performer => (
+                        {scene.performers.slice(0, 3).map((performer) => (
                           <Tag key={performer.id} color="purple">
                             {performer.name}
                           </Tag>
@@ -171,11 +171,11 @@ export const SceneCard: React.FC<SceneCardProps> = ({
                       </Space>
                     </div>
                   )}
-                  
+
                   {scene.tags && scene.tags.length > 0 && (
                     <div className={styles.tags}>
                       <Space size={4} wrap>
-                        {scene.tags.slice(0, 5).map(tag => (
+                        {scene.tags.slice(0, 5).map((tag) => (
                           <Tag key={tag.id}>{tag.name}</Tag>
                         ))}
                         {scene.tags.length > 5 && (

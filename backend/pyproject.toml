@@ -68,6 +68,64 @@ exclude_lines = [
     "class .*\\bProtocol\\):"
 ]
 
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+skip = ["venv", ".venv", "migrations"]
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "E266", "E501", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "*.egg",
+    ".venv",
+    "venv",
+    "env",
+    "migrations",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".coverage",
+    "htmlcov",
+    "docs",
+    "tests/fixtures"
+]
+per-file-ignores = [
+    "__init__.py:F401",
+    "test_*.py:S101",
+    "tests/*.py:S101"
+]
+
 [tool.bandit]
 targets = ["app"]
 exclude_dirs = ["tests", "venv", ".venv"]

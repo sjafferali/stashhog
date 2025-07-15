@@ -1,22 +1,22 @@
-import { useEffect } from 'react'
-import { useRoutes } from 'react-router-dom'
-import { message } from 'antd'
-import { routes } from './router'
-import useAppStore from './store'
+import { useEffect } from 'react';
+import { useRoutes } from 'react-router-dom';
+import { message } from 'antd';
+import { routes } from './router';
+import useAppStore from './store';
 
 function App() {
-  const routing = useRoutes(routes)
-  const { notification, setNotification } = useAppStore()
+  const routing = useRoutes(routes);
+  const { notification, setNotification } = useAppStore();
 
   useEffect(() => {
     if (notification) {
-      const { type, content } = notification
-      message[type](content)
-      setNotification(null)
+      const { type, content } = notification;
+      void message[type](content);
+      setNotification(null);
     }
-  }, [notification, setNotification])
+  }, [notification, setNotification]);
 
-  return <>{routing}</>
+  return <>{routing}</>;
 }
 
-export default App
+export default App;

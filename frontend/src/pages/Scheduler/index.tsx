@@ -1,6 +1,22 @@
 import React, { useState } from 'react';
-import { Card, Tabs, Button, Space, Typography, Row, Col, Statistic, Spin, Empty } from 'antd';
-import { PlusOutlined, CalendarOutlined, HistoryOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Tabs,
+  Button,
+  Space,
+  Typography,
+  Row,
+  Col,
+  Statistic,
+  Spin,
+  Empty,
+} from 'antd';
+import {
+  PlusOutlined,
+  CalendarOutlined,
+  HistoryOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons';
 import ScheduleList from './components/ScheduleList';
 import CreateScheduleModal from './components/CreateScheduleModal';
 import CalendarView from './components/CalendarView';
@@ -13,21 +29,26 @@ const { TabPane } = Tabs;
 
 const Scheduler: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
+    null
+  );
   const [activeTab, setActiveTab] = useState('schedules');
 
   const { schedules, loading, refetch } = useSchedules();
   const { runs, stats } = useScheduleHistory();
 
-  const activeSchedules = schedules.filter(s => s.enabled);
+  const activeSchedules = schedules.filter((s) => s.enabled);
   const upcomingRuns = schedules
-    .filter(s => s.enabled && s.next_run)
-    .sort((a, b) => new Date(a.next_run!).getTime() - new Date(b.next_run!).getTime())
+    .filter((s) => s.enabled && s.next_run)
+    .sort(
+      (a, b) =>
+        new Date(a.next_run!).getTime() - new Date(b.next_run!).getTime()
+    )
     .slice(0, 5);
 
   const handleCreateSuccess = () => {
     setCreateModalVisible(false);
-    refetch();
+    void refetch();
   };
 
   const handleScheduleSelect = (schedule: Schedule) => {
@@ -85,11 +106,13 @@ const Scheduler: React.FC = () => {
           <Card>
             <Statistic
               title="Total Runs Today"
-              value={runs.filter(r => {
-                const runDate = new Date(r.started_at);
-                const today = new Date();
-                return runDate.toDateString() === today.toDateString();
-              }).length}
+              value={
+                runs.filter((r) => {
+                  const runDate = new Date(r.started_at);
+                  const today = new Date();
+                  return runDate.toDateString() === today.toDateString();
+                }).length
+              }
               prefix={<HistoryOutlined />}
             />
           </Card>
@@ -98,9 +121,18 @@ const Scheduler: React.FC = () => {
           <Card>
             <Statistic
               title="Success Rate"
-              value={stats ? Math.round((stats.successful_runs / stats.total_runs) * 100) : 0}
+              value={
+                stats
+                  ? Math.round((stats.successful_runs / stats.total_runs) * 100)
+                  : 0
+              }
               suffix="%"
-              valueStyle={{ color: stats && stats.successful_runs / stats.total_runs > 0.9 ? '#52c41a' : '#faad14' }}
+              valueStyle={{
+                color:
+                  stats && stats.successful_runs / stats.total_runs > 0.9
+                    ? '#52c41a'
+                    : '#faad14',
+              }}
             />
           </Card>
         </Col>
@@ -125,7 +157,7 @@ const Scheduler: React.FC = () => {
               <ScheduleList
                 schedules={schedules}
                 onScheduleClick={handleScheduleSelect}
-                onRefresh={refetch}
+                onRefresh={() => void refetch()}
               />
             )}
           </TabPane>
@@ -152,7 +184,7 @@ const Scheduler: React.FC = () => {
                 <Empty description="No upcoming runs" />
               ) : (
                 <Space direction="vertical" style={{ width: '100%' }}>
-                  {upcomingRuns.map(schedule => (
+                  {upcomingRuns.map((schedule) => (
                     <Card
                       key={schedule.id}
                       size="small"
@@ -162,7 +194,9 @@ const Scheduler: React.FC = () => {
                       <Row justify="space-between" align="middle">
                         <Col>
                           <Space direction="vertical" size={0}>
-                            <Typography.Text strong>{schedule.name}</Typography.Text>
+                            <Typography.Text strong>
+                              {schedule.name}
+                            </Typography.Text>
                             <Typography.Text type="secondary">
                               {schedule.task_type}
                             </Typography.Text>

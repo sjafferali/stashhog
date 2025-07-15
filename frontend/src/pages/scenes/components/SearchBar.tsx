@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import { Input, Button, Space, Badge } from 'antd';
-import { SearchOutlined, FilterOutlined, ClearOutlined } from '@ant-design/icons';
+import {
+  SearchOutlined,
+  FilterOutlined,
+  ClearOutlined,
+} from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
 
@@ -23,15 +27,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   // Update URL when debounced search value changes
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
-    
+
     if (debouncedSearchValue) {
       params.set('search', debouncedSearchValue);
       params.set('page', '1'); // Reset to first page on search
     } else {
       params.delete('search');
     }
-    
+
     setSearchParams(params);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearchValue]); // Deliberately omitting searchParams and setSearchParams to avoid infinite loops
 
   const handleClearSearch = useCallback(() => {
@@ -43,10 +48,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     const params = new URLSearchParams();
     const page = searchParams.get('page');
     const size = searchParams.get('size');
-    
+
     if (page) params.set('page', page);
     if (size) params.set('size', size);
-    
+
     setSearchParams(params);
     setSearchValue('');
   }, [searchParams, setSearchParams]);
@@ -60,7 +65,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         placeholder="Search scenes by title, path, or details..."
         prefix={<SearchOutlined />}
         value={searchValue}
-        onChange={(e) => setSearchValue(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          setSearchValue(e.target.value)
+        }
         onPressEnter={() => {
           // Force immediate search on Enter
           const params = new URLSearchParams(searchParams);
@@ -74,7 +81,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         }}
         suffix={
           searchValue && (
-            <ClearOutlined 
+            <ClearOutlined
               onClick={handleClearSearch}
               style={{ cursor: 'pointer', color: '#999' }}
             />
@@ -82,7 +89,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         }
         style={{ flex: 1 }}
       />
-      
+
       <Badge count={activeFilterCount} offset={[-2, 2]}>
         <Button
           size="large"
@@ -93,7 +100,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           Filters
         </Button>
       </Badge>
-      
+
       {hasActiveFilters && (
         <Button
           size="large"

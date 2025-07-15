@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
-import { 
-  Form, 
-  Input, 
-  InputNumber, 
-  Select, 
-  Switch, 
-  Button, 
+import {
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Switch,
+  Button,
   Space,
   Tabs,
   Card,
   Alert,
   Divider,
   Typography,
-  message
+  message,
 } from 'antd';
-import { 
-  ApiOutlined, 
-  KeyOutlined, 
+import {
+  ApiOutlined,
+  KeyOutlined,
   SettingOutlined,
   SaveOutlined,
   CheckCircleOutlined,
-  SyncOutlined
+  SyncOutlined,
 } from '@ant-design/icons';
 import { Settings } from '@/types/models';
 import styles from './SettingsForm.module.scss';
@@ -52,11 +52,11 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
       const values = await form.validateFields();
       setSaving(true);
       await onSave(values);
-      message.success('Settings saved successfully');
+      void message.success('Settings saved successfully');
       setHasChanges(false);
     } catch (error) {
       console.error('Failed to save settings:', error);
-      message.error('Failed to save settings');
+      void message.error('Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -64,17 +64,17 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
   const handleTestStash = async () => {
     if (!onTest) return;
-    
+
     setTestingStash(true);
     try {
       const success = await onTest('stash');
       if (success) {
-        message.success('Successfully connected to Stash');
+        void message.success('Successfully connected to Stash');
       } else {
-        message.error('Failed to connect to Stash');
+        void message.error('Failed to connect to Stash');
       }
-    } catch (error) {
-      message.error('Connection test failed');
+    } catch {
+      void message.error('Connection test failed');
     } finally {
       setTestingStash(false);
     }
@@ -82,17 +82,17 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
 
   const handleTestOpenAI = async () => {
     if (!onTest) return;
-    
+
     setTestingOpenAI(true);
     try {
       const success = await onTest('openai');
       if (success) {
-        message.success('Successfully connected to OpenAI');
+        void message.success('Successfully connected to OpenAI');
       } else {
-        message.error('Failed to connect to OpenAI');
+        void message.error('Failed to connect to OpenAI');
       }
-    } catch (error) {
-      message.error('Connection test failed');
+    } catch {
+      void message.error('Connection test failed');
     } finally {
       setTestingOpenAI(false);
     }
@@ -125,13 +125,13 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
         onValuesChange={handleValuesChange}
       >
         <Tabs defaultActiveKey="stash">
-          <TabPane 
+          <TabPane
             tab={
               <span>
                 <ApiOutlined />
                 Stash Configuration
               </span>
-            } 
+            }
             key="stash"
           >
             <Card>
@@ -139,45 +139,45 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               <Text type="secondary">
                 Configure the connection to your Stash instance
               </Text>
-              
+
               <Divider />
-              
+
               <Form.Item
                 name="stash_url"
                 label="Stash URL"
                 rules={[
                   { required: true, message: 'Please enter the Stash URL' },
-                  { type: 'url', message: 'Please enter a valid URL' }
+                  { type: 'url', message: 'Please enter a valid URL' },
                 ]}
               >
-                <Input 
+                <Input
                   placeholder="http://localhost:9999"
                   prefix={<ApiOutlined />}
                 />
               </Form.Item>
-              
+
               <Form.Item
                 name="stash_api_key"
                 label="API Key (Optional)"
                 extra="Leave empty if authentication is not required"
               >
-                <Input.Password 
+                <Input.Password
                   placeholder="Enter API key if required"
                   prefix={<KeyOutlined />}
                 />
               </Form.Item>
-              
+
               <Form.Item>
                 <Button
                   icon={<CheckCircleOutlined />}
-                  onClick={handleTestStash}
+                  onClick={() => void handleTestStash()}
                   loading={testingStash}
                   disabled={loading}
                 >
                   Test Connection
                 </Button>
               </Form.Item>
-              
+
               <Alert
                 message="Connection Info"
                 description="Make sure your Stash instance is running and accessible from this application."
@@ -186,47 +186,43 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               />
             </Card>
           </TabPane>
-          
-          <TabPane 
+
+          <TabPane
             tab={
               <span>
                 <KeyOutlined />
                 OpenAI Configuration
               </span>
-            } 
+            }
             key="openai"
           >
             <Card>
               <Title level={4}>OpenAI API Settings</Title>
-              <Text type="secondary">
-                Configure OpenAI for scene analysis
-              </Text>
-              
+              <Text type="secondary">Configure OpenAI for scene analysis</Text>
+
               <Divider />
-              
+
               <Form.Item
                 name="openai_api_key"
                 label="OpenAI API Key"
                 rules={[
-                  { required: true, message: 'Please enter your OpenAI API key' }
+                  {
+                    required: true,
+                    message: 'Please enter your OpenAI API key',
+                  },
                 ]}
               >
-                <Input.Password 
-                  placeholder="sk-..."
-                  prefix={<KeyOutlined />}
-                />
+                <Input.Password placeholder="sk-..." prefix={<KeyOutlined />} />
               </Form.Item>
-              
+
               <Form.Item
                 name="openai_model"
                 label="Model"
-                rules={[
-                  { required: true, message: 'Please select a model' }
-                ]}
+                rules={[{ required: true, message: 'Please select a model' }]}
               >
                 <Select options={openAIModels} />
               </Form.Item>
-              
+
               <Form.Item
                 name="openai_temperature"
                 label="Temperature"
@@ -239,7 +235,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
                   style={{ width: '100%' }}
                 />
               </Form.Item>
-              
+
               <Form.Item
                 name="openai_max_tokens"
                 label="Max Tokens (Optional)"
@@ -252,18 +248,18 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
                   placeholder="Default"
                 />
               </Form.Item>
-              
+
               <Form.Item>
                 <Button
                   icon={<CheckCircleOutlined />}
-                  onClick={handleTestOpenAI}
+                  onClick={() => void handleTestOpenAI()}
                   loading={testingOpenAI}
                   disabled={loading}
                 >
                   Test Connection
                 </Button>
               </Form.Item>
-              
+
               <Alert
                 message="API Usage"
                 description="Using the OpenAI API will incur costs based on token usage. Monitor your usage in the OpenAI dashboard."
@@ -272,21 +268,21 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               />
             </Card>
           </TabPane>
-          
-          <TabPane 
+
+          <TabPane
             tab={
               <span>
                 <SettingOutlined />
                 General Settings
               </span>
-            } 
+            }
             key="general"
           >
             <Card>
               <Title level={4}>General Application Settings</Title>
-              
+
               <Divider />
-              
+
               <Form.Item
                 name="auto_analyze_new_scenes"
                 label="Auto-analyze New Scenes"
@@ -295,32 +291,25 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               >
                 <Switch />
               </Form.Item>
-              
+
               <Form.Item
                 name="default_analysis_plan_id"
                 label="Default Analysis Plan"
                 extra="The analysis plan to use for automatic analysis"
               >
-                <Select
-                  placeholder="Select a default plan"
-                  allowClear
-                >
+                <Select placeholder="Select a default plan" allowClear>
                   {/* Options will be populated from API */}
                 </Select>
               </Form.Item>
-              
+
               <Form.Item
                 name="sync_interval_hours"
                 label="Sync Interval (Hours)"
                 extra="How often to sync with Stash (0 to disable)"
               >
-                <InputNumber
-                  min={0}
-                  max={24}
-                  style={{ width: '100%' }}
-                />
+                <InputNumber min={0} max={24} style={{ width: '100%' }} />
               </Form.Item>
-              
+
               <Form.Item
                 name="enable_websocket_notifications"
                 label="Enable Real-time Notifications"
@@ -329,17 +318,14 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
               >
                 <Switch />
               </Form.Item>
-              
-              <Form.Item
-                name="log_level"
-                label="Log Level"
-              >
+
+              <Form.Item name="log_level" label="Log Level">
                 <Select options={logLevels} />
               </Form.Item>
             </Card>
           </TabPane>
         </Tabs>
-        
+
         <div className={styles.actions}>
           <Space>
             <Button
@@ -354,7 +340,7 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
             <Button
               type="primary"
               icon={<SaveOutlined />}
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               loading={saving}
               disabled={!hasChanges || loading}
             >

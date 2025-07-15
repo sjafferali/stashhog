@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Form, 
-  Switch, 
-  Select, 
-  InputNumber, 
-  Input, 
-  Button, 
+import {
+  Form,
+  Switch,
+  Select,
+  InputNumber,
+  Input,
+  Button,
   Space,
   Collapse,
   Card,
@@ -15,19 +15,19 @@ import {
   Typography,
   Row,
   Col,
-  Divider
+  Divider,
 } from 'antd';
-import { 
-  InfoCircleOutlined, 
+import {
+  InfoCircleOutlined,
   ThunderboltOutlined,
   SettingOutlined,
   SaveOutlined,
-  ExperimentOutlined
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import styles from './AnalysisOptionsForm.module.scss';
 
 const { Panel } = Collapse;
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 
 export interface AnalysisOptions {
@@ -42,7 +42,7 @@ export interface AnalysisOptions {
   temperature: number;
   maxTokens?: number;
   promptTemplate?: string;
-  customFields?: Record<string, any>;
+  customFields?: Record<string, string | number | boolean | null>;
   batchSize: number;
   confidenceThreshold: number;
   autoAcceptHighConfidence: boolean;
@@ -80,28 +80,28 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
   presets = [],
 }) => {
   const [form] = Form.useForm();
-  const [showPresetModal, setShowPresetModal] = useState(false);
-  const [presetName, setPresetName] = useState('');
+  const [_showPresetModal, _setShowPresetModal] = useState(false);
+  // const [presetName, setPresetName] = useState('');
 
-  const handleValuesChange = (_: any, allValues: AnalysisOptions) => {
+  const handleValuesChange = (_: unknown, allValues: AnalysisOptions) => {
     onChange(allValues);
   };
 
   const handlePresetSelect = (presetName: string) => {
-    const preset = presets.find(p => p.name === presetName);
+    const preset = presets.find((p) => p.name === presetName);
     if (preset) {
       form.setFieldsValue(preset.options);
       onChange(preset.options);
     }
   };
 
-  const handleSavePreset = () => {
-    if (onSaveAsPreset && presetName) {
-      onSaveAsPreset(presetName, form.getFieldsValue());
-      setShowPresetModal(false);
-      setPresetName('');
-    }
-  };
+  // const _handleSavePreset = () => {
+  //   if (onSaveAsPreset && presetName) {
+  //     onSaveAsPreset(presetName, form.getFieldsValue());
+  //     _setShowPresetModal(false);
+  //     setPresetName('');
+  //   }
+  // };
 
   const models = [
     { label: 'GPT-4 (Most Accurate)', value: 'gpt-4' },
@@ -121,7 +121,7 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
           <Card size="small" className={styles.presetsCard}>
             <Space>
               <Text strong>Quick Presets:</Text>
-              {presets.map(preset => (
+              {presets.map((preset) => (
                 <Tag
                   key={preset.name}
                   color="blue"
@@ -138,70 +138,52 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
         <Card title="Extraction Options" className={styles.card}>
           <Row gutter={[16, 16]}>
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractTitle"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractTitle" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Title</Text>
                 </Space>
               </Form.Item>
             </Col>
-            
+
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractDate"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractDate" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Date</Text>
                 </Space>
               </Form.Item>
             </Col>
-            
+
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractDetails"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractDetails" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Details</Text>
                 </Space>
               </Form.Item>
             </Col>
-            
+
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractPerformers"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractPerformers" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Performers</Text>
                 </Space>
               </Form.Item>
             </Col>
-            
+
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractTags"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractTags" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Tags</Text>
                 </Space>
               </Form.Item>
             </Col>
-            
+
             <Col xs={12} sm={8} md={6}>
-              <Form.Item
-                name="extractStudio"
-                valuePropName="checked"
-              >
+              <Form.Item name="extractStudio" valuePropName="checked">
                 <Space>
                   <Switch />
                   <Text>Studio</Text>
@@ -221,25 +203,15 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
               <Select
                 placeholder="Select an analysis plan"
                 allowClear
-                options={availablePlans.map(plan => ({
+                options={availablePlans.map((plan) => ({
                   label: plan.name,
                   value: plan.id,
                   description: plan.description,
                 }))}
-                optionRender={(option) => (
-                  <Space direction="vertical" size={0}>
-                    <Text>{option.label}</Text>
-                    {option.data.description && (
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {option.data.description}
-                      </Text>
-                    )}
-                  </Space>
-                )}
               />
             </Form.Item>
           )}
-          
+
           <Form.Item
             name="model"
             label="AI Model"
@@ -247,7 +219,7 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
           >
             <Select options={models} />
           </Form.Item>
-          
+
           <Form.Item
             name="temperature"
             label={
@@ -259,14 +231,9 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
               </Space>
             }
           >
-            <InputNumber
-              min={0}
-              max={2}
-              step={0.1}
-              style={{ width: '100%' }}
-            />
+            <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
-          
+
           <Form.Item
             name="maxTokens"
             label={
@@ -289,13 +256,13 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
 
         {showAdvanced && (
           <Collapse ghost>
-            <Panel 
+            <Panel
               header={
                 <Space>
                   <SettingOutlined />
                   Advanced Settings
                 </Space>
-              } 
+              }
               key="advanced"
             >
               <Card>
@@ -304,13 +271,9 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                   label="Batch Size"
                   extra="Number of scenes to analyze in parallel"
                 >
-                  <InputNumber
-                    min={1}
-                    max={10}
-                    style={{ width: '100%' }}
-                  />
+                  <InputNumber min={1} max={10} style={{ width: '100%' }} />
                 </Form.Item>
-                
+
                 <Form.Item
                   name="confidenceThreshold"
                   label="Confidence Threshold"
@@ -323,7 +286,7 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
-                
+
                 <Form.Item
                   name="autoAcceptHighConfidence"
                   valuePropName="checked"
@@ -334,7 +297,7 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                     <Text>Auto-accept High Confidence</Text>
                   </Space>
                 </Form.Item>
-                
+
                 <Form.Item
                   name="skipAnalyzed"
                   valuePropName="checked"
@@ -345,9 +308,9 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                     <Text>Skip Already Analyzed</Text>
                   </Space>
                 </Form.Item>
-                
+
                 <Divider />
-                
+
                 <Form.Item
                   name="promptTemplate"
                   label={
@@ -361,12 +324,11 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                   extra="Leave empty to use the default prompt"
                 >
                   <TextArea
-                    rows={6}
+                    autoSize={{ minRows: 6, maxRows: 6 }}
                     placeholder={defaultPromptTemplate}
-                    style={{ fontFamily: 'monospace' }}
                   />
                 </Form.Item>
-                
+
                 <Alert
                   message="Experimental Features"
                   description="These advanced settings may affect analysis quality and costs. Use with caution."
@@ -383,7 +345,7 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
           <div className={styles.presetActions}>
             <Button
               icon={<SaveOutlined />}
-              onClick={() => setShowPresetModal(true)}
+              onClick={() => _setShowPresetModal(true)}
             >
               Save as Preset
             </Button>

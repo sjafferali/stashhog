@@ -1,27 +1,27 @@
 import React, { useState } from 'react';
-import { 
-  Modal, 
-  Tabs, 
-  Descriptions, 
-  Tag, 
-  Space, 
-  Button, 
+import {
+  Modal,
+  Tabs,
+  Descriptions,
+  Tag,
+  Space,
+  Button,
   Image,
   List,
   Typography,
   Divider,
   Timeline,
   Empty,
-  Spin
+  Spin,
 } from 'antd';
-import { 
-  FileOutlined, 
-  InfoCircleOutlined, 
+import {
+  FileOutlined,
+  InfoCircleOutlined,
   ExperimentOutlined,
   HistoryOutlined,
-  ExportOutlined,
+  // ExportOutlined,
   EditOutlined,
-  SyncOutlined
+  // SyncOutlined,
 } from '@ant-design/icons';
 import { useQuery } from 'react-query';
 import dayjs from 'dayjs';
@@ -29,7 +29,7 @@ import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
 
 const { TabPane } = Tabs;
-const { Text, Title, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 
 interface SceneDetailModalProps {
   scene: Scene;
@@ -37,10 +37,10 @@ interface SceneDetailModalProps {
   onClose: () => void;
 }
 
-export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({ 
-  scene, 
-  visible, 
-  onClose 
+export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
+  scene,
+  visible,
+  onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -60,16 +60,16 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     if (!bytes) return 'N/A';
     const size = parseInt(bytes, 10);
     if (isNaN(size)) return 'N/A';
-    
+
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let formattedSize = size;
-    
+
     while (formattedSize >= 1024 && unitIndex < units.length - 1) {
       formattedSize /= 1024;
       unitIndex++;
     }
-    
+
     return `${formattedSize.toFixed(1)} ${units[unitIndex]}`;
   };
 
@@ -78,7 +78,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -103,38 +103,41 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <Descriptions.Item label="Title" span={2}>
             {fullScene?.title || 'Untitled'}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Studio">
             {fullScene?.studio ? (
               <Tag color="blue">{fullScene.studio.name}</Tag>
-            ) : 'N/A'}
+            ) : (
+              'N/A'
+            )}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Date">
             {fullScene?.date || 'N/A'}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Duration">
             {formatDuration(fullScene?.duration)}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="File Size">
             {formatFileSize(fullScene?.size)}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Resolution">
-            {fullScene?.width && fullScene?.height ? 
-              `${fullScene.width}x${fullScene.height}` : 'N/A'}
+            {fullScene?.width && fullScene?.height
+              ? `${fullScene.width}x${fullScene.height}`
+              : 'N/A'}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Frame Rate">
             {fullScene?.framerate ? `${fullScene.framerate} fps` : 'N/A'}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Codec">
             {fullScene?.codec || 'N/A'}
           </Descriptions.Item>
-          
+
           <Descriptions.Item label="Bitrate">
             {fullScene?.bitrate ? `${fullScene.bitrate} kbps` : 'N/A'}
           </Descriptions.Item>
@@ -145,7 +148,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <>
             <Divider>Performers</Divider>
             <Space wrap>
-              {fullScene.performers.map(performer => (
+              {fullScene.performers.map((performer) => (
                 <Tag key={performer.id} color="pink" style={{ margin: '2px' }}>
                   {performer.name}
                 </Tag>
@@ -159,7 +162,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <>
             <Divider>Tags</Divider>
             <Space wrap>
-              {fullScene.tags.map(tag => (
+              {fullScene.tags.map((tag) => (
                 <Tag key={tag.id} color="green" style={{ margin: '2px' }}>
                   {tag.name}
                 </Tag>
@@ -184,24 +187,25 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       <Descriptions.Item label="Path">
         <Text code>{fullScene?.path || 'N/A'}</Text>
       </Descriptions.Item>
-      
+
       <Descriptions.Item label="Stash ID">
         <Text copyable>{fullScene?.stash_id || 'N/A'}</Text>
       </Descriptions.Item>
-      
+
       <Descriptions.Item label="Perceptual Hash">
         <Text code>{fullScene?.phash || 'N/A'}</Text>
       </Descriptions.Item>
-      
+
       <Descriptions.Item label="File Modified">
-        {fullScene?.file_mod_time ? 
-          dayjs(fullScene.file_mod_time).format('YYYY-MM-DD HH:mm:ss') : 'N/A'}
+        {fullScene?.file_mod_time
+          ? dayjs(fullScene.file_mod_time).format('YYYY-MM-DD HH:mm:ss')
+          : 'N/A'}
       </Descriptions.Item>
-      
+
       <Descriptions.Item label="Created">
         {dayjs(fullScene?.created_at).format('YYYY-MM-DD HH:mm:ss')}
       </Descriptions.Item>
-      
+
       <Descriptions.Item label="Updated">
         {dayjs(fullScene?.updated_at).format('YYYY-MM-DD HH:mm:ss')}
       </Descriptions.Item>
@@ -237,7 +241,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
                   {dayjs(result.created_at).format('YYYY-MM-DD HH:mm:ss')}
                 </Text>
               </Space>
-              
+
               {result.extracted_data && (
                 <Descriptions size="small" bordered column={1}>
                   {result.extracted_data.title && (
@@ -245,31 +249,31 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
                       {result.extracted_data.title}
                     </Descriptions.Item>
                   )}
-                  
+
                   {result.extracted_data.date && (
                     <Descriptions.Item label="Date">
                       {result.extracted_data.date}
                     </Descriptions.Item>
                   )}
-                  
+
                   {result.extracted_data.performers && (
                     <Descriptions.Item label="Performers">
                       {result.extracted_data.performers.join(', ')}
                     </Descriptions.Item>
                   )}
-                  
+
                   {result.extracted_data.tags && (
                     <Descriptions.Item label="Tags">
                       {result.extracted_data.tags.join(', ')}
                     </Descriptions.Item>
                   )}
-                  
+
                   {result.extracted_data.studio && (
                     <Descriptions.Item label="Studio">
                       {result.extracted_data.studio}
                     </Descriptions.Item>
                   )}
-                  
+
                   {result.extracted_data.details && (
                     <Descriptions.Item label="Details">
                       {result.extracted_data.details}
@@ -277,7 +281,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
                   )}
                 </Descriptions>
               )}
-              
+
               <Space size="small">
                 <Text type="secondary">Model: {result.model_used}</Text>
                 <Text type="secondary">Time: {result.processing_time}s</Text>
@@ -298,7 +302,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           {dayjs(fullScene?.created_at).format('YYYY-MM-DD HH:mm:ss')}
         </Text>
       </Timeline.Item>
-      
+
       {fullScene?.analyzed_at && (
         <Timeline.Item color="blue">
           <Text strong>First Analysis</Text>
@@ -308,7 +312,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           </Text>
         </Timeline.Item>
       )}
-      
+
       {fullScene?.analysis_results?.map((result, index) => (
         <Timeline.Item key={result.id}>
           <Text strong>Analysis #{index + 1}</Text>
@@ -320,7 +324,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <Text type="secondary">Plan: {result.plan?.name || 'Unknown'}</Text>
         </Timeline.Item>
       ))}
-      
+
       <Timeline.Item>
         <Text strong>Last Updated</Text>
         <br />
@@ -355,29 +359,45 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       ]}
     >
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane 
-          tab={<span><InfoCircleOutlined /> Overview</span>} 
+        <TabPane
+          tab={
+            <span>
+              <InfoCircleOutlined /> Overview
+            </span>
+          }
           key="overview"
         >
           {renderOverviewTab()}
         </TabPane>
-        
-        <TabPane 
-          tab={<span><FileOutlined /> Files/Paths</span>} 
+
+        <TabPane
+          tab={
+            <span>
+              <FileOutlined /> Files/Paths
+            </span>
+          }
           key="files"
         >
           {renderFilesTab()}
         </TabPane>
-        
-        <TabPane 
-          tab={<span><ExperimentOutlined /> Analysis</span>} 
+
+        <TabPane
+          tab={
+            <span>
+              <ExperimentOutlined /> Analysis
+            </span>
+          }
           key="analysis"
         >
           {renderAnalysisTab()}
         </TabPane>
-        
-        <TabPane 
-          tab={<span><HistoryOutlined /> History</span>} 
+
+        <TabPane
+          tab={
+            <span>
+              <HistoryOutlined /> History
+            </span>
+          }
           key="history"
         >
           {renderHistoryTab()}

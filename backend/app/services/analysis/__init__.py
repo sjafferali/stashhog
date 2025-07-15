@@ -1,24 +1,24 @@
 """Analysis service package for scene metadata detection and AI analysis."""
 
+from .ai_client import AIClient
+from .analysis_service import AnalysisService
+from .batch_processor import BatchProcessor
+from .details_generator import DetailsGenerator
 from .models import (
     AnalysisOptions,
+    ApplyResult,
+    DetectionResult,
     ProposedChange,
     SceneChanges,
-    DetectionResult,
-    ApplyResult
 )
-from .analysis_service import AnalysisService
-from .plan_manager import PlanManager
-from .ai_client import AIClient
-from .batch_processor import BatchProcessor
-from .studio_detector import StudioDetector
 from .performer_detector import PerformerDetector
+from .plan_manager import PlanManager
+from .studio_detector import StudioDetector
 from .tag_detector import TagDetector
-from .details_generator import DetailsGenerator
 
 __all__ = [
     "AnalysisOptions",
-    "ProposedChange", 
+    "ProposedChange",
     "SceneChanges",
     "DetectionResult",
     "ApplyResult",
@@ -29,5 +29,5 @@ __all__ = [
     "StudioDetector",
     "PerformerDetector",
     "TagDetector",
-    "DetailsGenerator"
+    "DetailsGenerator",
 ]

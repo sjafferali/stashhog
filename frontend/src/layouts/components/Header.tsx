@@ -1,26 +1,26 @@
-import React from 'react'
-import { Layout, Button, Badge, Space, Tooltip, theme } from 'antd'
+import React from 'react';
+import { Layout, Button, Badge, Space, Tooltip, theme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BellOutlined,
   SyncOutlined,
   SettingOutlined,
-} from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
-import useAppStore from '@/store'
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import useAppStore from '@/store';
 
-const { Header: AntHeader } = Layout
+const { Header: AntHeader } = Layout;
 
 interface HeaderProps {
-  collapsed: boolean
-  onToggle: () => void
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
-  const navigate = useNavigate()
-  const { token } = theme.useToken()
-  const { isLoading } = useAppStore()
+  const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const { isLoading } = useAppStore();
 
   return (
     <AntHeader
@@ -52,7 +52,7 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
             onClick={() => navigate('/sync')}
           />
         </Tooltip>
-        
+
         <Tooltip title="Jobs">
           <Badge count={0} showZero={false}>
             <Button
@@ -62,7 +62,7 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
             />
           </Badge>
         </Tooltip>
-        
+
         <Tooltip title="Settings">
           <Button
             type="text"
@@ -72,7 +72,7 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
         </Tooltip>
       </Space>
     </AntHeader>
-  )
-}
+  );
+};
 
-export default Header
+export default Header;

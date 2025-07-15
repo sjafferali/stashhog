@@ -1,67 +1,77 @@
 """
 Sync management endpoints.
 """
-from typing import Dict, Any, Optional, List
-from uuid import uuid4
-from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
-from sqlalchemy.orm import Session
+from typing import List, Optional
 
-from app.api.schemas import (
-    JobResponse,
-    SuccessResponse,
-    JobType as APIJobType,
-    JobStatus as APIJobStatus,
-    SyncResultResponse,
-    SyncStatsResponse
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
+
+from app.api.schemas import JobResponse
+from app.api.schemas import JobStatus as APIJobStatus
+from app.api.schemas import JobType as APIJobType
+from app.api.schemas import SyncResultResponse, SyncStatsResponse
+from app.core.dependencies import (
+    get_db,
+    get_job_service,
+    get_sync_service,
 )
-from app.core.dependencies import get_db, get_stash_service, get_sync_service
-from app.core.exceptions import NotFoundError
-from app.services.stash_service import StashService
-from app.services.sync import SyncService, SyncResult
-from app.services.websocket_manager import websocket_manager
-from app.services.job_service import job_service
-from app.models import Job, SyncHistory
-from app.models.job import JobType, JobStatus
-from app.core.tasks import task_queue
+from app.models import SyncHistory
+from app.models.job import JobType as ModelJobType
+from app.services.job_service import JobService
+from app.services.sync.sync_service import SyncService
 
 router = APIRouter()
+
+
+def _map_job_type(model_job_type: str) -> str:
+    """Map model JobType values to API JobType values."""
+    job_type_mapping = {
+        "sync": "sync_all",
+        "sync_scenes": "scene_sync",
+        "sync_performers": "sync_all",
+        "sync_tags": "sync_all",
+        "sync_studios": "sync_all",
+        "sync_all": "sync_all",
+    }
+    return job_type_mapping.get(model_job_type, "sync_all")
 
 
 @router.post("/all", response_model=JobResponse)
 async def sync_all(
     force: bool = Query(False, description="Force full sync ignoring timestamps"),
-    db: Session = Depends(get_db)
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
     Trigger full sync of all entities from Stash.
-    
+
     This creates a background job to sync performers, tags, studios, and scenes.
-    
+
     Args:
         force: Force full sync ignoring timestamps
         db: Database session
-        
+
     Returns:
         Job information
     """
     # Create job via job service
     job = await job_service.create_job(
-        job_type=JobType.SYNC,
-        db=db,
-        metadata={"force": force},
-        force=force
+        job_type=ModelJobType.SYNC, db=db, metadata={"force": force}
     )
-    
+
     return JobResponse(
-        id=job.id,
-        type=APIJobType(job.type.value),
-        status=APIJobStatus(job.status.value),
-        progress=job.progress,
-        parameters=job.metadata or {},
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        updated_at=job.updated_at.isoformat() if job.updated_at else None
+        id=str(job.id),
+        type=APIJobType.SYNC_ALL,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={"force": force},
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        completed_at=None,
+        result=None,
+        error=None,
     )
 
 
@@ -69,162 +79,167 @@ async def sync_all(
 async def sync_scenes(
     scene_ids: Optional[List[str]] = None,
     force: bool = Query(False, description="Force sync even if unchanged"),
-    db: Session = Depends(get_db)
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
     Sync scenes from Stash.
-    
+
     Args:
         scene_ids: Specific scene IDs to sync (if not provided, syncs all)
         force: Force sync even if scenes are unchanged
         db: Database session
-        
+
     Returns:
         Job information
     """
     # Create job via job service
     job = await job_service.create_job(
-        job_type=JobType.SYNC_SCENES,
+        job_type=ModelJobType.SYNC_SCENES,
         db=db,
         metadata={"scene_ids": scene_ids, "force": force},
-        scene_ids=scene_ids,
-        force=force
     )
-    
+
     return JobResponse(
-        id=job.id,
-        type=APIJobType(job.type.value),
-        status=APIJobStatus(job.status.value),
-        progress=job.progress,
-        parameters=job.metadata or {},
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        updated_at=job.updated_at.isoformat() if job.updated_at else None
+        id=str(job.id),
+        type=APIJobType.SCENE_SYNC,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={"scene_ids": scene_ids, "force": force},
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        completed_at=None,
+        result=None,
+        error=None,
     )
 
 
 @router.post("/performers", response_model=JobResponse)
 async def sync_performers(
     force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: Session = Depends(get_db)
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
     Sync performers from Stash.
-    
+
     Args:
         force: Force sync ignoring timestamps
         db: Database session
-        
+
     Returns:
         Job information
     """
     # Create job via job service
     job = await job_service.create_job(
-        job_type=JobType.SYNC_PERFORMERS,
-        db=db,
-        metadata={"force": force},
-        force=force
+        job_type=ModelJobType.SYNC_PERFORMERS, db=db, metadata={"force": force}
     )
-    
+
     return JobResponse(
-        id=job.id,
-        type=APIJobType(job.type.value),
-        status=APIJobStatus(job.status.value),
-        progress=job.progress,
-        parameters=job.metadata or {},
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        updated_at=job.updated_at.isoformat() if job.updated_at else None
+        id=str(job.id),
+        type=APIJobType.SYNC_PERFORMERS,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={"force": force},
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        completed_at=None,
+        result=None,
+        error=None,
     )
 
 
 @router.post("/tags", response_model=JobResponse)
 async def sync_tags(
     force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: Session = Depends(get_db)
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
     Sync tags from Stash.
-    
+
     Args:
         force: Force sync ignoring timestamps
         db: Database session
-        
+
     Returns:
         Job information
     """
     # Create job via job service
     job = await job_service.create_job(
-        job_type=JobType.SYNC_TAGS,
-        db=db,
-        metadata={"force": force},
-        force=force
+        job_type=ModelJobType.SYNC_TAGS, db=db, metadata={"force": force}
     )
-    
+
     return JobResponse(
-        id=job.id,
-        type=APIJobType(job.type.value),
-        status=APIJobStatus(job.status.value),
-        progress=job.progress,
-        parameters=job.metadata or {},
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        updated_at=job.updated_at.isoformat() if job.updated_at else None
+        id=str(job.id),
+        type=APIJobType.SYNC_TAGS,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={"force": force},
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        completed_at=None,
+        result=None,
+        error=None,
     )
 
 
 @router.post("/studios", response_model=JobResponse)
 async def sync_studios(
     force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: Session = Depends(get_db)
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
     Sync studios from Stash.
-    
+
     Args:
         force: Force sync ignoring timestamps
         db: Database session
-        
+
     Returns:
         Job information
     """
     # Create job via job service
     job = await job_service.create_job(
-        job_type=JobType.SYNC_STUDIOS,
-        db=db,
-        metadata={"force": force},
-        force=force
+        job_type=ModelJobType.SYNC_STUDIOS, db=db, metadata={"force": force}
     )
-    
+
     return JobResponse(
-        id=job.id,
-        type=APIJobType(job.type.value),
-        status=APIJobStatus(job.status.value),
-        progress=job.progress,
-        parameters=job.metadata or {},
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        updated_at=job.updated_at.isoformat() if job.updated_at else None
+        id=str(job.id),
+        type=APIJobType.SYNC_STUDIOS,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={"force": force},
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        completed_at=None,
+        result=None,
+        error=None,
     )
 
 
 @router.post("/scene/{scene_id}", response_model=SyncResultResponse)
 async def sync_single_scene(
     scene_id: str,
-    db: Session = Depends(get_db),
-    sync_service: SyncService = Depends(get_sync_service)
+    db: AsyncSession = Depends(get_db),
+    sync_service: SyncService = Depends(get_sync_service),
 ) -> SyncResultResponse:
     """
     Sync a single scene by ID.
-    
+
     This is a synchronous operation that immediately syncs the scene.
-    
+
     Args:
         scene_id: Scene ID to sync
         db: Database session
         sync_service: Sync service instance
-        
+
     Returns:
         Sync result
     """
     result = await sync_service.sync_scene_by_id(scene_id)
-    
+
     return SyncResultResponse(
         job_id=result.job_id,
         status=result.status,
@@ -237,51 +252,69 @@ async def sync_single_scene(
         started_at=result.started_at.isoformat() if result.started_at else None,
         completed_at=result.completed_at.isoformat() if result.completed_at else None,
         duration_seconds=result.duration_seconds,
-        errors=[{"entity": e.entity_type, "id": e.entity_id, "message": e.message} for e in result.errors]
+        errors=[
+            {"entity": e.entity_type, "id": e.entity_id, "message": e.message}
+            for e in result.errors
+        ],
     )
 
 
 @router.get("/stats", response_model=SyncStatsResponse)
-async def get_sync_stats(
-    db: Session = Depends(get_db)
-) -> SyncStatsResponse:
+async def get_sync_stats(db: AsyncSession = Depends(get_db)) -> SyncStatsResponse:
     """
     Get sync statistics.
-    
+
     Returns counts and last sync times for each entity type.
-    
+
     Args:
         db: Database session
-        
+
     Returns:
         Sync statistics
     """
     # Get last sync times for each entity type
+    from sqlalchemy import func, select
+
     last_syncs = {}
     for entity_type in ["scene", "performer", "tag", "studio"]:
-        last_sync = db.query(SyncHistory).filter(
-            SyncHistory.entity_type == entity_type,
-            SyncHistory.status == "completed"
-        ).order_by(SyncHistory.completed_at.desc()).first()
-        
+        query = (
+            select(SyncHistory)
+            .where(
+                SyncHistory.entity_type == entity_type,
+                SyncHistory.status == "completed",
+            )
+            .order_by(SyncHistory.completed_at.desc())
+            .limit(1)
+        )
+
+        result = await db.execute(query)
+        last_sync = result.scalar_one_or_none()
+
         if last_sync:
             last_syncs[entity_type] = last_sync.completed_at.isoformat()
-    
+
     # Get counts from database
-    from app.models import Scene, Performer, Tag, Studio
-    
-    scene_count = db.query(Scene).count()
-    performer_count = db.query(Performer).count()
-    tag_count = db.query(Tag).count()
-    studio_count = db.query(Studio).count()
-    
+    from app.models import Performer, Scene, Studio, Tag
+
+    scene_count_result = await db.execute(select(func.count(Scene.id)))
+    scene_count = scene_count_result.scalar_one()
+
+    performer_count_result = await db.execute(select(func.count(Performer.id)))
+    performer_count = performer_count_result.scalar_one()
+
+    tag_count_result = await db.execute(select(func.count(Tag.id)))
+    tag_count = tag_count_result.scalar_one()
+
+    studio_count_result = await db.execute(select(func.count(Studio.id)))
+    studio_count = studio_count_result.scalar_one()
+
     # Get pending sync counts (simplified)
     # In a real implementation, this would check which items need syncing
     pending_scenes = 0
     pending_performers = 0
     pending_tags = 0
     pending_studios = 0
-    
+
     return SyncStatsResponse(
         scene_count=scene_count,
         performer_count=performer_count,
@@ -294,7 +327,5 @@ async def get_sync_stats(
         pending_scenes=pending_scenes,
         pending_performers=pending_performers,
         pending_tags=pending_tags,
-        pending_studios=pending_studios
+        pending_studios=pending_studios,
     )
-
-

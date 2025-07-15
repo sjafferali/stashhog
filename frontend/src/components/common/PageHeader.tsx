@@ -1,8 +1,9 @@
 import React from 'react';
-import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
-import { Breadcrumb } from 'antd';
+import { Typography, Space, Breadcrumb } from 'antd';
 import { Link } from 'react-router-dom';
 import styles from './PageHeader.module.scss';
+
+const { Title } = Typography;
 
 export interface BreadcrumbItem {
   path?: string;
@@ -33,15 +34,28 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   return (
     <div className={styles.pageHeader}>
-      <AntPageHeader
-        title={title}
-        subTitle={subtitle}
-        extra={actions}
-        breadcrumb={breadcrumbItems && breadcrumbItems.length > 0 ? 
-          <Breadcrumb items={breadcrumbItems} /> : 
-          undefined
-        }
-      />
+      <div style={{ padding: '16px 24px', background: '#fff' }}>
+        {breadcrumbItems && breadcrumbItems.length > 0 && (
+          <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 16 }} />
+        )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Space direction="vertical" size={0}>
+            <Title level={4} style={{ margin: 0 }}>
+              {title}
+            </Title>
+            {subtitle && (
+              <Typography.Text type="secondary">{subtitle}</Typography.Text>
+            )}
+          </Space>
+          {actions && <Space>{actions}</Space>}
+        </div>
+      </div>
     </div>
   );
 };
