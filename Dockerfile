@@ -47,6 +47,11 @@ RUN pip install --user --no-warn-script-location -r requirements.txt
 # Stage 4: Final production image
 FROM python-base AS production
 
+# Install runtime dependencies for PostgreSQL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN useradd -m -u 1000 appuser
 
