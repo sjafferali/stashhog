@@ -70,7 +70,7 @@ jobs:
         run: npm run test:coverage
         
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-node-${{ matrix.node-version }}
           path: frontend/coverage/
@@ -114,7 +114,7 @@ jobs:
           find dist -name "*.js" -o -name "*.css" | xargs ls -lh
           
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-build-${{ matrix.node-version }}
           path: frontend/dist/
