@@ -12,11 +12,29 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # Import your models and database configuration
-from app.core.config import get_settings
-from app.core.database import Base
+from app.core.config import get_settings  # noqa: E402
+from app.core.database import Base  # noqa: E402
 
 # Import all models to ensure they're registered
-from app.models import *
+from app.models import (  # noqa: E402, F401
+    AnalysisPlan,
+    BaseModel,
+    ChangeAction,
+    Job,
+    JobStatus,
+    JobType,
+    Performer,
+    PlanChange,
+    PlanStatus,
+    Scene,
+    ScheduledTask,
+    Setting,
+    Studio,
+    SyncHistory,
+    Tag,
+    scene_performer,
+    scene_tag,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

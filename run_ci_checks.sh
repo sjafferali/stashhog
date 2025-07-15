@@ -123,11 +123,12 @@ fi
 if [ "$BACKEND_ONLY" = false ]; then
     print_header "Running frontend tests"
     cd frontend
-    print_command "npm test -- --watchAll=false"
-    if npm test -- --watchAll=false; then
+    print_command "npm run test:coverage -- --ci --maxWorkers=2"
+    if npm run test:coverage -- --ci --maxWorkers=2; then
         print_success "Frontend tests passed"
     else
         print_error "Frontend tests failed"
+        echo "Note: Tests may fail due to coverage thresholds not being met"
         deactivate
         exit 1
     fi
@@ -143,7 +144,7 @@ if [ "$FRONTEND_ONLY" = false ]; then
         print_success "Python formatting check passed"
     else
         print_error "Python formatting check failed"
-        echo "Run 'black backend/' to fix formatting issues"
+        echo "Run 'cd backend && black .' to fix formatting issues"
         deactivate
         exit 1
     fi
@@ -159,7 +160,7 @@ if [ "$FRONTEND_ONLY" = false ]; then
         print_success "Python import sorting check passed"
     else
         print_error "Python import sorting check failed"
-        echo "Run 'isort backend/' to fix import sorting"
+        echo "Run 'cd backend && isort .' to fix import sorting"
         deactivate
         exit 1
     fi
@@ -170,8 +171,8 @@ fi
 if [ "$FRONTEND_ONLY" = false ]; then
     print_header "Running Python linter (Flake8)"
     cd backend
-    print_command "flake8 app tests --config=.flake8"
-    if flake8 app tests --config=.flake8; then
+    print_command "flake8 ."
+    if flake8 .; then
         print_success "Python linting passed"
     else
         print_error "Python linting failed"
