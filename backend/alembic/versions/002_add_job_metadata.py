@@ -20,22 +20,43 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add metadata column to job table
-    op.add_column(
-        "job",
-        sa.Column("metadata", sa.JSON(), nullable=True, default=dict),
-    )
+    # Add metadata column to job table if it doesn't exist
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('job')]
+    
+    if 'metadata' not in columns:
+        op.add_column(
+            "job",
+            sa.Column("metadata", sa.JSON(), nullable=True, default=dict),
+        )
+    else:
+        print("Column 'metadata' already exists in 'job' table, skipping...")
 
-    # Update JobType enum to include new values
-    # First, alter the enum type to add new values
-    with op.get_context().autocommit_block():
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync_all'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync_scenes'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync_performers'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync_tags'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'sync_studios'")
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'generate_details'")
+    # For PostgreSQL, we need to handle enum updates differently
+    if conn.dialect.name == 'postgresql':
+        # Check existing enum values
+        result = conn.execute(
+            sa.text(
+                "SELECT enumlabel FROM pg_enum "
+                "WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'jobtype')"
+            )
+        )
+        existing_values = {row[0] for row in result}
+        
+        # Values to add
+        new_values = ['sync', 'sync_all', 'sync_scenes', 'sync_performers', 
+                      'sync_tags', 'sync_studios', 'generate_details']
+        
+        # Add only missing values
+        for value in new_values:
+            if value not in existing_values:
+                # Use raw SQL with proper transaction handling
+                conn.execute(sa.text(f"COMMIT"))  # Commit current transaction
+                conn.execute(sa.text(f"ALTER TYPE jobtype ADD VALUE '{value}'"))
+    else:
+        # For other databases, just log a warning
+        print("Non-PostgreSQL database detected, skipping enum updates")
 
 
 def downgrade() -> None:

@@ -148,9 +148,21 @@ def run_migrations() -> None:
 
         # Run migrations
         logger.info("Applying pending migrations...")
-        command.upgrade(alembic_cfg, "head")
-
-        logger.info("Database migrations completed successfully")
+        try:
+            # Set a statement timeout for PostgreSQL to prevent hanging
+            if settings.database.url.startswith("postgresql"):
+                with engine.begin() as conn:
+                    conn.execute(text("SET statement_timeout = '300000'"))  # 5 minutes
+                    logger.info("Set PostgreSQL statement timeout to 5 minutes")
+            
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Database migrations completed successfully")
+        except Exception as migration_error:
+            logger.error(f"Migration failed with error: {migration_error}")
+            logger.error(f"Error type: {type(migration_error).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
 
     except Exception as e:
         logger.error(f"Failed to run migrations: {e}")
