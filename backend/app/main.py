@@ -3,6 +3,7 @@ StashHog FastAPI application.
 """
 
 import logging
+import os
 import warnings
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict
@@ -185,24 +186,25 @@ async def version_info() -> Dict[str, Any]:
     }
 
 
-# Root endpoint for non-production environments
-if settings.app.environment != "production":
+# Root endpoint - always register but behavior changes based on environment
+@app.get("/", include_in_schema=False)
+async def root(request: Request) -> Any:
+    """Root endpoint."""
+    # In production with static files, serve the SPA
+    if settings.app.environment == "production" and os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
 
-    @app.get("/", include_in_schema=False)
-    async def root() -> Dict[str, str]:
-        """Root endpoint."""
-        return {
-            "name": settings.app.name,
-            "version": settings.app.version,
-            "message": "Welcome to StashHog API",
-        }
+    # Otherwise return API info
+    return {
+        "name": settings.app.name,
+        "version": settings.app.version,
+        "message": "Welcome to StashHog API",
+    }
 
 
 # Mount static files for frontend (in production)
 # This must come after all explicit routes
 if settings.app.environment == "production":
-    import os
-
     try:
         static_dir = "static"
 
