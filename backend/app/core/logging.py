@@ -94,7 +94,7 @@ def configure_logging() -> None:
                     if settings.logging.json_logs
                     else "logging.Formatter"
                 ),
-                "format": "%(asctime)s - %(name)s - %(levelname)s - %(client_addr)s - %(request_line)s - %(status_code)s",
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             },
         },
         "handlers": {
