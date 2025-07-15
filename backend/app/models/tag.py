@@ -41,9 +41,7 @@ class Tag(BaseModel):
     ignore_auto_tag = Column(Boolean, default=False, nullable=False)
 
     # Hierarchy
-    parent_id = Column(
-        String, ForeignKey("tag.id", ondelete="SET NULL"), nullable=True
-    )
+    parent_id = Column(String, ForeignKey("tag.id", ondelete="SET NULL"), nullable=True)
     parent_stash_id = Column(String, nullable=True)  # Temporary field for sync
 
     # Sync tracking
