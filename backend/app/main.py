@@ -7,9 +7,9 @@ import warnings
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
@@ -127,24 +127,6 @@ app.add_middleware(
 # Include API router
 app.include_router(api_router, prefix="/api")
 
-# Mount static files for frontend (in production)
-if settings.app.environment == "production":
-    try:
-        app.mount("/", StaticFiles(directory="static", html=True), name="static")
-    except RuntimeError:
-        logger.warning("Static files directory not found, skipping mount")
-
-
-# Root endpoint
-@app.get("/", include_in_schema=False)
-async def root() -> Dict[str, str]:
-    """Root endpoint."""
-    return {
-        "name": settings.app.name,
-        "version": settings.app.version,
-        "message": "Welcome to StashHog API",
-    }
-
 
 # Health check endpoint (outside of API prefix for monitoring)
 @app.get("/health", include_in_schema=False)
@@ -201,3 +183,57 @@ async def version_info() -> Dict[str, Any]:
         "environment": settings.app.environment,
         "debug": settings.app.debug,
     }
+
+
+# Root endpoint for non-production environments
+if settings.app.environment != "production":
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> Dict[str, str]:
+        """Root endpoint."""
+        return {
+            "name": settings.app.name,
+            "version": settings.app.version,
+            "message": "Welcome to StashHog API",
+        }
+
+
+# Mount static files for frontend (in production)
+# This must come after all explicit routes
+if settings.app.environment == "production":
+    import os
+
+    try:
+        static_dir = "static"
+
+        # Check if static directory exists
+        if os.path.exists(static_dir):
+            # Serve static assets with a specific path
+            assets_dir = os.path.join(static_dir, "assets")
+            if os.path.exists(assets_dir):
+                app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+            # Catch-all route for SPA - must be last!
+            @app.get("/{full_path:path}", include_in_schema=False)
+            async def serve_spa(full_path: str) -> FileResponse:
+                """Serve the SPA for any unmatched routes."""
+                # Skip API routes - they should return 404 from API router
+                if full_path.startswith("api/"):
+                    raise HTTPException(status_code=404, detail="Not Found")
+
+                # Serve index.html for all other routes
+                index_path = os.path.join(static_dir, "index.html")
+                if os.path.exists(index_path):
+                    return FileResponse(index_path)
+                else:
+                    raise HTTPException(
+                        status_code=404, detail="Static files not found"
+                    )
+
+        else:
+            logger.warning(
+                f"Static directory '{static_dir}' not found, skipping SPA setup"
+            )
+
+    except Exception as e:
+        logger.error(f"Error setting up static file serving: {e}")
