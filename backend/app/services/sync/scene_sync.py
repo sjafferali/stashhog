@@ -183,7 +183,9 @@ class SceneSyncHandler:
         if not studio:
             # Create minimal studio - full sync will happen in entity sync
             studio = Studio(
-                stash_id=studio_id, name=studio_data.get("name", "Unknown Studio")
+                id=studio_id,
+                stash_id=studio_id,
+                name=studio_data.get("name", "Unknown Studio"),
             )
             db.add(studio)
             db.flush()
@@ -210,6 +212,7 @@ class SceneSyncHandler:
             if not performer:
                 # Create minimal performer - full sync will happen in entity sync
                 performer = Performer(
+                    id=performer_id,
                     stash_id=performer_id,
                     name=performer_data.get("name", "Unknown Performer"),
                 )
@@ -234,7 +237,9 @@ class SceneSyncHandler:
 
             if not tag:
                 # Create minimal tag - full sync will happen in entity sync
-                tag = Tag(stash_id=tag_id, name=tag_data.get("name", "Unknown Tag"))
+                tag = Tag(
+                    id=tag_id, stash_id=tag_id, name=tag_data.get("name", "Unknown Tag")
+                )
                 db.add(tag)
                 db.flush()
 

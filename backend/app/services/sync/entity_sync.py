@@ -94,7 +94,11 @@ class EntitySyncHandler:
         entity = db.query(model_class).filter(model_class.stash_id == stash_id).first()
 
         if not entity:
-            entity = model_class(stash_id=stash_id, name=name)
+            # For models with string ID primary keys, set both id and stash_id
+            if hasattr(model_class, "id"):
+                entity = model_class(id=stash_id, stash_id=stash_id, name=name)
+            else:
+                entity = model_class(stash_id=stash_id, name=name)
             db.add(entity)
             db.flush()
 
@@ -125,7 +129,11 @@ class EntitySyncHandler:
 
         # Create or update entity
         if not existing:
-            entity = model_class(stash_id=entity_id)
+            # For models with string ID primary keys, set both id and stash_id
+            if hasattr(model_class, "id"):
+                entity = model_class(id=entity_id, stash_id=entity_id)
+            else:
+                entity = model_class(stash_id=entity_id)
             db.add(entity)
             action = "created"
         else:
