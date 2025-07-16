@@ -268,7 +268,7 @@ async def get_schedule_runs(
         # Get jobs for this schedule
         jobs_result = await db.execute(
             select(Job)
-            .where(Job.params.contains({"scheduled_task_id": schedule_id}))
+            .where(Job.job_metadata.contains({"scheduled_task_id": schedule_id}))
             .order_by(Job.created_at.desc())
             .limit(limit)
         )
@@ -329,7 +329,7 @@ async def get_all_schedule_runs(
         # Get jobs that were created by scheduled tasks
         result = await db.execute(
             select(Job)
-            .where(Job.initiated_by == "scheduled")
+            .where(Job.job_metadata.has_key("scheduled_task_id"))
             .order_by(Job.created_at.desc())
             .limit(limit)
         )
@@ -338,7 +338,9 @@ async def get_all_schedule_runs(
         # Convert to run format
         runs = []
         for job in jobs:
-            schedule_id = job.params.get("scheduled_task_id") if job.params else None
+            schedule_id = (
+                job.job_metadata.get("scheduled_task_id") if job.job_metadata else None
+            )
             run = {
                 "id": job.id,
                 "schedule_id": schedule_id,
