@@ -6,8 +6,20 @@ import type { SceneChanges } from '@/components/analysis';
 // Raw API response types
 interface RawChange {
   field: string;
-  current_value: string | number | boolean | string[] | Record<string, unknown> | null;
-  proposed_value: string | number | boolean | string[] | Record<string, unknown> | null;
+  current_value:
+    | string
+    | number
+    | boolean
+    | string[]
+    | Record<string, unknown>
+    | null;
+  proposed_value:
+    | string
+    | number
+    | boolean
+    | string[]
+    | Record<string, unknown>
+    | null;
   confidence: number;
 }
 

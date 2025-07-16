@@ -2,7 +2,7 @@
 Dependency injection functions for FastAPI.
 """
 
-from typing import AsyncGenerator, Generator, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -80,7 +80,7 @@ async def get_settings_with_overrides(
     db_settings = result.scalars().all()
 
     # Create a copy of base settings
-    settings_dict = {
+    settings_dict: Dict[str, Dict[str, Any]] = {
         "stash": {
             "url": base_settings.stash.url,
             "api_key": base_settings.stash.api_key,

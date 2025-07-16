@@ -17,13 +17,37 @@ import { SaveOutlined, ApiOutlined, LoadingOutlined } from '@ant-design/icons';
 // import { apiClient } from '@/services/apiClient';
 import api from '@/services/api';
 
+// Type definitions for settings
+interface SettingItem {
+  key: string;
+  value: string;
+  source: 'database' | 'environment';
+  env_value?: string;
+}
+
+interface SettingsFormValues {
+  stash_url?: string;
+  stash_api_key?: string;
+  openai_api_key?: string;
+  openai_model?: string;
+  analysis_confidence_threshold?: number;
+  analysis_detect_performers?: boolean;
+  analysis_detect_studios?: boolean;
+  analysis_detect_tags?: boolean;
+  analysis_detect_details?: boolean;
+  analysis_use_ai?: boolean;
+  [key: string]: string | number | boolean | undefined;
+}
+
 const Settings: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingStash, setTestingStash] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
-  const [fieldPlaceholders, setFieldPlaceholders] = useState<Record<string, string>>({});
+  const [fieldPlaceholders, setFieldPlaceholders] = useState<
+    Record<string, string>
+  >({});
 
   // Fetch current settings
   useEffect(() => {
@@ -32,22 +56,25 @@ const Settings: React.FC = () => {
         setLoading(true);
         const response = await api.get('/settings');
         const settingsArray = response.data;
-        
+
         // Transform array of settings to object
-        const settingsMap: Record<string, any> = {};
+        const settingsMap: Record<string, string | number | boolean> = {};
         const placeholders: Record<string, string> = {};
-        
-        settingsArray.forEach((setting: any) => {
+
+        settingsArray.forEach((setting: SettingItem) => {
           const key = setting.key.replace(/\./g, '_');
-          
+
           // Use actual value if from database, otherwise leave empty
           if (setting.source === 'database' && setting.value !== '********') {
             settingsMap[key] = setting.value;
-          } else if (setting.key === 'openai_model' && setting.source === 'environment') {
+          } else if (
+            setting.key === 'openai_model' &&
+            setting.source === 'environment'
+          ) {
             // Special case: always show model value
             settingsMap[key] = setting.value;
           }
-          
+
           // Set placeholder to show environment default
           if (setting.source === 'environment' && setting.env_value) {
             if (setting.env_value === '********') {
@@ -57,10 +84,10 @@ const Settings: React.FC = () => {
             }
           }
         });
-        
+
         // Store placeholders for later use
         setFieldPlaceholders(placeholders);
-        
+
         form.setFieldsValue(settingsMap);
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -69,26 +96,28 @@ const Settings: React.FC = () => {
         setLoading(false);
       }
     };
-    
+
     void fetchSettings();
   }, [form]);
 
-  const handleSave = async (values: Record<string, unknown>) => {
+  const handleSave = async (values: SettingsFormValues) => {
     try {
       setSaving(true);
-      
+
       // Transform form values to API format
-      const updates: Record<string, any> = {};
+      const updates: Record<string, string | number | boolean> = {};
       Object.entries(values).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
           updates[key] = value;
         }
       });
-      
+
       const response = await api.put('/settings', updates);
-      
+
       if (response.data.requires_restart) {
-        void message.warning('Some settings require a server restart to take effect');
+        void message.warning(
+          'Some settings require a server restart to take effect'
+        );
       } else {
         void message.success('Settings saved successfully');
       }
@@ -104,12 +133,12 @@ const Settings: React.FC = () => {
     try {
       setTestingStash(true);
       const values = form.getFieldsValue(['stash_url', 'stash_api_key']);
-      
+
       const response = await api.post('/settings/test-stash', {
         url: values.stash_url,
         api_key: values.stash_api_key,
       });
-      
+
       if (response.data.success) {
         void message.success(response.data.message);
       } else {
@@ -122,17 +151,17 @@ const Settings: React.FC = () => {
       setTestingStash(false);
     }
   };
-  
+
   const handleTestOpenAIConnection = async () => {
     try {
       setTestingOpenAI(true);
       const values = form.getFieldsValue(['openai_api_key', 'openai_model']);
-      
+
       const response = await api.post('/settings/test-openai', {
         api_key: values.openai_api_key,
         model: values.openai_model,
       });
-      
+
       if (response.data.success) {
         void message.success(response.data.message);
       } else {
@@ -183,8 +212,10 @@ const Settings: React.FC = () => {
             name="stash_url"
             rules={[{ required: true, message: 'Please enter the Stash URL' }]}
           >
-            <Input 
-              placeholder={fieldPlaceholders.stash_url || "http://localhost:9999"}
+            <Input
+              placeholder={
+                fieldPlaceholders.stash_url || 'http://localhost:9999'
+              }
               allowClear
             />
           </Form.Item>
@@ -194,16 +225,18 @@ const Settings: React.FC = () => {
             name="stash_api_key"
             tooltip="Optional if Stash doesn't require authentication"
           >
-            <Input.Password 
-              placeholder={fieldPlaceholders.stash_api_key || "Enter API key if required"}
+            <Input.Password
+              placeholder={
+                fieldPlaceholders.stash_api_key || 'Enter API key if required'
+              }
               allowClear
             />
           </Form.Item>
 
           <Form.Item>
-            <Button 
-              icon={testingStash ? <LoadingOutlined /> : <ApiOutlined />} 
-              onClick={handleTestStashConnection}
+            <Button
+              icon={testingStash ? <LoadingOutlined /> : <ApiOutlined />}
+              onClick={() => void handleTestStashConnection()}
               loading={testingStash}
             >
               Test Stash Connection
@@ -219,8 +252,8 @@ const Settings: React.FC = () => {
               { required: true, message: 'Please enter your OpenAI API key' },
             ]}
           >
-            <Input.Password 
-              placeholder={fieldPlaceholders.openai_api_key || "sk-..."}
+            <Input.Password
+              placeholder={fieldPlaceholders.openai_api_key || 'sk-...'}
               allowClear
             />
           </Form.Item>
@@ -237,9 +270,9 @@ const Settings: React.FC = () => {
           {/* Temperature and Max Tokens are not in allowed_keys, so removing them */}
 
           <Form.Item>
-            <Button 
-              icon={testingOpenAI ? <LoadingOutlined /> : <ApiOutlined />} 
-              onClick={handleTestOpenAIConnection}
+            <Button
+              icon={testingOpenAI ? <LoadingOutlined /> : <ApiOutlined />}
+              onClick={() => void handleTestOpenAIConnection()}
               loading={testingOpenAI}
             >
               Test OpenAI Connection
@@ -248,41 +281,43 @@ const Settings: React.FC = () => {
 
           <Divider orientation="left">Analysis Settings</Divider>
 
-          <Form.Item 
-            label="Confidence Threshold" 
+          <Form.Item
+            label="Confidence Threshold"
             name="analysis_confidence_threshold"
             tooltip="Minimum confidence score for accepting AI suggestions"
           >
-            <InputNumber 
-              min={0} 
-              max={1} 
-              step={0.1} 
+            <InputNumber
+              min={0}
+              max={1}
+              step={0.1}
               style={{ width: '100%' }}
-              formatter={(value?: number) => `${((value || 0) * 100).toFixed(0)}%`}
+              formatter={(value?: number) =>
+                `${((value || 0) * 100).toFixed(0)}%`
+              }
               parser={(value?: string) => Number(value?.replace('%', '')) / 100}
             />
           </Form.Item>
 
           <Divider orientation="left">Sync Settings</Divider>
 
-          <Form.Item 
-            name="sync_incremental" 
+          <Form.Item
+            name="sync_incremental"
             valuePropName="checked"
             tooltip="Only sync changed items instead of full sync"
           >
             <Switch /> Enable incremental sync
           </Form.Item>
 
-          <Form.Item 
-            label="Sync Batch Size" 
+          <Form.Item
+            label="Sync Batch Size"
             name="sync_batch_size"
             tooltip="Number of items to sync per batch"
           >
-            <InputNumber 
-              min={10} 
-              max={1000} 
+            <InputNumber
+              min={10}
+              max={1000}
               step={10}
-              style={{ width: '100%' }} 
+              style={{ width: '100%' }}
             />
           </Form.Item>
 
@@ -296,7 +331,9 @@ const Settings: React.FC = () => {
               >
                 Save Settings
               </Button>
-              <Button onClick={() => form.resetFields()} disabled={saving}>Reset</Button>
+              <Button onClick={() => form.resetFields()} disabled={saving}>
+                Reset
+              </Button>
             </Space>
           </Form.Item>
         </Form>

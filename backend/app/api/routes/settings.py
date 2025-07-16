@@ -37,7 +37,7 @@ async def list_settings(
     db_settings = result.scalars().all()
 
     # Create a map of database settings
-    db_settings_map = {s.key: s.value for s in db_settings}
+    db_settings_map: Dict[str, Any] = {str(s.key): s.value for s in db_settings}
 
     # Define settings to expose
     settings_config = [
