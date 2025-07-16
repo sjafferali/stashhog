@@ -39,9 +39,9 @@ class Scene(BaseModel):
     title = Column(String, nullable=False, index=True)
     paths = Column(JSON, nullable=False, default=list)  # List of file paths
     organized = Column(Boolean, default=False, nullable=False, index=True)
+    analyzed = Column(Boolean, default=False, nullable=False, index=True)
     details = Column(Text, nullable=True)
     url = Column(String, nullable=True)
-    date = Column(String, nullable=True)  # Scene date as string (YYYY-MM-DD)
     rating = Column(Integer, nullable=True)
 
     # File properties
@@ -89,6 +89,8 @@ class Scene(BaseModel):
         Index("idx_scene_organized_date", "organized", "scene_date"),
         Index("idx_scene_studio_date", "studio_id", "scene_date"),
         Index("idx_scene_sync_status", "last_synced", "organized"),
+        Index("idx_scene_analyzed", "analyzed"),
+        Index("idx_scene_analyzed_organized", "analyzed", "organized"),
     )
 
     def add_performer(self, performer: "Performer") -> None:

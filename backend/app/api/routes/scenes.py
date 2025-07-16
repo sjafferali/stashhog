@@ -5,7 +5,7 @@ Scene management endpoints.
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,7 +36,12 @@ def _build_scene_filter_conditions(
     if filters.search:
         search_term = f"%{filters.search}%"
         conditions.append(
-            or_(Scene.title.ilike(search_term), Scene.details.ilike(search_term))
+            or_(
+                Scene.title.ilike(search_term),
+                Scene.details.ilike(search_term),
+                # Search in paths JSON array - cast to string for simple LIKE search
+                cast(Scene.paths, String).ilike(search_term),
+            )
         )
 
     if filters.studio_id:
@@ -81,6 +86,7 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         title=scene.title,  # type: ignore[arg-type]
         paths=scene.paths,  # type: ignore[arg-type]
         organized=scene.organized,  # type: ignore[arg-type]
+        analyzed=scene.analyzed,  # type: ignore[arg-type]
         details=scene.details,  # type: ignore[arg-type]
         created_date=scene.created_date,  # type: ignore[arg-type]
         scene_date=scene.scene_date,  # type: ignore[arg-type]
@@ -96,7 +102,6 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         tags=[TagResponse(id=t.id, name=t.name, scene_count=0) for t in scene.tags],
         last_synced=scene.last_synced,  # type: ignore[arg-type]
         # Metadata fields
-        date=scene.date,  # type: ignore[arg-type]
         duration=scene.duration,  # type: ignore[arg-type]
         size=scene.size,  # type: ignore[arg-type]
         width=scene.width,  # type: ignore[arg-type]

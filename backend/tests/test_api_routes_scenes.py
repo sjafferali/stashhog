@@ -94,6 +94,7 @@ def mock_scene():
     scene.rating = 5
     scene.duration = 3600
     scene.organized = True
+    scene.analyzed = False
     scene.created_date = datetime.utcnow()
     scene.scene_date = datetime.utcnow()
     scene.created_at = datetime.utcnow()
@@ -111,6 +112,7 @@ def mock_scene():
     scene.framerate = 30.0
     scene.bitrate = 5000
     scene.codec = "h264"
+    scene.video_codec = "h264"
     scene.to_dict = Mock(
         return_value={
             "id": scene.id,
@@ -120,6 +122,7 @@ def mock_scene():
             "rating": scene.rating,
             "duration": scene.duration,
             "organized": scene.organized,
+            "analyzed": scene.analyzed,
             "created_date": scene.created_date,
             "scene_date": scene.scene_date,
             "last_synced": scene.last_synced,
@@ -239,6 +242,7 @@ class TestSceneRoutes:
             title="Test Scene",
             paths=["/path/to/scene.mp4"],
             organized=True,
+            analyzed=False,
             details="Scene details",
             created_date=datetime.utcnow(),
             scene_date=datetime.utcnow(),
@@ -255,6 +259,7 @@ class TestSceneRoutes:
             framerate=30.0,
             bitrate=5000,
             codec="h264",
+            video_codec="h264",
         )
 
         # Mock scene query

@@ -32,12 +32,11 @@ const { TextArea } = Input;
 
 export interface AnalysisOptions {
   planId?: number;
-  extractTitle: boolean;
-  extractDate: boolean;
-  extractDetails: boolean;
-  extractPerformers: boolean;
-  extractTags: boolean;
-  extractStudio: boolean;
+  detectPerformers: boolean;
+  detectStudios: boolean;
+  detectTags: boolean;
+  detectDetails: boolean;
+  useAi: boolean;
   model: string;
   temperature: number;
   maxTokens?: number;
@@ -45,8 +44,6 @@ export interface AnalysisOptions {
   customFields?: Record<string, string | number | boolean | null>;
   batchSize: number;
   confidenceThreshold: number;
-  autoAcceptHighConfidence: boolean;
-  skipAnalyzed: boolean;
 }
 
 export interface AnalysisOptionsFormProps {
@@ -135,58 +132,49 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
           </Card>
         )}
 
-        <Card title="Extraction Options" className={styles.card}>
+        <Card title="Detection Options" className={styles.card}>
           <Row gutter={[16, 16]}>
             <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractTitle" valuePropName="checked">
+              <Form.Item name="detectPerformers" valuePropName="checked">
                 <Space>
                   <Switch />
-                  <Text>Title</Text>
+                  <Text>Detect Performers</Text>
                 </Space>
               </Form.Item>
             </Col>
 
             <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractDate" valuePropName="checked">
+              <Form.Item name="detectStudios" valuePropName="checked">
                 <Space>
                   <Switch />
-                  <Text>Date</Text>
+                  <Text>Detect Studios</Text>
                 </Space>
               </Form.Item>
             </Col>
 
             <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractDetails" valuePropName="checked">
+              <Form.Item name="detectTags" valuePropName="checked">
                 <Space>
                   <Switch />
-                  <Text>Details</Text>
+                  <Text>Detect Tags</Text>
                 </Space>
               </Form.Item>
             </Col>
 
             <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractPerformers" valuePropName="checked">
+              <Form.Item name="detectDetails" valuePropName="checked">
                 <Space>
                   <Switch />
-                  <Text>Performers</Text>
+                  <Text>Clean Details HTML</Text>
                 </Space>
               </Form.Item>
             </Col>
 
             <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractTags" valuePropName="checked">
+              <Form.Item name="useAi" valuePropName="checked">
                 <Space>
                   <Switch />
-                  <Text>Tags</Text>
-                </Space>
-              </Form.Item>
-            </Col>
-
-            <Col xs={12} sm={8} md={6}>
-              <Form.Item name="extractStudio" valuePropName="checked">
-                <Space>
-                  <Switch />
-                  <Text>Studio</Text>
+                  <Text>Use AI Analysis</Text>
                 </Space>
               </Form.Item>
             </Col>
@@ -285,28 +273,6 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
                     step={0.1}
                     style={{ width: '100%' }}
                   />
-                </Form.Item>
-
-                <Form.Item
-                  name="autoAcceptHighConfidence"
-                  valuePropName="checked"
-                  extra="Automatically accept changes with confidence above 0.9"
-                >
-                  <Space>
-                    <Switch />
-                    <Text>Auto-accept High Confidence</Text>
-                  </Space>
-                </Form.Item>
-
-                <Form.Item
-                  name="skipAnalyzed"
-                  valuePropName="checked"
-                  extra="Skip scenes that have already been analyzed"
-                >
-                  <Space>
-                    <Switch />
-                    <Text>Skip Already Analyzed</Text>
-                  </Space>
                 </Form.Item>
 
                 <Divider />

@@ -59,13 +59,13 @@ class TestSceneModel:
             id="scene123",
             title="Test Scene",
             paths=["/videos/test.mp4"],
-            date="2023-01-01",
             details="Test details",
             url="https://example.com",
             rating=85,
             created_date=datetime.now(),
             last_synced=datetime.now(),
         )
+        scene.date = "2023-01-01"
 
         assert scene.title == "Test Scene"
         assert scene.paths == ["/videos/test.mp4"]

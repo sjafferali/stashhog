@@ -16,12 +16,8 @@ class AnalysisOptions:
     detect_tags: bool = False
     detect_details: bool = False
     use_ai: bool = True
-    create_missing: bool = False
-    split_performer_names: bool = False
     confidence_threshold: float = 0.7
     batch_size: int = 15
-    mark_tag: Optional[str] = None
-    dry_run: bool = False
 
 
 @dataclass

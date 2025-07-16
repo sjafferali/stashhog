@@ -58,8 +58,8 @@ export interface ProposedChange {
 
 export interface ChangePreviewProps {
   change: ProposedChange;
-  onAccept?: () => void;
-  onReject?: () => void;
+  onAccept?: () => void | Promise<void>;
+  onReject?: () => void | Promise<void>;
   onEdit?: (
     value: string | number | boolean | string[] | Record<string, unknown> | null
   ) => void;
@@ -293,13 +293,17 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
               className={styles.confidenceBar}
             />
             <Space>
-              <Button icon={<CloseOutlined />} onClick={onReject} danger>
+              <Button
+                icon={<CloseOutlined />}
+                onClick={() => void onReject?.()}
+                danger
+              >
                 Reject
               </Button>
               <Button
                 type="primary"
                 icon={<CheckOutlined />}
-                onClick={onAccept}
+                onClick={() => void onAccept?.()}
               >
                 Accept
               </Button>

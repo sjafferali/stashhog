@@ -4,7 +4,7 @@ Pydantic schemas for API requests and responses.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar
+from typing import Any, Generic, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,7 +47,7 @@ class VersionResponse(BaseModel):
     version: str = Field(..., description="Application version")
     environment: str = Field(..., description="Environment")
     debug: bool = Field(..., description="Debug mode")
-    features: Optional[Dict[str, bool]] = Field(None, description="Enabled features")
+    features: Optional[dict[str, bool]] = Field(None, description="Enabled features")
 
 
 class ErrorDetail(BaseModel):
@@ -83,13 +83,13 @@ class SuccessResponse(BaseModel):
 
     success: bool = Field(True, description="Success status")
     message: Optional[str] = Field(None, description="Success message")
-    data: Optional[Dict[str, Any]] = Field(None, description="Additional data")
+    data: Optional[dict[str, Any]] = Field(None, description="Additional data")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """Generic paginated response."""
 
-    items: List[T] = Field(..., description="List of items")
+    items: list[T] = Field(..., description="List of items")
     total: int = Field(..., description="Total number of items")
     page: int = Field(..., description="Current page number")
     per_page: int = Field(..., description="Items per page")
@@ -97,7 +97,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
     @classmethod
     def create(
-        cls, items: List[T], total: int, page: int, per_page: int
+        cls, items: list[T], total: int, page: int, per_page: int
     ) -> "PaginatedResponse[T]":
         """Create a paginated response."""
         pages = (total + per_page - 1) // per_page if per_page > 0 else 0
@@ -136,7 +136,7 @@ class JobCreate(BaseSchema):
     """Schema for creating a job."""
 
     type: JobType = Field(..., description="Job type")
-    parameters: Optional[Dict[str, Any]] = Field(
+    parameters: Optional[dict[str, Any]] = Field(
         default_factory=lambda: {}, description="Job parameters"
     )
 
@@ -148,7 +148,7 @@ class JobUpdate(BaseSchema):
     progress: Optional[float] = Field(
         None, ge=0, le=100, description="Progress percentage"
     )
-    result: Optional[Dict[str, Any]] = Field(None, description="Job result")
+    result: Optional[dict[str, Any]] = Field(None, description="Job result")
     error: Optional[str] = Field(None, description="Error message")
 
 
@@ -159,10 +159,10 @@ class JobResponse(BaseSchema):
     type: JobType = Field(..., description="Job type")
     status: JobStatus = Field(..., description="Job status")
     progress: float = Field(0, description="Progress percentage")
-    parameters: Dict[str, Any] = Field(
+    parameters: dict[str, Any] = Field(
         default_factory=dict, description="Job parameters"
     )
-    result: Optional[Dict[str, Any]] = Field(None, description="Job result")
+    result: Optional[dict[str, Any]] = Field(None, description="Job result")
     error: Optional[str] = Field(None, description="Error message")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
@@ -172,8 +172,8 @@ class JobResponse(BaseSchema):
 class JobDetailResponse(JobResponse):
     """Detailed job response with additional information."""
 
-    logs: Optional[List[str]] = Field(None, description="Job logs")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Job metadata")
+    logs: Optional[list[str]] = Field(None, description="Job logs")
+    metadata: Optional[dict[str, Any]] = Field(None, description="Job metadata")
 
 
 # Entity schemas
@@ -207,8 +207,9 @@ class SceneBase(BaseSchema):
 
     id: str = Field(..., description="Scene ID")
     title: str = Field(..., description="Scene title")
-    paths: List[str] = Field(..., description="File paths")
+    paths: list[str] = Field(..., description="File paths")
     organized: bool = Field(..., description="Is scene organized")
+    analyzed: bool = Field(..., description="Is scene analyzed")
     details: Optional[str] = Field(None, description="Scene details/description")
     created_date: datetime = Field(..., description="Creation date in Stash")
     scene_date: Optional[datetime] = Field(None, description="Scene date")
@@ -223,8 +224,8 @@ class SceneCreate(SceneBase):
 class SceneUpdate(SceneBase):
     """Schema for updating a scene."""
 
-    tags: Optional[List[str]] = Field(None, description="Scene tags")
-    performers: Optional[List[str]] = Field(None, description="Scene performers")
+    tags: Optional[list[str]] = Field(None, description="Scene tags")
+    performers: Optional[list[str]] = Field(None, description="Scene performers")
     studio: Optional[str] = Field(None, description="Studio name")
 
 
@@ -232,14 +233,13 @@ class SceneResponse(SceneBase):
     """Scene response schema."""
 
     studio: Optional[StudioResponse] = Field(None, description="Studio")
-    performers: List[PerformerResponse] = Field(
+    performers: list[PerformerResponse] = Field(
         default_factory=list, description="Scene performers"
     )
-    tags: List[TagResponse] = Field(default_factory=list, description="Scene tags")
+    tags: list[TagResponse] = Field(default_factory=list, description="Scene tags")
     last_synced: datetime = Field(..., description="Last sync timestamp")
 
     # Metadata fields
-    date: Optional[datetime] = Field(None, description="Scene date")
     duration: Optional[float] = Field(None, description="Duration in seconds")
     size: Optional[int] = Field(None, description="File size in bytes")
     width: Optional[int] = Field(None, description="Video width")
@@ -254,11 +254,12 @@ class SceneFilter(BaseSchema):
 
     search: Optional[str] = Field(None, description="Search text")
     studio_id: Optional[str] = Field(None, description="Filter by studio ID")
-    performer_ids: Optional[List[str]] = Field(
+    performer_ids: Optional[list[str]] = Field(
         None, description="Filter by performer IDs"
     )
-    tag_ids: Optional[List[str]] = Field(None, description="Filter by tag IDs")
+    tag_ids: Optional[list[str]] = Field(None, description="Filter by tag IDs")
     organized: Optional[bool] = Field(None, description="Filter by organized status")
+    analyzed: Optional[bool] = Field(None, description="Filter by analyzed status")
     date_from: Optional[datetime] = Field(None, description="Filter by date from")
     date_to: Optional[datetime] = Field(None, description="Filter by date to")
 
@@ -266,7 +267,7 @@ class SceneFilter(BaseSchema):
 class SceneSyncRequest(BaseSchema):
     """Request to sync scenes from Stash."""
 
-    filter: Optional[Dict[str, Any]] = Field(None, description="Stash filter criteria")
+    filter: Optional[dict[str, Any]] = Field(None, description="Stash filter criteria")
     limit: Optional[int] = Field(
         None, ge=1, le=1000, description="Maximum scenes to sync"
     )
@@ -289,7 +290,7 @@ class AnalysisOptions(BaseSchema):
 class AnalysisRequest(BaseSchema):
     """Analysis request schema."""
 
-    scene_ids: Optional[List[str]] = Field(
+    scene_ids: Optional[list[str]] = Field(
         None, description="Specific scene IDs to analyze"
     )
     filters: Optional[SceneFilter] = Field(None, description="Scene filters")
@@ -310,11 +311,18 @@ class AnalysisRequest(BaseSchema):
 class ChangePreview(BaseSchema):
     """Preview of a single change."""
 
+    id: Optional[int] = Field(None, description="Change ID")
     field: str = Field(..., description="Field to change")
     action: str = Field(..., description="Action type (add, update, remove)")
     current_value: Any = Field(..., description="Current value")
     proposed_value: Any = Field(..., description="Proposed value")
     confidence: float = Field(..., description="Confidence score")
+    applied: Optional[bool] = Field(
+        None, description="Whether the change has been applied"
+    )
+    rejected: Optional[bool] = Field(
+        None, description="Whether the change has been rejected"
+    )
 
 
 class SceneChanges(BaseSchema):
@@ -322,16 +330,16 @@ class SceneChanges(BaseSchema):
 
     scene_id: str = Field(..., description="Scene ID")
     scene_title: str = Field(..., description="Scene title")
-    changes: List[ChangePreview] = Field(..., description="List of changes")
+    changes: list[ChangePreview] = Field(..., description="List of changes")
 
 
 class AnalysisPlanCreate(BaseSchema):
     """Schema for creating an analysis plan."""
 
-    scene_ids: Optional[List[str]] = Field(
+    scene_ids: Optional[list[str]] = Field(
         None, description="Specific scene IDs to analyze"
     )
-    filters: Optional[Dict[str, Any]] = Field(
+    filters: Optional[dict[str, Any]] = Field(
         None, description="Filters for scene selection"
     )
     detect_performers: bool = Field(True, description="Detect performers")
@@ -351,13 +359,13 @@ class PlanResponse(BaseSchema):
     created_at: datetime = Field(..., description="Creation timestamp")
     total_scenes: int = Field(..., description="Total scenes analyzed")
     total_changes: int = Field(..., description="Total proposed changes")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Plan metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Plan metadata")
 
 
 class PlanDetailResponse(PlanResponse):
     """Detailed analysis plan response with changes."""
 
-    scenes: List[SceneChanges] = Field(..., description="Changes grouped by scene")
+    scenes: list[SceneChanges] = Field(..., description="Changes grouped by scene")
 
 
 class AnalysisApplyRequest(BaseSchema):
@@ -366,7 +374,7 @@ class AnalysisApplyRequest(BaseSchema):
     apply_tags: bool = Field(True, description="Apply suggested tags")
     apply_performers: bool = Field(True, description="Apply suggested performers")
     apply_details: bool = Field(True, description="Apply suggested details")
-    custom_modifications: Optional[Dict[str, Any]] = Field(
+    custom_modifications: Optional[dict[str, Any]] = Field(
         None, description="Custom modifications"
     )
 
@@ -402,7 +410,7 @@ class ConnectionTestRequest(BaseSchema):
     """Request to test a connection."""
 
     service: str = Field(..., description="Service to test (stash or openai)")
-    config: Optional[Dict[str, str]] = Field(
+    config: Optional[dict[str, str]] = Field(
         None, description="Optional config overrides"
     )
 
@@ -413,7 +421,7 @@ class ConnectionTestResponse(BaseSchema):
     service: str = Field(..., description="Service tested")
     success: bool = Field(..., description="Whether connection was successful")
     message: str = Field(..., description="Test result message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional details")
+    details: Optional[dict[str, Any]] = Field(None, description="Additional details")
 
 
 # Sync-related schemas
@@ -431,7 +439,7 @@ class SyncResultResponse(BaseSchema):
     started_at: Optional[str] = Field(None, description="Start timestamp")
     completed_at: Optional[str] = Field(None, description="Completion timestamp")
     duration_seconds: Optional[float] = Field(None, description="Duration in seconds")
-    errors: List[Dict[str, Any]] = Field(
+    errors: list[dict[str, Any]] = Field(
         default_factory=list, description="Errors encountered"
     )
 

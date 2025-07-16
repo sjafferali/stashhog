@@ -60,7 +60,6 @@ class FullSyncStrategy(SyncStrategy):
         scene.title = remote_data.get("title", "")
         scene.details = remote_data.get("details")  # type: ignore[assignment]
         scene.url = remote_data.get("url")  # type: ignore[assignment]
-        scene.date = remote_data.get("date")  # type: ignore[assignment]
         # Convert rating100 (0-100) to rating (0-5)
         rating100 = remote_data.get("rating100")
         if rating100 is not None:
@@ -218,9 +217,6 @@ class SmartSyncStrategy(SyncStrategy):
 
         if scene.url != remote_data.get("url"):
             changes["url"] = remote_data.get("url")
-
-        if scene.date != remote_data.get("date"):
-            changes["date"] = remote_data.get("date")
 
         # Handle file paths
         files = remote_data.get("files", [])

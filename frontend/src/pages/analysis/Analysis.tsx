@@ -24,9 +24,9 @@ const Analysis: React.FC = () => {
     async () => {
       const response = await api.post('/analysis/generate', {
         filters: {
-          organized: false,
+          analyzed: false,
         },
-        plan_name: `Batch Analysis - Unorganized Scenes - ${new Date().toISOString()}`,
+        plan_name: `Batch Analysis - Unanalyzed Scenes - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
           detect_studios: true,
@@ -40,7 +40,7 @@ const Analysis: React.FC = () => {
     },
     {
       onSuccess: () => {
-        void message.success('Started batch analysis for unorganized scenes');
+        void message.success('Started batch analysis for unanalyzed scenes');
         void queryClient.invalidateQueries('jobs');
         void navigate('/jobs');
       },
@@ -53,7 +53,7 @@ const Analysis: React.FC = () => {
   const handleBatchAnalysis = () => {
     Modal.confirm({
       title: 'Run Batch Analysis',
-      content: 'This will analyze all unorganized scenes. Continue?',
+      content: 'This will analyze all unanalyzed scenes. Continue?',
       onOk: () => {
         batchAnalysisMutation.mutate();
       },

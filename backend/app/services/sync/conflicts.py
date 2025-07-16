@@ -95,7 +95,6 @@ class ConflictResolver:
             "title": "title",
             "details": "details",
             "url": "url",
-            "date": "date",
             "rating": "rating",
             "organized": "organized",
         }
@@ -257,7 +256,6 @@ class ConflictResolver:
             local.title = remote.get("title", "")
             local.details = remote.get("details")  # type: ignore[assignment]
             local.url = remote.get("url")  # type: ignore[assignment]
-            local.date = remote.get("date")  # type: ignore[assignment]
             local.rating = remote.get("rating")  # type: ignore[assignment]
             local.organized = remote.get("organized", False)
 
@@ -295,7 +293,6 @@ class ConflictResolver:
                 local.title = remote.get("title", local.title)
                 local.details = remote.get("details", local.details)
                 local.url = remote.get("url", local.url)
-                local.date = remote.get("date", local.date)
 
             # Merge relationships additively
             # This is handled in the sync handler

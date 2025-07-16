@@ -2,7 +2,7 @@
 Analysis operations endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fastapi import (
     APIRouter,
@@ -14,6 +14,7 @@ from fastapi import (
 )
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.schemas import (
     AnalysisRequest,
@@ -36,7 +37,7 @@ router = APIRouter()
 @router.get("/stats")
 async def get_analysis_stats(
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get analysis statistics.
 
@@ -47,8 +48,8 @@ async def get_analysis_stats(
     total_scenes_result = await db.execute(total_scenes_query)
     total_scenes = total_scenes_result.scalar_one()
 
-    # Count scenes that have been analyzed (have changes in any plan)
-    analyzed_scenes_query = select(func.count(func.distinct(PlanChange.scene_id)))
+    # Count scenes that have been analyzed
+    analyzed_scenes_query = select(func.count(Scene.id)).where(Scene.analyzed.is_(True))
     analyzed_scenes_result = await db.execute(analyzed_scenes_query)
     analyzed_scenes = analyzed_scenes_result.scalar_one()
 
@@ -83,7 +84,7 @@ async def generate_analysis(
     job_service: JobService = Depends(get_job_service),
     analysis_service: AnalysisService = Depends(get_analysis_service),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate analysis plan for scenes.
 
@@ -114,6 +115,9 @@ async def generate_analysis(
 
         if request.filters.organized is not None:
             conditions.append(Scene.organized == request.filters.organized)
+
+        if request.filters.analyzed is not None:
+            conditions.append(Scene.analyzed == request.filters.analyzed)
 
         if conditions:
             query = query.where(and_(*conditions))
@@ -280,11 +284,14 @@ async def get_plan(
 
         scenes_dict[scene.id]["changes"].append(
             ChangePreview(
+                id=change.id,
                 field=change.field,
                 action=change.action,
                 current_value=change.current_value,
                 proposed_value=change.proposed_value,
                 confidence=change.confidence,
+                applied=change.applied,
+                rejected=change.rejected,
             )
         )
 
@@ -309,14 +316,14 @@ async def get_plan(
 @router.post("/plans/{plan_id}/apply")
 async def apply_plan(
     plan_id: int,
-    scene_ids: Optional[List[str]] = Query(
+    scene_ids: Optional[list[str]] = Query(
         None, description="Apply to specific scenes only"
     ),
     background: bool = Query(True, description="Run as background job"),
     job_service: JobService = Depends(get_job_service),
     analysis_service: AnalysisService = Depends(get_analysis_service),
     db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Apply plan changes.
 
@@ -366,7 +373,7 @@ async def apply_plan(
 @router.patch("/changes/{change_id}")
 async def update_change(
     change_id: int, proposed_value: Any = Body(...), db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Update individual change.
 
@@ -402,4 +409,76 @@ async def update_change(
         "current_value": change.current_value,
         "proposed_value": change.proposed_value,
         "confidence": change.confidence,
+    }
+
+
+@router.patch("/changes/{change_id}/status")
+async def update_change_status(
+    change_id: int,
+    accepted: Optional[bool] = Body(None, description="Whether the change is accepted"),
+    rejected: Optional[bool] = Body(None, description="Whether the change is rejected"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Update the acceptance/rejection status of a change.
+    """
+    # Get the change
+    query = (
+        select(PlanChange)
+        .options(selectinload(PlanChange.plan))
+        .where(PlanChange.id == change_id)
+    )
+    result = await db.execute(query)
+    change = result.scalar_one_or_none()
+
+    if not change:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Change {change_id} not found",
+        )
+
+    # Check if change can be modified
+    if change.applied:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot modify an applied change",
+        )
+
+    # Update status
+    if accepted is not None:
+        change.applied = accepted  # type: ignore[assignment]
+        if accepted:
+            change.rejected = False  # type: ignore[assignment]
+
+    if rejected is not None:
+        change.rejected = rejected  # type: ignore[assignment]
+        if rejected:
+            change.applied = False  # type: ignore[assignment]
+
+    # Update plan status
+    await db.commit()
+
+    # Load the plan with all changes to update status
+    query = (
+        select(AnalysisPlan)
+        .options(selectinload(AnalysisPlan.changes))
+        .where(AnalysisPlan.id == change.plan_id)
+    )
+    result = await db.execute(query)
+    plan = result.scalar_one()
+
+    plan.update_status_based_on_changes()
+    await db.commit()
+    await db.refresh(change)
+
+    return {
+        "id": change.id,
+        "field": change.field,
+        "action": change.action,
+        "current_value": change.current_value,
+        "proposed_value": change.proposed_value,
+        "confidence": change.confidence,
+        "applied": change.applied,
+        "rejected": change.rejected,
+        "plan_status": plan.status.value,
     }

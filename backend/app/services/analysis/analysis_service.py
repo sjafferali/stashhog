@@ -308,7 +308,7 @@ class AnalysisService:
         current_studio = scene_data.get("studio")
 
         # Skip if already has studio
-        if current_studio and not options.dry_run:
+        if current_studio:
             return changes
 
         # Detect studio
@@ -460,9 +460,9 @@ class AnalysisService:
         return changes
 
     async def _detect_details(
-        self, scene_data: Dict, options: AnalysisOptions
+        self, scene_data: Dict, options: AnalysisOptions  # noqa: ARG002
     ) -> List[ProposedChange]:
-        """Generate or enhance scene details.
+        """Clean HTML from scene details.
 
         Args:
             scene_data: Scene data
@@ -474,35 +474,21 @@ class AnalysisService:
         changes: List[ProposedChange] = []
         current_details = scene_data.get("details", "")
 
-        # Skip if not using AI
-        if not options.use_ai:
-            return changes
-
-        # Generate or enhance description
+        # Only clean HTML if there are existing details
         if current_details:
-            result = await self.details_generator.enhance_description(
-                current=current_details, scene_data=scene_data, ai_client=self.ai_client
-            )
-        else:
-            result = await self.details_generator.generate_description(
-                scene_data=scene_data, ai_client=self.ai_client
-            )
-
-        if (
-            result
-            and result.value
-            and result.confidence >= options.confidence_threshold
-        ):
-            changes.append(
-                ProposedChange(
-                    field="details",
-                    action="update" if current_details else "set",
-                    current_value=current_details,
-                    proposed_value=result.value,
-                    confidence=result.confidence,
-                    reason="AI-generated description",
+            # Clean HTML from current details
+            cleaned = self.details_generator.clean_html(current_details)
+            if cleaned != current_details:
+                changes.append(
+                    ProposedChange(
+                        field="details",
+                        action="update",
+                        current_value=current_details,
+                        proposed_value=cleaned,
+                        confidence=1.0,
+                        reason="HTML tags removed",
+                    )
                 )
-            )
 
         return changes
 

@@ -80,9 +80,9 @@ const PlanDetail: React.FC = () => {
       // Update change in the plan
       if (update.accepted !== undefined) {
         if (update.accepted) {
-          acceptChange(changeId);
+          void acceptChange(changeId);
         } else {
-          rejectChange(changeId);
+          void rejectChange(changeId);
         }
       }
       if (update.proposedValue !== undefined) {
@@ -384,9 +384,9 @@ const PlanDetail: React.FC = () => {
               onAcceptAll={handleAcceptAllScene}
               onRejectAll={handleRejectAllScene}
               onPreviewScene={handlePreviewScene}
-              onAcceptChange={acceptChange}
-              onRejectChange={rejectChange}
-              onEditChange={updateChange}
+              onAcceptChange={(id) => void acceptChange(id)}
+              onRejectChange={(id) => void rejectChange(id)}
+              onEditChange={(id, value) => updateChange(id, value)}
             />
           </Card>
         </Col>

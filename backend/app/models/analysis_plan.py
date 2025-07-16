@@ -1,7 +1,7 @@
 """Analysis plan model for managing batch metadata changes."""
 
 import enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import JSON, Column, DateTime, Enum, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -74,13 +74,17 @@ class AnalysisPlan(BaseModel):
 
     def get_pending_change_count(self) -> int:
         """Get number of pending changes."""
-        return int(self.changes.filter_by(applied=False).count())
+        return int(self.changes.filter_by(applied=False, rejected=False).count())
 
-    def get_changes_by_field(self, field: str) -> List["PlanChange"]:
+    def get_rejected_change_count(self) -> int:
+        """Get number of rejected changes."""
+        return int(self.changes.filter_by(rejected=True).count())
+
+    def get_changes_by_field(self, field: str) -> list["PlanChange"]:
         """Get all changes for a specific field."""
         return list(self.changes.filter_by(field=field).all())
 
-    def get_changes_by_scene(self, scene_id: str) -> List["PlanChange"]:
+    def get_changes_by_scene(self, scene_id: str) -> list["PlanChange"]:
         """Get all changes for a specific scene."""
         return list(self.changes.filter_by(scene_id=scene_id).all())
 
@@ -96,6 +100,29 @@ class AnalysisPlan(BaseModel):
             return default
         return self.plan_metadata.get(key, default)
 
+    def update_status_based_on_changes(self) -> None:
+        """Update plan status based on change states."""
+        total = self.get_change_count()
+        if total == 0:
+            return
+
+        applied = self.get_applied_change_count()
+        rejected = self.get_rejected_change_count()
+        pending = self.get_pending_change_count()
+
+        # If all changes are either applied or rejected, mark as reviewing
+        if pending == 0 and (applied > 0 or rejected > 0):
+            if self.status == PlanStatus.DRAFT:
+                self.status = PlanStatus.REVIEWING  # type: ignore[assignment]
+
+        # If all non-rejected changes are applied, mark as applied
+        if applied > 0 and pending == 0 and applied + rejected == total:
+            self.status = PlanStatus.APPLIED  # type: ignore[assignment]
+            if not self.applied_at:
+                from datetime import datetime, timezone
+
+                self.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+
     def can_be_applied(self) -> bool:
         """Check if plan can be applied."""
         return bool(self.status in [PlanStatus.DRAFT, PlanStatus.REVIEWING])
@@ -106,7 +133,7 @@ class AnalysisPlan(BaseModel):
 
     def to_dict(
         self, exclude: Optional[set] = None, include_stats: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Convert to dictionary with optional statistics."""
         data = super().to_dict(exclude)
 

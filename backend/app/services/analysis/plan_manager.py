@@ -4,11 +4,12 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
 from app.models.plan_change import ChangeAction, PlanChange
+from app.models.scene import Scene
 from app.services.stash_service import StashService
 
 from .models import ApplyResult, SceneChanges
@@ -52,9 +53,11 @@ class PlanManager:
         db.add(plan)
         await db.flush()  # Get the plan ID
 
-        # Create individual change records
+        # Create individual change records and collect scene IDs
         change_count = 0
+        analyzed_scene_ids = set()
         for scene_changes in changes:
+            analyzed_scene_ids.add(scene_changes.scene_id)
             if scene_changes.has_changes():
                 for change in scene_changes.changes:
                     plan_change = PlanChange(
@@ -68,6 +71,14 @@ class PlanManager:
                     )
                     db.add(plan_change)
                     change_count += 1
+
+        # Mark all analyzed scenes as analyzed=True
+        if analyzed_scene_ids:
+            await db.execute(
+                update(Scene)
+                .where(Scene.id.in_(analyzed_scene_ids))
+                .values(analyzed=True)
+            )
 
         # Update metadata with statistics
         plan.add_metadata("total_changes", change_count)

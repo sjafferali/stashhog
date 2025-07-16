@@ -97,6 +97,7 @@ class TestSceneRoutes:
                 scene_date=None,
                 rating=None,
                 organized=False,
+                analyzed=False,
                 performers=[],
                 tags=[],
                 studio=None,
@@ -110,6 +111,7 @@ class TestSceneRoutes:
                 framerate=30.0,
                 bitrate=5000,
                 codec="h264",
+                video_codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -123,6 +125,7 @@ class TestSceneRoutes:
                 scene_date=None,
                 rating=None,
                 organized=False,
+                analyzed=False,
                 performers=[],
                 tags=[],
                 studio=None,
@@ -136,6 +139,7 @@ class TestSceneRoutes:
                 framerate=60.0,
                 bitrate=10000,
                 codec="h265",
+                video_codec="h265",
             ),
         ]
 
@@ -169,6 +173,7 @@ class TestSceneRoutes:
         mock_scene.scene_date = None
         mock_scene.rating = None
         mock_scene.organized = False
+        mock_scene.analyzed = False
         mock_scene.performers = []
         mock_scene.tags = []
         mock_scene.studio = None
@@ -182,6 +187,7 @@ class TestSceneRoutes:
         mock_scene.framerate = 30.0
         mock_scene.bitrate = 5000
         mock_scene.codec = "h264"
+        mock_scene.video_codec = "h264"
 
         # Mock the query result
         mock_result = Mock()

@@ -1,7 +1,7 @@
 """Plan change model for individual metadata modifications."""
 
 import enum
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import (
     JSON,
@@ -66,6 +66,7 @@ class PlanChange(BaseModel):
     # Application tracking
     applied: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    rejected: Column = Column(Boolean(), default=False, nullable=False, index=True)
 
     # Relationships
     plan = relationship("AnalysisPlan", back_populates="changes")
@@ -114,9 +115,9 @@ class PlanChange(BaseModel):
 
     def can_be_applied(self) -> bool:
         """Check if this change can be applied."""
-        return not self.applied and self.plan.can_be_applied()
+        return not self.applied and not self.rejected and self.plan.can_be_applied()
 
-    def to_dict(self, exclude: Optional[set] = None) -> Dict[str, Any]:
+    def to_dict(self, exclude: Optional[set] = None) -> dict[str, Any]:
         """Convert to dictionary with additional fields."""
         data = super().to_dict(exclude)
 

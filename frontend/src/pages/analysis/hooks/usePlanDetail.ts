@@ -5,6 +5,7 @@ import type { SceneChanges } from '@/components/analysis';
 
 // Raw API response types
 interface RawChange {
+  id?: number;
   field: string;
   current_value:
     | string
@@ -21,6 +22,8 @@ interface RawChange {
     | Record<string, unknown>
     | null;
   confidence: number;
+  applied?: boolean;
+  rejected?: boolean;
 }
 
 interface RawScene {
@@ -69,8 +72,8 @@ export interface UsePlanDetailReturn {
       | Record<string, unknown>
       | null
   ) => Promise<void>;
-  acceptChange: (changeId: string) => void;
-  rejectChange: (changeId: string) => void;
+  acceptChange: (changeId: string | number) => Promise<void>;
+  rejectChange: (changeId: string | number) => Promise<void>;
   acceptAllChanges: (sceneId?: string) => void;
   rejectAllChanges: (sceneId?: string) => void;
   getStatistics: () => {
@@ -129,7 +132,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
         scenes: rawData.scenes.map((scene: RawScene) => ({
           ...scene,
           changes: scene.changes.map((change: RawChange, index: number) => ({
-            id: `${scene.scene_id}-${change.field}-${index}`,
+            id: change.id || `${scene.scene_id}-${change.field}-${index}`,
             sceneId: scene.scene_id,
             field: change.field,
             fieldLabel: getFieldLabel(change.field),
@@ -137,8 +140,8 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
             proposedValue: change.proposed_value,
             confidence: change.confidence,
             type: getFieldType(change.field, change.proposed_value),
-            accepted: false,
-            rejected: false,
+            accepted: change.applied || false,
+            rejected: change.rejected || false,
           })),
         })),
       };
@@ -199,42 +202,74 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     }
   };
 
-  // Accept a change locally
-  const acceptChange = (changeId: string) => {
-    setPlan((prev) => {
-      if (!prev) return null;
+  // Accept a change
+  const acceptChange = async (changeId: string | number) => {
+    try {
+      // Use the ID directly if it's numeric, otherwise extract from composite ID
+      const numericId =
+        typeof changeId === 'number' ? changeId : parseInt(changeId);
 
-      return {
-        ...prev,
-        scenes: prev.scenes.map((scene) => ({
-          ...scene,
-          changes: scene.changes.map((change) =>
-            change.id === changeId
-              ? { ...change, accepted: true, rejected: false }
-              : change
-          ),
-        })),
-      };
-    });
+      // Update on server
+      await api.patch(`/analysis/changes/${numericId}/status`, {
+        accepted: true,
+        rejected: false,
+      });
+
+      // Update local state
+      setPlan((prev) => {
+        if (!prev) return null;
+
+        return {
+          ...prev,
+          scenes: prev.scenes.map((scene) => ({
+            ...scene,
+            changes: scene.changes.map((change) =>
+              String(change.id) === String(changeId)
+                ? { ...change, accepted: true, rejected: false }
+                : change
+            ),
+          })),
+        };
+      });
+    } catch (err) {
+      void message.error('Failed to accept change');
+      throw err;
+    }
   };
 
-  // Reject a change locally
-  const rejectChange = (changeId: string) => {
-    setPlan((prev) => {
-      if (!prev) return null;
+  // Reject a change
+  const rejectChange = async (changeId: string | number) => {
+    try {
+      // Use the ID directly if it's numeric, otherwise extract from composite ID
+      const numericId =
+        typeof changeId === 'number' ? changeId : parseInt(changeId);
 
-      return {
-        ...prev,
-        scenes: prev.scenes.map((scene) => ({
-          ...scene,
-          changes: scene.changes.map((change) =>
-            change.id === changeId
-              ? { ...change, accepted: false, rejected: true }
-              : change
-          ),
-        })),
-      };
-    });
+      // Update on server
+      await api.patch(`/analysis/changes/${numericId}/status`, {
+        accepted: false,
+        rejected: true,
+      });
+
+      // Update local state
+      setPlan((prev) => {
+        if (!prev) return null;
+
+        return {
+          ...prev,
+          scenes: prev.scenes.map((scene) => ({
+            ...scene,
+            changes: scene.changes.map((change) =>
+              String(change.id) === String(changeId)
+                ? { ...change, accepted: false, rejected: true }
+                : change
+            ),
+          })),
+        };
+      });
+    } catch (err) {
+      void message.error('Failed to reject change');
+      throw err;
+    }
   };
 
   // Accept all changes for a scene or all scenes

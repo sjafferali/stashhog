@@ -167,6 +167,7 @@ class TestSceneRoutes:
                 title="Scene 1",
                 paths=["path1"],
                 organized=True,
+                analyzed=False,
                 details="Details 1",
                 created_date=datetime.utcnow(),
                 scene_date=datetime.utcnow(),
@@ -183,6 +184,7 @@ class TestSceneRoutes:
                 framerate=30.0,
                 bitrate=5000,
                 codec="h264",
+                video_codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -190,6 +192,7 @@ class TestSceneRoutes:
                 title="Scene 2",
                 paths=["path2"],
                 organized=False,
+                analyzed=False,
                 details="Details 2",
                 created_date=datetime.utcnow(),
                 scene_date=datetime.utcnow(),
@@ -206,6 +209,7 @@ class TestSceneRoutes:
                 framerate=60.0,
                 bitrate=10000,
                 codec="h265",
+                video_codec="h265",
             ),
         ]
 
@@ -248,6 +252,7 @@ class TestSceneRoutes:
             title="Test Scene",
             paths=["path1"],
             organized=True,
+            analyzed=False,
             details="Test details",
             created_date=datetime.utcnow(),
             scene_date=datetime.utcnow(),
@@ -264,6 +269,7 @@ class TestSceneRoutes:
             framerate=30.0,
             bitrate=5000,
             codec="h264",
+            video_codec="h264",
         )
 
         mock_result = Mock()
@@ -531,6 +537,8 @@ class TestAnalysisRoutes:
         change.current_value = []  # Should be actual list, not string
         change.proposed_value = ["tag1"]  # Should be actual list, not string
         change.confidence = 0.9
+        change.applied = False
+        change.rejected = False
         mock_changes_result = Mock()
         mock_changes_result.all = Mock(return_value=[(change, scene)])
 
