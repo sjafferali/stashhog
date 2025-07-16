@@ -1,7 +1,6 @@
 """Tag detection module for scene analysis."""
 
 import logging
-from typing import Dict, List
 
 from .ai_client import AIClient
 from .models import DetectionResult, TagSuggestionsResponse
@@ -59,19 +58,19 @@ class TagDetector:
 
     def __init__(self) -> None:
         """Initialize tag detector."""
-        self._tag_cache: Dict[str, List[DetectionResult]] = {}
+        self._tag_cache: dict[str, list[DetectionResult]] = {}
         self._build_reverse_hierarchy()
 
     def _build_reverse_hierarchy(self) -> None:
         """Build reverse mapping for tag hierarchy."""
-        self.parent_tags: Dict[str, str] = {}
+        self.parent_tags: dict[str, str] = {}
         for parent, children in self.TAG_HIERARCHY.items():
             for child in children:
                 self.parent_tags[child.lower()] = parent
 
     async def detect_with_ai(
-        self, scene_data: Dict, ai_client: AIClient, existing_tags: List[str]
-    ) -> List[DetectionResult]:
+        self, scene_data: dict, ai_client: AIClient, existing_tags: list[str]
+    ) -> list[DetectionResult]:
         """Use AI to suggest tags for the scene.
 
         Args:
@@ -125,8 +124,8 @@ class TagDetector:
             return []
 
     def detect_technical_tags(
-        self, scene_data: Dict, existing_tags: List[str]
-    ) -> List[DetectionResult]:
+        self, scene_data: dict, existing_tags: list[str]
+    ) -> list[DetectionResult]:
         """Detect technical tags based on video properties.
 
         Args:
@@ -140,8 +139,8 @@ class TagDetector:
         existing_lower = [t.lower() for t in existing_tags]
 
         # Resolution-based tags
-        width = scene_data.get("width", 0)
-        height = scene_data.get("height", 0)
+        width = scene_data.get("width") or 0
+        height = scene_data.get("height") or 0
 
         for (res_width, res_height), tags in self.RESOLUTION_TAGS.items():
             if width >= res_width and height >= res_height:
@@ -162,7 +161,7 @@ class TagDetector:
                 break  # Use highest matching resolution
 
         # Duration-based tags
-        duration = scene_data.get("duration", 0)
+        duration = scene_data.get("duration") or 0
 
         for (min_dur, max_dur), tags in self.DURATION_TAGS.items():
             if min_dur <= duration < max_dur:
@@ -179,7 +178,7 @@ class TagDetector:
                 break
 
         # Frame rate tags
-        frame_rate = scene_data.get("frame_rate", 0)
+        frame_rate = scene_data.get("frame_rate") or 0
         if frame_rate >= 60 and "60fps" not in existing_lower:
             results.append(
                 DetectionResult(
@@ -192,7 +191,7 @@ class TagDetector:
 
         return results
 
-    def filter_redundant_tags(self, tags: List[str], existing: List[str]) -> List[str]:
+    def filter_redundant_tags(self, tags: list[str], existing: list[str]) -> list[str]:
         """Remove redundant or duplicate tags.
 
         Args:
@@ -237,8 +236,8 @@ class TagDetector:
         return filtered
 
     def _filter_redundant_results(
-        self, results: List[DetectionResult], existing_tags: List[str]
-    ) -> List[DetectionResult]:
+        self, results: list[DetectionResult], existing_tags: list[str]
+    ) -> list[DetectionResult]:
         """Filter redundant tags from detection results.
 
         Args:
@@ -263,8 +262,8 @@ class TagDetector:
         return filtered_results
 
     def suggest_related_tags(
-        self, current_tags: List[str], all_available_tags: List[str]
-    ) -> List[DetectionResult]:
+        self, current_tags: list[str], all_available_tags: list[str]
+    ) -> list[DetectionResult]:
         """Suggest related tags based on current tags.
 
         Args:
@@ -278,7 +277,7 @@ class TagDetector:
         current_lower = set(t.lower() for t in current_tags)
 
         # Build co-occurrence map (simplified version)
-        related_map: Dict[str, List[str]] = {
+        related_map: dict[str, list[str]] = {
             "bareback": ["creampie", "breeding", "raw"],
             "daddy": ["mature", "older younger", "dad son"],
             "twink": ["young", "smooth", "college"],

@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ class JobService:
     """Service to manage jobs and coordinate with task queue."""
 
     def __init__(self) -> None:
-        self.job_handlers: Dict[JobType, Callable] = {}
+        self.job_handlers: dict[JobType, Callable] = {}
 
     def register_handler(self, job_type: JobType, handler: Callable) -> None:
         """Register a handler function for a specific job type."""
@@ -29,7 +29,7 @@ class JobService:
         self,
         job_type: JobType,
         db: Union[Session, AsyncSession],
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Job:
         """Create a new job and queue it for execution."""
@@ -54,22 +54,38 @@ class JobService:
 
         # Create task wrapper with progress callback
         async def task_wrapper() -> str:
+            from app.core.database import AsyncSessionLocal
+
             try:
-                # Update job status to running
-                await self._update_job_status(
-                    job_id=job_id, status=JobStatus.RUNNING, message="Job started"
-                )
+                # Create a single database session for all job status updates
+                async with AsyncSessionLocal() as status_db:
+                    # Update job status to running
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.RUNNING,
+                        message="Job started",
+                        db=status_db,
+                    )
+                    await status_db.commit()
 
                 # Merge job metadata with kwargs
                 handler_kwargs = kwargs.copy()
                 if metadata:
                     handler_kwargs.update(metadata)
 
-                # Create an async progress callback
+                # Create an async progress callback that uses its own session
                 async def async_progress_callback(
                     progress: int, message: Optional[str] = None
                 ) -> None:
-                    await self._update_job_progress(job_id, progress, message)
+                    async with AsyncSessionLocal() as progress_db:
+                        await self._update_job_status_with_session(
+                            job_id=job_id,
+                            status=JobStatus.RUNNING,
+                            progress=progress,
+                            message=message,
+                            db=progress_db,
+                        )
+                        await progress_db.commit()
 
                 # Execute handler with job context
                 result = await handler(
@@ -78,25 +94,32 @@ class JobService:
                     **handler_kwargs,
                 )
 
-                # Update job status to completed
-                await self._update_job_status(
-                    job_id=job_id,
-                    status=JobStatus.COMPLETED,
-                    progress=100,
-                    result=result,
-                    message="Job completed successfully",
-                )
+                # Update job status to completed in a new session
+                async with AsyncSessionLocal() as final_db:
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.COMPLETED,
+                        progress=100,
+                        result=result,
+                        message="Job completed successfully",
+                        db=final_db,
+                    )
+                    await final_db.commit()
 
                 return str(result) if result is not None else ""
 
             except Exception as e:
                 logger.error(f"Job {job_id} failed: {str(e)}")
-                await self._update_job_status(
-                    job_id=job_id,
-                    status=JobStatus.FAILED,
-                    error=str(e),
-                    message=f"Job failed: {str(e)}",
-                )
+                # Update status in a new session for error case
+                async with AsyncSessionLocal() as error_db:
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.FAILED,
+                        error=str(e),
+                        message=f"Job failed: {str(e)}",
+                        db=error_db,
+                    )
+                    await error_db.commit()
                 raise
 
         # Queue the task
@@ -128,7 +151,7 @@ class JobService:
         job_type: Optional[JobType] = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[Job]:
+    ) -> list[Job]:
         """List jobs with optional filters."""
         return await job_repository.list_jobs(
             db=db, status=status, job_type=job_type, limit=limit, offset=offset
@@ -157,12 +180,46 @@ class JobService:
         logger.info(f"Cancelled job {job_id}")
         return True
 
+    async def _update_job_status_with_session(
+        self,
+        job_id: str,
+        status: JobStatus,
+        db: AsyncSession,
+        progress: Optional[int] = None,
+        result: Optional[dict[str, Any]] = None,
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+    ) -> None:
+        """Update job status using provided database session."""
+        job = await job_repository.update_job_status(
+            job_id=job_id,
+            status=status,
+            db=db,
+            progress=progress,
+            result=result,
+            error=error,
+            message=message,
+        )
+
+        if job:
+            # Send WebSocket update
+            await self._send_job_update(
+                job_id,
+                {
+                    "status": status.value,
+                    "progress": job.progress,
+                    "message": message,
+                    "error": error,
+                    "result": result,
+                },
+            )
+
     async def _update_job_status(
         self,
         job_id: str,
         status: JobStatus,
         progress: Optional[int] = None,
-        result: Optional[Dict[str, Any]] = None,
+        result: Optional[dict[str, Any]] = None,
         error: Optional[str] = None,
         message: Optional[str] = None,
     ) -> None:
@@ -170,7 +227,7 @@ class JobService:
         from app.core.database import AsyncSessionLocal
 
         async with AsyncSessionLocal() as db:
-            job = await job_repository.update_job_status(
+            await self._update_job_status_with_session(
                 job_id=job_id,
                 status=status,
                 db=db,
@@ -180,19 +237,6 @@ class JobService:
                 message=message,
             )
 
-            if job:
-                # Send WebSocket update
-                await self._send_job_update(
-                    job_id,
-                    {
-                        "status": status.value,
-                        "progress": job.progress,
-                        "message": message,
-                        "error": error,
-                        "result": result,
-                    },
-                )
-
     async def _update_job_progress(
         self, job_id: str, progress: int, message: Optional[str] = None
     ) -> None:
@@ -201,7 +245,7 @@ class JobService:
             job_id=job_id, status=JobStatus.RUNNING, progress=progress, message=message
         )
 
-    async def _send_job_update(self, job_id: str, data: Dict[str, Any]) -> None:
+    async def _send_job_update(self, job_id: str, data: dict[str, Any]) -> None:
         """Send job update via WebSocket."""
         await websocket_manager.broadcast_json(
             {
@@ -226,7 +270,7 @@ class JobService:
 
     async def get_active_jobs(
         self, db: Union[Session, AsyncSession], job_type: Optional[JobType] = None
-    ) -> List[Job]:
+    ) -> list[Job]:
         """Get all active jobs."""
         return await job_repository.get_active_jobs(db, job_type)
 

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,7 +68,7 @@ class AnalysisService:
         )
 
         # Cache for known entities
-        self._cache: Dict[str, Any] = {
+        self._cache: dict[str, Any] = {
             "studios": [],
             "performers": [],
             "tags": [],
@@ -77,8 +77,8 @@ class AnalysisService:
 
     async def analyze_scenes(
         self,
-        scene_ids: Optional[List[str]] = None,
-        filters: Optional[Dict] = None,
+        scene_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
         options: Optional[AnalysisOptions] = None,
         job_id: Optional[str] = None,
         db: Optional[AsyncSession] = None,
@@ -135,7 +135,7 @@ class AnalysisService:
 
         # Process scenes in batches
         # Cast scenes to the expected type for batch processor
-        scenes_for_processing: List[Union[Scene, Dict[str, Any], Any]] = scenes  # type: ignore[assignment]
+        scenes_for_processing: list[Union[Scene, dict[str, Any], Any]] = scenes  # type: ignore[assignment]
         all_changes = await self.batch_processor.process_scenes(
             scenes=scenes_for_processing,
             analyzer=lambda batch: self._analyze_batch(batch, options),
@@ -190,7 +190,7 @@ class AnalysisService:
 
     async def analyze_single_scene(
         self, scene: Scene, options: AnalysisOptions
-    ) -> List[ProposedChange]:
+    ) -> list[ProposedChange]:
         """Analyze a single scene and return proposed changes.
 
         Args:
@@ -229,8 +229,8 @@ class AnalysisService:
         return changes
 
     async def _analyze_batch(
-        self, batch_data: List[Dict], options: AnalysisOptions
-    ) -> List[SceneChanges]:
+        self, batch_data: list[dict], options: AnalysisOptions
+    ) -> list[SceneChanges]:
         """Analyze a batch of scenes.
 
         Args:
@@ -246,7 +246,7 @@ class AnalysisService:
             try:
                 # Create Scene-like object for compatibility
                 class SceneLike:
-                    def __init__(self, data: Dict[str, Any]) -> None:
+                    def __init__(self, data: dict[str, Any]) -> None:
                         self.id = data.get("id", "")
                         self.title = data.get("title", "")
                         self.path = data.get("file_path", "")
@@ -293,8 +293,8 @@ class AnalysisService:
         return results
 
     async def _detect_studio(
-        self, scene_data: Dict, options: AnalysisOptions
-    ) -> List[ProposedChange]:
+        self, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
         """Detect studio for a scene.
 
         Args:
@@ -304,7 +304,7 @@ class AnalysisService:
         Returns:
             List of proposed changes
         """
-        changes: List[ProposedChange] = []
+        changes: list[ProposedChange] = []
         current_studio = scene_data.get("studio")
 
         # Skip if already has studio
@@ -338,8 +338,8 @@ class AnalysisService:
         return changes
 
     async def _detect_performers(
-        self, scene_data: Dict, options: AnalysisOptions
-    ) -> List[ProposedChange]:
+        self, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
         """Detect performers for a scene.
 
         Args:
@@ -373,7 +373,7 @@ class AnalysisService:
             )
 
         # Combine and deduplicate results
-        all_results: Dict[str, Any] = {}
+        all_results: dict[str, Any] = {}
         for result in path_results + ai_results:
             if result.confidence >= options.confidence_threshold:
                 name = result.value
@@ -402,8 +402,8 @@ class AnalysisService:
         return changes
 
     async def _detect_tags(
-        self, scene_data: Dict, options: AnalysisOptions
-    ) -> List[ProposedChange]:
+        self, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
         """Detect tags for a scene.
 
         Args:
@@ -432,7 +432,7 @@ class AnalysisService:
             )
 
         # Combine results
-        all_results: Dict[str, Any] = {}
+        all_results: dict[str, Any] = {}
         for result in tech_results + ai_results:
             if result.confidence >= options.confidence_threshold:
                 tag = result.value
@@ -460,8 +460,8 @@ class AnalysisService:
         return changes
 
     async def _detect_details(
-        self, scene_data: Dict, options: AnalysisOptions  # noqa: ARG002
-    ) -> List[ProposedChange]:
+        self, scene_data: dict, options: AnalysisOptions  # noqa: ARG002
+    ) -> list[ProposedChange]:
         """Clean HTML from scene details.
 
         Args:
@@ -471,7 +471,7 @@ class AnalysisService:
         Returns:
             List of proposed changes
         """
-        changes: List[ProposedChange] = []
+        changes: list[ProposedChange] = []
         current_details = scene_data.get("details", "")
 
         # Only clean HTML if there are existing details
@@ -523,8 +523,8 @@ class AnalysisService:
             logger.error(f"Failed to refresh cache: {e}")
 
     async def _sync_and_get_scenes(
-        self, scene_ids: Optional[List[str]], filters: Optional[Dict], db: AsyncSession
-    ) -> List[Scene]:
+        self, scene_ids: Optional[list[str]], filters: Optional[dict], db: AsyncSession
+    ) -> list[Scene]:
         """Sync scenes from Stash to database and return them.
 
         Args:
@@ -552,8 +552,8 @@ class AnalysisService:
             return []
 
     async def _get_stash_scenes_by_filters(
-        self, filters: Optional[Dict]
-    ) -> List[Dict[str, Any]]:
+        self, filters: Optional[dict]
+    ) -> list[dict[str, Any]]:
         """Get scenes by filters from Stash API.
 
         Args:
@@ -576,7 +576,7 @@ class AnalysisService:
             logger.error(f"Failed to get scenes with filters: {e}")
             return []
 
-    def _scene_to_dict(self, scene: Any) -> Dict:
+    def _scene_to_dict(self, scene: Any) -> dict:
         """Convert scene object to dictionary.
 
         Args:
@@ -587,17 +587,18 @@ class AnalysisService:
         """
         return {
             "id": scene.id,
-            "title": scene.title,
+            "title": scene.title or "",
             "file_path": (
                 scene.get_primary_path()
                 if hasattr(scene, "get_primary_path")
                 else getattr(scene, "path", "")
             ),
-            "details": scene.details,
-            "duration": scene.duration,
-            "width": scene.width,
-            "height": scene.height,
-            "frame_rate": getattr(scene, "framerate", getattr(scene, "frame_rate", 0)),
+            "details": scene.details or "",
+            "duration": scene.duration or 0,
+            "width": scene.width or 0,
+            "height": scene.height or 0,
+            "frame_rate": getattr(scene, "framerate", getattr(scene, "frame_rate", 0))
+            or 0,
             "performers": (
                 scene.performers if isinstance(scene.performers, list) else []
             ),
@@ -605,7 +606,7 @@ class AnalysisService:
             "studio": scene.studio,
         }
 
-    def _dict_to_scene(self, data: Dict) -> Any:
+    def _dict_to_scene(self, data: dict) -> Any:
         """Convert dictionary to scene-like object.
 
         Args:
@@ -616,7 +617,7 @@ class AnalysisService:
         """
 
         class SceneLike:
-            def __init__(self, data: Dict[str, Any]) -> None:
+            def __init__(self, data: dict[str, Any]) -> None:
                 self.id = data.get("id")
                 self.title = data.get("title", "")
                 self.path = data.get("path", data.get("file", {}).get("path", ""))
@@ -641,7 +642,7 @@ class AnalysisService:
         self,
         options: AnalysisOptions,
         scene_count: int,
-        scenes: Optional[List[Scene]] = None,
+        scenes: Optional[list[Scene]] = None,
     ) -> str:
         """Generate a descriptive plan name.
 
@@ -663,7 +664,7 @@ class AnalysisService:
         return self._generate_fallback_name(options, scene_count)
 
     def _generate_descriptive_name(
-        self, scenes: List[Scene], scene_count: int
+        self, scenes: list[Scene], scene_count: int
     ) -> Optional[str]:
         """Generate a descriptive name based on scene attributes."""
         # Extract common attributes from scenes
@@ -679,7 +680,7 @@ class AnalysisService:
 
         return None
 
-    def _extract_scene_attributes(self, scenes: List[Scene]) -> tuple[set, set, set]:
+    def _extract_scene_attributes(self, scenes: list[Scene]) -> tuple[set, set, set]:
         """Extract common attributes from scenes."""
         studios = set()
         performers = set()
@@ -700,7 +701,7 @@ class AnalysisService:
 
         return studios, performers, dates
 
-    def _build_name_parts(self, studios: set, performers: set, dates: set) -> List[str]:
+    def _build_name_parts(self, studios: set, performers: set, dates: set) -> list[str]:
         """Build name parts from extracted attributes."""
         name_parts = []
 
@@ -759,7 +760,7 @@ class AnalysisService:
             status="draft",
         )
 
-    def _calculate_statistics(self, changes: List[SceneChanges]) -> Dict[str, Any]:
+    def _calculate_statistics(self, changes: list[SceneChanges]) -> dict[str, Any]:
         """Calculate statistics from analysis results.
 
         Args:
@@ -768,7 +769,7 @@ class AnalysisService:
         Returns:
             Statistics dictionary
         """
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "total_scenes": len(changes),
             "scenes_with_changes": 0,
             "scenes_with_errors": 0,
