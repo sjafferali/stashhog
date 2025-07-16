@@ -51,9 +51,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatFileSize = (bytes?: string) => {
+  const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'N/A';
-    const size = parseInt(bytes, 10);
+    const size = bytes;
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = size;
@@ -125,7 +125,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
             <Divider>Scene Information</Divider>
             <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
               <Descriptions.Item label="Date">
-                {scene.date ? new Date(scene.date).toLocaleDateString() : 'N/A'}
+                {scene.stash_date ? new Date(scene.stash_date).toLocaleDateString() : 'N/A'}
                 {onEdit && (
                   <Button
                     type="link"
@@ -137,7 +137,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               </Descriptions.Item>
 
               <Descriptions.Item label="Director">
-                {scene.director || 'N/A'}
+                {'N/A'}
                 {onEdit && (
                   <Button
                     type="link"
@@ -197,12 +197,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               </Descriptions.Item>
 
               <Descriptions.Item label="Codec">
-                {scene.codec || 'N/A'}
+                {scene.video_codec || 'N/A'}
               </Descriptions.Item>
 
-              <Descriptions.Item label="O-Counter">
-                {scene.o_counter || 0}
-              </Descriptions.Item>
 
               <Descriptions.Item label="Organized">
                 <Tag color={scene.organized ? 'green' : 'red'}>
@@ -264,7 +261,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               <Descriptions.Item label="File Path">
                 <Space>
                   <FolderOpenOutlined />
-                  <code>{scene.path}</code>
+                  <code>{scene.paths && scene.paths[0] || 'N/A'}</code>
                 </Space>
               </Descriptions.Item>
 
@@ -283,31 +280,21 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 </Descriptions.Item>
               )}
 
-              <Descriptions.Item label="Last Modified">
-                {scene.file_mod_time
-                  ? new Date(scene.file_mod_time).toLocaleString()
-                  : 'N/A'}
-              </Descriptions.Item>
 
-              <Descriptions.Item label="Added to Database">
-                {new Date(scene.created_at).toLocaleString()}
+              <Descriptions.Item label="Added to Stash">
+                {new Date(scene.stash_created_at).toLocaleString()}
               </Descriptions.Item>
 
               <Descriptions.Item label="Last Updated">
                 {new Date(scene.updated_at).toLocaleString()}
               </Descriptions.Item>
 
-              {scene.analyzed_at && (
-                <Descriptions.Item label="Last Analyzed">
-                  {new Date(scene.analyzed_at).toLocaleString()}
-                </Descriptions.Item>
-              )}
             </Descriptions>
           </Card>
         </Col>
 
         <Col xs={24} lg={8}>
-          {scene.analysis_results && scene.analysis_results.length > 0 && (
+          {false && (
             <Card title="Analysis Results" className={styles.sideCard}>
               {scene.analysis_results.map((result) => (
                 <div key={result.id} className={styles.analysisResult}>

@@ -166,6 +166,7 @@ class JobResponse(BaseSchema):
     error: Optional[str] = Field(None, description="Error message")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    started_at: Optional[datetime] = Field(None, description="Start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
 
 
@@ -211,8 +212,9 @@ class SceneBase(BaseSchema):
     organized: bool = Field(..., description="Is scene organized")
     analyzed: bool = Field(..., description="Is scene analyzed")
     details: Optional[str] = Field(None, description="Scene details/description")
-    created_date: datetime = Field(..., description="Creation date in Stash")
-    scene_date: Optional[datetime] = Field(None, description="Scene date")
+    stash_created_at: datetime = Field(..., description="When scene was created in Stash")
+    stash_updated_at: Optional[datetime] = Field(None, description="When scene was last updated in Stash")
+    stash_date: Optional[datetime] = Field(None, description="Actual scene date (when filmed)")
 
 
 class SceneCreate(SceneBase):

@@ -126,7 +126,7 @@ const SceneChanges: React.FC<SceneChangesProps> = ({
               <Text strong>{scene.title || 'Untitled Scene'}</Text>
               <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {scene.date} • {scene.duration}
+                  {scene.stash_date} • {scene.duration}
                 </Text>
               </div>
             </div>

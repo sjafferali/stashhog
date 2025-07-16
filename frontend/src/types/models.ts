@@ -1,34 +1,34 @@
 export interface Scene {
   id: string;
   title: string;
-  date?: string;
-  url?: string;
-  details?: string;
-  director?: string;
-  duration?: number;
-  file_mod_time?: string;
-  o_counter?: number;
+  paths: string[];
   organized: boolean;
-  path: string;
-  phash?: string;
-  rating?: number;
-  size?: string;
+  analyzed: boolean;
+  details?: string;
+  stash_created_at: string;
+  stash_updated_at?: string;
+  stash_date?: string;
+  last_synced: string;
+  
+  // File properties
+  duration?: number;
+  size?: number;
   width?: number;
   height?: number;
   framerate?: number;
   bitrate?: number;
-  codec?: string;
   video_codec?: string;
-  resolution?: string;
-  studio_id?: string;
-  galleries?: Gallery[];
-  performers?: Performer[];
-  tags?: Tag[];
+  
+  // Relationships
+  studio?: Studio;
+  performers: Performer[];
+  tags: Tag[];
+  
+  // Additional fields from frontend usage
+  url?: string;
+  rating?: number;
   created_at: string;
   updated_at: string;
-  analyzed_at?: string;
-  analysis_results?: AnalysisResult[];
-  studio?: Studio;
 }
 
 export interface Performer {

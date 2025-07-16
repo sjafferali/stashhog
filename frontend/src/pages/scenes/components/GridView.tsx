@@ -46,9 +46,9 @@ const formatDuration = (seconds?: number): string => {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
-const formatFileSize = (bytes?: string): string => {
+const formatFileSize = (bytes?: number): string => {
   if (!bytes) return 'N/A';
-  const size = parseInt(bytes, 10);
+  const size = bytes;
   if (isNaN(size)) return 'N/A';
 
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -125,7 +125,7 @@ export const GridView: React.FC<GridViewProps> = ({
             >
               <Card.Meta
                 title={
-                  <Tooltip title={scene.title || scene.path}>
+                  <Tooltip title={scene.title || (scene.paths && scene.paths[0]) || 'Untitled'}>
                     <Text ellipsis>{scene.title || 'Untitled'}</Text>
                   </Tooltip>
                 }
@@ -170,8 +170,8 @@ export const GridView: React.FC<GridViewProps> = ({
                         </Tooltip>
                       )}
 
-                      {scene.date && (
-                        <Tooltip title={`Scene date: ${scene.date}`}>
+                      {scene.stash_date && (
+                        <Tooltip title={`Scene date: ${scene.stash_date}`}>
                           <CalendarOutlined />
                         </Tooltip>
                       )}

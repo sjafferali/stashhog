@@ -44,9 +44,9 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatFileSize = (bytes?: string) => {
+  const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'N/A';
-    const size = parseInt(bytes, 10);
+    const size = bytes;
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let unitIndex = 0;
     let value = size;
@@ -137,16 +137,16 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
                 <StarFilled /> {scene.rating}
               </span>
             )}
-            {scene.analyzed_at && <Tag color="green">Analyzed</Tag>}
+            {scene.analyzed && <Tag color="green">Analyzed</Tag>}
           </div>
         }
         description={
           <div className={styles.metadata}>
             <Space size="middle" wrap>
-              {scene.date && (
+              {scene.stash_date && (
                 <span>
                   <CalendarOutlined />{' '}
-                  {new Date(scene.date).toLocaleDateString()}
+                  {new Date(scene.stash_date).toLocaleDateString()}
                 </span>
               )}
               <span>

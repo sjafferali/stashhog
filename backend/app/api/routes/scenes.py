@@ -58,11 +58,14 @@ def _build_scene_filter_conditions(
     if filters.organized is not None:
         conditions.append(Scene.organized == filters.organized)
 
+    if filters.analyzed is not None:
+        conditions.append(Scene.analyzed == filters.analyzed)
+
     if filters.date_from:
-        conditions.append(Scene.scene_date >= filters.date_from)
+        conditions.append(Scene.stash_date >= filters.date_from)
 
     if filters.date_to:
-        conditions.append(Scene.scene_date <= filters.date_to)
+        conditions.append(Scene.stash_date <= filters.date_to)
 
     return query, conditions
 
@@ -76,7 +79,7 @@ def _apply_scene_sorting(query: Any, pagination: PaginationParams) -> Any:
                 return query.order_by(sort_column.desc())
             else:
                 return query.order_by(sort_column)
-    return query.order_by(Scene.created_date.desc())
+    return query.order_by(Scene.stash_created_at.desc())
 
 
 def _transform_scene_to_response(scene: Scene) -> SceneResponse:
@@ -88,8 +91,9 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         organized=scene.organized,  # type: ignore[arg-type]
         analyzed=scene.analyzed,  # type: ignore[arg-type]
         details=scene.details,  # type: ignore[arg-type]
-        created_date=scene.created_date,  # type: ignore[arg-type]
-        scene_date=scene.scene_date,  # type: ignore[arg-type]
+        stash_created_at=scene.stash_created_at,  # type: ignore[arg-type]
+        stash_updated_at=scene.stash_updated_at,  # type: ignore[arg-type]
+        stash_date=scene.stash_date,  # type: ignore[arg-type]
         studio=(
             StudioResponse(id=scene.studio.id, name=scene.studio.name, scene_count=0)
             if scene.studio

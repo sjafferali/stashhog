@@ -105,6 +105,7 @@ async def list_jobs(
                 error=job.error,  # type: ignore[arg-type]
                 created_at=job.created_at,  # type: ignore[arg-type]
                 updated_at=job.updated_at,  # type: ignore[arg-type]
+                started_at=job.started_at,  # type: ignore[arg-type]
                 completed_at=job.completed_at,  # type: ignore[arg-type]
             )
         )
@@ -170,6 +171,7 @@ async def get_job(
         error=job.error,  # type: ignore[arg-type]
         created_at=job.created_at,  # type: ignore[arg-type]
         updated_at=job.updated_at,  # type: ignore[arg-type]
+        started_at=job.started_at,  # type: ignore[arg-type]
         completed_at=job.completed_at,  # type: ignore[arg-type]
         logs=logs,
         metadata=metadata_dict,

@@ -2,6 +2,7 @@
 Analysis operations endpoints.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import (
@@ -26,6 +27,7 @@ from app.api.schemas import (
 )
 from app.core.dependencies import get_analysis_service, get_db, get_job_service
 from app.models import AnalysisPlan, PlanChange, Scene
+from app.models.analysis_plan import PlanStatus
 from app.models.job import JobType as ModelJobType
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.job_service import JobService
@@ -227,7 +229,9 @@ async def list_plans(
             PlanResponse(
                 id=plan.id,  # type: ignore[attr-defined]
                 name=plan.name,  # type: ignore[attr-defined]
-                status=plan.status.value if hasattr(plan.status, "value") else plan.status,  # type: ignore[attr-defined]
+                status=plan.status.value
+                if hasattr(plan.status, "value")
+                else plan.status,  # type: ignore[attr-defined]
                 created_at=plan.created_at,  # type: ignore[attr-defined]
                 total_scenes=total_scenes,
                 total_changes=total_changes,
@@ -461,8 +465,53 @@ async def update_change_status(
     plan_result = await db.execute(plan_query)
     plan = plan_result.scalar_one()
 
-    # Update plan status and commit
-    plan.update_status_based_on_changes()
+    # Calculate counts using async queries instead of the dynamic relationship
+    # Total changes count
+    total_query = select(func.count(PlanChange.id)).where(
+        PlanChange.plan_id == change.plan_id
+    )
+    total_result = await db.execute(total_query)
+    total = total_result.scalar_one()
+
+    if total > 0:
+        # Applied changes count
+        applied_query = select(func.count(PlanChange.id)).where(
+            PlanChange.plan_id == change.plan_id, PlanChange.applied.is_(True)
+        )
+        applied_result = await db.execute(applied_query)
+        applied = applied_result.scalar_one()
+
+        # Rejected changes count
+        rejected_query = select(func.count(PlanChange.id)).where(
+            PlanChange.plan_id == change.plan_id, PlanChange.rejected.is_(True)
+        )
+        rejected_result = await db.execute(rejected_query)
+        rejected = rejected_result.scalar_one()
+
+        # Pending changes count
+        pending_query = select(func.count(PlanChange.id)).where(
+            PlanChange.plan_id == change.plan_id,
+            PlanChange.applied.is_(False),
+            PlanChange.rejected.is_(False),
+        )
+        pending_result = await db.execute(pending_query)
+        pending = pending_result.scalar_one()
+
+        # Update plan status based on counts
+        # If all changes are either applied or rejected, mark as reviewing
+        if (
+            pending == 0
+            and (applied > 0 or rejected > 0)
+            and plan.status == PlanStatus.DRAFT
+        ):
+            plan.status = PlanStatus.REVIEWING
+
+        # If all non-rejected changes are applied, mark as applied
+        if applied > 0 and pending == 0 and applied + rejected == total:
+            plan.status = PlanStatus.APPLIED
+            if not plan.applied_at:
+                plan.applied_at = datetime.now(timezone.utc)
+
     await db.commit()
 
     return {

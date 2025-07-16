@@ -348,13 +348,11 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         </Text>
       </Timeline.Item>
 
-      {fullScene?.analyzed_at && (
+      {fullScene?.analyzed && (
         <Timeline.Item color="blue">
-          <Text strong>First Analysis</Text>
+          <Text strong>Scene Analyzed</Text>
           <br />
-          <Text type="secondary">
-            {dayjs(fullScene.analyzed_at).format('YYYY-MM-DD HH:mm:ss')}
-          </Text>
+          <Text type="secondary">Yes</Text>
         </Timeline.Item>
       )}
 

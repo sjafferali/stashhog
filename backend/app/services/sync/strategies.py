@@ -86,22 +86,24 @@ class FullSyncStrategy(SyncStrategy):
             scene.bitrate = file_data.get("bit_rate")
             scene.codec = file_data.get("video_codec")
 
-        # Set created_date from Stash's created_at field
+        # Set Stash timestamps
         created_at_str = remote_data.get("created_at")
         if created_at_str:
-            scene.created_date = self._parse_datetime(created_at_str)  # type: ignore[assignment]
+            scene.stash_created_at = self._parse_datetime(created_at_str)  # type: ignore[assignment]
         else:
-            # Fallback to current time if created_at is not available
-            scene.created_date = datetime.utcnow()  # type: ignore[assignment]
+            scene.stash_created_at = datetime.utcnow()  # type: ignore[assignment]
 
-        # Set scene_date from the date field
+        updated_at_str = remote_data.get("updated_at")
+        if updated_at_str:
+            scene.stash_updated_at = self._parse_datetime(updated_at_str)  # type: ignore[assignment]
+
         date_str = remote_data.get("date")
         if date_str:
-            scene.scene_date = self._parse_datetime(date_str)  # type: ignore[assignment]
+            scene.stash_date = self._parse_datetime(date_str)  # type: ignore[assignment]
         else:
-            scene.scene_date = None  # type: ignore[assignment]
+            scene.stash_date = None  # type: ignore[assignment]
 
-        scene.updated_at = datetime.utcnow()  # type: ignore[assignment]
+        # Don't overwrite scene.updated_at - let SQLAlchemy handle it
         return scene
 
     def _merge_entity_data(
@@ -132,8 +134,13 @@ class IncrementalSyncStrategy(SyncStrategy):
         if not remote_updated:
             return True
 
-        # Compare with local updated_at
-        local_updated = getattr(local_entity, "updated_at", None)
+        # For Scene entities, compare stash_updated_at instead of updated_at
+        if hasattr(local_entity, "stash_updated_at"):
+            local_updated = getattr(local_entity, "stash_updated_at", None)
+        else:
+            # For other entities, use updated_at
+            local_updated = getattr(local_entity, "updated_at", None)
+            
         if not local_updated:
             return True
 
@@ -240,24 +247,26 @@ class SmartSyncStrategy(SyncStrategy):
         for field, value in changes.items():
             setattr(scene, field, value)
 
-        # Set created_date from Stash's created_at field
+        # Set Stash timestamps
         created_at_str = remote_data.get("created_at")
         if created_at_str:
-            scene.created_date = self._parse_datetime(created_at_str)  # type: ignore[assignment]
+            scene.stash_created_at = self._parse_datetime(created_at_str)  # type: ignore[assignment]
         else:
-            # Fallback to current time if created_at is not available
-            scene.created_date = datetime.utcnow()  # type: ignore[assignment]
+            scene.stash_created_at = datetime.utcnow()  # type: ignore[assignment]
 
-        # Set scene_date from the date field
+        updated_at_str = remote_data.get("updated_at")
+        if updated_at_str:
+            scene.stash_updated_at = self._parse_datetime(updated_at_str)  # type: ignore[assignment]
+
         date_str = remote_data.get("date")
         if date_str:
-            scene.scene_date = self._parse_datetime(date_str)  # type: ignore[assignment]
+            scene.stash_date = self._parse_datetime(date_str)  # type: ignore[assignment]
         else:
-            scene.scene_date = None  # type: ignore[assignment]
+            scene.stash_date = None  # type: ignore[assignment]
 
         # Update checksum
         scene.content_checksum = self._calculate_checksum(remote_data)  # type: ignore[assignment]
-        scene.updated_at = datetime.utcnow()  # type: ignore[assignment]
+        # Don't overwrite scene.updated_at - let SQLAlchemy handle it
 
         return scene
 

@@ -54,8 +54,10 @@ class Scene(BaseModel):
     codec = Column(String, nullable=True)  # Video codec
 
     # Date fields
-    created_date = Column(DateTime(timezone=True), nullable=False)
-    scene_date = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Stash-sourced timestamps (prefixed with stash_ for clarity)
+    stash_created_at = Column(DateTime(timezone=True), nullable=False)
+    stash_updated_at = Column(DateTime(timezone=True), nullable=True)
+    stash_date = Column(DateTime(timezone=True), nullable=True, index=True)
 
     # Foreign keys
     studio_id = Column(
@@ -86,8 +88,8 @@ class Scene(BaseModel):
 
     # Composite indexes for common queries
     __table_args__ = (
-        Index("idx_scene_organized_date", "organized", "scene_date"),
-        Index("idx_scene_studio_date", "studio_id", "scene_date"),
+        Index("idx_scene_organized_date", "organized", "stash_date"),
+        Index("idx_scene_studio_date", "studio_id", "stash_date"),
         Index("idx_scene_sync_status", "last_synced", "organized"),
         Index("idx_scene_analyzed", "analyzed"),
         Index("idx_scene_analyzed_organized", "analyzed", "organized"),

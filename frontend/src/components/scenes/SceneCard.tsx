@@ -103,8 +103,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
 
   return (
     <Badge.Ribbon
-      text={scene.analyzed_at ? 'Analyzed' : 'Not Analyzed'}
-      color={scene.analyzed_at ? 'green' : 'gray'}
+      text={scene.analyzed ? 'Analyzed' : 'Not Analyzed'}
+      color={scene.analyzed ? 'green' : 'gray'}
     >
       <Card
         className={styles.sceneCard}
@@ -139,10 +139,10 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           }
           description={
             <div className={styles.metadata}>
-              {scene.date && (
+              {scene.stash_date && (
                 <div className={styles.date}>
                   <CalendarOutlined />{' '}
-                  {new Date(scene.date).toLocaleDateString()}
+                  {new Date(scene.stash_date).toLocaleDateString()}
                 </div>
               )}
 

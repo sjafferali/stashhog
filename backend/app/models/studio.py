@@ -74,7 +74,7 @@ class Studio(BaseModel):
 
     def get_recent_scenes(self, limit: int = 10) -> List["Scene"]:
         """Get the most recent scenes from this studio."""
-        return self.scenes.order_by("scene_date desc").limit(limit).all()  # type: ignore[no-any-return]
+        return self.scenes.order_by("stash_date desc").limit(limit).all()  # type: ignore[no-any-return]
 
     def to_dict(
         self, exclude: Optional[set] = None, include_stats: bool = False

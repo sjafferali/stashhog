@@ -73,6 +73,7 @@ async def sync_all(
         parameters={"force": force},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
         completed_at=None,
         result=None,
         error=None,
@@ -117,6 +118,7 @@ async def sync_scenes(
         parameters={"scene_ids": scene_ids, "force": force},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
         completed_at=None,
         result=None,
         error=None,
@@ -157,6 +159,7 @@ async def sync_performers(
         parameters={"force": force},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
         completed_at=None,
         result=None,
         error=None,
@@ -197,6 +200,7 @@ async def sync_tags(
         parameters={"force": force},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
         completed_at=None,
         result=None,
         error=None,
@@ -237,6 +241,7 @@ async def sync_studios(
         parameters={"force": force},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
         completed_at=None,
         result=None,
         error=None,
