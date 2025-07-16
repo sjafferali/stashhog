@@ -88,7 +88,7 @@ class StashEntityCache:
         self.cache.set("entities:performers:all", performers, self.entity_ttl)
         # Also cache individual performers by ID and name
         for performer in performers:
-            performer_id = performer.get("stash_id") or performer.get("id")
+            performer_id = performer.get("id")
             if performer_id:
                 self.cache.set(
                     f"entities:performers:id:{performer_id}", performer, self.entity_ttl
@@ -113,7 +113,7 @@ class StashEntityCache:
         self.cache.set("entities:tags:all", tags, self.entity_ttl)
         # Also cache individual tags by ID and name
         for tag in tags:
-            tag_id = tag.get("stash_id") or tag.get("id")
+            tag_id = tag.get("id")
             if tag_id:
                 self.cache.set(f"entities:tags:id:{tag_id}", tag, self.entity_ttl)
             if tag.get("name"):
@@ -134,7 +134,7 @@ class StashEntityCache:
         self.cache.set("entities:studios:all", studios, self.entity_ttl)
         # Also cache individual studios by ID and name
         for studio in studios:
-            studio_id = studio.get("stash_id") or studio.get("id")
+            studio_id = studio.get("id")
             if studio_id:
                 self.cache.set(
                     f"entities:studios:id:{studio_id}", studio, self.entity_ttl

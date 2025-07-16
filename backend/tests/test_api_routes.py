@@ -101,7 +101,6 @@ class TestSceneRoutes:
                 tags=[],
                 studio=None,
                 details=None,
-                stash_id="stash1",
                 last_synced=datetime.now(),
             ),
             Mock(
@@ -120,7 +119,6 @@ class TestSceneRoutes:
                 tags=[],
                 studio=None,
                 details=None,
-                stash_id="stash2",
                 last_synced=datetime.now(),
             ),
         ]
@@ -159,7 +157,6 @@ class TestSceneRoutes:
         mock_scene.tags = []
         mock_scene.studio = None
         mock_scene.details = None
-        mock_scene.stash_id = "stash123"
         mock_scene.last_synced = datetime.now()
 
         # Mock the query result

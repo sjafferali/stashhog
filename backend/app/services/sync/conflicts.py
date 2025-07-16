@@ -49,7 +49,7 @@ class ConflictResolver:
         # Log conflict
         self._log_conflict(
             entity_type="scene",
-            entity_id=str(local.stash_id),
+            entity_id=str(local.id),
             changes=changes,
             strategy=strategy,
         )
@@ -213,7 +213,7 @@ class ConflictResolver:
         changes = {}
 
         # Check performers
-        local_performer_ids = {p.stash_id for p in local.performers}
+        local_performer_ids = {p.id for p in local.performers}
         remote_performer_ids = {p["id"] for p in remote.get("performers", [])}
 
         if local_performer_ids != remote_performer_ids:
@@ -226,7 +226,7 @@ class ConflictResolver:
             }
 
         # Check tags
-        local_tag_ids = {t.stash_id for t in local.tags}
+        local_tag_ids = {t.id for t in local.tags}
         remote_tag_ids = {t["id"] for t in remote.get("tags", [])}
 
         if local_tag_ids != remote_tag_ids:
@@ -239,7 +239,7 @@ class ConflictResolver:
             }
 
         # Check studio
-        local_studio_id = local.studio.stash_id if local.studio else None
+        local_studio_id = local.studio.id if local.studio else None
         remote_studio_id = remote.get("studio", {}).get("id")
 
         if local_studio_id != remote_studio_id:

@@ -99,7 +99,7 @@ def mock_scene():
     scene.created_at = datetime.utcnow()
     scene.updated_at = datetime.utcnow()
     scene.last_synced = datetime.utcnow()
-    scene.stash_id = "stash123"
+    scene.id = "stash123"
     scene.performers = []
     scene.tags = []
     scene.studio = None
@@ -115,7 +115,6 @@ def mock_scene():
             "created_date": scene.created_date,
             "scene_date": scene.scene_date,
             "last_synced": scene.last_synced,
-            "stash_id": scene.stash_id,
             "performers": [],
             "tags": [],
             "studio": None,
@@ -227,7 +226,6 @@ class TestSceneRoutes:
             details="Scene details",
             created_date=datetime.utcnow(),
             scene_date=datetime.utcnow(),
-            stash_id="stash123",
             last_synced=datetime.utcnow(),
             studio=mock_studio,
             performers=[mock_performer],

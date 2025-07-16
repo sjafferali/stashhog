@@ -117,6 +117,9 @@ class SyncService:
     ) -> SyncResult:
         """Full sync of all entities from Stash"""
         job_id = job_id or str(uuid4())
+        logger.debug(
+            f"sync_all started - job_id: {job_id}, force: {force}, batch_size: {batch_size}"
+        )
         result = SyncResult(job_id=job_id, started_at=datetime.utcnow())
 
         try:
@@ -131,7 +134,9 @@ class SyncService:
 
             # Sync entities first (performers, tags, studios)
             logger.info("Syncing entities...")
+            logger.debug(f"About to call _sync_entities with force={force}")
             entity_result = await self._sync_entities(force)
+            logger.debug(f"_sync_entities returned: {entity_result}")
             result.stats.performers_processed = entity_result.get("performers", {}).get(
                 "processed", 0
             )
@@ -164,11 +169,18 @@ class SyncService:
 
             # Sync scenes
             logger.info("Syncing scenes...")
+            last_sync_time = None if force else await self._get_last_sync_time("scene")
+            logger.debug(
+                f"About to sync scenes - since: {last_sync_time}, job_id: {job_id}, batch_size: {batch_size}"
+            )
             scene_result = await self.sync_scenes(
-                since=None if force else await self._get_last_sync_time("scene"),
+                since=last_sync_time,
                 job_id=job_id,
                 batch_size=batch_size,
                 progress_callback=progress_callback,
+            )
+            logger.debug(
+                f"Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
             )
 
             # Merge scene results
@@ -195,6 +207,14 @@ class SyncService:
 
         except Exception as e:
             logger.error(f"Full sync failed: {str(e)}")
+            logger.debug(f"Full sync exception type: {type(e).__name__}")
+            logger.debug(f"Full sync exception value: {repr(e)}")
+            logger.debug(
+                f"Full sync exception args: {e.args if hasattr(e, 'args') else 'No args'}"
+            )
+            import traceback
+
+            logger.debug(f"Full sync traceback:\n{traceback.format_exc()}")
             result.add_error("sync", "full", str(e))
             result.complete(SyncStatus.FAILED)
             await self._update_job_status(job_id, JobStatus.FAILED, str(e))
@@ -216,16 +236,22 @@ class SyncService:
     ) -> SyncResult:
         """Sync scenes with optional incremental mode"""
         job_id = job_id or str(uuid4())
+        logger.debug(
+            f"sync_scenes started - job_id: {job_id}, since: {since}, batch_size: {batch_size}, scene_ids: {scene_ids}, force: {force}, filters: {filters}, full_sync: {full_sync}"
+        )
         result = SyncResult(job_id=job_id, started_at=datetime.utcnow())
 
         # Handle special sync modes
         if filters:
+            logger.debug("Using filter sync mode")
             return await self._sync_with_filters(db, filters)
 
         if full_sync:
+            logger.debug("Using full sync mode")
             return await self._full_scene_sync(db, progress_callback, result)
 
         # Standard batch sync
+        logger.debug("Using standard batch sync mode")
         return await self._batch_sync_scenes(
             since, job_id, batch_size, progress_callback, result
         )
@@ -265,20 +291,33 @@ class SyncService:
         result: SyncResult,
     ) -> SyncResult:
         """Sync scenes in batches"""
+        logger.debug(
+            f"_batch_sync_scenes started - since: {since}, job_id: {job_id}, batch_size: {batch_size}"
+        )
         try:
             # Initialize sync state
+            logger.debug("Getting stats from stash service...")
             stats = await self.stash_service.get_stats()
+            logger.debug(f"Stats received: {stats}")
             total_scenes = stats.get("scene_count", 0)
+            logger.debug(f"Total scenes to sync: {total_scenes}")
             result.total_items = total_scenes
             self._progress = SyncProgress(job_id, total_scenes)
 
             # Process batches
             offset = 0
+            batch_num = 0
             while True:
+                batch_num += 1
+                logger.debug(
+                    f"Processing batch {batch_num} - offset: {offset}, batch_size: {batch_size}"
+                )
                 batch_complete = await self._process_scene_batch(
                     since, batch_size, offset, result, progress_callback
                 )
+                logger.debug(f"Batch {batch_num} complete: {batch_complete}")
                 if batch_complete:
+                    logger.debug(f"All batches processed, total batches: {batch_num}")
                     break
                 offset += batch_size
 
@@ -290,6 +329,14 @@ class SyncService:
 
         except Exception as e:
             logger.error(f"Scene sync failed: {str(e)}")
+            logger.debug(f"Scene sync exception type: {type(e).__name__}")
+            logger.debug(f"Scene sync exception value: {repr(e)}")
+            logger.debug(
+                f"Scene sync exception args: {e.args if hasattr(e, 'args') else 'No args'}"
+            )
+            import traceback
+
+            logger.debug(f"Scene sync traceback:\n{traceback.format_exc()}")
             result.add_error("sync", "scenes", str(e))
             result.complete(SyncStatus.FAILED)
             raise
@@ -307,16 +354,32 @@ class SyncService:
         """Process a single batch of scenes. Returns True if done."""
         # Fetch batch
         logger.info(f"Fetching scenes batch: offset={offset}, limit={batch_size}")
+        logger.debug(
+            f"_process_scene_batch - since: {since}, batch_size: {batch_size}, offset: {offset}"
+        )
         scenes_data = await self._fetch_scene_batch(since, batch_size, offset)
+        logger.debug(
+            f"Fetched scenes_data keys: {scenes_data.keys() if scenes_data else 'None'}"
+        )
+        logger.debug(
+            f"Number of scenes in batch: {len(scenes_data.get('scenes', [])) if scenes_data else 0}"
+        )
 
         if not scenes_data or not scenes_data.get("scenes"):
+            logger.debug(
+                "No scenes data or empty scenes list, batch processing complete"
+            )
             return True
 
         batch_scenes = scenes_data["scenes"]
         logger.info(f"Processing {len(batch_scenes)} scenes")
 
         # Process each scene
-        for scene_data in batch_scenes:
+        for idx, scene_data in enumerate(batch_scenes):
+            scene_id = scene_data.get("id", "unknown")
+            logger.debug(
+                f"Processing scene {idx+1}/{len(batch_scenes)} - id: {scene_id}"
+            )
             await self._process_single_scene(scene_data, result, progress_callback)
 
         # Check if done
@@ -328,6 +391,9 @@ class SyncService:
         self, since: Optional[datetime], batch_size: int, offset: int
     ) -> Dict[str, Any]:
         """Fetch a batch of scenes from Stash"""
+        logger.debug(
+            f"_fetch_scene_batch - since: {since}, batch_size: {batch_size}, offset: {offset}"
+        )
         filter_dict = None
         if since:
             filter_dict = {
@@ -336,14 +402,23 @@ class SyncService:
                     "modifier": "GREATER_THAN",
                 }
             }
+            logger.debug(f"Using filter: {filter_dict}")
 
         # Use get_scenes which returns (scenes, total_count)
-        scenes, _ = await self.stash_service.get_scenes(
-            page=offset // batch_size + 1,
-            per_page=batch_size,
-            filter=filter_dict,
-        )
-        return {"scenes": scenes}
+        page = offset // batch_size + 1
+        logger.debug(f"Fetching page {page} with per_page={batch_size}")
+        try:
+            scenes, total_count = await self.stash_service.get_scenes(
+                page=page,
+                per_page=batch_size,
+                filter=filter_dict,
+            )
+            logger.debug(f"Fetched {len(scenes)} scenes, total_count: {total_count}")
+            return {"scenes": scenes}
+        except Exception as e:
+            logger.error(f"Error fetching scene batch: {e}")
+            logger.debug(f"Fetch error type: {type(e).__name__}, value: {repr(e)}")
+            raise
 
     async def _process_single_scene(
         self,
@@ -352,8 +427,12 @@ class SyncService:
         progress_callback: Optional[Any],
     ) -> None:
         """Process a single scene"""
+        scene_id = scene_data.get("id", "unknown")
+        logger.debug(f"_process_single_scene - scene_id: {scene_id}")
         try:
+            logger.debug(f"About to sync single scene {scene_id}")
             await self._sync_single_scene(scene_data, result)
+            logger.debug(f"Successfully synced scene {scene_id}")
             result.processed_items += 1
             result.stats.scenes_processed += 1
 
@@ -370,8 +449,16 @@ class SyncService:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to sync scene {scene_data.get('stash_id')}: {str(e)}")
-            result.add_error("scene", scene_data.get("stash_id", "unknown"), str(e))
+            logger.error(f"Failed to sync scene {scene_data.get('id')}: {str(e)}")
+            logger.debug(f"Scene sync error type: {type(e).__name__}")
+            logger.debug(f"Scene sync error value: {repr(e)}")
+            logger.debug(
+                f"Scene sync error args: {e.args if hasattr(e, 'args') else 'No args'}"
+            )
+            import traceback
+
+            logger.debug(f"Scene sync traceback:\n{traceback.format_exc()}")
+            result.add_error("scene", scene_data.get("id", "unknown"), str(e))
 
     async def sync_performers(
         self,
@@ -538,13 +625,11 @@ class SyncService:
         self, scene_data: Dict[str, Any], result: SyncResult
     ) -> None:
         """Sync a single scene with conflict resolution"""
-        scene_id = scene_data.get("stash_id")
+        scene_id = scene_data.get("id")
 
         try:
             # Check if scene exists locally
-            existing_scene = (
-                self.db.query(Scene).filter(Scene.stash_id == scene_id).first()
-            )
+            existing_scene = self.db.query(Scene).filter(Scene.id == scene_id).first()
 
             # Apply sync strategy
             should_sync = await self.strategy.should_sync(scene_data, existing_scene)
@@ -564,13 +649,24 @@ class SyncService:
                 result.stats.scenes_created += 1
 
             self.db.commit()
+            logger.debug(f"Scene {scene_id} committed to database")
 
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error in _sync_single_scene for scene {scene_id}: {str(e)}")
+            logger.debug(f"_sync_single_scene exception type: {type(e).__name__}")
+            logger.debug(f"_sync_single_scene exception value: {repr(e)}")
+            logger.debug(
+                f"_sync_single_scene exception args: {e.args if hasattr(e, 'args') else 'No args'}"
+            )
+            import traceback
+
+            logger.debug(f"_sync_single_scene traceback:\n{traceback.format_exc()}")
             self.db.rollback()
             raise
 
     async def _sync_entities(self, force: bool = False) -> Dict[str, Any]:
         """Sync performers, tags, and studios"""
+        logger.debug(f"_sync_entities called with force={force}")
         results: Dict[str, Any] = {}
 
         # Sync performers

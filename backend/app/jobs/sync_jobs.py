@@ -19,6 +19,7 @@ async def sync_all_job(
 ) -> Dict[str, Any]:
     """Execute full synchronization from Stash as a background job."""
     logger.info(f"Starting sync_all job {job_id} with force={force}")
+    logger.debug(f"sync_all_job called with kwargs: {kwargs}")
 
     # Create services for this job
     settings = get_settings()
@@ -26,12 +27,28 @@ async def sync_all_job(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
     with SessionLocal() as db:
+        logger.debug(f"Created database session: {type(db)}")
         sync_service = SyncService(stash_service, db)
+        logger.debug("Created sync service instance")
 
         # Execute sync with progress callback
-        result = await sync_service.sync_all(
-            job_id=job_id, force=force, progress_callback=progress_callback
-        )
+        try:
+            logger.debug("About to call sync_service.sync_all")
+            result = await sync_service.sync_all(
+                job_id=job_id, force=force, progress_callback=progress_callback
+            )
+            logger.debug(f"sync_all completed with status: {result.status}")
+        except Exception as e:
+            logger.error(f"sync_all_job failed: {str(e)}")
+            logger.debug(f"sync_all_job exception type: {type(e).__name__}")
+            logger.debug(f"sync_all_job exception value: {repr(e)}")
+            logger.debug(
+                f"sync_all_job exception args: {e.args if hasattr(e, 'args') else 'No args'}"
+            )
+            import traceback
+
+            logger.debug(f"sync_all_job traceback:\n{traceback.format_exc()}")
+            raise
 
     # Convert SyncResult dataclass to dict manually
     return {

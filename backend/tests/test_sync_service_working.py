@@ -198,11 +198,11 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_performers(self, sync_service, mock_stash_service):
         """Test performer sync functionality."""
-        # Mock get_all_performers to return transformed data (with stash_id, not id)
+        # Mock get_all_performers to return transformed data
         mock_stash_service.get_all_performers = AsyncMock(
             return_value=[
-                {"stash_id": "p1", "name": "Performer 1"},
-                {"stash_id": "p2", "name": "Performer 2"},
+                {"id": "p1", "name": "Performer 1"},
+                {"id": "p2", "name": "Performer 2"},
             ]
         )
 
@@ -224,11 +224,11 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_tags(self, sync_service, mock_stash_service):
         """Test tag sync functionality."""
-        # Mock get_all_tags to return transformed data (with stash_id, not id)
+        # Mock get_all_tags to return transformed data
         mock_stash_service.get_all_tags = AsyncMock(
             return_value=[
-                {"stash_id": "t1", "name": "Tag 1"},
-                {"stash_id": "t2", "name": "Tag 2"},
+                {"id": "t1", "name": "Tag 1"},
+                {"id": "t2", "name": "Tag 2"},
             ]
         )
 
@@ -250,11 +250,11 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_studios(self, sync_service, mock_stash_service):
         """Test studio sync functionality."""
-        # Mock get_all_studios to return transformed data (with stash_id, not id)
+        # Mock get_all_studios to return transformed data
         mock_stash_service.get_all_studios = AsyncMock(
             return_value=[
-                {"stash_id": "s1", "name": "Studio 1"},
-                {"stash_id": "s2", "name": "Studio 2"},
+                {"id": "s1", "name": "Studio 1"},
+                {"id": "s2", "name": "Studio 2"},
             ]
         )
 
@@ -336,7 +336,7 @@ class TestSyncService:
 
         # Mock existing scene
         existing_scene = Mock(spec=Scene)
-        existing_scene.stash_id = "123"
+        existing_scene.id = "123"
         existing_scene.title = "Old Title"
 
         mock_db.query.return_value.filter.return_value.first.return_value = (

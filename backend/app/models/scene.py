@@ -34,9 +34,6 @@ class Scene(BaseModel):
 
     # Primary key from Stash
     id = Column(String, primary_key=True, index=True)
-    stash_id = Column(
-        String, unique=True, nullable=False, index=True
-    )  # Stash's ID for syncing
 
     # Basic scene information
     title = Column(String, nullable=False, index=True)

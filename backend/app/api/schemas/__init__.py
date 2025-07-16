@@ -217,7 +217,7 @@ class SceneBase(BaseSchema):
 class SceneCreate(SceneBase):
     """Schema for creating a scene."""
 
-    stash_id: str = Field(..., description="Stash scene ID")
+    pass
 
 
 class SceneUpdate(SceneBase):

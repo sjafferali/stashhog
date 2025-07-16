@@ -21,17 +21,16 @@ from app.services.analysis.models import (
 class TestAnalysisService:
     """Test analysis service functionality."""
 
-    def create_mock_scene(self, scene_id=1, stash_id="scene123", title="Test Scene"):
+    def create_mock_scene(self, scene_id=1, id="scene123", title="Test Scene"):
         """Create a fully mocked scene with all required attributes."""
         scene = Mock(spec=Scene)
-        scene.id = scene_id
-        scene.stash_id = stash_id
+        scene.id = id
         scene.title = title
         scene.details = "Original details"
         scene.performers = []
         scene.tags = []
         scene.studio = None
-        scene.path = f"/path/to/{stash_id}.mp4"
+        scene.path = f"/path/to/{id}.mp4"
         scene.frame_rate = 30.0
         scene.duration = 300
         scene.date = None
@@ -47,8 +46,8 @@ class TestAnalysisService:
         scene.play_duration = 0
         scene.created_at = datetime.utcnow()
         scene.updated_at = datetime.utcnow()
-        scene.paths = [f"/path/to/{stash_id}.mp4"]
-        scene.get_primary_path = Mock(return_value=f"/path/to/{stash_id}.mp4")
+        scene.paths = [f"/path/to/{id}.mp4"]
+        scene.get_primary_path = Mock(return_value=f"/path/to/{id}.mp4")
         scene.framerate = 30.0  # Add framerate attribute
         return scene
 
@@ -161,13 +160,13 @@ class TestAnalysisService:
                     value="John Doe",
                     confidence=0.9,
                     source="ai",
-                    metadata={"stash_id": "p1"},
+                    metadata={"id": "p1"},
                 ),
                 DetectionResult(
                     value="Jane Smith",
                     confidence=0.85,
                     source="ai",
-                    metadata={"stash_id": "p2"},
+                    metadata={"id": "p2"},
                 ),
             ]
         )
@@ -178,13 +177,13 @@ class TestAnalysisService:
                     value="outdoor",
                     confidence=0.95,
                     source="ai",
-                    metadata={"stash_id": "t1"},
+                    metadata={"id": "t1"},
                 ),
                 DetectionResult(
                     value="nature",
                     confidence=0.8,
                     source="ai",
-                    metadata={"stash_id": "t2"},
+                    metadata={"id": "t2"},
                 ),
             ]
         )
@@ -194,7 +193,7 @@ class TestAnalysisService:
                 value="StudioX",
                 confidence=0.88,
                 source="ai",
-                metadata={"stash_id": "s1"},
+                metadata={"id": "s1"},
             )
         )
 
@@ -237,7 +236,7 @@ class TestAnalysisService:
         scenes = []
         for i in range(3):
             scene = self.create_mock_scene(
-                scene_id=i + 1, stash_id=f"scene{i+1}", title=f"Scene {i+1}"
+                scene_id=i + 1, id=f"scene{i+1}", title=f"Scene {i+1}"
             )
             scenes.append(scene)
 
@@ -316,7 +315,7 @@ class TestAnalysisService:
                 current_value=json.dumps([]),
                 proposed_value=json.dumps(["tag1", "tag2"]),
                 applied=False,
-                scene=Mock(stash_id="scene123"),
+                scene=Mock(id="scene123"),
             )
         ]
 
@@ -381,19 +380,19 @@ class TestAnalysisService:
                     value="high_conf",
                     confidence=0.9,
                     source="ai",
-                    metadata={"stash_id": "t1"},
+                    metadata={"id": "t1"},
                 ),
                 DetectionResult(
                     value="low_conf",
                     confidence=0.5,
                     source="ai",
-                    metadata={"stash_id": "t2"},
+                    metadata={"id": "t2"},
                 ),
                 DetectionResult(
                     value="med_conf",
                     confidence=0.75,
                     source="ai",
-                    metadata={"stash_id": "t3"},
+                    metadata={"id": "t3"},
                 ),
             ]
         )
@@ -457,7 +456,7 @@ class TestAnalysisService:
         scenes = []
         for i in range(10):
             scene = self.create_mock_scene(
-                scene_id=i + 1, stash_id=f"scene{i+1}", title=f"Scene {i+1}"
+                scene_id=i + 1, id=f"scene{i+1}", title=f"Scene {i+1}"
             )
             scenes.append(scene)
 
@@ -512,12 +511,12 @@ class TestAnalysisService:
             value="Test Entity",
             confidence=0.92,
             source="ai",
-            metadata={"stash_id": "e123", "source": "ai"},
+            metadata={"id": "e123", "source": "ai"},
         )
 
         assert result.value == "Test Entity"
         assert result.confidence == 0.92
-        assert result.metadata["stash_id"] == "e123"
+        assert result.metadata["id"] == "e123"
         assert result.metadata["source"] == "ai"
 
     def test_apply_result_model(self):

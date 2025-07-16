@@ -1,6 +1,5 @@
 export interface Scene {
-  id: number;
-  stash_id: string;
+  id: string;
   title: string;
   date?: string;
   url?: string;
@@ -21,7 +20,7 @@ export interface Scene {
   codec?: string;
   video_codec?: string;
   resolution?: string;
-  studio_id?: number;
+  studio_id?: string;
   galleries?: Gallery[];
   performers?: Performer[];
   tags?: Tag[];
@@ -33,8 +32,7 @@ export interface Scene {
 }
 
 export interface Performer {
-  id: number;
-  stash_id: string;
+  id: string;
   name: string;
   url?: string;
   gender?: string;
@@ -58,8 +56,7 @@ export interface Performer {
 }
 
 export interface Tag {
-  id: number;
-  stash_id: string;
+  id: string;
   name: string;
   aliases?: string[];
   created_at: string;
@@ -70,8 +67,7 @@ export interface Tag {
 }
 
 export interface Studio {
-  id: number;
-  stash_id: string;
+  id: string;
   name: string;
   url?: string;
   details?: string;
@@ -82,14 +78,13 @@ export interface Studio {
 }
 
 export interface Gallery {
-  id: number;
-  stash_id: string;
+  id: string;
   title?: string;
   url?: string;
   date?: string;
   details?: string;
-  studio_id?: number;
-  scene_id?: number;
+  studio_id?: string;
+  scene_id?: string;
   path: string;
   created_at: string;
   updated_at: string;
@@ -117,7 +112,7 @@ export interface AnalysisPlan {
 
 export interface AnalysisResult {
   id: number;
-  scene_id: number;
+  scene_id: string;
   plan_id: number;
   model_used: string;
   prompt_used: string;

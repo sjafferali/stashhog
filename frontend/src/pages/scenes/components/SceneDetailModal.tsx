@@ -188,8 +188,8 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         <Text code>{fullScene?.path || 'N/A'}</Text>
       </Descriptions.Item>
 
-      <Descriptions.Item label="Stash ID">
-        <Text copyable>{fullScene?.stash_id || 'N/A'}</Text>
+      <Descriptions.Item label="ID">
+        <Text copyable>{fullScene?.id || 'N/A'}</Text>
       </Descriptions.Item>
 
       <Descriptions.Item label="Perceptual Hash">

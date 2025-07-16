@@ -199,12 +199,36 @@ class StashService:
         }
 
         result = await self.execute_graphql(queries.GET_SCENES, variables)
+        logger.debug(
+            f"get_scenes GraphQL result keys: {list(result.keys()) if result else 'None'}"
+        )
 
         scenes_data = result.get("findScenes", {})
-        scenes = [
-            transformers.transform_scene(s) for s in scenes_data.get("scenes", [])
-        ]
+        logger.debug(
+            f"findScenes data keys: {list(scenes_data.keys()) if scenes_data else 'None'}"
+        )
+        raw_scenes = scenes_data.get("scenes", [])
+        logger.debug(f"Raw scenes count: {len(raw_scenes)}")
+
+        scenes = []
+        for idx, s in enumerate(raw_scenes):
+            try:
+                transformed = transformers.transform_scene(s)
+                scenes.append(transformed)
+                if idx == 0:  # Log first scene for debugging
+                    logger.debug(
+                        f"First scene transformed keys: {list(transformed.keys()) if transformed else 'None'}"
+                    )
+            except Exception as e:
+                logger.error(f"Error transforming scene at index {idx}: {str(e)}")
+                logger.debug(f"Transform error: {type(e).__name__}, value: {repr(e)}")
+                logger.debug(f"Scene data that failed: {s}")
+                raise
+
         total_count = scenes_data.get("count", 0)
+        logger.debug(
+            f"get_scenes returning {len(scenes)} scenes, total_count: {total_count}"
+        )
 
         return scenes, total_count
 

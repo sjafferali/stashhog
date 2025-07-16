@@ -60,14 +60,19 @@ async def sync_all(
         job_type=ModelJobType.SYNC, db=db, metadata={"force": force}
     )
 
+    # Eagerly load all attributes while still in session context
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
     return JobResponse(
-        id=str(job.id),
+        id=job_id,
         type=APIJobType.SYNC_ALL,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"force": force},
-        created_at=job.created_at,  # type: ignore[arg-type]
-        updated_at=job.updated_at,  # type: ignore[arg-type]
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
         completed_at=None,
         result=None,
         error=None,
@@ -99,14 +104,19 @@ async def sync_scenes(
         metadata={"scene_ids": scene_ids, "force": force},
     )
 
+    # Eagerly load all attributes while still in session context
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
     return JobResponse(
-        id=str(job.id),
+        id=job_id,
         type=APIJobType.SCENE_SYNC,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"scene_ids": scene_ids, "force": force},
-        created_at=job.created_at,  # type: ignore[arg-type]
-        updated_at=job.updated_at,  # type: ignore[arg-type]
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
         completed_at=None,
         result=None,
         error=None,
@@ -134,14 +144,19 @@ async def sync_performers(
         job_type=ModelJobType.SYNC_PERFORMERS, db=db, metadata={"force": force}
     )
 
+    # Eagerly load all attributes while still in session context
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
     return JobResponse(
-        id=str(job.id),
+        id=job_id,
         type=APIJobType.SYNC_PERFORMERS,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"force": force},
-        created_at=job.created_at,  # type: ignore[arg-type]
-        updated_at=job.updated_at,  # type: ignore[arg-type]
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
         completed_at=None,
         result=None,
         error=None,
@@ -169,14 +184,19 @@ async def sync_tags(
         job_type=ModelJobType.SYNC_TAGS, db=db, metadata={"force": force}
     )
 
+    # Eagerly load all attributes while still in session context
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
     return JobResponse(
-        id=str(job.id),
+        id=job_id,
         type=APIJobType.SYNC_TAGS,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"force": force},
-        created_at=job.created_at,  # type: ignore[arg-type]
-        updated_at=job.updated_at,  # type: ignore[arg-type]
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
         completed_at=None,
         result=None,
         error=None,
@@ -204,14 +224,19 @@ async def sync_studios(
         job_type=ModelJobType.SYNC_STUDIOS, db=db, metadata={"force": force}
     )
 
+    # Eagerly load all attributes while still in session context
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
     return JobResponse(
-        id=str(job.id),
+        id=job_id,
         type=APIJobType.SYNC_STUDIOS,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"force": force},
-        created_at=job.created_at,  # type: ignore[arg-type]
-        updated_at=job.updated_at,  # type: ignore[arg-type]
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
         completed_at=None,
         result=None,
         error=None,

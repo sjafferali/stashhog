@@ -68,12 +68,12 @@ export const SceneGrid: React.FC<SceneGridProps> = ({
           onClick={onSceneClick}
           actions={sceneActions}
           selectable={selectable}
-          selected={selectedIds.includes(scene.stash_id)}
+          selected={selectedIds.includes(scene.id)}
           onSelect={(selected) => {
             if (onSelectionChange) {
               const newIds = selected
-                ? [...selectedIds, scene.stash_id]
-                : selectedIds.filter((id) => id !== scene.stash_id);
+                ? [...selectedIds, scene.id]
+                : selectedIds.filter((id) => id !== scene.id);
               onSelectionChange(newIds);
             }
           }}

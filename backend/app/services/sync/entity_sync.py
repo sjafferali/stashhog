@@ -39,7 +39,7 @@ class EntitySyncHandler:
 
             except Exception as e:
                 logger.error(
-                    f"Failed to sync performer {performer_data.get('stash_id')}: {str(e)}"
+                    f"Failed to sync performer {performer_data.get('id')}: {str(e)}"
                 )
                 stats["failed"] += 1
 
@@ -60,7 +60,7 @@ class EntitySyncHandler:
                 stats[result] += 1
 
             except Exception as e:
-                logger.error(f"Failed to sync tag {tag_data.get('stash_id')}: {str(e)}")
+                logger.error(f"Failed to sync tag {tag_data.get('id')}: {str(e)}")
                 stats["failed"] += 1
 
         return stats
@@ -80,25 +80,19 @@ class EntitySyncHandler:
                 stats[result] += 1
 
             except Exception as e:
-                logger.error(
-                    f"Failed to sync studio {studio_data.get('stash_id')}: {str(e)}"
-                )
+                logger.error(f"Failed to sync studio {studio_data.get('id')}: {str(e)}")
                 stats["failed"] += 1
 
         return stats
 
     async def find_or_create_entity(
-        self, model_class: Type[T], stash_id: str, name: str, db: Session
+        self, model_class: Type[T], entity_id: str, name: str, db: Session
     ) -> T:
         """Generic find or create for entities"""
-        entity = db.query(model_class).filter(model_class.stash_id == stash_id).first()
+        entity = db.query(model_class).filter(model_class.id == entity_id).first()
 
         if not entity:
-            # For models with string ID primary keys, set both id and stash_id
-            if hasattr(model_class, "id"):
-                entity = model_class(id=stash_id, stash_id=stash_id, name=name)
-            else:
-                entity = model_class(stash_id=stash_id, name=name)
+            entity = model_class(id=entity_id, name=name)
             db.add(entity)
             db.flush()
 
@@ -112,14 +106,12 @@ class EntitySyncHandler:
         force: bool = False,
     ) -> str:
         """Sync a single entity and return the action taken"""
-        entity_id = entity_data.get("stash_id")
+        entity_id = entity_data.get("id")
         if not entity_id:
             raise ValueError("Entity ID is required")
 
         # Find existing entity
-        existing = (
-            db.query(model_class).filter(model_class.stash_id == entity_id).first()
-        )
+        existing = db.query(model_class).filter(model_class.id == entity_id).first()
 
         # Check if we should sync
         if not force and existing:
@@ -129,11 +121,7 @@ class EntitySyncHandler:
 
         # Create or update entity
         if not existing:
-            # For models with string ID primary keys, set both id and stash_id
-            if hasattr(model_class, "id"):
-                entity = model_class(id=entity_id, stash_id=entity_id)
-            else:
-                entity = model_class(stash_id=entity_id)
+            entity = model_class(id=entity_id)
             db.add(entity)
             action = "created"
         else:
@@ -196,7 +184,7 @@ class EntitySyncHandler:
         if data.get("parent") and data["parent"].get("id"):
             # We'll need to ensure the parent exists
             # This is handled in a separate pass to avoid circular dependencies
-            tag.parent_stash_id = data["parent"]["id"]
+            tag.parent_temp_id = data["parent"]["id"]
 
     def _update_studio(self, studio: Studio, data: Dict[str, Any]) -> None:
         """Update studio-specific fields"""
@@ -211,7 +199,7 @@ class EntitySyncHandler:
 
         # Handle parent studio
         if data.get("parent") and data["parent"].get("id"):
-            studio.parent_stash_id = data["parent"]["id"]
+            studio.parent_temp_id = data["parent"]["id"]
 
         # Handle image URL
         if data.get("image_path"):
@@ -219,34 +207,30 @@ class EntitySyncHandler:
 
     async def resolve_tag_hierarchy(self, db: Session) -> None:
         """Resolve parent-child relationships for tags after all are synced"""
-        tags_with_parents = db.query(Tag).filter(Tag.parent_stash_id.isnot(None)).all()
+        tags_with_parents = db.query(Tag).filter(Tag.parent_temp_id.isnot(None)).all()
 
         for tag in tags_with_parents:
-            parent = db.query(Tag).filter(Tag.stash_id == tag.parent_stash_id).first()
+            parent = db.query(Tag).filter(Tag.id == tag.parent_temp_id).first()
             if parent:
                 tag.parent_id = parent.id
             else:
                 logger.warning(
-                    f"Parent tag {tag.parent_stash_id} not found for tag {tag.id}"
+                    f"Parent tag {tag.parent_temp_id} not found for tag {tag.id}"
                 )
-                tag.parent_stash_id = None  # type: ignore[assignment]
+                tag.parent_temp_id = None  # type: ignore[assignment]
 
     async def resolve_studio_hierarchy(self, db: Session) -> None:
         """Resolve parent-child relationships for studios after all are synced"""
         studios_with_parents = (
-            db.query(Studio).filter(Studio.parent_stash_id.isnot(None)).all()
+            db.query(Studio).filter(Studio.parent_temp_id.isnot(None)).all()
         )
 
         for studio in studios_with_parents:
-            parent = (
-                db.query(Studio)
-                .filter(Studio.stash_id == studio.parent_stash_id)
-                .first()
-            )
+            parent = db.query(Studio).filter(Studio.id == studio.parent_temp_id).first()
             if parent:
                 studio.parent_id = parent.id
             else:
                 logger.warning(
-                    f"Parent studio {studio.parent_stash_id} not found for studio {studio.id}"
+                    f"Parent studio {studio.parent_temp_id} not found for studio {studio.id}"
                 )
-                studio.parent_stash_id = None  # type: ignore[assignment]
+                studio.parent_temp_id = None  # type: ignore[assignment]

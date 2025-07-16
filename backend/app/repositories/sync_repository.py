@@ -26,7 +26,7 @@ class SyncRepository:
         scene_data = []
         for scene in scenes:
             scene_dict = {
-                "stash_id": scene["id"],
+                "id": scene["id"],
                 "title": scene.get("title", ""),
                 "details": scene.get("details"),
                 "url": scene.get("url"),
@@ -48,7 +48,7 @@ class SyncRepository:
         # Use PostgreSQL's ON CONFLICT for upsert
         stmt = insert(Scene).values(scene_data)
         stmt = stmt.on_conflict_do_update(
-            index_elements=["stash_id"],
+            index_elements=["id"],
             set_={
                 "title": stmt.excluded.title,
                 "details": stmt.excluded.details,
@@ -72,8 +72,8 @@ class SyncRepository:
         db.flush()
 
         # Fetch the upserted scenes
-        scene_ids = [s["stash_id"] for s in scene_data]
-        return db.query(Scene).filter(Scene.stash_id.in_(scene_ids)).all()
+        scene_ids = [s["id"] for s in scene_data]
+        return db.query(Scene).filter(Scene.id.in_(scene_ids)).all()
 
     def bulk_upsert_entities(
         self, model_class: Type[BaseModel], entities: List[Dict[str, Any]], db: Session
@@ -95,11 +95,11 @@ class SyncRepository:
         # Bulk upsert
         stmt = insert(model_class).values(entity_data)
         stmt = stmt.on_conflict_do_update(
-            index_elements=["stash_id"],
+            index_elements=["id"],
             set_={
                 col.name: getattr(stmt.excluded, col.name)
                 for col in model_class.__table__.columns
-                if col.name not in ["id", "stash_id", "created_at"]
+                if col.name not in ["id", "created_at"]
             },
         )
 
@@ -186,10 +186,7 @@ class SyncRepository:
         """Prepare performer data for bulk insert"""
         return [
             {
-                "id": p.get(
-                    "stash_id", p.get("id")
-                ),  # Use stash_id if available, fallback to id
-                "stash_id": p.get("stash_id", p.get("id")),
+                "id": p.get("id"),
                 "name": p.get("name", ""),
                 "aliases": p.get("aliases"),
                 "gender": p.get("gender"),
@@ -223,15 +220,12 @@ class SyncRepository:
         """Prepare tag data for bulk insert"""
         return [
             {
-                "id": t.get(
-                    "stash_id", t.get("id")
-                ),  # Use stash_id if available, fallback to id
-                "stash_id": t.get("stash_id", t.get("id")),
+                "id": t.get("id"),
                 "name": t.get("name", ""),
                 "aliases": t.get("aliases"),
                 "description": t.get("description"),
                 "ignore_auto_tag": t.get("ignore_auto_tag", False),
-                "parent_stash_id": (
+                "parent_temp_id": (
                     t.get("parent", {}).get("id") if t.get("parent") else None
                 ),
                 "last_synced": datetime.utcnow(),
@@ -246,10 +240,7 @@ class SyncRepository:
         """Prepare studio data for bulk insert"""
         return [
             {
-                "id": s.get(
-                    "stash_id", s.get("id")
-                ),  # Use stash_id if available, fallback to id
-                "stash_id": s.get("stash_id", s.get("id")),
+                "id": s.get("id"),
                 "name": s.get("name", ""),
                 "aliases": s.get("aliases"),
                 "url": s.get("url"),
@@ -257,7 +248,7 @@ class SyncRepository:
                 "rating": s.get("rating"),
                 "favorite": s.get("favorite", False),
                 "ignore_auto_tag": s.get("ignore_auto_tag", False),
-                "parent_stash_id": (
+                "parent_temp_id": (
                     s.get("parent", {}).get("id") if s.get("parent") else None
                 ),
                 "image_url": s.get("image_path"),

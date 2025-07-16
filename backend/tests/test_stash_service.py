@@ -165,7 +165,7 @@ class TestStashService:
 
             result = await stash_service.get_scene(scene_id)
 
-            assert result["stash_id"] == scene_id
+            assert result["id"] == scene_id
             assert result["title"] == "Test Scene"
 
     @pytest.mark.asyncio
@@ -179,7 +179,7 @@ class TestStashService:
 
             result = await stash_service.update_scene(scene_id, update_data)
 
-            assert result["stash_id"] == scene_id
+            assert result["id"] == scene_id
             assert result["title"] == "Updated Title"
 
     @pytest.mark.asyncio
@@ -214,7 +214,7 @@ class TestStashService:
 
             result = await stash_service.create_tag(tag_name)
 
-            assert result["stash_id"] == "tag123"
+            assert result["id"] == "tag123"
             assert result["name"] == tag_name
 
     @pytest.mark.asyncio
@@ -232,7 +232,7 @@ class TestStashService:
             results = await stash_service.batch_update_scenes(scene_ids, update_data)
 
             assert len(results) == 3
-            assert all(r["stash_id"] in scene_ids for r in results)
+            assert all(r["id"] in scene_ids for r in results)
 
     @pytest.mark.asyncio
     async def test_test_connection_success(self, stash_service):

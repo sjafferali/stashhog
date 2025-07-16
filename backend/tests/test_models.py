@@ -27,8 +27,8 @@ class TestBaseModel:
             id="scene123",
             title="Test Scene",
             paths=["/path/to/scene.mp4"],
-            stash_id="stash123",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
 
         assert scene.id == "scene123"
@@ -39,12 +39,14 @@ class TestBaseModel:
 
     def test_base_model_dict(self):
         """Test model to_dict method."""
-        performer = Performer(id="perf123", name="Test Performer", stash_id="perf123")
+        performer = Performer(
+            id="perf123", name="Test Performer", last_synced=datetime.now()
+        )
 
         data = performer.to_dict()
 
         assert data["name"] == "Test Performer"
-        assert data["stash_id"] == "perf123"
+        # stash_id field has been removed
         assert data["id"] == "perf123"
 
 
@@ -57,12 +59,12 @@ class TestSceneModel:
             id="scene123",
             title="Test Scene",
             paths=["/videos/test.mp4"],
-            stash_id="scene123",
             date="2023-01-01",
             details="Test details",
             url="https://example.com",
             rating=85,
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
 
         assert scene.title == "Test Scene"
@@ -76,12 +78,12 @@ class TestSceneModel:
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            stash_id="1",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
-        performer = Performer(id="p1", name="Performer 1", stash_id="p1")
-        tag = Tag(id="t1", name="Tag 1", stash_id="t1")
-        studio = Studio(id="st1", name="Studio 1", stash_id="s1")
+        performer = Performer(id="p1", name="Performer 1", last_synced=datetime.now())
+        tag = Tag(id="t1", name="Tag 1", last_synced=datetime.now())
+        studio = Studio(id="st1", name="Studio 1", last_synced=datetime.now())
 
         scene.performers.append(performer)
         scene.tags.append(tag)
@@ -97,8 +99,8 @@ class TestSceneModel:
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            stash_id="1",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
 
         # Test that paths is a JSON field
@@ -113,7 +115,7 @@ class TestPerformerModel:
         """Test creating a performer."""
         performer = Performer(
             name="Jane Doe",
-            stash_id="perf123",
+            id="perf123",
             gender="FEMALE",
             birthdate="1990-01-01",
             ethnicity="Caucasian",
@@ -127,6 +129,7 @@ class TestPerformerModel:
             tattoos="None",
             piercings="Ears",
             aliases=["Alias1", "Alias2"],
+            last_synced=datetime.now(),
         )
 
         assert performer.name == "Jane Doe"
@@ -136,20 +139,22 @@ class TestPerformerModel:
 
     def test_performer_scenes_relationship(self):
         """Test performer-scenes relationship."""
-        performer = Performer(id="p1", name="Test Performer", stash_id="p1")
+        performer = Performer(
+            id="p1", name="Test Performer", last_synced=datetime.now()
+        )
         scene1 = Scene(
             id="s1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            stash_id="s1",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
         scene2 = Scene(
             id="s2",
             title="Scene 2",
             paths=["/s2.mp4"],
-            stash_id="s2",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
 
         performer.scenes.extend([scene1, scene2])
@@ -167,7 +172,6 @@ class TestTagModel:
         tag = Tag(
             id="tag123",
             name="outdoor",
-            stash_id="tag123",
             description="Outdoor scenes",
             aliases=["outside", "nature"],
             last_synced=datetime.now(),
@@ -179,9 +183,7 @@ class TestTagModel:
 
     def test_tag_category(self):
         """Test tag with category."""
-        tag = Tag(
-            id="tag456", name="blonde", stash_id="tag456", last_synced=datetime.now()
-        )
+        tag = Tag(id="tag456", name="blonde", last_synced=datetime.now())
 
         # Tag model doesn't have a category field
         assert tag.name == "blonde"
@@ -195,7 +197,6 @@ class TestStudioModel:
         studio = Studio(
             id="studio123",
             name="Test Studio",
-            stash_id="studio123",
             url="https://teststudio.com",
             last_synced=datetime.now(),
         )
@@ -207,15 +208,13 @@ class TestStudioModel:
 
     def test_studio_scenes_relationship(self):
         """Test studio-scenes relationship."""
-        studio = Studio(
-            id="st1", name="Test Studio", stash_id="s1", last_synced=datetime.now()
-        )
+        studio = Studio(id="st1", name="Test Studio", last_synced=datetime.now())
         scene = Scene(
             id="sc1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            stash_id="sc1",
             created_date=datetime.now(),
+            last_synced=datetime.now(),
         )
 
         # Set the relationship via foreign key

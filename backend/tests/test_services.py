@@ -172,7 +172,7 @@ class TestStashService:
 
             scene = await stash_service.get_scene("123")
 
-            assert scene["stash_id"] == "123"
+            assert scene["id"] == "123"
             assert scene["title"] == "Test Scene"
             mock_execute.assert_called_once()
 
@@ -246,8 +246,8 @@ class TestStashService:
 
             assert result["count"] == 2
             assert len(result["scenes"]) == 2
-            assert result["scenes"][0]["stash_id"] == "1"
-            assert result["scenes"][1]["stash_id"] == "2"
+            assert result["scenes"][0]["id"] == "1"
+            assert result["scenes"][1]["id"] == "2"
 
     @pytest.mark.asyncio
     async def test_update_scene(self, stash_service, mock_client):
@@ -285,7 +285,7 @@ class TestStashService:
             updates = {"title": "Updated Title", "rating": 90}
             result = await stash_service.update_scene("123", updates)
 
-            assert result["stash_id"] == "123"
+            assert result["id"] == "123"
             assert result["title"] == "Updated Title"
             mock_execute.assert_called_once()
 
@@ -378,8 +378,8 @@ class TestStashService:
                 result = await stash_service.get_all_performers()
 
             assert len(result) == 2
-            assert result[0]["stash_id"] == "p1"
-            assert result[1]["stash_id"] == "p2"
+            assert result[0]["id"] == "p1"
+            assert result[1]["id"] == "p2"
 
     @pytest.mark.asyncio
     async def test_handle_graphql_error(self, stash_service, mock_client):

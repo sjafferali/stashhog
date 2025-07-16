@@ -20,9 +20,6 @@ class Performer(BaseModel):
 
     # Primary key from Stash
     id = Column(String, primary_key=True, index=True)
-    stash_id = Column(
-        String, unique=True, nullable=False, index=True
-    )  # Stash's ID for syncing
 
     # Performer information
     name = Column(String, nullable=False, index=True)

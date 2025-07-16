@@ -29,9 +29,6 @@ class Tag(BaseModel):
 
     # Primary key from Stash
     id = Column(String, primary_key=True, index=True)
-    stash_id = Column(
-        String, unique=True, nullable=False, index=True
-    )  # Stash's ID for syncing
 
     # Tag information
     name = Column(String, nullable=False, unique=True, index=True)
@@ -41,7 +38,7 @@ class Tag(BaseModel):
 
     # Hierarchy
     parent_id = Column(String, ForeignKey("tag.id", ondelete="SET NULL"), nullable=True)
-    parent_stash_id = Column(String, nullable=True)  # Temporary field for sync
+    parent_temp_id = Column(String, nullable=True)  # Temporary field for sync
 
     # Sync tracking
     last_synced = Column(DateTime(timezone=True), nullable=False, index=True)
