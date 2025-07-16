@@ -159,14 +159,18 @@ export interface Job {
 }
 
 export interface SyncStatus {
-  is_syncing: boolean;
-  last_sync?: string;
-  total_scenes: number;
-  total_performers: number;
-  total_tags: number;
-  total_studios: number;
-  scenes_to_analyze: number;
-  current_job?: Job;
+  scene_count: number;
+  performer_count: number;
+  tag_count: number;
+  studio_count: number;
+  last_scene_sync?: string;
+  last_performer_sync?: string;
+  last_tag_sync?: string;
+  last_studio_sync?: string;
+  pending_scenes: number;
+  pending_performers: number;
+  pending_tags: number;
+  pending_studios: number;
 }
 
 export interface Settings {

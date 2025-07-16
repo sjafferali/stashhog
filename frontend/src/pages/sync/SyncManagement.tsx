@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Button,
@@ -8,15 +8,59 @@ import {
   Col,
   Alert,
   Timeline,
+  Spin,
 } from 'antd';
 import {
   SyncOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
 } from '@ant-design/icons';
+import apiClient from '@/services/apiClient';
+import { SyncStatus } from '@/types/models';
 
 const SyncManagement: React.FC = () => {
-  const isSyncing = false;
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<SyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.getSyncStatus();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to fetch sync stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchStats();
+  }, []);
+
+  const handleStartSync = async () => {
+    try {
+      setSyncing(true);
+      await apiClient.startSync();
+      await fetchStats();
+    } catch (error) {
+      console.error('Failed to start sync:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleStopSync = async () => {
+    try {
+      await apiClient.stopSync();
+      await fetchStats();
+    } catch (error) {
+      console.error('Failed to stop sync:', error);
+    }
+  };
+
+  const isSyncing = false; // TODO: Implement proper sync status check
 
   return (
     <div>
@@ -32,28 +76,36 @@ const SyncManagement: React.FC = () => {
         style={{ marginBottom: 24 }}
       />
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Scenes" value={0} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Performers" value={0} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Tags" value={0} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Total Studios" value={0} />
-          </Card>
-        </Col>
-      </Row>
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="Total Scenes" value={stats?.scene_count || 0} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic
+                title="Total Performers"
+                value={stats?.performer_count || 0}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic title="Total Tags" value={stats?.tag_count || 0} />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card>
+              <Statistic
+                title="Total Studios"
+                value={stats?.studio_count || 0}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </Spin>
 
       <Card
         title="Sync Controls"
@@ -64,16 +116,26 @@ const SyncManagement: React.FC = () => {
               icon={
                 isSyncing ? <PauseCircleOutlined /> : <PlayCircleOutlined />
               }
-              loading={false}
+              loading={syncing}
+              onClick={() =>
+                void (isSyncing ? handleStopSync() : handleStartSync())
+              }
             >
               {isSyncing ? 'Stop Sync' : 'Start Sync'}
             </Button>
-            <Button icon={<SyncOutlined />}>Refresh</Button>
+            <Button icon={<SyncOutlined />} onClick={() => void fetchStats()}>
+              Refresh
+            </Button>
           </Space>
         }
       >
-        <p>Last sync: Never</p>
-        <p>Scenes to analyze: 0</p>
+        <p>
+          Last scene sync:{' '}
+          {stats?.last_scene_sync
+            ? new Date(stats.last_scene_sync).toLocaleString()
+            : 'Never'}
+        </p>
+        <p>Pending scenes: {stats?.pending_scenes || 0}</p>
       </Card>
 
       <Card title="Recent Sync History" style={{ marginTop: 16 }}>

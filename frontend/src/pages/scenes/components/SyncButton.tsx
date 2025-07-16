@@ -39,9 +39,9 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     'sync-status',
     () => apiClient.getSyncStatus(),
     {
-      refetchInterval: (data) => {
-        // Refetch every 2 seconds if syncing
-        return data?.is_syncing ? 2000 : false;
+      refetchInterval: () => {
+        // TODO: Implement proper sync status check
+        return false;
       },
     }
   );
@@ -138,11 +138,11 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
     {
       key: 'last-sync',
-      label: syncStatus?.last_sync ? (
+      label: syncStatus?.last_scene_sync ? (
         <Space>
           <ClockCircleOutlined />
           <Text type="secondary">
-            Last sync: {dayjs(syncStatus.last_sync).fromNow()}
+            Last sync: {dayjs(syncStatus.last_scene_sync).fromNow()}
           </Text>
         </Space>
       ) : (
@@ -152,7 +152,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
   ];
 
-  const isLoading = syncMutation.isLoading || syncStatus?.is_syncing;
+  const isLoading = syncMutation.isLoading;
 
   return (
     <>
@@ -160,7 +160,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
         <Button
           icon={<SyncOutlined spin={isLoading} />}
           loading={isLoading}
-          disabled={syncStatus?.is_syncing}
+          disabled={false}
         >
           <Space>
             Sync
