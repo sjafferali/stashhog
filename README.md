@@ -176,6 +176,7 @@ docker-compose down -v
 | `OPENAI_MODEL` | OpenAI model to use | No | `gpt-4-vision-preview` |
 | `SECRET_KEY` | Secret key for sessions | Yes | - |
 | `APP_ENVIRONMENT` | Environment (development/production) | No | `production` |
+| `LOGGING__LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | No | `INFO` |
 
 #### Notes
 
@@ -269,6 +270,33 @@ We welcome contributions! Please follow these guidelines:
 - [ ] Scene similarity detection
 - [ ] Bulk operations UI
 - [ ] Plugin system for extensions
+
+## Troubleshooting
+
+### Enable Debug Logging
+
+To troubleshoot sync issues or see detailed API interactions:
+
+```bash
+# Set debug logging
+export LOGGING__LEVEL=DEBUG
+
+# Or in docker-compose:
+environment:
+  - LOGGING__LEVEL=DEBUG
+```
+
+This will show:
+- Full GraphQL requests and responses
+- Detailed sync operation logs
+- API communication details
+- Database queries
+
+### Common Issues
+
+1. **Sync failures with vague errors**: Enable debug logging to see the actual GraphQL responses
+2. **Connection issues**: Verify your STASH_URL is accessible from the container
+3. **Authentication errors**: Check your STASH_API_KEY is valid
 
 ## License
 

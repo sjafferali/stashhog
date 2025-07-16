@@ -79,7 +79,8 @@ Access StashHog at http://localhost
 |----------|-------------|---------|----------|
 | `APP_ENV` | Application environment | `production` | No |
 | `DEBUG` | Debug mode | `false` | No |
-| `LOG_LEVEL` | Logging level | `info` | No |
+| `LOG_LEVEL` | Logging level (deprecated - use `LOGGING__LEVEL`) | `info` | No |
+| `LOGGING__LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` | No |
 | `SECRET_KEY` | Application secret key | - | **Yes** |
 | `JWT_SECRET_KEY` | JWT signing key | - | **Yes** |
 
@@ -323,6 +324,27 @@ docker start stashhog
 ```
 
 ## Troubleshooting
+
+### Enable Debug Logging
+To see detailed debug information including GraphQL requests/responses:
+
+```bash
+# Set the environment variable
+export LOGGING__LEVEL=DEBUG
+
+# Or in docker-compose.yml:
+environment:
+  - LOGGING__LEVEL=DEBUG
+
+# Or when running Docker:
+docker run -e LOGGING__LEVEL=DEBUG ...
+```
+
+This will show:
+- Full GraphQL queries and variables
+- API response data
+- Detailed sync operation logs
+- Database query information
 
 ### Container Won't Start
 1. Check logs: `docker logs stashhog`

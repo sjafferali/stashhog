@@ -110,6 +110,11 @@ class StashService:
         """
         payload = {"query": query, "variables": variables or {}}
 
+        # Debug logging for troubleshooting
+        logger.debug(f"GraphQL Request URL: {self.graphql_url}")
+        logger.debug(f"GraphQL Request Query: {query[:200]}...")  # First 200 chars
+        logger.debug(f"GraphQL Request Variables: {variables}")
+
         try:
             response = await self._client.post(self.graphql_url, json=payload)
 
@@ -124,10 +129,17 @@ class StashService:
 
             data = response.json()
 
+            # Debug logging for troubleshooting
+            logger.debug(f"GraphQL Response Status: {response.status_code}")
+            logger.debug(
+                f"GraphQL Response Data: {str(data)[:500]}..."
+            )  # First 500 chars
+
             if "errors" in data:
                 error_messages = [
                     e.get("message", "Unknown error") for e in data["errors"]
                 ]
+                logger.error(f"GraphQL Errors: {data['errors']}")
                 raise StashGraphQLError(
                     f"GraphQL errors: {', '.join(error_messages)}",
                     errors=data["errors"],
@@ -136,12 +148,18 @@ class StashService:
             return data.get("data", {})  # type: ignore[no-any-return]
 
         except httpx.ConnectError as e:
+            logger.error(f"Connection error to {self.base_url}: {e}")
             raise StashConnectionError(
                 f"Failed to connect to Stash at {self.base_url}: {e}"
             )
         except httpx.TimeoutException as e:
+            logger.error(f"Request timeout: {e}")
             raise StashConnectionError(f"Request timed out: {e}")
         except httpx.HTTPError as e:
+            logger.error(f"HTTP error: {e}")
+            logger.error(
+                f"Response text: {e.response.text if hasattr(e, 'response') else 'N/A'}"
+            )
             raise StashConnectionError(f"HTTP error: {e}")
 
     # Scene Operations
@@ -355,16 +373,24 @@ class StashService:
         # Check cache first
         cached = self._entity_cache.get_performers()
         if cached:
+            logger.debug(f"Returning {len(cached)} cached performers")
             return cached
 
+        logger.debug("Fetching all performers from Stash")
         result = await self.execute_graphql(queries.GET_ALL_PERFORMERS)
+        logger.debug(f"GraphQL result keys: {list(result.keys())}")
+
         raw_performers = result.get("allPerformers", [])
+        logger.debug(f"Raw performers count: {len(raw_performers)}")
 
         # Log for debugging
         if not raw_performers:
             logger.warning("No performers returned from Stash")
+        elif raw_performers:
+            logger.debug(f"First raw performer: {raw_performers[0]}")
 
         performers = [transformers.transform_performer(p) for p in raw_performers]
+        logger.debug(f"Transformed performers count: {len(performers)}")
 
         # Cache the results
         self._entity_cache.set_performers(performers)
@@ -451,16 +477,24 @@ class StashService:
         # Check cache first
         cached = self._entity_cache.get_tags()
         if cached:
+            logger.debug(f"Returning {len(cached)} cached tags")
             return cached
 
+        logger.debug("Fetching all tags from Stash")
         result = await self.execute_graphql(queries.GET_ALL_TAGS)
+        logger.debug(f"GraphQL result keys: {list(result.keys())}")
+
         raw_tags = result.get("allTags", [])
+        logger.debug(f"Raw tags count: {len(raw_tags)}")
 
         # Log for debugging
         if not raw_tags:
             logger.warning("No tags returned from Stash")
+        elif raw_tags:
+            logger.debug(f"First raw tag: {raw_tags[0]}")
 
         tags = [transformers.transform_tag(t) for t in raw_tags]
+        logger.debug(f"Transformed tags count: {len(tags)}")
 
         # Cache the results
         self._entity_cache.set_tags(tags)
@@ -514,16 +548,24 @@ class StashService:
         # Check cache first
         cached = self._entity_cache.get_studios()
         if cached:
+            logger.debug(f"Returning {len(cached)} cached studios")
             return cached
 
+        logger.debug("Fetching all studios from Stash")
         result = await self.execute_graphql(queries.GET_ALL_STUDIOS)
+        logger.debug(f"GraphQL result keys: {list(result.keys())}")
+
         raw_studios = result.get("allStudios", [])
+        logger.debug(f"Raw studios count: {len(raw_studios)}")
 
         # Log for debugging
         if not raw_studios:
             logger.warning("No studios returned from Stash")
+        elif raw_studios:
+            logger.debug(f"First raw studio: {raw_studios[0]}")
 
         studios = [transformers.transform_studio(s) for s in raw_studios]
+        logger.debug(f"Transformed studios count: {len(studios)}")
 
         # Cache the results
         self._entity_cache.set_studios(studios)

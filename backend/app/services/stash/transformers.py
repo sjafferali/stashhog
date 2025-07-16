@@ -1,6 +1,9 @@
 """Data transformation utilities for Stash API."""
 
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def transform_scene(stash_scene: Dict) -> Dict:
@@ -50,6 +53,10 @@ def transform_performer(stash_performer: Dict) -> Dict:
     if not stash_performer:
         return {}
 
+    # Debug logging
+    if not stash_performer.get("id"):
+        logger.error(f"Performer missing 'id' field: {stash_performer}")
+
     return {
         "stash_id": stash_performer.get("id"),
         "name": stash_performer.get("name", ""),
@@ -83,6 +90,10 @@ def transform_tag(stash_tag: Dict) -> Dict:
     if not stash_tag:
         return {}
 
+    # Debug logging
+    if not stash_tag.get("id"):
+        logger.error(f"Tag missing 'id' field: {stash_tag}")
+
     return {
         "stash_id": stash_tag.get("id"),
         "name": stash_tag.get("name", ""),
@@ -102,6 +113,10 @@ def transform_studio(stash_studio: Dict[Any, Any]) -> Dict:
     """Convert Stash studio to internal format."""
     if not stash_studio:
         return {}
+
+    # Debug logging
+    if not stash_studio.get("id"):
+        logger.error(f"Studio missing 'id' field: {stash_studio}")
 
     return {
         "stash_id": stash_studio.get("id"),

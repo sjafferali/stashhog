@@ -576,11 +576,16 @@ class SyncService:
         # Sync performers
         try:
             performers_data = await self.stash_service.get_all_performers()
+            logger.debug(f"Retrieved {len(performers_data)} performers from Stash")
+            if performers_data:
+                logger.debug(f"First performer data: {performers_data[0]}")
             results["performers"] = await self.entity_handler.sync_performers(
                 performers_data, self.db, force=force
             )
         except Exception as e:
             logger.error(f"Failed to sync performers: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {repr(e)}")
             results["performers"] = {
                 "error": str(e),
                 "processed": 0,
@@ -591,11 +596,16 @@ class SyncService:
         # Sync tags
         try:
             tags_data = await self.stash_service.get_all_tags()
+            logger.debug(f"Retrieved {len(tags_data)} tags from Stash")
+            if tags_data:
+                logger.debug(f"First tag data: {tags_data[0]}")
             results["tags"] = await self.entity_handler.sync_tags(
                 tags_data, self.db, force=force
             )
         except Exception as e:
             logger.error(f"Failed to sync tags: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {repr(e)}")
             results["tags"] = {
                 "error": str(e),
                 "processed": 0,
@@ -606,11 +616,16 @@ class SyncService:
         # Sync studios
         try:
             studios_data = await self.stash_service.get_all_studios()
+            logger.debug(f"Retrieved {len(studios_data)} studios from Stash")
+            if studios_data:
+                logger.debug(f"First studio data: {studios_data[0]}")
             results["studios"] = await self.entity_handler.sync_studios(
                 studios_data, self.db, force=force
             )
         except Exception as e:
             logger.error(f"Failed to sync studios: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {repr(e)}")
             results["studios"] = {
                 "error": str(e),
                 "processed": 0,
