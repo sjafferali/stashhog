@@ -188,12 +188,6 @@ query Stats {
         image_count
         images_size
         gallery_count
-        galleries_size
-        performer_count
-        unique_performer_count
-        movie_count
-        total_size
-        total_duration
     }
 }
 """

@@ -88,14 +88,17 @@ class StashEntityCache:
         self.cache.set("entities:performers:all", performers, self.entity_ttl)
         # Also cache individual performers by ID and name
         for performer in performers:
-            self.cache.set(
-                f"entities:performers:id:{performer['id']}", performer, self.entity_ttl
-            )
-            self.cache.set(
-                f"entities:performers:name:{performer['name'].lower()}",
-                performer,
-                self.entity_ttl,
-            )
+            performer_id = performer.get("stash_id") or performer.get("id")
+            if performer_id:
+                self.cache.set(
+                    f"entities:performers:id:{performer_id}", performer, self.entity_ttl
+                )
+            if performer.get("name"):
+                self.cache.set(
+                    f"entities:performers:name:{performer['name'].lower()}",
+                    performer,
+                    self.entity_ttl,
+                )
 
     def get_performer_by_name(self, name: str) -> Optional[Dict]:
         """Get cached performer by name."""
@@ -110,10 +113,13 @@ class StashEntityCache:
         self.cache.set("entities:tags:all", tags, self.entity_ttl)
         # Also cache individual tags by ID and name
         for tag in tags:
-            self.cache.set(f"entities:tags:id:{tag['id']}", tag, self.entity_ttl)
-            self.cache.set(
-                f"entities:tags:name:{tag['name'].lower()}", tag, self.entity_ttl
-            )
+            tag_id = tag.get("stash_id") or tag.get("id")
+            if tag_id:
+                self.cache.set(f"entities:tags:id:{tag_id}", tag, self.entity_ttl)
+            if tag.get("name"):
+                self.cache.set(
+                    f"entities:tags:name:{tag['name'].lower()}", tag, self.entity_ttl
+                )
 
     def get_tag_by_name(self, name: str) -> Optional[Dict]:
         """Get cached tag by name."""
@@ -128,14 +134,17 @@ class StashEntityCache:
         self.cache.set("entities:studios:all", studios, self.entity_ttl)
         # Also cache individual studios by ID and name
         for studio in studios:
-            self.cache.set(
-                f"entities:studios:id:{studio['id']}", studio, self.entity_ttl
-            )
-            self.cache.set(
-                f"entities:studios:name:{studio['name'].lower()}",
-                studio,
-                self.entity_ttl,
-            )
+            studio_id = studio.get("stash_id") or studio.get("id")
+            if studio_id:
+                self.cache.set(
+                    f"entities:studios:id:{studio_id}", studio, self.entity_ttl
+                )
+            if studio.get("name"):
+                self.cache.set(
+                    f"entities:studios:name:{studio['name'].lower()}",
+                    studio,
+                    self.entity_ttl,
+                )
 
     def get_studio_by_name(self, name: str) -> Optional[Dict]:
         """Get cached studio by name."""
