@@ -95,6 +95,15 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         ],
         tags=[TagResponse(id=t.id, name=t.name, scene_count=0) for t in scene.tags],
         last_synced=scene.last_synced,  # type: ignore[arg-type]
+        # Metadata fields
+        date=scene.date,  # type: ignore[arg-type]
+        duration=scene.duration,  # type: ignore[arg-type]
+        size=scene.size,  # type: ignore[arg-type]
+        width=scene.width,  # type: ignore[arg-type]
+        height=scene.height,  # type: ignore[arg-type]
+        framerate=scene.framerate,  # type: ignore[arg-type]
+        bitrate=scene.bitrate,  # type: ignore[arg-type]
+        video_codec=scene.video_codec,  # type: ignore[arg-type]
     )
 
 

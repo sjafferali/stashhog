@@ -55,6 +55,7 @@ fragment SceneData on Scene {
         }
     }
     files {
+        path
         size
         duration
         video_codec

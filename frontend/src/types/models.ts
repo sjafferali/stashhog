@@ -148,10 +148,14 @@ export interface Job {
     | 'sync'
     | 'sync_scenes'
     | 'sync_performers'
-    | 'analysis';
+    | 'sync_tags'
+    | 'sync_studios'
+    | 'analysis'
+    | 'apply_plan';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   total?: number;
+  processed_items?: number;
   parameters?: Record<string, unknown>;
   error?: string;
   result?: Record<string, unknown>;
@@ -159,7 +163,9 @@ export interface Job {
   updated_at: string;
   started_at?: string;
   completed_at?: string;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: Record<string, string | number | boolean | null> & {
+    last_message?: string;
+  };
 }
 
 export interface SyncStatus {

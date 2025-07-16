@@ -65,23 +65,39 @@ async def analyze_scenes_job(
             progress_callback=progress_callback,
         )
 
-    return {
-        "plan_id": plan.id,
-        "total_changes": plan.get_change_count(),
-        "scenes_analyzed": plan.get_metadata("scene_count", 0),
-        "summary": {
-            "performers_to_add": plan.changes.filter_by(
-                field="performers", action="add"
-            ).count(),
-            "tags_to_add": plan.changes.filter_by(field="tags", action="add").count(),
-            "studios_to_set": plan.changes.filter_by(
-                field="studio", action="set"
-            ).count(),
-            "titles_to_update": plan.changes.filter_by(
-                field="title", action="set"
-            ).count(),
-        },
-    }
+        # Calculate summary while still in session
+        # Convert changes to list to avoid lazy loading issues
+        changes_list = list(plan.changes)
+
+        result = {
+            "plan_id": plan.id,
+            "total_changes": len(changes_list),
+            "scenes_analyzed": plan.get_metadata("scene_count", 0),
+            "summary": {
+                "performers_to_add": sum(
+                    1
+                    for change in changes_list
+                    if change.field == "performers" and change.action.value == "add"
+                ),
+                "tags_to_add": sum(
+                    1
+                    for change in changes_list
+                    if change.field == "tags" and change.action.value == "add"
+                ),
+                "studios_to_set": sum(
+                    1
+                    for change in changes_list
+                    if change.field == "studio" and change.action.value == "set"
+                ),
+                "titles_to_update": sum(
+                    1
+                    for change in changes_list
+                    if change.field == "title" and change.action.value == "set"
+                ),
+            },
+        }
+
+    return result
 
 
 async def apply_analysis_plan_job(

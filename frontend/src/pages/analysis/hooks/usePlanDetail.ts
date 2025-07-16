@@ -170,7 +170,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
       return {
         ...prev,
         scenes: prev.scenes.map((scene) => {
-          if (sceneId && scene.scene.id !== sceneId) return scene;
+          if (sceneId && scene.scene_id !== sceneId) return scene;
 
           return {
             ...scene,
@@ -193,7 +193,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
       return {
         ...prev,
         scenes: prev.scenes.map((scene) => {
-          if (sceneId && scene.scene.id !== sceneId) return scene;
+          if (sceneId && scene.scene_id !== sceneId) return scene;
 
           return {
             ...scene,

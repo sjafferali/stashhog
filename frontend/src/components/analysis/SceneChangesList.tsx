@@ -28,7 +28,9 @@ const { Panel } = Collapse;
 const { Text, Title } = Typography;
 
 export interface SceneChanges {
-  scene: Scene;
+  scene?: Scene;
+  scene_id?: string;
+  scene_title?: string;
   changes: ProposedChange[];
   allAccepted?: boolean;
   allRejected?: boolean;
@@ -40,7 +42,7 @@ export interface SceneChangesListProps {
   selectedSceneId?: string;
   onAcceptAll?: (sceneId: string) => void;
   onRejectAll?: (sceneId: string) => void;
-  onPreviewScene?: (scene: Scene) => void;
+  onPreviewScene?: (scene: Scene | { id: string; title: string }) => void;
   expandedByDefault?: boolean;
   selectable?: boolean;
   selectedSceneIds?: string[];
@@ -72,7 +74,9 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   onSelectionChange,
 }) => {
   const [expandedKeys, setExpandedKeys] = useState<string[]>(
-    expandedByDefault ? sceneChanges.map((sc) => sc.scene.id) : []
+    expandedByDefault
+      ? sceneChanges.map((sc) => sc.scene?.id || sc.scene_id || '')
+      : []
   );
   const [expandAll, setExpandAll] = useState(expandedByDefault);
 
@@ -80,7 +84,9 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     if (expandAll) {
       setExpandedKeys([]);
     } else {
-      setExpandedKeys(sceneChanges.map((sc) => sc.scene.id));
+      setExpandedKeys(
+        sceneChanges.map((sc) => sc.scene?.id || sc.scene_id || '')
+      );
     }
     setExpandAll(!expandAll);
   };
@@ -88,7 +94,9 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   const handleSelectAll = (checked: boolean) => {
     if (onSelectionChange) {
       if (checked) {
-        onSelectionChange(sceneChanges.map((sc) => sc.scene.id));
+        onSelectionChange(
+          sceneChanges.map((sc) => sc.scene?.id || sc.scene_id || '')
+        );
       } else {
         onSelectionChange([]);
       }
@@ -142,10 +150,12 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
 
   const renderSceneHeader = (sceneChange: SceneChanges) => {
     const { scene } = sceneChange;
+    const sceneId = scene?.id || sceneChange.scene_id || '';
+    const sceneTitle = scene?.title || sceneChange.scene_title || 'Untitled';
     const stats = getChangeStats(sceneChange.changes);
     const status = getSceneStatus(sceneChange);
-    const isSelected = selectedSceneId === scene.id;
-    const isChecked = selectedSceneIds.includes(scene.id);
+    const isSelected = selectedSceneId === sceneId;
+    const isChecked = selectedSceneIds.includes(sceneId);
 
     return (
       <div
@@ -154,23 +164,23 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
         {selectable && (
           <Checkbox
             checked={isChecked}
-            onChange={(e) => handleSelectScene(scene.id, e.target.checked)}
+            onChange={(e) => handleSelectScene(sceneId, e.target.checked)}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           />
         )}
 
         <Avatar
-          src={`/api/scenes/${scene.id}/thumbnail`}
+          src={`/api/scenes/${sceneId}/thumbnail`}
           size="large"
           shape="square"
           className={styles.thumbnail}
         >
-          {scene.title.charAt(0)}
+          {sceneTitle.charAt(0)}
         </Avatar>
 
         <div className={styles.sceneInfo}>
           <Title level={5} className={styles.sceneTitle}>
-            {scene.title}
+            {sceneTitle}
           </Title>
           <Space size="small">
             <Tag color={status.color}>{status.text}</Tag>
@@ -194,7 +204,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 icon={<PlayCircleOutlined />}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  onPreviewScene(scene);
+                  onPreviewScene(scene || { id: sceneId, title: sceneTitle });
                 }}
               />
             </Tooltip>
@@ -206,7 +216,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 icon={<CheckCircleOutlined />}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  onAcceptAll(scene.id);
+                  onAcceptAll(sceneId);
                 }}
               />
             </Tooltip>
@@ -219,7 +229,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 icon={<CloseCircleOutlined />}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  onRejectAll(scene.id);
+                  onRejectAll(sceneId);
                 }}
               />
             </Tooltip>
@@ -292,14 +302,19 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       >
         {sceneChanges.map((sceneChange) => (
           <Panel
-            key={sceneChange.scene.id}
+            key={sceneChange.scene?.id || sceneChange.scene_id || ''}
             header={renderSceneHeader(sceneChange)}
           >
             <Card
               size="small"
-              onClick={() => onSelectScene?.(sceneChange.scene.id)}
+              onClick={() =>
+                onSelectScene?.(
+                  sceneChange.scene?.id || sceneChange.scene_id || ''
+                )
+              }
               className={
-                selectedSceneId === sceneChange.scene.id
+                selectedSceneId ===
+                (sceneChange.scene?.id || sceneChange.scene_id)
                   ? styles.selectedCard
                   : ''
               }

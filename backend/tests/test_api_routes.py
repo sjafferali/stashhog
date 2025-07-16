@@ -102,6 +102,14 @@ class TestSceneRoutes:
                 studio=None,
                 details=None,
                 last_synced=datetime.now(),
+                # Metadata fields
+                duration=1800.5,
+                size=1024000000,
+                width=1920,
+                height=1080,
+                framerate=30.0,
+                bitrate=5000,
+                video_codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -120,6 +128,14 @@ class TestSceneRoutes:
                 studio=None,
                 details=None,
                 last_synced=datetime.now(),
+                # Metadata fields
+                duration=2400.0,
+                size=2048000000,
+                width=3840,
+                height=2160,
+                framerate=60.0,
+                bitrate=10000,
+                video_codec="h265",
             ),
         ]
 
@@ -158,6 +174,14 @@ class TestSceneRoutes:
         mock_scene.studio = None
         mock_scene.details = None
         mock_scene.last_synced = datetime.now()
+        # Metadata fields
+        mock_scene.duration = 1800.5
+        mock_scene.size = 1024000000
+        mock_scene.width = 1920
+        mock_scene.height = 1080
+        mock_scene.framerate = 30.0
+        mock_scene.bitrate = 5000
+        mock_scene.video_codec = "h264"
 
         # Mock the query result
         mock_result = Mock()

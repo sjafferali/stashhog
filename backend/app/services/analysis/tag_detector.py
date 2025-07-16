@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List
 
 from .ai_client import AIClient
-from .models import DetectionResult
+from .models import DetectionResult, TagSuggestionsResponse
 from .prompts import TAG_SUGGESTION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -86,28 +86,27 @@ class TagDetector:
             # Add existing tags to scene data for context
             scene_data["tags"] = ", ".join(existing_tags) if existing_tags else "None"
 
-            response: Dict = await ai_client.analyze_scene(
-                prompt=TAG_SUGGESTION_PROMPT, scene_data=scene_data, temperature=0.3
+            response = await ai_client.analyze_scene(
+                prompt=TAG_SUGGESTION_PROMPT,
+                scene_data=scene_data,
+                response_format=TagSuggestionsResponse,
+                temperature=0.3,
             )
 
             results = []
-            if isinstance(response, dict) and "tags" in response:
-                for tag in response["tags"]:
-                    if isinstance(tag, dict):
-                        name = tag.get("name", "").strip()
-                        confidence = float(tag.get("confidence", 0.7))
+            for tag in response.tags:
+                name = tag.name.strip()
+                confidence = tag.confidence
 
-                        if name and name.lower() not in [
-                            t.lower() for t in existing_tags
-                        ]:
-                            results.append(
-                                DetectionResult(
-                                    value=name,
-                                    confidence=confidence,
-                                    source="ai",
-                                    metadata={"model": ai_client.model},
-                                )
-                            )
+                if name and name.lower() not in [t.lower() for t in existing_tags]:
+                    results.append(
+                        DetectionResult(
+                            value=name,
+                            confidence=confidence,
+                            source="ai",
+                            metadata={"model": ai_client.model},
+                        )
+                    )
 
             # Filter out redundant tags
             filtered_results = self._filter_redundant_results(results, existing_tags)

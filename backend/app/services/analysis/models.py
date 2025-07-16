@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
+
 
 @dataclass
 class AnalysisOptions:
@@ -129,3 +131,30 @@ class ApplyResult:
             "errors": self.errors,
             "applied_at": self.applied_at.isoformat(),
         }
+
+
+# Pydantic models for AI responses
+class TagSuggestion(BaseModel):
+    """Single tag suggestion from AI."""
+
+    name: str = Field(description="The tag name")
+    confidence: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Confidence score"
+    )
+
+
+class TagSuggestionsResponse(BaseModel):
+    """Response format for tag suggestions."""
+
+    tags: List[TagSuggestion] = Field(
+        default_factory=list, description="List of suggested tags"
+    )
+
+
+class DetailsResponse(BaseModel):
+    """Response format for scene details generation."""
+
+    description: str = Field(description="Generated scene description")
+    confidence: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Confidence score"
+    )

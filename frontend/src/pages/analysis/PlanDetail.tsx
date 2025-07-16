@@ -68,7 +68,7 @@ const PlanDetail: React.FC = () => {
     return plan.scenes.flatMap((scene) =>
       scene.changes.map((change) => ({
         ...change,
-        sceneId: scene.scene.id,
+        sceneId: scene.scene_id,
       }))
     );
   }, [plan]);
@@ -94,7 +94,7 @@ const PlanDetail: React.FC = () => {
   const stats = getStatistics();
 
   // Handle scene preview
-  const handlePreviewScene = (scene: Scene) => {
+  const handlePreviewScene = (scene: Scene | { id: string; title: string }) => {
     window.open(`/scenes/${scene.id}`, '_blank');
   };
 

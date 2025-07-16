@@ -103,6 +103,14 @@ def mock_scene():
     scene.performers = []
     scene.tags = []
     scene.studio = None
+    # Metadata fields
+    scene.date = datetime.utcnow()
+    scene.size = 1024000000
+    scene.width = 1920
+    scene.height = 1080
+    scene.framerate = 30.0
+    scene.bitrate = 5000
+    scene.video_codec = "h264"
     scene.to_dict = Mock(
         return_value={
             "id": scene.id,
@@ -118,6 +126,14 @@ def mock_scene():
             "performers": [],
             "tags": [],
             "studio": None,
+            # Metadata fields
+            "date": scene.date,
+            "size": scene.size,
+            "width": scene.width,
+            "height": scene.height,
+            "framerate": scene.framerate,
+            "bitrate": scene.bitrate,
+            "video_codec": scene.video_codec,
         }
     )
     return scene
@@ -230,6 +246,15 @@ class TestSceneRoutes:
             studio=mock_studio,
             performers=[mock_performer],
             tags=[mock_tag],
+            # Metadata fields
+            date=datetime.utcnow(),
+            duration=1800.5,
+            size=1024000000,
+            width=1920,
+            height=1080,
+            framerate=30.0,
+            bitrate=5000,
+            video_codec="h264",
         )
 
         # Mock scene query

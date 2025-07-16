@@ -196,6 +196,21 @@ export interface TableProps<T = Record<string, unknown>> {
   loading?: boolean;
   size?: SizeType;
   className?: string;
+  expandable?: {
+    expandedRowRender?: (
+      record: T,
+      index: number,
+      indent: number,
+      expanded: boolean
+    ) => ReactNode;
+    expandedRowKeys?: string[];
+    onExpandedRowsChange?: (expandedKeys: string[]) => void;
+    expandRowByClick?: boolean;
+    rowExpandable?: (record: T) => boolean;
+  };
+  locale?: {
+    emptyText?: ReactNode;
+  };
 }
 
 export interface TablePaginationConfig {

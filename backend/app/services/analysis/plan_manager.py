@@ -76,7 +76,15 @@ class PlanManager:
         plan.add_metadata("created_at", datetime.utcnow().isoformat())
 
         await db.commit()
-        await db.refresh(plan)
+
+        # Refresh the plan with eager loading of changes
+        query = (
+            select(AnalysisPlan)
+            .where(AnalysisPlan.id == plan.id)
+            .options(selectinload(AnalysisPlan.changes))
+        )
+        result = await db.execute(query)
+        plan = result.scalar_one()
 
         logger.info(f"Created analysis plan '{name}' with {change_count} changes")
         return plan

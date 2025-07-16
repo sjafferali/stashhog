@@ -18,6 +18,23 @@ from app.services.stash_service import StashService
 from app.services.sync.sync_service import SyncService
 from app.services.websocket_manager import get_websocket_manager  # noqa: F401
 
+__all__ = [
+    "get_db",
+    "get_settings",
+    "get_stash_client",
+    "get_openai_client",
+    "get_current_user",
+    "require_auth",
+    "get_stash_service",
+    "get_sync_service",
+    "get_analysis_service",
+    "get_job_service",
+    "get_websocket_manager",
+    "PaginationParams",
+    "StashClient",
+    "Settings",
+]
+
 # Re-export for backward compatibility
 StashClient = StashService  # Alias for backward compatibility
 

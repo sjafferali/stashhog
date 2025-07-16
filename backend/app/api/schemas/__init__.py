@@ -238,6 +238,16 @@ class SceneResponse(SceneBase):
     tags: List[TagResponse] = Field(default_factory=list, description="Scene tags")
     last_synced: datetime = Field(..., description="Last sync timestamp")
 
+    # Metadata fields
+    date: Optional[datetime] = Field(None, description="Scene date")
+    duration: Optional[float] = Field(None, description="Duration in seconds")
+    size: Optional[int] = Field(None, description="File size in bytes")
+    width: Optional[int] = Field(None, description="Video width")
+    height: Optional[int] = Field(None, description="Video height")
+    framerate: Optional[float] = Field(None, description="Frame rate")
+    bitrate: Optional[int] = Field(None, description="Bitrate in kbps")
+    video_codec: Optional[str] = Field(None, description="Video codec")
+
 
 class SceneFilter(BaseSchema):
     """Scene filter parameters."""

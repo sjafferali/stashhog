@@ -1,0 +1,136 @@
+.jobMonitor {
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    h2 {
+      margin: 0;
+    }
+  }
+
+  .mainCard {
+    :global {
+      .ant-card-body {
+        padding: 0;
+      }
+
+      .ant-table {
+        border-radius: 0;
+      }
+
+      .ant-table-expanded-row {
+        background: #fafafa;
+        
+        &:hover {
+          background: #f5f5f5;
+        }
+      }
+
+      .ant-table-row {
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+        }
+      }
+
+      .ant-progress-text {
+        font-size: 12px;
+      }
+    }
+  }
+
+  .expandedContent {
+    padding: 16px;
+    
+    :global {
+      .ant-card {
+        box-shadow: none;
+        border: 1px solid #f0f0f0;
+      }
+
+      .ant-descriptions-item-label {
+        font-weight: 500;
+        color: #595959;
+      }
+
+      pre {
+        background: #f5f5f5;
+        border: 1px solid #e8e8e8;
+        border-radius: 4px;
+        padding: 12px;
+        font-size: 12px;
+        line-height: 1.5;
+        overflow-x: auto;
+      }
+    }
+  }
+
+  .jobDetailModal {
+    :global {
+      .ant-descriptions {
+        background: #fafafa;
+      }
+
+      .ant-divider-inner-text {
+        font-weight: 500;
+        font-size: 14px;
+      }
+    }
+
+    .codeBlock {
+      background: #f5f5f5;
+      border: 1px solid #e8e8e8;
+      border-radius: 4px;
+      padding: 16px;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      max-height: 400px;
+      font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+
+      &::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+      }
+
+      &::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+
+        &:hover {
+          background: #555;
+        }
+      }
+    }
+  }
+
+  // Status indicator animations
+  :global {
+    .ant-badge-status-processing {
+      &::after {
+        animation: antStatusProcessing 1.2s infinite ease-in-out;
+      }
+    }
+
+    @keyframes antStatusProcessing {
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(0.8);
+      }
+      50% {
+        opacity: 0.5;
+        transform: scale(1);
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@ from html.parser import HTMLParser
 from typing import Dict, List
 
 from .ai_client import AIClient
-from .models import DetectionResult
+from .models import DetailsResponse, DetectionResult
 from .prompts import DESCRIPTION_GENERATION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -55,30 +55,30 @@ class DetailsGenerator:
             Detection result with generated description
         """
         try:
-            response: Dict = await ai_client.analyze_scene(
+            response = await ai_client.analyze_scene(
                 prompt=DESCRIPTION_GENERATION_PROMPT,
                 scene_data=scene_data,
+                response_format=DetailsResponse,
                 temperature=0.5,  # Slightly higher for more creative descriptions
             )
 
-            if isinstance(response, dict):
-                description = response.get("description", "").strip()
-                confidence = float(response.get("confidence", 0.8))
+            description = response.description.strip()
+            confidence = response.confidence
 
-                if description:
-                    # Clean and validate the description
-                    cleaned = self._clean_description(description)
+            if description:
+                # Clean and validate the description
+                cleaned = self._clean_description(description)
 
-                    return DetectionResult(
-                        value=cleaned,
-                        confidence=confidence,
-                        source="ai",
-                        metadata={
-                            "model": ai_client.model,
-                            "original_length": len(description),
-                            "cleaned_length": len(cleaned),
-                        },
-                    )
+                return DetectionResult(
+                    value=cleaned,
+                    confidence=confidence,
+                    source="ai",
+                    metadata={
+                        "model": ai_client.model,
+                        "original_length": len(description),
+                        "cleaned_length": len(cleaned),
+                    },
+                )
 
             # Fallback if generation fails
             return DetectionResult(

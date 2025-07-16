@@ -174,6 +174,15 @@ class TestSceneRoutes:
                 performers=[mock_performer],
                 tags=[mock_tag],
                 last_synced=datetime.utcnow(),
+                # Metadata fields
+                date=datetime.utcnow(),
+                duration=1800.5,
+                size=1024000000,
+                width=1920,
+                height=1080,
+                framerate=30.0,
+                bitrate=5000,
+                video_codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -188,6 +197,15 @@ class TestSceneRoutes:
                 performers=[],
                 tags=[],
                 last_synced=datetime.utcnow(),
+                # Metadata fields
+                date=None,
+                duration=2400.0,
+                size=2048000000,
+                width=3840,
+                height=2160,
+                framerate=60.0,
+                bitrate=10000,
+                video_codec="h265",
             ),
         ]
 
@@ -237,6 +255,15 @@ class TestSceneRoutes:
             performers=[mock_performer],
             tags=[mock_tag],
             last_synced=datetime.utcnow(),
+            # Metadata fields
+            date=datetime.utcnow(),
+            duration=1800.5,
+            size=1024000000,
+            width=1920,
+            height=1080,
+            framerate=30.0,
+            bitrate=5000,
+            video_codec="h264",
         )
 
         mock_result = Mock()
