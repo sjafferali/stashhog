@@ -110,7 +110,7 @@ def mock_scene():
     scene.height = 1080
     scene.framerate = 30.0
     scene.bitrate = 5000
-    scene.video_codec = "h264"
+    scene.codec = "h264"
     scene.to_dict = Mock(
         return_value={
             "id": scene.id,
@@ -133,7 +133,7 @@ def mock_scene():
             "height": scene.height,
             "framerate": scene.framerate,
             "bitrate": scene.bitrate,
-            "video_codec": scene.video_codec,
+            "video_codec": scene.codec,
         }
     )
     return scene
@@ -254,7 +254,7 @@ class TestSceneRoutes:
             height=1080,
             framerate=30.0,
             bitrate=5000,
-            video_codec="h264",
+            codec="h264",
         )
 
         # Mock scene query

@@ -47,8 +47,8 @@ export interface SceneChangesListProps {
   selectable?: boolean;
   selectedSceneIds?: string[];
   onSelectionChange?: (sceneIds: string[]) => void;
-  onAcceptChange?: (sceneId: string, changeId: string) => void;
-  onRejectChange?: (sceneId: string, changeId: string) => void;
+  onAcceptChange?: (changeId: string) => void;
+  onRejectChange?: (changeId: string) => void;
   onEditChange?: (
     changeId: string,
     proposedValue:
@@ -72,6 +72,9 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   selectable = false,
   selectedSceneIds = [],
   onSelectionChange,
+  onAcceptChange,
+  onRejectChange,
+  onEditChange: _onEditChange
 }) => {
   const [expandedKeys, setExpandedKeys] = useState<string[]>(
     expandedByDefault
@@ -239,27 +242,96 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     );
   };
 
+  const renderValue = (value: any, type: string) => {
+    if (value === null || value === undefined) {
+      return 'None';
+    }
+    
+    if (type === 'array' && Array.isArray(value)) {
+      if (value.length === 0) return 'None';
+      if (value.length <= 3) {
+        return value.join(', ');
+      }
+      return `${value.slice(0, 3).join(', ')}... (${value.length} items)`;
+    }
+    
+    if (type === 'object' && typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    
+    return String(value);
+  };
+
   const renderChangesList = (changes: ProposedChange[]) => {
+    if (!changes || changes.length === 0) {
+      return (
+        <Empty
+          description="No changes available"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      );
+    }
+
     return (
       <List
         dataSource={changes}
         renderItem={(change: ProposedChange) => (
           <List.Item className={styles.changeItem}>
             <div className={styles.changeContent}>
-              <Space>
-                <Text strong>{change.fieldLabel}</Text>
-                {change.accepted && <Tag color="green">Accepted</Tag>}
-                {change.rejected && <Tag color="red">Rejected</Tag>}
-                {!change.accepted && !change.rejected && (
-                  <Tag color="orange">Pending</Tag>
-                )}
-              </Space>
-              <div className={styles.changeValues}>
-                <Text type="secondary">
-                  {JSON.stringify(change.currentValue)} →{' '}
-                  {JSON.stringify(change.proposedValue)}
-                </Text>
+              <div className={styles.changeHeader}>
+                <Space align="center">
+                  <Text strong>{change.fieldLabel || change.field}</Text>
+                  <Tag color={change.confidence >= 0.8 ? 'green' : change.confidence >= 0.6 ? 'orange' : 'red'}>
+                    {Math.round(change.confidence * 100)}% confidence
+                  </Tag>
+                  {change.accepted && <Tag color="green">Accepted</Tag>}
+                  {change.rejected && <Tag color="red">Rejected</Tag>}
+                  {!change.accepted && !change.rejected && (
+                    <Tag color="blue">Pending</Tag>
+                  )}
+                </Space>
               </div>
+              <div className={styles.changeValues}>
+                <div className={styles.valueRow}>
+                  <Text type="secondary" className={styles.valueLabel}>Current:</Text>
+                  <Text className={styles.value}>
+                    {renderValue(change.currentValue, change.type)}
+                  </Text>
+                </div>
+                <div className={styles.arrow}>→</div>
+                <div className={styles.valueRow}>
+                  <Text type="secondary" className={styles.valueLabel}>Proposed:</Text>
+                  <Text className={styles.value}>
+                    {renderValue(change.proposedValue, change.type)}
+                  </Text>
+                </div>
+              </div>
+              {onAcceptChange && onRejectChange && !change.accepted && !change.rejected && (
+                <Space className={styles.changeActions}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAcceptChange(change.id);
+                    }}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<CloseCircleOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRejectChange(change.id);
+                    }}
+                  >
+                    Reject
+                  </Button>
+                </Space>
+              )}
             </div>
           </List.Item>
         )}

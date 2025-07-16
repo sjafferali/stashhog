@@ -24,10 +24,11 @@ from app.models.plan_change import ChangeAction, PlanChange
 @pytest.fixture
 def mock_db():
     """Mock database session."""
-    db = MagicMock()
-    db.commit = Mock()
-    db.refresh = Mock()
-    db.add = Mock()
+    db = AsyncMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+    db.add = AsyncMock()
+    db.execute = AsyncMock()
     return db
 
 
@@ -302,12 +303,22 @@ class TestAnalysisRoutes:
 
         assert response.status_code == 405  # Method not allowed
 
-    def test_get_analysis_stats(self, client):
-        """Test getting analysis statistics - endpoint doesn't exist."""
-        # This endpoint doesn't exist in the actual routes
+    def test_get_analysis_stats(self, client, mock_db):
+        """Test getting analysis statistics."""
+        # Mock database responses for stats queries
+        mock_result = Mock()
+        mock_result.scalar_one = Mock(return_value=10)
+        mock_db.execute.return_value = mock_result
+        
         response = client.get("/api/analysis/stats")
 
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_scenes" in data
+        assert "analyzed_scenes" in data
+        assert "total_plans" in data
+        assert "pending_plans" in data
+        assert "pending_analysis" in data
 
     def test_analyze_single_scene(self, client):
         """Test analyzing a single scene - endpoint doesn't exist."""

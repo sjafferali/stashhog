@@ -62,13 +62,59 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Helper function to determine field type
+  const getFieldType = (field: string, value: unknown): 'text' | 'array' | 'object' | 'date' | 'number' => {
+    if (field === 'date') return 'date';
+    if (field === 'rating' || field === 'duration') return 'number';
+    if (Array.isArray(value)) return 'array';
+    if (typeof value === 'object' && value !== null) return 'object';
+    return 'text';
+  };
+
+  // Helper function to get field label
+  const getFieldLabel = (field: string): string => {
+    const labels: Record<string, string> = {
+      title: 'Title',
+      performers: 'Performers',
+      tags: 'Tags',
+      studio: 'Studio',
+      details: 'Details',
+      date: 'Date',
+      rating: 'Rating',
+      duration: 'Duration',
+    };
+    return labels[field] || field.charAt(0).toUpperCase() + field.slice(1);
+  };
+
   // Fetch plan details
   const fetchPlan = async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await api.get(`/analysis/plans/${planId}`);
-      setPlan(response.data);
+      const rawData = response.data;
+
+      // Transform the data to match expected format
+      const transformedData: PlanDetailData = {
+        ...rawData,
+        scenes: rawData.scenes.map((scene: any) => ({
+          ...scene,
+          changes: scene.changes.map((change: any, index: number) => ({
+            id: `${scene.scene_id}-${change.field}-${index}`,
+            sceneId: scene.scene_id,
+            field: change.field,
+            fieldLabel: getFieldLabel(change.field),
+            currentValue: change.current_value,
+            proposedValue: change.proposed_value,
+            confidence: change.confidence,
+            type: getFieldType(change.field, change.proposed_value),
+            accepted: false,
+            rejected: false,
+          })),
+        })),
+      };
+
+      setPlan(transformedData);
     } catch (err) {
       setError(err as Error);
       void message.error('Failed to load plan details');

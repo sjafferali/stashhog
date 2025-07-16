@@ -109,7 +109,7 @@ class TestSceneRoutes:
                 height=1080,
                 framerate=30.0,
                 bitrate=5000,
-                video_codec="h264",
+                codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -135,7 +135,7 @@ class TestSceneRoutes:
                 height=2160,
                 framerate=60.0,
                 bitrate=10000,
-                video_codec="h265",
+                codec="h265",
             ),
         ]
 
@@ -181,7 +181,7 @@ class TestSceneRoutes:
         mock_scene.height = 1080
         mock_scene.framerate = 30.0
         mock_scene.bitrate = 5000
-        mock_scene.video_codec = "h264"
+        mock_scene.codec = "h264"
 
         # Mock the query result
         mock_result = Mock()

@@ -103,7 +103,7 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         height=scene.height,  # type: ignore[arg-type]
         framerate=scene.framerate,  # type: ignore[arg-type]
         bitrate=scene.bitrate,  # type: ignore[arg-type]
-        video_codec=scene.video_codec,  # type: ignore[arg-type]
+        video_codec=scene.codec,  # type: ignore[arg-type]
     )
 
 

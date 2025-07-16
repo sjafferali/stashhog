@@ -182,7 +182,7 @@ class TestSceneRoutes:
                 height=1080,
                 framerate=30.0,
                 bitrate=5000,
-                video_codec="h264",
+                codec="h264",
             ),
             Mock(
                 spec=Scene,
@@ -205,7 +205,7 @@ class TestSceneRoutes:
                 height=2160,
                 framerate=60.0,
                 bitrate=10000,
-                video_codec="h265",
+                codec="h265",
             ),
         ]
 
@@ -263,7 +263,7 @@ class TestSceneRoutes:
             height=1080,
             framerate=30.0,
             bitrate=5000,
-            video_codec="h264",
+            codec="h264",
         )
 
         mock_result = Mock()
@@ -826,8 +826,13 @@ class TestErrorHandling:
             # If the exception propagates, that's also correct behavior
             assert "Database error" in str(e)
 
-    def test_analysis_stats_endpoint(self, client):
+    def test_analysis_stats_endpoint(self, client, mock_db):
         """Test analysis stats endpoint."""
+        # Mock database responses for stats queries
+        mock_result = Mock()
+        mock_result.scalar_one = Mock(return_value=10)
+        mock_db.execute.return_value = mock_result
+        
         response = client.get("/api/analysis/stats")
         assert response.status_code == 200
         data = response.json()
