@@ -89,32 +89,40 @@ async def analyze_scenes_job(
             try:
                 logger.debug(f"Plan object session: {plan in db}")
                 logger.debug(f"Current db session: {db}")
-                
+
                 # The plan object is bound to a different session context
                 # We need to re-fetch it in our current session to access its relationships
-                
+
                 # Re-fetch the plan with its changes eagerly loaded
                 logger.debug(f"Re-fetching plan {plan.id} with eager loading")
-                plan_query = select(AnalysisPlan).where(
-                    AnalysisPlan.id == plan.id
-                ).options(selectinload(AnalysisPlan.changes))
-                
-                result = await db.execute(plan_query)
-                fresh_plan = result.scalar_one()
-                
-                logger.debug(f"Fresh plan loaded, changes count: {len(fresh_plan.changes) if hasattr(fresh_plan.changes, '__len__') else 'dynamic'}")
-                
+                plan_query = (
+                    select(AnalysisPlan)
+                    .where(AnalysisPlan.id == plan.id)
+                    .options(selectinload(AnalysisPlan.changes))
+                )
+
+                query_result = await db.execute(plan_query)
+                fresh_plan = query_result.scalar_one()
+
+                logger.debug(
+                    f"Fresh plan loaded, changes count: {len(fresh_plan.changes) if hasattr(fresh_plan.changes, '__len__') else 'dynamic'}"
+                )
+
                 # Now we can safely access the changes
                 # Handle both eager-loaded and dynamic relationships
-                if hasattr(fresh_plan.changes, '__iter__') and not hasattr(fresh_plan.changes, 'all'):
+                if hasattr(fresh_plan.changes, "__iter__") and not hasattr(
+                    fresh_plan.changes, "all"
+                ):
                     # Changes were eager-loaded
                     changes_list = list(fresh_plan.changes)
                 else:
                     # Changes are still dynamic, need to query them
-                    changes_query = select(PlanChange).where(PlanChange.plan_id == fresh_plan.id)
+                    changes_query = select(PlanChange).where(
+                        PlanChange.plan_id == fresh_plan.id
+                    )
                     changes_result = await db.execute(changes_query)
                     changes_list = list(changes_result.scalars().all())
-                
+
                 # Calculate summary with the loaded changes
                 summary = calculate_plan_summary(changes_list)
 
