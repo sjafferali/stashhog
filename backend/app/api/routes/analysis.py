@@ -14,7 +14,6 @@ from fastapi import (
 )
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.schemas import (
     AnalysisRequest,
@@ -423,11 +422,7 @@ async def update_change_status(
     Update the acceptance/rejection status of a change.
     """
     # Get the change
-    query = (
-        select(PlanChange)
-        .options(selectinload(PlanChange.plan))
-        .where(PlanChange.id == change_id)
-    )
+    query = select(PlanChange).where(PlanChange.id == change_id)
     result = await db.execute(query)
     change = result.scalar_one_or_none()
 
@@ -458,12 +453,8 @@ async def update_change_status(
     # Update plan status
     await db.commit()
 
-    # Load the plan with all changes to update status
-    query = (
-        select(AnalysisPlan)
-        .options(selectinload(AnalysisPlan.changes))
-        .where(AnalysisPlan.id == change.plan_id)
-    )
+    # Load the plan to update status
+    query = select(AnalysisPlan).where(AnalysisPlan.id == change.plan_id)
     result = await db.execute(query)
     plan = result.scalar_one()
 

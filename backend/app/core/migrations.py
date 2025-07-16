@@ -144,6 +144,8 @@ def run_migrations() -> None:
 
         # Check if migrations are needed
         if not _check_migrations_needed(engine, alembic_cfg):
+            # Still dispose of the engine even if no migrations needed
+            engine.dispose()
             return
 
         # Run migrations
@@ -164,6 +166,16 @@ def run_migrations() -> None:
 
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+        finally:
+            # Always dispose of the migration engine
+            engine.dispose()
+            logger.info("Disposed migration engine")
+
+            # Reset the main app's database engines to ensure they pick up schema changes
+            from app.core.database import reset_db_engines
+
+            reset_db_engines()
+            logger.info("Reset application database engines")
 
     except Exception as e:
         logger.error(f"Failed to run migrations: {e}")
