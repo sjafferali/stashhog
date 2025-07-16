@@ -10,6 +10,8 @@ from app.services.job_service import JobService
 from app.services.openai_client import OpenAIClient
 from app.services.stash_service import StashService
 
+from .analysis_jobs_helpers import calculate_plan_summary
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,88 +23,99 @@ async def analyze_scenes_job(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Execute scene analysis as a background job."""
-    logger.info(
-        f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
-    )
-    logger.debug(f"Scene IDs received in job: {scene_ids}")
-
-    # Create service instances
-    settings = get_settings()
-    stash_service = StashService(
-        stash_url=settings.stash.url,
-        api_key=settings.stash.api_key,
-        timeout=settings.stash.timeout,
-        max_retries=settings.stash.max_retries,
-    )
-    openai_client = (
-        OpenAIClient(
-            api_key=settings.openai.api_key,
-            model=settings.openai.model,
-            base_url=settings.openai.base_url,
-            max_tokens=settings.openai.max_tokens,
-            temperature=settings.openai.temperature,
-            timeout=settings.openai.timeout,
+    try:
+        logger.info(
+            f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
         )
-        if settings.openai.api_key
-        else None
-    )
+        logger.debug(f"Scene IDs received in job: {scene_ids}")
 
-    # Convert options dict to AnalysisOptions
-    analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
-
-    # Extract plan_name from kwargs if provided
-    plan_name = kwargs.get("plan_name")
-
-    # Execute analysis with progress callback
-    async with AsyncSessionLocal() as db:
-        if openai_client is None:
-            raise ValueError("OpenAI client is required for analysis")
-        analysis_service = AnalysisService(
-            openai_client=openai_client, stash_service=stash_service, settings=settings
+        # Create service instances
+        settings = get_settings()
+        stash_service = StashService(
+            stash_url=settings.stash.url,
+            api_key=settings.stash.api_key,
+            timeout=settings.stash.timeout,
+            max_retries=settings.stash.max_retries,
+        )
+        openai_client = (
+            OpenAIClient(
+                api_key=settings.openai.api_key,
+                model=settings.openai.model,
+                base_url=settings.openai.base_url,
+                max_tokens=settings.openai.max_tokens,
+                temperature=settings.openai.temperature,
+                timeout=settings.openai.timeout,
+            )
+            if settings.openai.api_key
+            else None
         )
 
-        plan = await analysis_service.analyze_scenes(
-            scene_ids=scene_ids,
-            options=analysis_options,
-            job_id=job_id,
-            db=db,
-            progress_callback=progress_callback,
-            plan_name=plan_name,
-        )
+        # Convert options dict to AnalysisOptions
+        analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
 
-        # Calculate summary while still in session
-        # Convert changes to list to avoid lazy loading issues
-        changes_list = list(plan.changes)
+        # Extract plan_name from kwargs if provided
+        plan_name = kwargs.get("plan_name")
 
-        result = {
-            "plan_id": plan.id,
-            "total_changes": len(changes_list),
-            "scenes_analyzed": plan.get_metadata("scene_count", 0),
-            "summary": {
-                "performers_to_add": sum(
-                    1
-                    for change in changes_list
-                    if change.field == "performers" and change.action.value == "add"
-                ),
-                "tags_to_add": sum(
-                    1
-                    for change in changes_list
-                    if change.field == "tags" and change.action.value == "add"
-                ),
-                "studios_to_set": sum(
-                    1
-                    for change in changes_list
-                    if change.field == "studio" and change.action.value == "set"
-                ),
-                "titles_to_update": sum(
-                    1
-                    for change in changes_list
-                    if change.field == "title" and change.action.value == "set"
-                ),
-            },
-        }
+        # Execute analysis with progress callback
+        async with AsyncSessionLocal() as db:
+            if openai_client is None:
+                raise ValueError("OpenAI client is required for analysis")
+            analysis_service = AnalysisService(
+                openai_client=openai_client,
+                stash_service=stash_service,
+                settings=settings,
+            )
 
-    return result
+            logger.info(
+                f"Creating analysis service and starting analysis for job {job_id}"
+            )
+
+            plan = await analysis_service.analyze_scenes(
+                scene_ids=scene_ids,
+                options=analysis_options,
+                job_id=job_id,
+                db=db,
+                progress_callback=progress_callback,
+                plan_name=plan_name,
+            )
+
+            logger.info(f"Analysis completed for job {job_id}, plan ID: {plan.id}")
+
+            # Calculate summary while still in session
+            try:
+                # Access changes directly from the database query
+                summary = calculate_plan_summary(plan.changes.all())
+
+                # Get total changes count and metadata while session is active
+                total_changes = plan.get_change_count()
+                scenes_analyzed = plan.get_metadata("scene_count", 0)
+                plan_id = plan.id
+
+                logger.info(
+                    f"Summary calculated for job {job_id}: {total_changes} total changes"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Error calculating summary for job {job_id}: {str(e)}",
+                    exc_info=True,
+                )
+                raise
+
+            result = {
+                "plan_id": plan_id,
+                "total_changes": total_changes,
+                "scenes_analyzed": scenes_analyzed,
+                "summary": summary,
+            }
+
+        logger.info(f"Job {job_id} completed successfully with result: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Job {job_id} failed with error: {str(e)}", exc_info=True)
+        await progress_callback(100, f"Analysis failed: {str(e)}")
+        raise
 
 
 async def apply_analysis_plan_job(

@@ -123,15 +123,8 @@ class AnalysisService:
             f"First few scene IDs being analyzed: {[s.get('id') if isinstance(s, dict) else s.id for s in scenes[:5]]}"
         )
 
-        # Update job progress if provided
-        if job_id:
-            await self._update_job_progress(
-                job_id, 0, f"Analyzing {len(scenes)} scenes"
-            )
-
         # Report initial progress
-        if progress_callback:
-            await progress_callback(0, f"Starting analysis of {len(scenes)} scenes")
+        await self._report_initial_progress(job_id, len(scenes), progress_callback)
 
         # Process scenes in batches
         # Cast scenes to the expected type for batch processor
@@ -151,19 +144,7 @@ class AnalysisService:
             plan_name = self._generate_plan_name(options, len(scenes), scenes)
 
         # Create metadata
-        metadata = {
-            "description": f"Analysis of {len(scenes)} scenes",
-            "settings": {
-                "detect_studios": options.detect_studios,
-                "detect_performers": options.detect_performers,
-                "detect_tags": options.detect_tags,
-                "detect_details": options.detect_details,
-                "use_ai": options.use_ai,
-                "confidence_threshold": options.confidence_threshold,
-            },
-            "statistics": self._calculate_statistics(all_changes),
-            "ai_model": self.ai_client.model if options.use_ai else None,
-        }
+        metadata = self._create_analysis_metadata(options, scenes, all_changes)
 
         # Save plan if database session provided
         if db:
@@ -172,10 +153,7 @@ class AnalysisService:
             )
 
             # Mark scenes as analyzed
-            for scene in scenes:
-                scene.analyzed = True  # type: ignore[assignment]
-
-            await db.flush()
+            await self._mark_scenes_as_analyzed(scenes, db)
 
             # Update job as completed
             if job_id:
@@ -805,6 +783,89 @@ class AnalysisService:
             stats["average_confidence"] = total_confidence / confidence_count
 
         return stats
+
+    def _create_analysis_metadata(
+        self,
+        options: AnalysisOptions,
+        scenes: list[Scene],
+        all_changes: list[SceneChanges],
+    ) -> dict[str, Any]:
+        """Create metadata for analysis plan.
+
+        Args:
+            options: Analysis options
+            scenes: List of analyzed scenes
+            all_changes: List of scene changes
+
+        Returns:
+            Metadata dictionary
+        """
+        return {
+            "description": f"Analysis of {len(scenes)} scenes",
+            "settings": {
+                "detect_studios": options.detect_studios,
+                "detect_performers": options.detect_performers,
+                "detect_tags": options.detect_tags,
+                "detect_details": options.detect_details,
+                "use_ai": options.use_ai,
+                "confidence_threshold": options.confidence_threshold,
+            },
+            "statistics": self._calculate_statistics(all_changes),
+            "ai_model": self.ai_client.model if options.use_ai else None,
+        }
+
+    async def _mark_scenes_as_analyzed(
+        self, scenes: list[Scene], db: AsyncSession
+    ) -> None:
+        """Mark scenes as analyzed in the database.
+
+        Args:
+            scenes: List of scenes to mark
+            db: Database session
+        """
+        try:
+            from sqlalchemy import select
+
+            from app.models.scene import Scene as DBScene
+
+            scene_ids = [s.id if hasattr(s, "id") else s.get("id") for s in scenes]
+            logger.debug(f"Marking {len(scene_ids)} scenes as analyzed")
+
+            result = await db.execute(select(DBScene).where(DBScene.id.in_(scene_ids)))
+            db_scenes = result.scalars().all()
+
+            logger.debug(
+                f"Found {len(db_scenes)} scenes in database to mark as analyzed"
+            )
+
+            for scene in db_scenes:
+                scene.analyzed = True  # type: ignore[assignment]
+
+            await db.flush()
+            logger.info(f"Successfully marked {len(db_scenes)} scenes as analyzed")
+
+        except Exception as e:
+            logger.error(f"Failed to mark scenes as analyzed: {str(e)}", exc_info=True)
+            # Don't fail the entire operation if marking scenes fails
+            # The analysis plan is already created
+
+    async def _report_initial_progress(
+        self, job_id: Optional[str], scene_count: int, progress_callback: Optional[Any]
+    ) -> None:
+        """Report initial progress for analysis job.
+
+        Args:
+            job_id: Optional job ID
+            scene_count: Number of scenes to analyze
+            progress_callback: Optional progress callback
+        """
+        if job_id:
+            await self._update_job_progress(
+                job_id, 0, f"Analyzing {scene_count} scenes"
+            )
+
+        if progress_callback:
+            await progress_callback(0, f"Starting analysis of {scene_count} scenes")
 
     async def _update_job_progress(
         self,
