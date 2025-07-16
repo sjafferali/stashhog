@@ -94,18 +94,18 @@ async def analyze_scenes_job(
 
                 # Store the plan ID before any potential session issues
                 plan_id = plan.id
-                
+
                 # Re-fetch the plan in our current session to avoid cross-session issues
                 plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
                 plan_result = await db.execute(plan_query)
                 fresh_plan = plan_result.scalar_one()
-                
+
                 # Now query changes directly (since it's a dynamic relationship)
                 logger.debug(f"Querying changes for plan {plan_id}")
                 changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
                 changes_result = await db.execute(changes_query)
                 changes_list = list(changes_result.scalars().all())
-                
+
                 logger.debug(f"Loaded {len(changes_list)} changes for plan {plan_id}")
 
                 # Calculate summary with the loaded changes
