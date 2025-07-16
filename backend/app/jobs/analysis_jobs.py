@@ -2,11 +2,10 @@ import logging
 from typing import Any, Awaitable, Callable, Optional
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.models import AnalysisPlan, PlanChange
+from app.models import PlanChange
 from app.models.job import JobType
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import AnalysisOptions
@@ -93,43 +92,26 @@ async def analyze_scenes_job(
                 # The plan object is bound to a different session context
                 # We need to re-fetch it in our current session to access its relationships
 
-                # Re-fetch the plan with its changes eagerly loaded
-                logger.debug(f"Re-fetching plan {plan.id} with eager loading")
-                plan_query = (
-                    select(AnalysisPlan)
-                    .where(AnalysisPlan.id == plan.id)
-                    .options(selectinload(AnalysisPlan.changes))
+                # Since changes is a dynamic relationship, we can't use eager loading
+                # We need to query the changes directly
+                logger.debug(f"Querying changes for plan {plan.id}")
+                
+                # Query changes directly to avoid dynamic relationship issues
+                changes_query = select(PlanChange).where(
+                    PlanChange.plan_id == plan.id
                 )
-
-                query_result = await db.execute(plan_query)
-                fresh_plan = query_result.scalar_one()
-
-                logger.debug(
-                    f"Fresh plan loaded, changes count: {len(fresh_plan.changes) if hasattr(fresh_plan.changes, '__len__') else 'dynamic'}"
-                )
-
-                # Now we can safely access the changes
-                # Handle both eager-loaded and dynamic relationships
-                if hasattr(fresh_plan.changes, "__iter__") and not hasattr(
-                    fresh_plan.changes, "all"
-                ):
-                    # Changes were eager-loaded
-                    changes_list = list(fresh_plan.changes)
-                else:
-                    # Changes are still dynamic, need to query them
-                    changes_query = select(PlanChange).where(
-                        PlanChange.plan_id == fresh_plan.id
-                    )
-                    changes_result = await db.execute(changes_query)
-                    changes_list = list(changes_result.scalars().all())
+                changes_result = await db.execute(changes_query)
+                changes_list = list(changes_result.scalars().all())
+                
+                logger.debug(f"Loaded {len(changes_list)} changes for plan {plan.id}")
 
                 # Calculate summary with the loaded changes
                 summary = calculate_plan_summary(changes_list)
 
                 # Get total changes count and metadata while session is active
                 total_changes = len(changes_list)
-                scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
-                plan_id = fresh_plan.id
+                scenes_analyzed = plan.get_metadata("scene_count", 0)
+                plan_id = plan.id
 
                 logger.info(
                     f"Summary calculated for job {job_id}: {total_changes} total changes"
