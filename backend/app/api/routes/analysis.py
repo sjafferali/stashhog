@@ -33,6 +33,49 @@ from app.services.job_service import JobService
 router = APIRouter()
 
 
+@router.get("/stats")
+async def get_analysis_stats(
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get analysis statistics.
+    
+    Returns counts of analyzed scenes, plans, and pending analysis.
+    """
+    # Count total scenes
+    total_scenes_query = select(func.count(Scene.id))
+    total_scenes_result = await db.execute(total_scenes_query)
+    total_scenes = total_scenes_result.scalar_one()
+    
+    # Count scenes that have been analyzed (have changes in any plan)
+    analyzed_scenes_query = select(func.count(func.distinct(PlanChange.scene_id)))
+    analyzed_scenes_result = await db.execute(analyzed_scenes_query)
+    analyzed_scenes = analyzed_scenes_result.scalar_one()
+    
+    # Count total plans
+    total_plans_query = select(func.count(AnalysisPlan.id))
+    total_plans_result = await db.execute(total_plans_query)
+    total_plans = total_plans_result.scalar_one()
+    
+    # Count pending plans (not applied)
+    pending_plans_query = select(func.count(AnalysisPlan.id)).where(
+        AnalysisPlan.status != "applied"
+    )
+    pending_plans_result = await db.execute(pending_plans_query)
+    pending_plans = pending_plans_result.scalar_one()
+    
+    # Calculate pending analysis (scenes not analyzed)
+    pending_analysis = total_scenes - analyzed_scenes
+    
+    return {
+        "total_scenes": total_scenes,
+        "analyzed_scenes": analyzed_scenes,
+        "total_plans": total_plans,
+        "pending_plans": pending_plans,
+        "pending_analysis": pending_analysis,
+    }
+
+
 @router.post("/generate")
 async def generate_analysis(
     request: AnalysisRequest,

@@ -1,17 +1,23 @@
 import React from 'react';
 import { Card, Button, Space, Statistic, Row, Col, Modal, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import {
   BulbOutlined,
   FileTextOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
 import api from '@/services/api';
+import { apiClient } from '@/services/apiClient';
 
 const Analysis: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Fetch analysis statistics
+  const { data: analysisStats } = useQuery('analysisStats', () =>
+    apiClient.getAnalysisStats()
+  );
 
   // Batch analysis mutation
   const batchAnalysisMutation = useMutation(
@@ -67,8 +73,8 @@ const Analysis: React.FC = () => {
           <Card>
             <Statistic
               title="Scenes Analyzed"
-              value={0}
-              suffix="/ 0"
+              value={analysisStats?.analyzed_scenes || 0}
+              suffix={`/ ${analysisStats?.total_scenes || 0}`}
               prefix={<BulbOutlined />}
             />
           </Card>
@@ -77,7 +83,7 @@ const Analysis: React.FC = () => {
           <Card>
             <Statistic
               title="Analysis Plans"
-              value={0}
+              value={analysisStats?.total_plans || 0}
               prefix={<FileTextOutlined />}
             />
           </Card>
@@ -86,7 +92,7 @@ const Analysis: React.FC = () => {
           <Card>
             <Statistic
               title="Pending Analysis"
-              value={0}
+              value={analysisStats?.pending_analysis || 0}
               prefix={<RocketOutlined />}
             />
           </Card>

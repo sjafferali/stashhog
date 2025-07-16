@@ -73,6 +73,17 @@ class ApiClient {
   }
 
   // Analysis
+  async getAnalysisStats(): Promise<{
+    total_scenes: number;
+    analyzed_scenes: number;
+    total_plans: number;
+    pending_plans: number;
+    pending_analysis: number;
+  }> {
+    const response = await api.get('/analysis/stats');
+    return response.data;
+  }
+
   async getAnalysisPlans(): Promise<AnalysisPlan[]> {
     const response = await api.get('/analysis/plans');
     return response.data.items || [];

@@ -825,3 +825,19 @@ class TestErrorHandling:
         except Exception as e:
             # If the exception propagates, that's also correct behavior
             assert "Database error" in str(e)
+
+    def test_analysis_stats_endpoint(self, client):
+        """Test analysis stats endpoint."""
+        response = client.get("/api/analysis/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_scenes" in data
+        assert "analyzed_scenes" in data
+        assert "total_plans" in data
+        assert "pending_plans" in data
+        assert "pending_analysis" in data
+        assert isinstance(data["total_scenes"], int)
+        assert isinstance(data["analyzed_scenes"], int)
+        assert isinstance(data["total_plans"], int)
+        assert isinstance(data["pending_plans"], int)
+        assert isinstance(data["pending_analysis"], int)
