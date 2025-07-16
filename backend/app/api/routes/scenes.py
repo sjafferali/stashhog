@@ -98,7 +98,7 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
     )
 
 
-@router.get("/", response_model=PaginatedResponse[SceneResponse])
+@router.get("", response_model=PaginatedResponse[SceneResponse])
 async def list_scenes(
     pagination: PaginationParams = Depends(),
     filters: SceneFilter = Depends(),

@@ -22,7 +22,7 @@ from app.services.stash_service import StashService
 router = APIRouter()
 
 
-@router.get("/", response_model=Dict[str, str])
+@router.get("", response_model=Dict[str, str])
 async def health_check() -> Dict[str, str]:
     """
     Basic health check endpoint.

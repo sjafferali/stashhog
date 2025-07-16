@@ -17,7 +17,7 @@ from app.services.stash_service import StashService
 router = APIRouter()
 
 
-@router.get("/", response_model=List[Dict[str, Any]])
+@router.get("", response_model=List[Dict[str, Any]])
 async def list_settings(
     db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> List[Dict[str, Any]]:
@@ -154,7 +154,7 @@ async def update_setting(
     }
 
 
-@router.put("/")
+@router.put("")
 async def update_settings(
     settings_update: Dict[str, Any], db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
