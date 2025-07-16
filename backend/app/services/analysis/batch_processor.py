@@ -76,11 +76,21 @@ class BatchProcessor:
                     await error_callback(batch_idx, batch_result)
                 # Add empty results for failed batch
                 for scene in batches[batch_idx]:
+                    # Handle both Scene objects and dictionaries
+                    if isinstance(scene, dict):
+                        scene_id = str(scene.get("id", ""))
+                        scene_title = str(scene.get("title", "Untitled"))
+                        scene_path = scene.get("path", scene.get("file", {}).get("path", ""))
+                    else:
+                        scene_id = str(scene.id)
+                        scene_title = str(scene.title or "Untitled")
+                        scene_path = scene.get_primary_path() or ""
+                    
                     results.append(
                         SceneChanges(
-                            scene_id=str(scene.id),
-                            scene_title=str(scene.title or "Untitled"),
-                            scene_path=scene.get_primary_path() or "",
+                            scene_id=scene_id,
+                            scene_title=scene_title,
+                            scene_path=scene_path,
                             changes=[],
                             error=str(batch_result),
                         )
@@ -113,25 +123,43 @@ class BatchProcessor:
             # Convert scenes to dictionaries for analysis
             batch_data = []
             for scene in batch:
-                scene_dict = {
-                    "id": scene.id,
-                    "title": scene.title,
-                    "file_path": scene.get_primary_path() or "",
-                    "details": scene.details,
-                    "duration": scene.duration,
-                    "width": scene.width,
-                    "height": scene.height,
-                    "frame_rate": scene.framerate,
-                    "performers": [
-                        {"id": p.id, "name": p.name} for p in scene.performers
-                    ],
-                    "tags": [{"id": t.id, "name": t.name} for t in scene.tags],
-                    "studio": (
-                        {"id": scene.studio.id, "name": scene.studio.name}
-                        if scene.studio
-                        else None
-                    ),
-                }
+                # Handle both Scene objects and dictionaries
+                if isinstance(scene, dict):
+                    # Scene is already a dictionary, just ensure it has the right structure
+                    scene_dict = {
+                        "id": scene.get("id"),
+                        "title": scene.get("title", ""),
+                        "file_path": scene.get("path", scene.get("file", {}).get("path", "")),
+                        "details": scene.get("details", ""),
+                        "duration": scene.get("file", {}).get("duration", 0),
+                        "width": scene.get("file", {}).get("width", 0),
+                        "height": scene.get("file", {}).get("height", 0),
+                        "frame_rate": scene.get("file", {}).get("frame_rate", 0),
+                        "performers": scene.get("performers", []),
+                        "tags": scene.get("tags", []),
+                        "studio": scene.get("studio"),
+                    }
+                else:
+                    # Scene is an object, convert it to dictionary
+                    scene_dict = {
+                        "id": scene.id,
+                        "title": scene.title,
+                        "file_path": scene.get_primary_path() or "",
+                        "details": scene.details,
+                        "duration": scene.duration,
+                        "width": scene.width,
+                        "height": scene.height,
+                        "frame_rate": scene.framerate,
+                        "performers": [
+                            {"id": p.id, "name": p.name} for p in scene.performers
+                        ],
+                        "tags": [{"id": t.id, "name": t.name} for t in scene.tags],
+                        "studio": (
+                            {"id": scene.studio.id, "name": scene.studio.name}
+                            if scene.studio
+                            else None
+                        ),
+                    }
                 batch_data.append(scene_dict)
 
             # Analyze the batch

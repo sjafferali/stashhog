@@ -239,7 +239,7 @@ class AnalysisService:
                 # Create Scene-like object for compatibility
                 class SceneLike:
                     def __init__(self, data: Dict[str, Any]) -> None:
-                        self.id = data["id"]
+                        self.id = data.get("id", "")
                         self.title = data.get("title", "")
                         self.path = data.get("file_path", "")
                         self.details = data.get("details", "")

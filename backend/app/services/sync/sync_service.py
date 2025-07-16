@@ -198,6 +198,13 @@ class SyncService:
             result.stats.scenes_skipped = scene_result.stats.scenes_skipped
             result.stats.scenes_failed = scene_result.stats.scenes_failed
 
+            # Report 100% progress before completing
+            if progress_callback:
+                await progress_callback(
+                    100,
+                    f"Sync completed. Processed {result.processed_items} items.",
+                )
+
             result.complete()
             await self._update_job_status(
                 job_id,
@@ -322,6 +329,13 @@ class SyncService:
                 offset += batch_size
 
             # Finalize sync
+            # Report 100% progress before completing
+            if progress_callback:
+                await progress_callback(
+                    100,
+                    f"Scene sync completed. Processed {result.processed_items} scenes.",
+                )
+
             result.complete()
             await self._update_last_sync_time("scene")
             if self._progress:

@@ -18,7 +18,7 @@ const SceneDetail: React.FC = () => {
   const analyzeMutation = useMutation(
     async () => {
       const response = await api.post('/analysis/generate', {
-        scene_ids: [parseInt(id || '0', 10)],
+        scene_ids: [id || '0'],
         plan_name: `Scene #${id} Analysis - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,

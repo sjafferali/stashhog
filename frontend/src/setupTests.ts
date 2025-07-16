@@ -4,6 +4,9 @@ import '@testing-library/jest-dom';
 // Mock dayjs
 jest.mock('dayjs');
 
+// Mock apiClient
+jest.mock('@/services/apiClient');
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

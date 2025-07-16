@@ -139,14 +139,18 @@ const SyncManagement: React.FC = () => {
       </Card>
 
       <Card title="Recent Sync History" style={{ marginTop: 16 }}>
-        <Timeline>
-          <Timeline.Item color="green">
-            Example sync completed - 2024-01-01 12:00:00
-          </Timeline.Item>
-          <Timeline.Item color="blue">
-            Example sync started - 2024-01-01 11:00:00
-          </Timeline.Item>
-        </Timeline>
+        <Timeline
+          items={[
+            {
+              color: 'green',
+              children: 'Example sync completed - 2024-01-01 12:00:00',
+            },
+            {
+              color: 'blue',
+              children: 'Example sync started - 2024-01-01 11:00:00',
+            },
+          ]}
+        />
       </Card>
     </div>
   );

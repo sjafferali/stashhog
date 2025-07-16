@@ -76,7 +76,7 @@ async def generate_analysis(
             query = query.where(and_(*conditions))
 
         result = await db.execute(query)
-        scene_ids = [row[0] for row in result]
+        scene_ids = [str(row[0]) for row in result]
 
     if not scene_ids:
         raise HTTPException(
