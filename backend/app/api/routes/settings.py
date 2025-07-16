@@ -2,7 +2,7 @@
 Application settings endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import openai
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -22,12 +22,12 @@ from app.services.stash_service import StashService
 router = APIRouter()
 
 
-@router.get("", response_model=List[Dict[str, Any]])
+@router.get("", response_model=list[dict[str, Any]])
 async def list_settings(
     db: AsyncSession = Depends(get_db),
     base_settings: Settings = Depends(get_settings),
     overridden_settings: Settings = Depends(get_settings_with_overrides),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get all application settings with source information.
     """
@@ -37,7 +37,7 @@ async def list_settings(
     db_settings = result.scalars().all()
 
     # Create a map of database settings
-    db_settings_map: Dict[str, Any] = {str(s.key): s.value for s in db_settings}
+    db_settings_map: dict[str, Any] = {str(s.key): s.value for s in db_settings}
 
     # Define settings to expose
     settings_config = [
@@ -74,6 +74,14 @@ async def list_settings(
             False,
         ),
         (
+            "openai_base_url",
+            "openai.base_url",
+            base_settings.openai.base_url,
+            overridden_settings.openai.base_url,
+            "OpenAI Base URL",
+            False,
+        ),
+        (
             "analysis_confidence_threshold",
             "analysis.confidence_threshold",
             base_settings.analysis.confidence_threshold,
@@ -99,7 +107,7 @@ async def list_settings(
         ),
     ]
 
-    settings_list: List[Dict[str, Any]] = []
+    settings_list: list[dict[str, Any]] = []
 
     for (
         key,
@@ -159,7 +167,7 @@ async def list_settings(
 
 
 @router.get("/{key}")
-async def get_setting(key: str, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def get_setting(key: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """
     Get a specific setting by key.
     """
@@ -182,7 +190,7 @@ async def get_setting(key: str, db: AsyncSession = Depends(get_db)) -> Dict[str,
 @router.put("/{key}")
 async def update_setting(
     key: str, update: Any = Body(...), db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Update a specific setting by key.
     """
@@ -212,8 +220,8 @@ async def update_setting(
 
 @router.put("")
 async def update_settings(
-    settings_update: Dict[str, Any], db: AsyncSession = Depends(get_db)
-) -> Dict[str, Any]:
+    settings_update: dict[str, Any], db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
     """
     Update application settings.
 
@@ -229,6 +237,7 @@ async def update_settings(
         "stash_api_key",
         "openai_api_key",
         "openai_model",
+        "openai_base_url",
         "analysis_confidence_threshold",
         "sync_incremental",
         "sync_batch_size",
@@ -284,7 +293,7 @@ async def test_stash_connection(
     api_key: Optional[str] = Body(None, description="API key to test"),
     stash_service: StashService = Depends(get_stash_service),
     settings: Settings = Depends(get_settings_with_overrides),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Test Stash connection.
     """
@@ -329,8 +338,9 @@ async def test_stash_connection(
 async def test_openai_connection(
     api_key: Optional[str] = Body(None, description="API key to test"),
     model: Optional[str] = Body(None, description="Model to test"),
+    base_url: Optional[str] = Body(None, description="Custom base URL to test"),
     settings: Settings = Depends(get_settings_with_overrides),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Test OpenAI connection.
     """
@@ -338,15 +348,22 @@ async def test_openai_connection(
         # Use provided credentials or defaults
         test_key = api_key or settings.openai.api_key
         test_model = model or settings.openai.model
+        test_base_url = base_url or settings.openai.base_url
 
         if not test_key:
             raise ValueError("No OpenAI API key configured")
 
-        # Test connection with a simple API call
-        openai.api_key = test_key
+        # Create client with optional custom base URL
+        if test_base_url:
+            client = openai.OpenAI(
+                api_key=test_key,
+                base_url=test_base_url,
+            )
+        else:
+            client = openai.OpenAI(api_key=test_key)
 
         # List available models
-        models = openai.models.list()
+        models = client.models.list()
         model_ids = [m.id for m in models.data]
 
         # Check if specified model is available
@@ -359,6 +376,7 @@ async def test_openai_connection(
             "message": "Successfully connected to OpenAI API",
             "details": {
                 "model": test_model,
+                "base_url": test_base_url or "https://api.openai.com/v1",
                 "available_models": model_ids[:10],  # First 10 models
                 "total_models": len(model_ids),
             },

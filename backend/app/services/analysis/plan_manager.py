@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
 from app.models.plan_change import ChangeAction, PlanChange
@@ -77,12 +76,8 @@ class PlanManager:
 
         await db.commit()
 
-        # Refresh the plan with eager loading of changes
-        query = (
-            select(AnalysisPlan)
-            .where(AnalysisPlan.id == plan.id)
-            .options(selectinload(AnalysisPlan.changes))
-        )
+        # Refresh the plan
+        query = select(AnalysisPlan).where(AnalysisPlan.id == plan.id)
         result = await db.execute(query)
         plan = result.scalar_one()
 
@@ -99,11 +94,7 @@ class PlanManager:
         Returns:
             Analysis plan or None
         """
-        query = (
-            select(AnalysisPlan)
-            .where(AnalysisPlan.id == plan_id)
-            .options(selectinload(AnalysisPlan.changes))
-        )
+        query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
 
         result = await db.execute(query)
         return result.scalar_one_or_none()

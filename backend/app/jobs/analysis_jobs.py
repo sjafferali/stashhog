@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 async def analyze_scenes_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
-    scene_ids: Optional[List[str]] = None,
-    options: Optional[Dict[str, Any]] = None,
+    scene_ids: Optional[list[str]] = None,
+    options: Optional[dict[str, Any]] = None,
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute scene analysis as a background job."""
     logger.info(
         f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
@@ -38,6 +38,7 @@ async def analyze_scenes_job(
         OpenAIClient(
             api_key=settings.openai.api_key,
             model=settings.openai.model,
+            base_url=settings.openai.base_url,
             max_tokens=settings.openai.max_tokens,
             temperature=settings.openai.temperature,
             timeout=settings.openai.timeout,
@@ -106,7 +107,7 @@ async def apply_analysis_plan_job(
     plan_id: str,
     auto_approve: bool = False,
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Apply an analysis plan as a background job."""
     logger.info(f"Starting apply_analysis_plan job {job_id} for plan {plan_id}")
 
@@ -122,6 +123,7 @@ async def apply_analysis_plan_job(
         OpenAIClient(
             api_key=settings.openai.api_key,
             model=settings.openai.model,
+            base_url=settings.openai.base_url,
             max_tokens=settings.openai.max_tokens,
             temperature=settings.openai.temperature,
             timeout=settings.openai.timeout,
@@ -162,10 +164,10 @@ async def apply_analysis_plan_job(
 async def analyze_all_unanalyzed_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
-    options: Optional[Dict[str, Any]] = None,
+    options: Optional[dict[str, Any]] = None,
     batch_size: int = 100,
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze all unanalyzed scenes as a background job."""
     logger.info(f"Starting analyze_all_unanalyzed job {job_id}")
 
@@ -206,6 +208,7 @@ async def analyze_all_unanalyzed_job(
                 OpenAIClient(
                     api_key=settings.openai.api_key,
                     model=settings.openai.model,
+                    base_url=settings.openai.base_url,
                     max_tokens=settings.openai.max_tokens,
                     temperature=settings.openai.temperature,
                     timeout=settings.openai.timeout,
@@ -252,9 +255,9 @@ async def analyze_all_unanalyzed_job(
 async def generate_scene_details_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
-    scene_ids: Optional[List[str]] = None,
+    scene_ids: Optional[list[str]] = None,
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate detailed information for scenes as a background job."""
     logger.info(
         f"Starting generate_scene_details job {job_id} for {len(scene_ids or [])} scenes"
@@ -272,6 +275,7 @@ async def generate_scene_details_job(
         OpenAIClient(
             api_key=settings.openai.api_key,
             model=settings.openai.model,
+            base_url=settings.openai.base_url,
             max_tokens=settings.openai.max_tokens,
             temperature=settings.openai.temperature,
             timeout=settings.openai.timeout,
@@ -308,7 +312,7 @@ async def generate_scene_details_job(
             if scene_data:
                 # Convert to Scene-like object
                 class SceneLike:
-                    def __init__(self, data: Dict[str, Any]) -> None:
+                    def __init__(self, data: dict[str, Any]) -> None:
                         self.id = data.get("id")
                         self.title = data.get("title", "")
                         self.path = data.get(

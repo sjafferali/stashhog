@@ -93,6 +93,11 @@ class TagDetector:
                 temperature=0.3,
             )
 
+            # Ensure response is the expected type
+            if not isinstance(response, TagSuggestionsResponse):
+                logger.error(f"Unexpected response type: {type(response)}")
+                return []
+
             results = []
             for tag in response.tags:
                 name = tag.name.strip()

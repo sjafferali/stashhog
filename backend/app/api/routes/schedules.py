@@ -327,17 +327,27 @@ async def get_all_schedule_runs(
     """Get run history for all schedules."""
     try:
         # Get jobs that were created by scheduled tasks
+        # First get all jobs with metadata, then filter for scheduled tasks
         result = await db.execute(
             select(Job)
-            .where(Job.job_metadata.has_key("scheduled_task_id"))
+            .where(Job.job_metadata.isnot(None))
             .order_by(Job.created_at.desc())
-            .limit(limit)
+            .limit(limit * 2)  # Get more to account for filtering
         )
         jobs = result.scalars().all()
 
+        # Filter for jobs that have scheduled_task_id in metadata
+        scheduled_jobs = [
+            job
+            for job in jobs
+            if job.job_metadata and "scheduled_task_id" in job.job_metadata
+        ][
+            :limit
+        ]  # Apply limit after filtering
+
         # Convert to run format
         runs = []
-        for job in jobs:
+        for job in scheduled_jobs:
             schedule_id = (
                 job.job_metadata.get("scheduled_task_id") if job.job_metadata else None
             )

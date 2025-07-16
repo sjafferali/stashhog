@@ -3,7 +3,7 @@ Application configuration and settings management.
 """
 
 from functools import lru_cache
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -68,6 +68,9 @@ class OpenAISettings(BaseSettings):
 
     api_key: Optional[str] = Field(None, description="OpenAI API key")
     model: str = Field("gpt-4", description="Model to use")
+    base_url: Optional[str] = Field(
+        None, description="Custom API endpoint for OpenAI-compatible services"
+    )
     max_tokens: int = Field(2000, description="Maximum tokens per request")
     temperature: float = Field(0.7, description="Temperature for generation")
     timeout: int = Field(60, description="API request timeout in seconds")
@@ -93,13 +96,13 @@ class SecuritySettings(BaseSettings):
 class CORSSettings(BaseSettings):
     """CORS configuration settings."""
 
-    origins: List[str] = Field(
+    origins: list[str] = Field(
         ["*"],
         description="Allowed origins",
     )
     credentials: bool = Field(True, description="Allow credentials")
-    methods: List[str] = Field(["*"], description="Allowed methods")
-    headers: List[str] = Field(["*"], description="Allowed headers")
+    methods: list[str] = Field(["*"], description="Allowed methods")
+    headers: list[str] = Field(["*"], description="Allowed headers")
 
     model_config = SettingsConfigDict(env_prefix="CORS_")
 
@@ -160,7 +163,7 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """
     Get cached settings instance.

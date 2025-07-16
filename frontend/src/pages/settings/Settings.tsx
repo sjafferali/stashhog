@@ -30,6 +30,7 @@ interface SettingsFormValues {
   stash_api_key?: string;
   openai_api_key?: string;
   openai_model?: string;
+  openai_base_url?: string;
   analysis_confidence_threshold?: number;
   analysis_detect_performers?: boolean;
   analysis_detect_studios?: boolean;
@@ -155,11 +156,16 @@ const Settings: React.FC = () => {
   const handleTestOpenAIConnection = async () => {
     try {
       setTestingOpenAI(true);
-      const values = form.getFieldsValue(['openai_api_key', 'openai_model']);
+      const values = form.getFieldsValue([
+        'openai_api_key',
+        'openai_model',
+        'openai_base_url',
+      ]);
 
       const response = await api.post('/settings/test-openai', {
         api_key: values.openai_api_key,
         model: values.openai_model,
+        base_url: values.openai_base_url,
       });
 
       if (response.data.success) {
@@ -264,6 +270,19 @@ const Settings: React.FC = () => {
                 { value: 'gpt-4', label: 'GPT-4' },
                 { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
               ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Custom API Endpoint"
+            name="openai_base_url"
+            tooltip="Optional: Override OpenAI API endpoint for custom/compatible services"
+          >
+            <Input
+              placeholder={
+                fieldPlaceholders.openai_base_url || 'https://api.openai.com/v1'
+              }
+              allowClear
             />
           </Form.Item>
 

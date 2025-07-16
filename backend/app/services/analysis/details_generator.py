@@ -62,6 +62,16 @@ class DetailsGenerator:
                 temperature=0.5,  # Slightly higher for more creative descriptions
             )
 
+            # Ensure response is the expected type
+            if not isinstance(response, DetailsResponse):
+                logger.error(f"Unexpected response type: {type(response)}")
+                return DetectionResult(
+                    value="",
+                    confidence=0.0,
+                    source="ai",
+                    metadata={"error": "Invalid response format"},
+                )
+
             description = response.description.strip()
             confidence = response.confidence
 
