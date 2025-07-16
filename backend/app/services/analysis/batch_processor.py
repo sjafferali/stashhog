@@ -80,12 +80,14 @@ class BatchProcessor:
                     if isinstance(scene, dict):
                         scene_id = str(scene.get("id", ""))
                         scene_title = str(scene.get("title", "Untitled"))
-                        scene_path = scene.get("path", scene.get("file", {}).get("path", ""))
+                        scene_path = scene.get(
+                            "path", scene.get("file", {}).get("path", "")
+                        )
                     else:
                         scene_id = str(scene.id)
                         scene_title = str(scene.title or "Untitled")
                         scene_path = scene.get_primary_path() or ""
-                    
+
                     results.append(
                         SceneChanges(
                             scene_id=scene_id,
@@ -129,7 +131,9 @@ class BatchProcessor:
                     scene_dict = {
                         "id": scene.get("id"),
                         "title": scene.get("title", ""),
-                        "file_path": scene.get("path", scene.get("file", {}).get("path", "")),
+                        "file_path": scene.get(
+                            "path", scene.get("file", {}).get("path", "")
+                        ),
                         "details": scene.get("details", ""),
                         "duration": scene.get("file", {}).get("duration", 0),
                         "width": scene.get("file", {}).get("width", 0),
