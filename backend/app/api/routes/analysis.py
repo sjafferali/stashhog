@@ -450,17 +450,20 @@ async def update_change_status(
         if rejected:
             change.applied = False  # type: ignore[assignment]
 
-    # Update plan status
+    # Update plan status - commit the change first
     await db.commit()
 
-    # Load the plan to update status
-    query = select(AnalysisPlan).where(AnalysisPlan.id == change.plan_id)
-    result = await db.execute(query)
-    plan = result.scalar_one()
+    # Refresh the change to ensure we have the latest data
+    await db.refresh(change)
 
+    # Load the plan to update status in a new query
+    plan_query = select(AnalysisPlan).where(AnalysisPlan.id == change.plan_id)
+    plan_result = await db.execute(plan_query)
+    plan = plan_result.scalar_one()
+
+    # Update plan status and commit
     plan.update_status_based_on_changes()
     await db.commit()
-    await db.refresh(change)
 
     return {
         "id": change.id,

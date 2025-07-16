@@ -1,0 +1,392 @@
+Project Overview
+
+    StashHog is a full-stack application that syncs and manages adult video metadata from a Stash server. It consists of:
+
+    - Backend: Python FastAPI application with SQLAlchemy ORM
+    - Frontend: React TypeScript application
+    - Database: SQLite by default, PostgreSQL supported
+
+    Key File Structure
+
+    stashhog/
+    ├── backend/
+    │   ├── app/
+    │   │   ├── api/
+    │   │   │   ├── routes/
+    │   │   │   │   └── scenes.py         # Scene API endpoints
+    │   │   │   └── schemas/
+    │   │   │       └── __init__.py       # Pydantic schemas including SceneResponse
+    │   │   ├── models/
+    │   │   │   ├── base.py              # BaseModel with created_at, updated_at
+    │   │   │   └── scene.py             # Scene model
+    │   │   ├── services/
+    │   │   │   ├── sync/
+    │   │   │   │   ├── scene_sync.py    # Scene sync handler
+    │   │   │   │   ├── strategies.py    # Sync strategies (Full, Incremental, Smart)
+    │   │   │   │   └── conflicts.py     # Conflict resolution
+    │   │   │   └── stash_service.py     # Stash API client
+    │   │   └── repositories/
+    │   │       └── sync_repository.py    # Database sync operations
+    │   ├── alembic/
+    │   │   └── versions/                 # Database migrations
+    │   └── tests/                        # Test files
+    ├── docs/                             # Documentation directory
+    └── frontend/
+        └── src/
+            ├── types/
+            │   └── models.ts             # TypeScript interfaces
+            ├── pages/
+            │   └── scenes/               # Scene-related components
+            └── services/
+                └── api.ts                # API client
+
+    Current Problem
+
+    The application has confusing and inconsistent date field naming that mixes StashHog's internal timestamps with data from the Stash server:
+
+    Current Fields in Scene Model
+
+    1. From BaseModel (StashHog internal):
+      - created_at: When the record was created in StashHog database
+      - updated_at: When the record was last modified in StashHog database
+    2. Scene-specific fields:
+      - created_date: Mapped from Stash's created_at (when scene was added to Stash)
+      - scene_date: Mapped from Stash's date (the actual date of the scene content)
+      - last_synced: When StashHog last synced this scene from Stash
+
+    What's Missing
+
+    - We're not storing Stash's updated_at field, which tells us when the scene was last modified in Stash
+    - Field naming is inconsistent and confusing (mixing _at and _date suffixes)
+    - It's unclear which fields come from Stash vs StashHog internal tracking
+
+    Proposed Solution
+
+    Implement a clear naming convention where all fields that come from Stash are prefixed with stash_:
+
+    New Field Structure
+
+    # StashHog internal timestamps (keep from BaseModel)
+    created_at       # When record was added to StashHog DB
+    updated_at       # When record was last modified in StashHog DB
+
+    # Stash-sourced timestamps (rename with stash_ prefix)
+    stash_created_at # When scene was created in Stash (currently created_date)
+    stash_updated_at # When scene was last updated in Stash (currently not stored)
+    stash_date       # Actual scene date/when filmed (currently scene_date)
+
+    # StashHog sync tracking (keep as is)
+    last_synced      # When StashHog last synced this scene
+
+    Implementation Tasks
+
+    1. Database Schema Changes
+
+    File: Create new migration /backend/alembic/versions/005_rename_stash_date_fields.py
+
+    """Rename date fields to use stash_ prefix for clarity
+
+    - Rename created_date to stash_created_at
+    - Rename scene_date to stash_date
+    - Add stash_updated_at column
+    """
+
+    def upgrade():
+        # Rename columns
+        op.alter_column('scene', 'created_date', new_column_name='stash_created_at')
+        op.alter_column('scene', 'scene_date', new_column_name='stash_date')
+
+        # Add new column
+        op.add_column('scene',
+            sa.Column('stash_updated_at', sa.DateTime(timezone=True), nullable=True)
+        )
+
+        # Update indexes
+        op.drop_index('idx_scene_organized_date', 'scene')
+        op.drop_index('idx_scene_studio_date', 'scene')
+        op.create_index('idx_scene_organized_date', 'scene', ['organized', 'stash_date'])
+        op.create_index('idx_scene_studio_date', 'scene', ['studio_id', 'stash_date'])
+
+    2. Model Updates
+
+    File: /backend/app/models/scene.py
+
+    Replace:
+    created_date = Column(DateTime(timezone=True), nullable=False)
+    scene_date = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    With:
+    stash_created_at = Column(DateTime(timezone=True), nullable=False)
+    stash_updated_at = Column(DateTime(timezone=True), nullable=True)
+    stash_date = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    Update indexes to use stash_date instead of scene_date.
+
+    3. Sync Strategy Updates
+
+    File: /backend/app/services/sync/strategies.py
+
+    In FullSyncStrategy._merge_scene_data() and SmartSyncStrategy._smart_merge_scene():
+
+    Replace:
+    # Set created_date from Stash's created_at field
+    created_at_str = remote_data.get("created_at")
+    if created_at_str:
+        scene.created_date = self._parse_datetime(created_at_str)
+    else:
+        scene.created_date = datetime.utcnow()
+
+    # Set scene_date from the date field
+    date_str = remote_data.get("date")
+    if date_str:
+        scene.scene_date = self._parse_datetime(date_str)
+    else:
+        scene.scene_date = None
+
+    scene.updated_at = datetime.utcnow()
+
+    With:
+    # Set Stash timestamps
+    created_at_str = remote_data.get("created_at")
+    if created_at_str:
+        scene.stash_created_at = self._parse_datetime(created_at_str)
+    else:
+        scene.stash_created_at = datetime.utcnow()
+
+    updated_at_str = remote_data.get("updated_at")
+    if updated_at_str:
+        scene.stash_updated_at = self._parse_datetime(updated_at_str)
+
+    date_str = remote_data.get("date")
+    if date_str:
+        scene.stash_date = self._parse_datetime(date_str)
+    else:
+        scene.stash_date = None
+
+    # Don't overwrite scene.updated_at - let SQLAlchemy handle it
+
+    Update IncrementalSyncStrategy to compare against stash_updated_at instead of updated_at.
+
+    4. API Schema Updates
+
+    File: /backend/app/api/schemas/__init__.py
+
+    In SceneBase:
+    # Replace
+    created_date: datetime = Field(..., description="Creation date in Stash")
+    scene_date: Optional[datetime] = Field(None, description="Scene date")
+
+    # With
+    stash_created_at: datetime = Field(..., description="When scene was created in Stash")
+    stash_updated_at: Optional[datetime] = Field(None, description="When scene was last updated in Stash")
+    stash_date: Optional[datetime] = Field(None, description="Actual scene date (when filmed)")
+
+    5. API Route Updates
+
+    File: /backend/app/api/routes/scenes.py
+
+    In _transform_scene_to_response():
+    # Replace
+    created_date=scene.created_date,
+    scene_date=scene.scene_date,
+
+    # With
+    stash_created_at=scene.stash_created_at,
+    stash_updated_at=scene.stash_updated_at,
+    stash_date=scene.stash_date,
+
+    In _build_scene_filter_conditions() for date filtering:
+    # Replace references to scene_date
+    if filters.date_from:
+        conditions.append(Scene.stash_date >= filters.date_from)
+    if filters.date_to:
+        conditions.append(Scene.stash_date <= filters.date_to)
+
+    6. Repository Updates
+
+    File: /backend/app/repositories/sync_repository.py
+
+    Update any direct SQL operations to use new field names.
+
+    7. Frontend Updates
+
+    File: /frontend/src/types/models.ts
+
+    Update Scene interface:
+    export interface Scene {
+      // ... other fields ...
+
+      // Replace
+      created_date: string;
+      scene_date?: string;
+
+      // With
+      stash_created_at: string;
+      stash_updated_at?: string;
+      stash_date?: string;
+
+      last_synced: string;
+    }
+
+    Files to search and update:
+    - Any components displaying scene.created_date or scene.scene_date
+    - Search for: created_date, scene_date, createdDate, sceneDate
+    - Common locations:
+      - /frontend/src/pages/scenes/
+      - Any scene detail views
+      - Any scene list/table components
+
+    8. Database Compatibility
+
+    Ensure all changes are compatible with both SQLite and PostgreSQL:
+
+    Migration considerations:
+    - Use database-agnostic column types
+    - Test ALTER COLUMN syntax works on both databases
+    - For SQLite, which has limited ALTER TABLE support, may need to:
+      - Create new columns
+      - Copy data
+      - Drop old columns
+      - Rename new columns
+
+    Example SQLite-compatible migration approach:
+    def upgrade():
+        # Add new columns first
+        op.add_column('scene', sa.Column('stash_created_at', sa.DateTime(timezone=True), nullable=True))
+        op.add_column('scene', sa.Column('stash_updated_at', sa.DateTime(timezone=True), nullable=True))
+        op.add_column('scene', sa.Column('stash_date', sa.DateTime(timezone=True), nullable=True))
+
+        # Copy data
+        op.execute('UPDATE scene SET stash_created_at = created_date')
+        op.execute('UPDATE scene SET stash_date = scene_date')
+
+        # Drop old columns (may need to recreate table for SQLite)
+        # ... handle based on database type
+
+    9. Test Updates
+
+    Update all test files that reference these fields:
+    - /backend/tests/test_models.py
+    - /backend/tests/test_api_routes.py
+    - /backend/tests/test_services.py
+    - Any other test files creating Scene objects
+
+    10. Documentation
+
+    File: Create /docs/models.md
+
+    After completing all the above changes, create comprehensive documentation for the Scene model in the file /docs/models.md:
+
+    # StashHog Data Models
+
+    ## Scene Model
+
+    The Scene model represents a video file synced from a Stash server. It contains metadata about the video file, relationships to other entities, and tracking information
+  for
+    synchronization.
+
+    ### Fields
+
+    #### Identification
+    - `id` (String, Primary Key): Unique identifier from Stash
+
+    #### Basic Information
+    - `title` (String, Required): Scene title
+    - `details` (Text, Optional): Scene description/details
+    - `url` (String, Optional): Associated URL
+    - `rating` (Integer, Optional): Rating value (0-5)
+    - `organized` (Boolean, Default: False): Whether the scene is organized in Stash
+    - `analyzed` (Boolean, Default: False): Whether the scene has been analyzed by StashHog
+
+    #### File Information
+    - `paths` (JSON Array): List of file paths associated with the scene
+    - `duration` (Float, Optional): Video duration in seconds
+    - `size` (Integer, Optional): File size in bytes
+    - `width` (Integer, Optional): Video width in pixels
+    - `height` (Integer, Optional): Video height in pixels
+    - `framerate` (Float, Optional): Video frame rate (fps)
+    - `bitrate` (Integer, Optional): Video bitrate in kbps
+    - `codec` (String, Optional): Video codec name
+
+    #### Timestamps
+
+    ##### StashHog Internal (from BaseModel)
+    - `created_at` (DateTime): When the record was created in StashHog database
+    - `updated_at` (DateTime): When the record was last modified in StashHog database
+
+    ##### Stash Source Data
+    - `stash_created_at` (DateTime, Required): When the scene was created in Stash
+    - `stash_updated_at` (DateTime, Optional): When the scene was last updated in Stash
+    - `stash_date` (DateTime, Optional): The actual date of the scene content (when filmed)
+
+    ##### Sync Tracking
+    - `last_synced` (DateTime, Required): When StashHog last synced this scene from Stash
+    - `content_checksum` (String, Optional): Checksum for detecting content changes
+
+    #### Relationships
+    - `studio` (Many-to-One): The studio that produced the scene
+    - `performers` (Many-to-Many): Performers in the scene
+    - `tags` (Many-to-Many): Tags associated with the scene
+    - `plan_changes` (One-to-Many): Analysis plan changes for this scene
+
+    ### Indexes
+    - Primary key index on `id`
+    - Composite indexes for common query patterns:
+      - `idx_scene_organized_date`: (organized, stash_date)
+      - `idx_scene_studio_date`: (studio_id, stash_date)
+      - `idx_scene_sync_status`: (last_synced, organized)
+      - `idx_scene_analyzed`: (analyzed)
+      - `idx_scene_analyzed_organized`: (analyzed, organized)
+
+    ### Usage Notes
+
+    1. **Date Field Naming Convention**: All fields that come from Stash are prefixed with `stash_` to clearly distinguish them from StashHog's internal tracking fields.
+
+    2. **Sync Strategy**: The `stash_updated_at` field is used by the incremental sync strategy to determine if a scene needs to be updated.
+
+    3. **File Paths**: The `paths` field stores an array of file paths as some scenes may have multiple files (different qualities, formats, etc.).
+
+    4. **Nullable Fields**: Most metadata fields are nullable as they may not be available for all scenes or may not be extracted successfully.
+
+    Edge Cases and Considerations
+
+    1. Migration Safety:
+      - The migration must handle existing data
+      - Consider adding a data migration to populate stash_updated_at from updated_at for existing records
+    2. Incremental Sync Logic:
+      - Update IncrementalSyncStrategy to use stash_updated_at for comparison
+      - Ensure sync logic doesn't break for scenes without stash_updated_at
+    3. API Backward Compatibility:
+      - Consider if API needs to support old field names temporarily
+      - Update API documentation
+    4. Frontend Display:
+      - Check all places where dates are displayed
+      - Update any date formatting/display logic
+      - Check sorting by date fields
+    5. Search and Filtering:
+      - Update any search queries using date fields
+      - Update filter components in frontend
+    6. Conflict Resolution:
+      - Update /backend/app/services/sync/conflicts.py to handle new field names
+      - Ensure merge strategies work with renamed fields
+
+    Testing Checklist
+
+    1. Run database migration and verify schema changes
+    2. Test full sync from Stash - verify all date fields populate correctly
+    3. Test incremental sync - verify it uses stash_updated_at properly
+    4. Test API endpoints return new field names
+    5. Test frontend displays dates correctly
+    6. Test date filtering still works
+    7. Run all existing tests and fix any failures
+    8. Test with both SQLite and PostgreSQL databases
+
+    Additional Notes
+
+    - The last_synced field remains unchanged as it's StashHog-specific
+    - The BaseModel's created_at and updated_at remain unchanged as they track StashHog database operations
+    - Consider adding database constraints to ensure stash_created_at is always set
+    - Document the new field naming convention for future development
+
+    This refactoring will make it immediately clear which timestamps come from Stash vs StashHog's internal tracking, improving code maintainability and reducing confusion.
+

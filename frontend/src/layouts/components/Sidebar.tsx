@@ -92,17 +92,30 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       }
     }
 
-    // Check for prefix match in children
+    // Find all prefix matches and select the longest one
+    let longestMatch = '';
+    let longestMatchKey = '';
+
+    // Check prefix matches in children first (they should have priority)
     for (const item of menuItems) {
       if (item.children) {
-        const childPrefixMatch = item.children.find(
-          (child) => path.startsWith(child.key) && child.key !== '/'
-        );
-        if (childPrefixMatch) return [childPrefixMatch.key];
+        for (const child of item.children) {
+          if (
+            path.startsWith(child.key) &&
+            child.key !== '/' &&
+            child.key.length > longestMatch.length
+          ) {
+            longestMatch = child.key;
+            longestMatchKey = child.key;
+          }
+        }
       }
     }
 
-    // Check for prefix match in top-level items
+    // If we found a match in children, return it
+    if (longestMatchKey) return [longestMatchKey];
+
+    // Otherwise check for prefix match in top-level items
     const prefixMatch = menuItems.find(
       (item) => !item.children && path.startsWith(item.key) && item.key !== '/'
     );

@@ -73,7 +73,13 @@ class AIClient:
                 )
                 # Parse the response into the expected type
                 if isinstance(response, str):
-                    return response_format.model_validate_json(response)
+                    try:
+                        return response_format.model_validate_json(response)
+                    except Exception:
+                        logger.error(
+                            f"Failed to parse JSON response: {response[:200]}..."
+                        )
+                        raise
                 return response_format.model_validate(response)
             else:
                 # For non-structured responses

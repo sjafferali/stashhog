@@ -65,12 +65,16 @@ class JobService:
                 if metadata:
                     handler_kwargs.update(metadata)
 
+                # Create an async progress callback
+                async def async_progress_callback(
+                    progress: int, message: Optional[str] = None
+                ) -> None:
+                    await self._update_job_progress(job_id, progress, message)
+
                 # Execute handler with job context
                 result = await handler(
                     job_id=job_id,
-                    progress_callback=lambda progress, message=None: self._update_job_progress(
-                        job_id, progress, message
-                    ),
+                    progress_callback=async_progress_callback,
                     **handler_kwargs,
                 )
 

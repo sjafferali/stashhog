@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 async def analyze_scenes_job(
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     scene_ids: Optional[list[str]] = None,
     options: Optional[dict[str, Any]] = None,
     **kwargs: Any,

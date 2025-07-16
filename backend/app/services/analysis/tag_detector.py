@@ -118,7 +118,10 @@ class TagDetector:
             return filtered_results
 
         except Exception as e:
-            logger.error(f"AI tag detection error: {e}")
+            logger.error(f"AI tag detection error: {e}", exc_info=True)
+            # Try to provide more context about the error
+            if hasattr(e, "__class__"):
+                logger.error(f"Error type: {e.__class__.__name__}")
             return []
 
     def detect_technical_tags(
