@@ -20,6 +20,7 @@ const Analysis: React.FC = () => {
         filters: {
           organized: false,
         },
+        plan_name: `Batch Analysis - Unorganized Scenes - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
           detect_studios: true,

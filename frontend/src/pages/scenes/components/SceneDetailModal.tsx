@@ -63,6 +63,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     async () => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [scene.id],
+        plan_name: `Scene #${scene.id} Analysis - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
           detect_studios: true,

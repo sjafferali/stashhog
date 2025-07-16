@@ -19,6 +19,7 @@ const SceneDetail: React.FC = () => {
     async () => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [parseInt(id || '0', 10)],
+        plan_name: `Scene #${id} Analysis - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
           detect_studios: true,

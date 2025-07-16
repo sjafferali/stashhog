@@ -50,6 +50,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     async (sceneIds: string[]) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: sceneIds.map((id) => parseInt(id, 10)),
+        plan_name: `Bulk Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
           detect_studios: true,
