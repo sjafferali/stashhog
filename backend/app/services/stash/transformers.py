@@ -6,6 +6,23 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _extract_paths_list(paths_data: Optional[Any]) -> List[str]:
+    """Extract paths list from either dict or list format."""
+    if not paths_data:
+        return []
+
+    # Handle paths as a dictionary (new format from Stash API)
+    if isinstance(paths_data, dict):
+        # Return URLs from the dictionary as a list
+        return [url for url in paths_data.values() if url]
+
+    # Handle paths as a list (legacy format)
+    elif isinstance(paths_data, list):
+        return [p.get("path", "") for p in paths_data if isinstance(p, dict)]
+
+    return []
+
+
 def transform_scene(stash_scene: Dict) -> Dict:
     """Convert Stash scene to internal format."""
     if not stash_scene:
@@ -17,10 +34,15 @@ def transform_scene(stash_scene: Dict) -> Dict:
 
     # Extract primary path
     primary_path = ""
-    if stash_scene.get("paths"):
-        primary_path = (
-            stash_scene["paths"][0].get("path", "") if stash_scene["paths"] else ""
-        )
+    paths_data = stash_scene.get("paths")
+    if paths_data:
+        # Handle paths as a dictionary (new format from Stash API)
+        if isinstance(paths_data, dict):
+            # Use stream path as primary if available
+            primary_path = paths_data.get("stream", "")
+        # Handle paths as a list (legacy format)
+        elif isinstance(paths_data, list) and len(paths_data) > 0:
+            primary_path = paths_data[0].get("path", "")
 
     # Transform to internal format
     logger.debug(f"Transforming scene {scene_id} to internal format")
@@ -29,7 +51,7 @@ def transform_scene(stash_scene: Dict) -> Dict:
             "id": stash_scene.get("id"),
             "title": stash_scene.get("title", ""),
             "path": primary_path,
-            "paths": [p.get("path", "") for p in stash_scene.get("paths", [])],
+            "paths": _extract_paths_list(stash_scene.get("paths")),
             "details": stash_scene.get("details"),
             "date": stash_scene.get("date"),
             "rating": stash_scene.get("rating100"),
