@@ -124,6 +124,8 @@ query AllPerformers {
         hair_color
         weight
         ignore_auto_tag
+        created_at
+        updated_at
     }
 }
 """
@@ -143,6 +145,8 @@ query AllTags {
         movie_count
         gallery_count
         image_count
+        created_at
+        updated_at
     }
 }
 """
@@ -159,6 +163,8 @@ query AllStudios {
         scene_count
         ignore_auto_tag
         aliases
+        created_at
+        updated_at
     }
 }
 """
@@ -253,6 +259,88 @@ query FindStudios($filter: StudioFilterType!) {
             details
             rating100
             scene_count
+        }
+    }
+}
+"""
+
+# Find performers with updated_at filter
+FIND_PERFORMERS_BY_UPDATED = """
+query FindPerformers($filter: PerformerFilterType!) {
+    findPerformers(performer_filter: $filter) {
+        count
+        performers {
+            id
+            name
+            gender
+            url
+            twitter
+            instagram
+            birthdate
+            ethnicity
+            country
+            eye_color
+            height_cm
+            measurements
+            fake_tits
+            career_length
+            tattoos
+            piercings
+            alias_list
+            favorite
+            rating100
+            details
+            death_date
+            hair_color
+            weight
+            ignore_auto_tag
+            created_at
+            updated_at
+        }
+    }
+}
+"""
+
+# Find tags with updated_at filter
+FIND_TAGS_BY_UPDATED = """
+query FindTags($filter: TagFilterType!) {
+    findTags(tag_filter: $filter) {
+        count
+        tags {
+            id
+            name
+            description
+            aliases
+            ignore_auto_tag
+            scene_count
+            performer_count
+            studio_count
+            movie_count
+            gallery_count
+            image_count
+            created_at
+            updated_at
+        }
+    }
+}
+"""
+
+# Find studios with updated_at filter  
+FIND_STUDIOS_BY_UPDATED = """
+query FindStudios($filter: StudioFilterType!) {
+    findStudios(studio_filter: $filter) {
+        count
+        studios {
+            id
+            name
+            url
+            details
+            rating100
+            scene_count
+            ignore_auto_tag
+            aliases
+            created_at
+            updated_at
         }
     }
 }

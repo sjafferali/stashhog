@@ -3,6 +3,20 @@ import { message } from 'antd';
 import api from '@/services/api';
 import type { SceneChanges } from '@/components/analysis';
 
+// Raw API response types
+interface RawChange {
+  field: string;
+  current_value: string | number | boolean | string[] | Record<string, unknown> | null;
+  proposed_value: string | number | boolean | string[] | Record<string, unknown> | null;
+  confidence: number;
+}
+
+interface RawScene {
+  scene_id: string;
+  scene_title?: string;
+  changes: RawChange[];
+}
+
 export interface PlanDetailData {
   id: number;
   name: string;
@@ -100,9 +114,9 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
       // Transform the data to match expected format
       const transformedData: PlanDetailData = {
         ...rawData,
-        scenes: rawData.scenes.map((scene: any) => ({
+        scenes: rawData.scenes.map((scene: RawScene) => ({
           ...scene,
-          changes: scene.changes.map((change: any, index: number) => ({
+          changes: scene.changes.map((change: RawChange, index: number) => ({
             id: `${scene.scene_id}-${change.field}-${index}`,
             sceneId: scene.scene_id,
             field: change.field,

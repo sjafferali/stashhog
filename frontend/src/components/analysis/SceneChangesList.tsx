@@ -242,7 +242,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     );
   };
 
-  const renderValue = (value: any, type: string) => {
+  const renderValue = (value: string | number | boolean | string[] | Record<string, unknown> | null | undefined, type: string) => {
     if (value === null || value === undefined) {
       return 'None';
     }

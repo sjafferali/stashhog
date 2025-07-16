@@ -212,7 +212,7 @@ class SyncScheduler:
                 job_id = str(uuid4())
                 job = Job(
                     id=job_id,
-                    type=JobType.SYNC_SCENES.value,
+                    type=JobType.SYNC.value,  # Use SYNC type for full incremental sync
                     status=JobStatus.RUNNING.value,
                     metadata={"incremental": True, "scheduled": True},
                     created_at=datetime.utcnow(),
@@ -227,19 +227,30 @@ class SyncScheduler:
                 )
                 sync_service = SyncService(stash_service, db)
 
-                # Get last sync time
-                last_sync = await sync_service._get_last_sync_time("scene")
-
-                result = await sync_service.sync_scenes(since=last_sync, job_id=job_id)
+                # Run incremental sync for all entities
+                result = await sync_service.sync_incremental(job_id=job_id)
 
                 # Update job
                 job.status = JobStatus.COMPLETED  # type: ignore[assignment]
                 job.completed_at = datetime.utcnow()  # type: ignore[assignment]
                 job.result = {  # type: ignore[assignment]
+                    "total_processed": result.processed_items,
+                    "total_created": result.created_items,
+                    "total_updated": result.updated_items,
+                    "total_failed": result.failed_items,
                     "scenes_processed": result.stats.scenes_processed,
                     "scenes_created": result.stats.scenes_created,
                     "scenes_updated": result.stats.scenes_updated,
                     "scenes_failed": result.stats.scenes_failed,
+                    "performers_processed": result.stats.performers_processed,
+                    "performers_created": result.stats.performers_created,
+                    "performers_updated": result.stats.performers_updated,
+                    "tags_processed": result.stats.tags_processed,
+                    "tags_created": result.stats.tags_created,
+                    "tags_updated": result.stats.tags_updated,
+                    "studios_processed": result.stats.studios_processed,
+                    "studios_created": result.stats.studios_created,
+                    "studios_updated": result.stats.studios_updated,
                 }
                 db.commit()
 

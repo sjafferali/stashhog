@@ -131,9 +131,7 @@ class IncrementalSyncStrategy(SyncStrategy):
         # Parse remote updated_at
         remote_updated = self._parse_datetime(remote_data.get("updated_at"))
         if not remote_updated:
-            # For entities without updated_at (performers, tags, studios),
-            # use checksum comparison to detect actual changes
-            return await self._should_sync_by_checksum(remote_data, local_entity)
+            return True
 
         # Compare with local updated_at
         local_updated = getattr(local_entity, "updated_at", None)
@@ -141,51 +139,6 @@ class IncrementalSyncStrategy(SyncStrategy):
             return True
 
         return bool(remote_updated > local_updated)
-    
-    async def _should_sync_by_checksum(
-        self, remote_data: Dict[str, Any], local_entity: Any
-    ) -> bool:
-        """Compare checksums when updated_at is not available"""
-        # Get entity type
-        from app.models import Performer, Tag, Studio
-        
-        if isinstance(local_entity, (Performer, Tag, Studio)):
-            # Calculate checksum of remote data
-            remote_checksum = self._calculate_entity_checksum(remote_data)
-            
-            # Get stored checksum
-            local_checksum = getattr(local_entity, "content_checksum", None)
-            
-            # If no local checksum or they differ, sync is needed
-            if not local_checksum or remote_checksum != local_checksum:
-                return True
-                
-        return False
-    
-    def _calculate_entity_checksum(self, data: Dict[str, Any]) -> str:
-        """Calculate checksum for entity data"""
-        import hashlib
-        import json
-        
-        # Select fields that matter for comparison
-        important_fields = {
-            "name", "aliases", "url", "details", "rating", "favorite",
-            "gender", "birthdate", "country", "ethnicity", "hair_color",
-            "eye_color", "height", "weight", "measurements", "fake_tits",
-            "career_length", "tattoos", "piercings", "twitter", "instagram",
-            "ignore_auto_tag", "description"
-        }
-        
-        checksum_data = {
-            k: v for k, v in data.items() 
-            if k in important_fields and v is not None
-        }
-        
-        # Convert to stable JSON string
-        json_str = json.dumps(checksum_data, sort_keys=True, default=str)
-        
-        # Calculate SHA256 hash
-        return hashlib.sha256(json_str.encode()).hexdigest()
 
     async def merge_data(self, local_entity: Any, remote_data: Dict[str, Any]) -> Any:
         strategy = FullSyncStrategy()

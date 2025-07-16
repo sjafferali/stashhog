@@ -45,6 +45,18 @@ class EntitySyncHandler:
 
         return stats
 
+    async def sync_performers_incremental(
+        self, since: datetime, db: Session
+    ) -> Dict[str, int]:
+        """Sync performers updated since a specific time"""
+        logger.info(f"Syncing performers updated since {since}")
+        
+        # Get performers updated since the given time
+        stash_performers = await self.stash_service.get_performers_since(since)
+        
+        # Use regular sync method with the filtered list
+        return await self.sync_performers(stash_performers, db, force=False)
+
     async def sync_tags(
         self, stash_tags: List[Dict[str, Any]], db: Session, force: bool = False
     ) -> Dict[str, int]:
@@ -65,6 +77,18 @@ class EntitySyncHandler:
 
         return stats
 
+    async def sync_tags_incremental(
+        self, since: datetime, db: Session
+    ) -> Dict[str, int]:
+        """Sync tags updated since a specific time"""
+        logger.info(f"Syncing tags updated since {since}")
+        
+        # Get tags updated since the given time
+        stash_tags = await self.stash_service.get_tags_since(since)
+        
+        # Use regular sync method with the filtered list
+        return await self.sync_tags(stash_tags, db, force=False)
+
     async def sync_studios(
         self, stash_studios: List[Dict[str, Any]], db: Session, force: bool = False
     ) -> Dict[str, int]:
@@ -84,6 +108,18 @@ class EntitySyncHandler:
                 stats["failed"] += 1
 
         return stats
+
+    async def sync_studios_incremental(
+        self, since: datetime, db: Session
+    ) -> Dict[str, int]:
+        """Sync studios updated since a specific time"""
+        logger.info(f"Syncing studios updated since {since}")
+        
+        # Get studios updated since the given time
+        stash_studios = await self.stash_service.get_studios_since(since)
+        
+        # Use regular sync method with the filtered list
+        return await self.sync_studios(stash_studios, db, force=False)
 
     async def find_or_create_entity(
         self, model_class: Type[T], entity_id: str, name: str, db: Session
@@ -171,12 +207,6 @@ class EntitySyncHandler:
         # Handle image URL
         if data.get("image_path"):
             performer.image_url = data["image_path"]
-        
-        # Store content checksum for incremental sync
-        if hasattr(performer, 'content_checksum'):
-            from .strategies import IncrementalSyncStrategy
-            strategy = IncrementalSyncStrategy()
-            performer.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     def _update_tag(self, tag: Tag, data: Dict[str, Any]) -> None:
         """Update tag-specific fields"""
@@ -191,12 +221,6 @@ class EntitySyncHandler:
             # We'll need to ensure the parent exists
             # This is handled in a separate pass to avoid circular dependencies
             tag.parent_temp_id = data["parent"]["id"]
-        
-        # Store content checksum for incremental sync
-        if hasattr(tag, 'content_checksum'):
-            from .strategies import IncrementalSyncStrategy
-            strategy = IncrementalSyncStrategy()
-            tag.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     def _update_studio(self, studio: Studio, data: Dict[str, Any]) -> None:
         """Update studio-specific fields"""
@@ -216,12 +240,6 @@ class EntitySyncHandler:
         # Handle image URL
         if data.get("image_path"):
             studio.image_url = data["image_path"]
-        
-        # Store content checksum for incremental sync
-        if hasattr(studio, 'content_checksum'):
-            from .strategies import IncrementalSyncStrategy
-            strategy = IncrementalSyncStrategy()
-            studio.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     async def resolve_tag_hierarchy(self, db: Session) -> None:
         """Resolve parent-child relationships for tags after all are synced"""

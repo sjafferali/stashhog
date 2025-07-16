@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.dependencies import get_db, get_settings, get_stash_service
+from app.core.dependencies import get_db, get_settings, get_settings_with_overrides, get_stash_service
 from app.models import Setting
 from app.services.stash_service import StashService
 
@@ -19,85 +19,76 @@ router = APIRouter()
 
 @router.get("", response_model=List[Dict[str, Any]])
 async def list_settings(
-    db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)
+    db: AsyncSession = Depends(get_db), 
+    base_settings: Settings = Depends(get_settings),
+    overridden_settings: Settings = Depends(get_settings_with_overrides)
 ) -> List[Dict[str, Any]]:
     """
-    Get all application settings.
+    Get all application settings with source information.
     """
     # Load settings from database
     query = select(Setting)
     result = await db.execute(query)
     db_settings = result.scalars().all()
+    
+    # Create a map of database settings
+    db_settings_map = {s.key: s.value for s in db_settings}
 
-    # Build list of settings for the test
-    settings_list: List[Dict[str, Any]] = [
-        {
-            "key": "app.name",
-            "value": settings.app.name,
-            "description": "Application name",
-        },
-        {
-            "key": "app.version",
-            "value": settings.app.version,
-            "description": "Application version",
-        },
-        {"key": "stash.url", "value": settings.stash.url, "description": "Stash URL"},
-        {
-            "key": "stash.api_key",
-            "value": "********" if settings.stash.api_key else None,
-            "description": "Stash API key",
-        },
-        {
-            "key": "openai.api_key",
-            "value": "********" if settings.openai.api_key else None,
-            "description": "OpenAI API key",
-        },
-        {
-            "key": "openai.model",
-            "value": settings.openai.model,
-            "description": "OpenAI model",
-        },
-        {
-            "key": "analysis.batch_size",
-            "value": settings.analysis.batch_size,
-            "description": "Analysis batch size",
-        },
-        {
-            "key": "analysis.confidence_threshold",
-            "value": settings.analysis.confidence_threshold,
-            "description": "Analysis confidence threshold",
-        },
-        {
-            "key": "security.secret_key",
-            "value": "********",
-            "description": "Secret key",
-        },
-        {
-            "key": "security.algorithm",
-            "value": settings.security.algorithm,
-            "description": "JWT algorithm",
-        },
+    # Define settings to expose
+    settings_config = [
+        ("stash_url", "stash.url", base_settings.stash.url, overridden_settings.stash.url, "Stash URL", False),
+        ("stash_api_key", "stash.api_key", base_settings.stash.api_key, overridden_settings.stash.api_key, "Stash API key", True),
+        ("openai_api_key", "openai.api_key", base_settings.openai.api_key, overridden_settings.openai.api_key, "OpenAI API key", True),
+        ("openai_model", "openai.model", base_settings.openai.model, overridden_settings.openai.model, "OpenAI model", False),
+        ("analysis_confidence_threshold", "analysis.confidence_threshold", base_settings.analysis.confidence_threshold, overridden_settings.analysis.confidence_threshold, "Analysis confidence threshold", False),
+        ("sync_incremental", "sync.incremental", True, db_settings_map.get("sync_incremental", True), "Enable incremental sync", False),
+        ("sync_batch_size", "sync.batch_size", 100, db_settings_map.get("sync_batch_size", 100), "Sync batch size", False),
     ]
-
-    # Add database settings
-    for setting in db_settings:
-        # Check if already in list
-        existing = next((s for s in settings_list if s["key"] == setting.key), None)
-        if not existing:
-            value = setting.value
-            if setting.key in [
-                "stash_api_key",
-                "openai_api_key",
-                "security.secret_key",
-            ]:
-                value = "********" if value else None  # type: ignore[assignment]
-            settings_list.append(
-                {
-                    "key": setting.key,
-                    "value": value,
-                    "description": setting.description or "",
-                }
-            )
+    
+    settings_list: List[Dict[str, Any]] = []
+    
+    for key, display_key, env_value, current_value, description, is_secret in settings_config:
+        # Determine source
+        if key in db_settings_map:
+            source = "database"
+            db_value = db_settings_map[key]
+        else:
+            source = "environment"
+            db_value = None
+            
+        # Handle secret masking
+        display_value = current_value
+        if is_secret and current_value:
+            display_value = "********"
+            
+        env_display_value = env_value
+        if is_secret and env_value:
+            env_display_value = "********"
+            
+        settings_list.append({
+            "key": display_key,
+            "value": display_value,
+            "description": description,
+            "source": source,
+            "env_value": env_display_value,
+            "db_value": "********" if is_secret and db_value else db_value,
+            "editable": True,
+        })
+    
+    # Add read-only settings
+    readonly_settings = [
+        ("app.name", base_settings.app.name, "Application name"),
+        ("app.version", base_settings.app.version, "Application version"),
+    ]
+    
+    for key, value, description in readonly_settings:
+        settings_list.append({
+            "key": key,
+            "value": value,
+            "description": description,
+            "source": "config",
+            "editable": False,
+        })
 
     return settings_list
 
@@ -160,8 +151,12 @@ async def update_settings(
 ) -> Dict[str, Any]:
     """
     Update application settings.
+    
+    Setting a value to null or empty string will delete it from database,
+    causing the system to use the environment variable default.
     """
     updated_fields = []
+    deleted_fields = []
 
     # Validate setting keys
     allowed_keys = {
@@ -186,27 +181,34 @@ async def update_settings(
         result = await db.execute(query)
         setting = result.scalar_one_or_none()
 
-        if setting:
-            # Update existing setting
-            setting.value = value
+        # Handle deletion (null or empty string)
+        if value is None or value == "":
+            if setting:
+                await db.delete(setting)
+                deleted_fields.append(key)
         else:
-            # Create new setting
-            setting = Setting(key=key, value=value)
-            db.add(setting)
-
-        updated_fields.append(key)
+            if setting:
+                # Update existing setting
+                setting.value = value
+                updated_fields.append(key)
+            else:
+                # Create new setting
+                setting = Setting(key=key, value=value)
+                db.add(setting)
+                updated_fields.append(key)
 
     await db.commit()
 
     # Determine if restart is needed
     requires_restart = any(
-        key in ["stash_url", "stash_api_key"] for key in updated_fields
+        key in ["stash_url", "stash_api_key"] for key in updated_fields + deleted_fields
     )
 
     return {
         "success": True,
         "message": "Settings updated successfully",
         "updated_fields": updated_fields,
+        "deleted_fields": deleted_fields,
         "requires_restart": requires_restart,
     }
 
@@ -216,7 +218,7 @@ async def test_stash_connection(
     url: Optional[str] = Body(None, description="Stash URL to test"),
     api_key: Optional[str] = Body(None, description="API key to test"),
     stash_service: StashService = Depends(get_stash_service),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings_with_overrides),
 ) -> Dict[str, Any]:
     """
     Test Stash connection.
@@ -262,7 +264,7 @@ async def test_stash_connection(
 async def test_openai_connection(
     api_key: Optional[str] = Body(None, description="API key to test"),
     model: Optional[str] = Body(None, description="Model to test"),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings_with_overrides),
 ) -> Dict[str, Any]:
     """
     Test OpenAI connection.

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -564,6 +564,123 @@ class SyncService:
 
         return result
 
+    async def sync_incremental(
+        self,
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Any] = None,
+    ) -> SyncResult:
+        """Perform incremental sync of all entities (scenes, performers, tags, studios)"""
+        job_id = job_id or str(uuid4())
+        logger.info(f"Starting incremental sync - job_id: {job_id}")
+        result = SyncResult(job_id=job_id, started_at=datetime.utcnow())
+
+        try:
+            # Get last sync time
+            last_sync = await self._get_last_sync_time("all")
+            if not last_sync:
+                # Fall back to 24 hours ago if no sync history
+                last_sync = datetime.utcnow() - timedelta(days=1)
+                logger.info(f"No sync history found, using 24 hours ago: {last_sync}")
+            
+            # Update job status
+            await self._update_job_status(
+                job_id, JobStatus.RUNNING, f"Starting incremental sync since {last_sync}"
+            )
+
+            # Report initial progress
+            if progress_callback:
+                await progress_callback(0, "Starting incremental sync")
+
+            # Sync entities first (performers, tags, studios)
+            logger.info("Syncing entities incrementally...")
+            entity_result = await self._sync_entities_incremental(last_sync)
+            
+            # Update result stats
+            result.stats.performers_processed = entity_result.get("performers", {}).get(
+                "processed", 0
+            )
+            result.stats.performers_created = entity_result.get("performers", {}).get(
+                "created", 0
+            )
+            result.stats.performers_updated = entity_result.get("performers", {}).get(
+                "updated", 0
+            )
+            result.stats.tags_processed = entity_result.get("tags", {}).get(
+                "processed", 0
+            )
+            result.stats.tags_created = entity_result.get("tags", {}).get("created", 0)
+            result.stats.tags_updated = entity_result.get("tags", {}).get("updated", 0)
+            result.stats.studios_processed = entity_result.get("studios", {}).get(
+                "processed", 0
+            )
+            result.stats.studios_created = entity_result.get("studios", {}).get(
+                "created", 0
+            )
+            result.stats.studios_updated = entity_result.get("studios", {}).get(
+                "updated", 0
+            )
+
+            # Report progress
+            if progress_callback:
+                await progress_callback(50, "Entities synced, syncing scenes...")
+
+            # Sync scenes
+            logger.info("Syncing scenes incrementally...")
+            scene_result = await self.sync_scenes(
+                since=last_sync,
+                job_id=job_id,
+                progress_callback=progress_callback
+            )
+            
+            # Update result stats
+            result.stats.scenes_processed = scene_result.processed_items
+            result.stats.scenes_created = scene_result.created_items
+            result.stats.scenes_updated = scene_result.updated_items
+            result.stats.scenes_failed = scene_result.failed_items
+
+            # Calculate totals
+            result.total_items = (
+                result.stats.performers_processed
+                + result.stats.tags_processed
+                + result.stats.studios_processed
+                + result.stats.scenes_processed
+            )
+            result.processed_items = result.total_items
+            result.created_items = (
+                result.stats.performers_created
+                + result.stats.tags_created
+                + result.stats.studios_created
+                + result.stats.scenes_created
+            )
+            result.updated_items = (
+                result.stats.performers_updated
+                + result.stats.tags_updated
+                + result.stats.studios_updated
+                + result.stats.scenes_updated
+            )
+            result.failed_items = result.stats.scenes_failed
+
+            # Complete
+            result.complete()
+            
+            # Update job status
+            await self._update_job_status(
+                job_id, JobStatus.COMPLETED, "Incremental sync completed"
+            )
+
+            logger.info(
+                f"Incremental sync completed - Total: {result.total_items}, "
+                f"Created: {result.created_items}, Updated: {result.updated_items}"
+            )
+
+        except Exception as e:
+            logger.error(f"Incremental sync failed: {str(e)}")
+            result.status = SyncStatus.FAILED
+            result.add_error("sync", job_id, str(e))
+            await self._update_job_status(job_id, JobStatus.FAILED, str(e))
+
+        return result
+
     async def sync_studios(
         self,
         job_id: Optional[str] = None,
@@ -742,6 +859,63 @@ class SyncService:
                 "created": 0,
                 "updated": 0,
             }
+
+        return results
+
+    async def _sync_entities_incremental(self, since: datetime) -> Dict[str, Any]:
+        """Sync performers, tags, and studios that have been updated since a specific time"""
+        logger.info(f"Incremental entity sync since {since}")
+        results: Dict[str, Any] = {}
+
+        # Sync performers
+        try:
+            results["performers"] = await self.entity_handler.sync_performers_incremental(
+                since, self.db
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync performers: {str(e)}")
+            results["performers"] = {
+                "error": str(e),
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+            }
+
+        # Sync tags
+        try:
+            results["tags"] = await self.entity_handler.sync_tags_incremental(
+                since, self.db
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync tags: {str(e)}")
+            results["tags"] = {
+                "error": str(e),
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+            }
+
+        # Sync studios
+        try:
+            results["studios"] = await self.entity_handler.sync_studios_incremental(
+                since, self.db
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync studios: {str(e)}")
+            results["studios"] = {
+                "error": str(e),
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+            }
+
+        # Resolve hierarchies
+        try:
+            await self.entity_handler.resolve_tag_hierarchy(self.db)
+            await self.entity_handler.resolve_studio_hierarchy(self.db)
+            logger.info("Resolved entity hierarchies")
+        except Exception as e:
+            logger.error(f"Failed to resolve hierarchies: {str(e)}")
 
         return results
 

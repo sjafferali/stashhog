@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.database import get_db as get_sync_db
+from app.models import Setting
+from sqlalchemy import select
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.job_service import JobService
 from app.services.openai_client import OpenAIClient
@@ -56,7 +58,91 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-def get_stash_client(settings: Settings = Depends(get_settings)) -> StashClient:
+async def get_settings_with_overrides(
+    db: AsyncSession = Depends(get_db),
+    base_settings: Settings = Depends(get_settings),
+) -> Settings:
+    """
+    Get settings with database overrides.
+    
+    Database settings take precedence over environment variables.
+    If a setting is not in the database, fall back to environment variable.
+    
+    Args:
+        db: Database session
+        base_settings: Base settings from environment
+        
+    Returns:
+        Settings: Settings with database overrides applied
+    """
+    # Query all settings from database
+    result = await db.execute(select(Setting))
+    db_settings = result.scalars().all()
+    
+    # Create a copy of base settings
+    settings_dict = {
+        "stash": {
+            "url": base_settings.stash.url,
+            "api_key": base_settings.stash.api_key,
+            "timeout": base_settings.stash.timeout,
+            "max_retries": base_settings.stash.max_retries,
+        },
+        "openai": {
+            "api_key": base_settings.openai.api_key,
+            "model": base_settings.openai.model,
+            "max_tokens": base_settings.openai.max_tokens,
+            "temperature": base_settings.openai.temperature,
+            "timeout": base_settings.openai.timeout,
+        },
+        "analysis": {
+            "batch_size": base_settings.analysis.batch_size,
+            "max_concurrent": base_settings.analysis.max_concurrent,
+            "confidence_threshold": base_settings.analysis.confidence_threshold,
+            "enable_ai": base_settings.analysis.enable_ai,
+            "create_missing": base_settings.analysis.create_missing,
+        },
+    }
+    
+    # Apply database overrides
+    for setting in db_settings:
+        if setting.key == "stash_url" and setting.value:
+            settings_dict["stash"]["url"] = setting.value
+        elif setting.key == "stash_api_key" and setting.value:
+            settings_dict["stash"]["api_key"] = setting.value
+        elif setting.key == "openai_api_key" and setting.value:
+            settings_dict["openai"]["api_key"] = setting.value
+        elif setting.key == "openai_model" and setting.value:
+            settings_dict["openai"]["model"] = setting.value
+        elif setting.key == "analysis_confidence_threshold" and setting.value is not None:
+            settings_dict["analysis"]["confidence_threshold"] = float(setting.value)
+        elif setting.key == "sync_incremental" and setting.value is not None:
+            # Store this for sync service later
+            pass
+        elif setting.key == "sync_batch_size" and setting.value is not None:
+            # Store this for sync service later
+            pass
+    
+    # Create new settings instance with overrides
+    from app.core.config import StashSettings, OpenAISettings, AnalysisSettings
+    
+    overridden_settings = Settings(
+        app=base_settings.app,
+        database=base_settings.database,
+        stash=StashSettings(**settings_dict["stash"]),
+        openai=OpenAISettings(**settings_dict["openai"]),
+        analysis=AnalysisSettings(**settings_dict["analysis"]),
+        security=base_settings.security,
+        cors=base_settings.cors,
+        logging=base_settings.logging,
+        redis_url=base_settings.redis_url,
+        max_workers=base_settings.max_workers,
+        task_timeout=base_settings.task_timeout,
+    )
+    
+    return overridden_settings
+
+
+def get_stash_client(settings: Settings = Depends(get_settings_with_overrides)) -> StashClient:
     """
     Get Stash API client instance.
 
@@ -75,7 +161,7 @@ def get_stash_client(settings: Settings = Depends(get_settings)) -> StashClient:
 
 
 def get_openai_client(
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings_with_overrides),
 ) -> Optional[OpenAIClient]:
     """
     Get OpenAI client instance.
@@ -100,7 +186,7 @@ def get_openai_client(
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings_with_overrides),
 ) -> Optional[dict]:
     """
     Get current authenticated user (optional).
@@ -164,7 +250,7 @@ class PaginationParams:
         return (self.page - 1) * self.size
 
 
-def get_stash_service(settings: Settings = Depends(get_settings)) -> StashService:
+def get_stash_service(settings: Settings = Depends(get_settings_with_overrides)) -> StashService:
     """
     Get Stash service instance.
 
@@ -202,7 +288,7 @@ def get_sync_service(
 def get_analysis_service(
     openai_client: Optional[OpenAIClient] = Depends(get_openai_client),
     stash_service: StashService = Depends(get_stash_service),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(get_settings_with_overrides),
 ) -> AnalysisService:
     """
     Get Analysis service instance.

@@ -23,7 +23,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testingStash, setTestingStash] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
-  const [envWarning, setEnvWarning] = useState<string | null>(null);
+  const [fieldPlaceholders, setFieldPlaceholders] = useState<Record<string, string>>({});
 
   // Fetch current settings
   useEffect(() => {
@@ -35,21 +35,31 @@ const Settings: React.FC = () => {
         
         // Transform array of settings to object
         const settingsMap: Record<string, any> = {};
+        const placeholders: Record<string, string> = {};
+        
         settingsArray.forEach((setting: any) => {
           const key = setting.key.replace(/\./g, '_');
-          if (setting.value !== '********') {
+          
+          // Use actual value if from database, otherwise leave empty
+          if (setting.source === 'database' && setting.value !== '********') {
             settingsMap[key] = setting.value;
+          } else if (setting.key === 'openai_model' && setting.source === 'environment') {
+            // Special case: always show model value
+            settingsMap[key] = setting.value;
+          }
+          
+          // Set placeholder to show environment default
+          if (setting.source === 'environment' && setting.env_value) {
+            if (setting.env_value === '********') {
+              placeholders[key] = 'Using environment variable (hidden)';
+            } else {
+              placeholders[key] = `Default: ${setting.env_value}`;
+            }
           }
         });
         
-        // Check if settings are from environment variables
-        const hasEnvSettings = settingsArray.some((s: any) => 
-          s.key.includes('stash.url') || s.key.includes('openai.api_key')
-        );
-        
-        if (hasEnvSettings) {
-          setEnvWarning('Some settings are configured via environment variables. Changes made here may not persist after restart.');
-        }
+        // Store placeholders for later use
+        setFieldPlaceholders(placeholders);
         
         form.setFieldsValue(settingsMap);
       } catch (error) {
@@ -147,20 +157,10 @@ const Settings: React.FC = () => {
   return (
     <div>
       <h1>Settings</h1>
-      {envWarning && (
-        <Alert
-          message="Environment Variable Configuration Detected"
-          description={envWarning}
-          type="warning"
-          showIcon
-          closable
-          style={{ marginBottom: 16 }}
-        />
-      )}
       <Card>
         <Alert
-          message="Settings Status"
-          description="Currently functional settings: Stash URL, Stash API Key, OpenAI API Key, OpenAI Model, Analysis Confidence Threshold, Sync Incremental, and Sync Batch Size. Other settings shown in the UI are placeholders and not yet implemented."
+          message="Settings Behavior"
+          description="Settings use environment variables as defaults. Values entered here will override environment variables. Clear a field to use the environment variable default."
           type="info"
           showIcon
           style={{ marginBottom: 24 }}
@@ -183,7 +183,10 @@ const Settings: React.FC = () => {
             name="stash_url"
             rules={[{ required: true, message: 'Please enter the Stash URL' }]}
           >
-            <Input placeholder="http://localhost:9999" />
+            <Input 
+              placeholder={fieldPlaceholders.stash_url || "http://localhost:9999"}
+              allowClear
+            />
           </Form.Item>
 
           <Form.Item
@@ -191,7 +194,10 @@ const Settings: React.FC = () => {
             name="stash_api_key"
             tooltip="Optional if Stash doesn't require authentication"
           >
-            <Input.Password placeholder="Enter API key if required" />
+            <Input.Password 
+              placeholder={fieldPlaceholders.stash_api_key || "Enter API key if required"}
+              allowClear
+            />
           </Form.Item>
 
           <Form.Item>
@@ -213,7 +219,10 @@ const Settings: React.FC = () => {
               { required: true, message: 'Please enter your OpenAI API key' },
             ]}
           >
-            <Input.Password placeholder="sk-..." />
+            <Input.Password 
+              placeholder={fieldPlaceholders.openai_api_key || "sk-..."}
+              allowClear
+            />
           </Form.Item>
 
           <Form.Item label="Model" name="openai_model">
