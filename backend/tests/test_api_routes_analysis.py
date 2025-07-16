@@ -1,7 +1,7 @@
 """Tests for analysis API routes."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -309,7 +309,7 @@ class TestAnalysisRoutes:
         mock_result = Mock()
         mock_result.scalar_one = Mock(return_value=10)
         mock_db.execute.return_value = mock_result
-        
+
         response = client.get("/api/analysis/stats")
 
         assert response.status_code == 200

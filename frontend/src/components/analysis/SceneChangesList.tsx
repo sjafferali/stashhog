@@ -74,7 +74,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   onSelectionChange,
   onAcceptChange,
   onRejectChange,
-  onEditChange: _onEditChange
+  onEditChange: _onEditChange,
 }) => {
   const [expandedKeys, setExpandedKeys] = useState<string[]>(
     expandedByDefault
@@ -246,7 +246,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     if (value === null || value === undefined) {
       return 'None';
     }
-    
+
     if (type === 'array' && Array.isArray(value)) {
       if (value.length === 0) return 'None';
       if (value.length <= 3) {
@@ -254,11 +254,11 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       }
       return `${value.slice(0, 3).join(', ')}... (${value.length} items)`;
     }
-    
+
     if (type === 'object' && typeof value === 'object') {
       return JSON.stringify(value);
     }
-    
+
     return String(value);
   };
 
@@ -281,7 +281,15 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
               <div className={styles.changeHeader}>
                 <Space align="center">
                   <Text strong>{change.fieldLabel || change.field}</Text>
-                  <Tag color={change.confidence >= 0.8 ? 'green' : change.confidence >= 0.6 ? 'orange' : 'red'}>
+                  <Tag
+                    color={
+                      change.confidence >= 0.8
+                        ? 'green'
+                        : change.confidence >= 0.6
+                          ? 'orange'
+                          : 'red'
+                    }
+                  >
                     {Math.round(change.confidence * 100)}% confidence
                   </Tag>
                   {change.accepted && <Tag color="green">Accepted</Tag>}
@@ -293,45 +301,52 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
               </div>
               <div className={styles.changeValues}>
                 <div className={styles.valueRow}>
-                  <Text type="secondary" className={styles.valueLabel}>Current:</Text>
+                  <Text type="secondary" className={styles.valueLabel}>
+                    Current:
+                  </Text>
                   <Text className={styles.value}>
                     {renderValue(change.currentValue, change.type)}
                   </Text>
                 </div>
                 <div className={styles.arrow}>→</div>
                 <div className={styles.valueRow}>
-                  <Text type="secondary" className={styles.valueLabel}>Proposed:</Text>
+                  <Text type="secondary" className={styles.valueLabel}>
+                    Proposed:
+                  </Text>
                   <Text className={styles.value}>
                     {renderValue(change.proposedValue, change.type)}
                   </Text>
                 </div>
               </div>
-              {onAcceptChange && onRejectChange && !change.accepted && !change.rejected && (
-                <Space className={styles.changeActions}>
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAcceptChange(change.id);
-                    }}
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    size="small"
-                    danger
-                    icon={<CloseCircleOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRejectChange(change.id);
-                    }}
-                  >
-                    Reject
-                  </Button>
-                </Space>
-              )}
+              {onAcceptChange &&
+                onRejectChange &&
+                !change.accepted &&
+                !change.rejected && (
+                  <Space className={styles.changeActions}>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAcceptChange(change.id);
+                      }}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<CloseCircleOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRejectChange(change.id);
+                      }}
+                    >
+                      Reject
+                    </Button>
+                  </Space>
+                )}
             </div>
           </List.Item>
         )}

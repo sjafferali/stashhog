@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Form,
@@ -9,34 +9,171 @@ import {
   Space,
   Divider,
   InputNumber,
+  message,
+  Spin,
+  Alert,
 } from 'antd';
-import { SaveOutlined, ApiOutlined } from '@ant-design/icons';
+import { SaveOutlined, ApiOutlined, LoadingOutlined } from '@ant-design/icons';
+// import { apiClient } from '@/services/apiClient';
+import api from '@/services/api';
 
 const Settings: React.FC = () => {
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testingStash, setTestingStash] = useState(false);
+  const [testingOpenAI, setTestingOpenAI] = useState(false);
+  const [envWarning, setEnvWarning] = useState<string | null>(null);
 
-  const handleSave = (values: Record<string, unknown>) => {
-    console.log('Saving settings:', values);
+  // Fetch current settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/settings');
+        const settingsArray = response.data;
+        
+        // Transform array of settings to object
+        const settingsMap: Record<string, any> = {};
+        settingsArray.forEach((setting: any) => {
+          const key = setting.key.replace(/\./g, '_');
+          if (setting.value !== '********') {
+            settingsMap[key] = setting.value;
+          }
+        });
+        
+        // Check if settings are from environment variables
+        const hasEnvSettings = settingsArray.some((s: any) => 
+          s.key.includes('stash.url') || s.key.includes('openai.api_key')
+        );
+        
+        if (hasEnvSettings) {
+          setEnvWarning('Some settings are configured via environment variables. Changes made here may not persist after restart.');
+        }
+        
+        form.setFieldsValue(settingsMap);
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+        void message.error('Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    void fetchSettings();
+  }, [form]);
+
+  const handleSave = async (values: Record<string, unknown>) => {
+    try {
+      setSaving(true);
+      
+      // Transform form values to API format
+      const updates: Record<string, any> = {};
+      Object.entries(values).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          updates[key] = value;
+        }
+      });
+      
+      const response = await api.put('/settings', updates);
+      
+      if (response.data.requires_restart) {
+        void message.warning('Some settings require a server restart to take effect');
+      } else {
+        void message.success('Settings saved successfully');
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      void message.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleTestConnection = () => {
-    console.log('Testing connection...');
+  const handleTestStashConnection = async () => {
+    try {
+      setTestingStash(true);
+      const values = form.getFieldsValue(['stash_url', 'stash_api_key']);
+      
+      const response = await api.post('/settings/test-stash', {
+        url: values.stash_url,
+        api_key: values.stash_api_key,
+      });
+      
+      if (response.data.success) {
+        void message.success(response.data.message);
+      } else {
+        void message.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Failed to test Stash connection:', error);
+      void message.error('Failed to test Stash connection');
+    } finally {
+      setTestingStash(false);
+    }
   };
+  
+  const handleTestOpenAIConnection = async () => {
+    try {
+      setTestingOpenAI(true);
+      const values = form.getFieldsValue(['openai_api_key', 'openai_model']);
+      
+      const response = await api.post('/settings/test-openai', {
+        api_key: values.openai_api_key,
+        model: values.openai_model,
+      });
+      
+      if (response.data.success) {
+        void message.success(response.data.message);
+      } else {
+        void message.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Failed to test OpenAI connection:', error);
+      void message.error('Failed to test OpenAI connection');
+    } finally {
+      setTestingOpenAI(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div>
       <h1>Settings</h1>
+      {envWarning && (
+        <Alert
+          message="Environment Variable Configuration Detected"
+          description={envWarning}
+          type="warning"
+          showIcon
+          closable
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Card>
+        <Alert
+          message="Settings Status"
+          description="Currently functional settings: Stash URL, Stash API Key, OpenAI API Key, OpenAI Model, Analysis Confidence Threshold, Sync Incremental, and Sync Batch Size. Other settings shown in the UI are placeholders and not yet implemented."
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSave}
           initialValues={{
             openai_model: 'gpt-4',
-            openai_temperature: 0.7,
-            auto_analyze_new_scenes: false,
-            enable_websocket_notifications: true,
-            log_level: 'info',
+            analysis_confidence_threshold: 0.7,
+            sync_incremental: true,
+            sync_batch_size: 100,
           }}
         >
           <Divider orientation="left">Stash Configuration</Divider>
@@ -58,8 +195,12 @@ const Settings: React.FC = () => {
           </Form.Item>
 
           <Form.Item>
-            <Button icon={<ApiOutlined />} onClick={handleTestConnection}>
-              Test Connection
+            <Button 
+              icon={testingStash ? <LoadingOutlined /> : <ApiOutlined />} 
+              onClick={handleTestStashConnection}
+              loading={testingStash}
+            >
+              Test Stash Connection
             </Button>
           </Form.Item>
 
@@ -84,35 +225,55 @@ const Settings: React.FC = () => {
             />
           </Form.Item>
 
-          <Form.Item label="Temperature" name="openai_temperature">
-            <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
+          {/* Temperature and Max Tokens are not in allowed_keys, so removing them */}
+
+          <Form.Item>
+            <Button 
+              icon={testingOpenAI ? <LoadingOutlined /> : <ApiOutlined />} 
+              onClick={handleTestOpenAIConnection}
+              loading={testingOpenAI}
+            >
+              Test OpenAI Connection
+            </Button>
           </Form.Item>
 
-          <Form.Item label="Max Tokens" name="openai_max_tokens">
-            <InputNumber min={1} max={4000} style={{ width: '100%' }} />
-          </Form.Item>
+          <Divider orientation="left">Analysis Settings</Divider>
 
-          <Divider orientation="left">General Settings</Divider>
-
-          <Form.Item name="auto_analyze_new_scenes" valuePropName="checked">
-            <Switch /> Auto-analyze new scenes
-          </Form.Item>
-
-          <Form.Item
-            name="enable_websocket_notifications"
-            valuePropName="checked"
+          <Form.Item 
+            label="Confidence Threshold" 
+            name="analysis_confidence_threshold"
+            tooltip="Minimum confidence score for accepting AI suggestions"
           >
-            <Switch /> Enable WebSocket notifications
+            <InputNumber 
+              min={0} 
+              max={1} 
+              step={0.1} 
+              style={{ width: '100%' }}
+              formatter={(value?: number) => `${((value || 0) * 100).toFixed(0)}%`}
+              parser={(value?: string) => Number(value?.replace('%', '')) / 100}
+            />
           </Form.Item>
 
-          <Form.Item label="Log Level" name="log_level">
-            <Select
-              options={[
-                { value: 'debug', label: 'Debug' },
-                { value: 'info', label: 'Info' },
-                { value: 'warning', label: 'Warning' },
-                { value: 'error', label: 'Error' },
-              ]}
+          <Divider orientation="left">Sync Settings</Divider>
+
+          <Form.Item 
+            name="sync_incremental" 
+            valuePropName="checked"
+            tooltip="Only sync changed items instead of full sync"
+          >
+            <Switch /> Enable incremental sync
+          </Form.Item>
+
+          <Form.Item 
+            label="Sync Batch Size" 
+            name="sync_batch_size"
+            tooltip="Number of items to sync per batch"
+          >
+            <InputNumber 
+              min={10} 
+              max={1000} 
+              step={10}
+              style={{ width: '100%' }} 
             />
           </Form.Item>
 
@@ -122,10 +283,11 @@ const Settings: React.FC = () => {
                 type="primary"
                 icon={<SaveOutlined />}
                 onClick={() => form.submit()}
+                loading={saving}
               >
                 Save Settings
               </Button>
-              <Button onClick={() => form.resetFields()}>Reset</Button>
+              <Button onClick={() => form.resetFields()} disabled={saving}>Reset</Button>
             </Space>
           </Form.Item>
         </Form>

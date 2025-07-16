@@ -171,6 +171,12 @@ class EntitySyncHandler:
         # Handle image URL
         if data.get("image_path"):
             performer.image_url = data["image_path"]
+        
+        # Store content checksum for incremental sync
+        if hasattr(performer, 'content_checksum'):
+            from .strategies import IncrementalSyncStrategy
+            strategy = IncrementalSyncStrategy()
+            performer.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     def _update_tag(self, tag: Tag, data: Dict[str, Any]) -> None:
         """Update tag-specific fields"""
@@ -185,6 +191,12 @@ class EntitySyncHandler:
             # We'll need to ensure the parent exists
             # This is handled in a separate pass to avoid circular dependencies
             tag.parent_temp_id = data["parent"]["id"]
+        
+        # Store content checksum for incremental sync
+        if hasattr(tag, 'content_checksum'):
+            from .strategies import IncrementalSyncStrategy
+            strategy = IncrementalSyncStrategy()
+            tag.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     def _update_studio(self, studio: Studio, data: Dict[str, Any]) -> None:
         """Update studio-specific fields"""
@@ -204,6 +216,12 @@ class EntitySyncHandler:
         # Handle image URL
         if data.get("image_path"):
             studio.image_url = data["image_path"]
+        
+        # Store content checksum for incremental sync
+        if hasattr(studio, 'content_checksum'):
+            from .strategies import IncrementalSyncStrategy
+            strategy = IncrementalSyncStrategy()
+            studio.content_checksum = strategy._calculate_entity_checksum(data)  # type: ignore[assignment]
 
     async def resolve_tag_hierarchy(self, db: Session) -> None:
         """Resolve parent-child relationships for tags after all are synced"""

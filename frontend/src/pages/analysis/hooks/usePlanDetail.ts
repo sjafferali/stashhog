@@ -63,7 +63,10 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
   const [error, setError] = useState<Error | null>(null);
 
   // Helper function to determine field type
-  const getFieldType = (field: string, value: unknown): 'text' | 'array' | 'object' | 'date' | 'number' => {
+  const getFieldType = (
+    field: string,
+    value: unknown
+  ): 'text' | 'array' | 'object' | 'date' | 'number' => {
     if (field === 'date') return 'date';
     if (field === 'rating' || field === 'duration') return 'number';
     if (Array.isArray(value)) return 'array';

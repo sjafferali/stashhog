@@ -832,7 +832,7 @@ class TestErrorHandling:
         mock_result = Mock()
         mock_result.scalar_one = Mock(return_value=10)
         mock_db.execute.return_value = mock_result
-        
+
         response = client.get("/api/analysis/stats")
         assert response.status_code == 200
         data = response.json()
