@@ -140,7 +140,7 @@ class IncrementalSyncStrategy(SyncStrategy):
         else:
             # For other entities, use updated_at
             local_updated = getattr(local_entity, "updated_at", None)
-            
+
         if not local_updated:
             return True
 

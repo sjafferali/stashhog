@@ -95,8 +95,9 @@ def mock_scene():
     scene.duration = 3600
     scene.organized = True
     scene.analyzed = False
-    scene.created_date = datetime.utcnow()
-    scene.scene_date = datetime.utcnow()
+    scene.stash_created_at = datetime.utcnow()
+    scene.stash_updated_at = datetime.utcnow()
+    scene.stash_date = datetime.utcnow()
     scene.created_at = datetime.utcnow()
     scene.updated_at = datetime.utcnow()
     scene.last_synced = datetime.utcnow()
@@ -105,7 +106,6 @@ def mock_scene():
     scene.tags = []
     scene.studio = None
     # Metadata fields
-    scene.date = datetime.utcnow()
     scene.size = 1024000000
     scene.width = 1920
     scene.height = 1080
@@ -123,14 +123,14 @@ def mock_scene():
             "duration": scene.duration,
             "organized": scene.organized,
             "analyzed": scene.analyzed,
-            "created_date": scene.created_date,
-            "scene_date": scene.scene_date,
+            "stash_created_at": scene.stash_created_at,
+            "stash_updated_at": scene.stash_updated_at,
+            "stash_date": scene.stash_date,
             "last_synced": scene.last_synced,
             "performers": [],
             "tags": [],
             "studio": None,
             # Metadata fields
-            "date": scene.date,
             "size": scene.size,
             "width": scene.width,
             "height": scene.height,
@@ -244,14 +244,14 @@ class TestSceneRoutes:
             organized=True,
             analyzed=False,
             details="Scene details",
-            created_date=datetime.utcnow(),
-            scene_date=datetime.utcnow(),
+            stash_created_at=datetime.utcnow(),
+            stash_updated_at=datetime.utcnow(),
+            stash_date=datetime.utcnow(),
             last_synced=datetime.utcnow(),
             studio=mock_studio,
             performers=[mock_performer],
             tags=[mock_tag],
             # Metadata fields
-            date=datetime.utcnow(),
             duration=1800.5,
             size=1024000000,
             width=1920,

@@ -27,7 +27,7 @@ class TestBaseModel:
             id="scene123",
             title="Test Scene",
             paths=["/path/to/scene.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
 
@@ -62,15 +62,15 @@ class TestSceneModel:
             details="Test details",
             url="https://example.com",
             rating=85,
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
-        scene.date = "2023-01-01"
+        scene.stash_date = datetime.strptime("2023-01-01", "%Y-%m-%d")
 
         assert scene.title == "Test Scene"
         assert scene.paths == ["/videos/test.mp4"]
         assert scene.rating == 85
-        assert scene.date == "2023-01-01"
+        assert scene.stash_date == datetime.strptime("2023-01-01", "%Y-%m-%d")
 
     def test_scene_relationships(self):
         """Test scene relationships."""
@@ -78,7 +78,7 @@ class TestSceneModel:
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
         performer = Performer(id="p1", name="Performer 1", last_synced=datetime.now())
@@ -99,7 +99,7 @@ class TestSceneModel:
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
 
@@ -146,14 +146,14 @@ class TestPerformerModel:
             id="s1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
         scene2 = Scene(
             id="s2",
             title="Scene 2",
             paths=["/s2.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
 
@@ -213,7 +213,7 @@ class TestStudioModel:
             id="sc1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            created_date=datetime.now(),
+            stash_created_at=datetime.now(),
             last_synced=datetime.now(),
         )
 

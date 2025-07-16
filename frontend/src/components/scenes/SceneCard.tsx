@@ -152,7 +152,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
                 <span>
                   {scene.width}x{scene.height}
                 </span>
-                <span>{formatFileSize(scene.size)}</span>
+                <span>{formatFileSize(scene.size?.toString())}</span>
               </div>
 
               {showDetails && (

@@ -161,7 +161,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           </Descriptions.Item>
 
           <Descriptions.Item label="File Size">
-            {formatFileSize(fullScene?.size)}
+            {formatFileSize(fullScene?.size?.toString())}
           </Descriptions.Item>
 
           <Descriptions.Item label="Resolution">

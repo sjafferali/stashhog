@@ -2,6 +2,7 @@ export interface Scene {
   id: string;
   title: string;
   paths: string[];
+  path?: string; // Legacy support for single path
   organized: boolean;
   analyzed: boolean;
   details?: string;
@@ -9,7 +10,7 @@ export interface Scene {
   stash_updated_at?: string;
   stash_date?: string;
   last_synced: string;
-  
+
   // File properties
   duration?: number;
   size?: number;
@@ -18,12 +19,19 @@ export interface Scene {
   framerate?: number;
   bitrate?: number;
   video_codec?: string;
-  
+  codec?: string; // Alias for video_codec
+  date?: string;
+  phash?: string;
+  file_mod_time?: string;
+
   // Relationships
   studio?: Studio;
   performers: Performer[];
   tags: Tag[];
-  
+
+  // Analysis
+  analysis_results?: AnalysisResult[];
+
   // Additional fields from frontend usage
   url?: string;
   rating?: number;

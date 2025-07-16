@@ -125,7 +125,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
             <Divider>Scene Information</Divider>
             <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
               <Descriptions.Item label="Date">
-                {scene.stash_date ? new Date(scene.stash_date).toLocaleDateString() : 'N/A'}
+                {scene.stash_date
+                  ? new Date(scene.stash_date).toLocaleDateString()
+                  : 'N/A'}
                 {onEdit && (
                   <Button
                     type="link"
@@ -200,7 +202,6 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 {scene.video_codec || 'N/A'}
               </Descriptions.Item>
 
-
               <Descriptions.Item label="Organized">
                 <Tag color={scene.organized ? 'green' : 'red'}>
                   {scene.organized ? 'Yes' : 'No'}
@@ -261,7 +262,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               <Descriptions.Item label="File Path">
                 <Space>
                   <FolderOpenOutlined />
-                  <code>{scene.paths && scene.paths[0] || 'N/A'}</code>
+                  <code>{(scene.paths && scene.paths[0]) || 'N/A'}</code>
                 </Space>
               </Descriptions.Item>
 
@@ -280,7 +281,6 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 </Descriptions.Item>
               )}
 
-
               <Descriptions.Item label="Added to Stash">
                 {new Date(scene.stash_created_at).toLocaleString()}
               </Descriptions.Item>
@@ -288,7 +288,6 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               <Descriptions.Item label="Last Updated">
                 {new Date(scene.updated_at).toLocaleString()}
               </Descriptions.Item>
-
             </Descriptions>
           </Card>
         </Col>
@@ -296,7 +295,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
         <Col xs={24} lg={8}>
           {false && (
             <Card title="Analysis Results" className={styles.sideCard}>
-              {scene.analysis_results.map((result) => (
+              {scene.analysis_results?.map((result) => (
                 <div key={result.id} className={styles.analysisResult}>
                   <Tag color="blue">{result.plan?.name || 'Analysis'}</Tag>
                   <div className={styles.extractedData}>

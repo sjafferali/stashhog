@@ -169,14 +169,14 @@ class TestSceneRoutes:
                 organized=True,
                 analyzed=False,
                 details="Details 1",
-                created_date=datetime.utcnow(),
-                scene_date=datetime.utcnow(),
+                stash_created_at=datetime.utcnow(),
+                stash_updated_at=datetime.utcnow(),
+                stash_date=datetime.utcnow(),
                 studio=mock_studio,
                 performers=[mock_performer],
                 tags=[mock_tag],
                 last_synced=datetime.utcnow(),
                 # Metadata fields
-                date=datetime.utcnow(),
                 duration=1800.5,
                 size=1024000000,
                 width=1920,
@@ -194,14 +194,14 @@ class TestSceneRoutes:
                 organized=False,
                 analyzed=False,
                 details="Details 2",
-                created_date=datetime.utcnow(),
-                scene_date=datetime.utcnow(),
+                stash_created_at=datetime.utcnow(),
+                stash_updated_at=datetime.utcnow(),
+                stash_date=datetime.utcnow(),
                 studio=None,
                 performers=[],
                 tags=[],
                 last_synced=datetime.utcnow(),
                 # Metadata fields
-                date=None,
                 duration=2400.0,
                 size=2048000000,
                 width=3840,
@@ -254,14 +254,14 @@ class TestSceneRoutes:
             organized=True,
             analyzed=False,
             details="Test details",
-            created_date=datetime.utcnow(),
-            scene_date=datetime.utcnow(),
+            stash_created_at=datetime.utcnow(),
+            stash_updated_at=datetime.utcnow(),
+            stash_date=datetime.utcnow(),
             studio=mock_studio,
             performers=[mock_performer],
             tags=[mock_tag],
             last_synced=datetime.utcnow(),
             # Metadata fields
-            date=datetime.utcnow(),
             duration=1800.5,
             size=1024000000,
             width=1920,
@@ -322,9 +322,11 @@ class TestJobRoutes:
                 status=JobStatus.COMPLETED,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
+                started_at=datetime.utcnow(),
                 completed_at=datetime.utcnow(),
                 progress=100,
-                metadata={},
+                parameters={},
+                job_metadata={},
                 result=None,
                 error=None,
             ),
@@ -335,9 +337,11 @@ class TestJobRoutes:
                 status=JobStatus.RUNNING,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
+                started_at=datetime.utcnow(),
                 completed_at=None,
                 progress=50,
-                metadata={},
+                parameters={},
+                job_metadata={},
                 result=None,
                 error=None,
             ),
@@ -365,11 +369,13 @@ class TestJobRoutes:
             type=JobType.SYNC,
             status=JobStatus.COMPLETED,
             progress=100,
-            metadata={},
+            parameters={},
+            job_metadata={},
             result=None,
             error=None,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
             completed_at=datetime.utcnow(),
         )
 
@@ -586,6 +592,7 @@ class TestSyncRoutes:
         mock_job.completed_at = None
         mock_job.result = None
         mock_job.error = None
+        mock_job.parameters = {}
         mock_job_service.create_job = AsyncMock(return_value=mock_job)
 
         response = client.post("/api/sync/all")
@@ -607,6 +614,7 @@ class TestSyncRoutes:
         mock_job.completed_at = None
         mock_job.result = None
         mock_job.error = None
+        mock_job.parameters = {}
         mock_job_service.create_job = AsyncMock(return_value=mock_job)
 
         response = client.post("/api/sync/scenes")

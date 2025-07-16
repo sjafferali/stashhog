@@ -125,7 +125,13 @@ export const GridView: React.FC<GridViewProps> = ({
             >
               <Card.Meta
                 title={
-                  <Tooltip title={scene.title || (scene.paths && scene.paths[0]) || 'Untitled'}>
+                  <Tooltip
+                    title={
+                      scene.title ||
+                      (scene.paths && scene.paths[0]) ||
+                      'Untitled'
+                    }
+                  >
                     <Text ellipsis>{scene.title || 'Untitled'}</Text>
                   </Tooltip>
                 }
