@@ -164,7 +164,7 @@ async def generate_analysis(
             confidence_threshold=request.options.confidence_threshold,
         )
         plan = await analysis_service.analyze_scenes(
-            scene_ids=scene_ids, options=service_options
+            scene_ids=scene_ids, options=service_options, plan_name=request.plan_name
         )
         return {
             "plan_id": plan.id,

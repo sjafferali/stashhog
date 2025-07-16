@@ -2,6 +2,7 @@
 Scene management endpoints.
 """
 
+import os
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -84,9 +85,15 @@ def _apply_scene_sorting(query: Any, pagination: PaginationParams) -> Any:
 
 def _transform_scene_to_response(scene: Scene) -> SceneResponse:
     """Transform Scene model to SceneResponse."""
+    # Use filename if title is empty or blank
+    title = scene.title
+    if not title or not title.strip():
+        if scene.paths and len(scene.paths) > 0:
+            title = os.path.basename(scene.paths[0])
+
     return SceneResponse(
         id=scene.id,  # type: ignore[arg-type]
-        title=scene.title,  # type: ignore[arg-type]
+        title=title,  # type: ignore[arg-type]
         paths=scene.paths,  # type: ignore[arg-type]
         organized=scene.organized,  # type: ignore[arg-type]
         analyzed=scene.analyzed,  # type: ignore[arg-type]

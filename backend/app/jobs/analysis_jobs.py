@@ -50,6 +50,9 @@ async def analyze_scenes_job(
     # Convert options dict to AnalysisOptions
     analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
 
+    # Extract plan_name from kwargs if provided
+    plan_name = kwargs.get("plan_name")
+
     # Execute analysis with progress callback
     async with AsyncSessionLocal() as db:
         if openai_client is None:
@@ -64,6 +67,7 @@ async def analyze_scenes_job(
             job_id=job_id,
             db=db,
             progress_callback=progress_callback,
+            plan_name=plan_name,
         )
 
         # Calculate summary while still in session

@@ -12,6 +12,7 @@ from app.models.job import JobStatus
 from app.models.scene import Scene
 from app.services.openai_client import OpenAIClient
 from app.services.stash_service import StashService
+from app.services.sync.scene_sync_utils import SceneSyncUtils
 
 from .ai_client import AIClient
 from .batch_processor import BatchProcessor
@@ -48,6 +49,7 @@ class AnalysisService:
         """
         self.stash_service = stash_service
         self.settings = settings
+        self.scene_sync_utils = SceneSyncUtils(stash_service)
 
         # Initialize AI client
         self.ai_client = AIClient(openai_client)
@@ -81,6 +83,7 @@ class AnalysisService:
         job_id: Optional[str] = None,
         db: Optional[AsyncSession] = None,
         progress_callback: Optional[Any] = None,
+        plan_name: Optional[str] = None,
     ) -> AnalysisPlan:
         """Analyze scenes and generate a plan with proposed changes.
 
@@ -90,6 +93,7 @@ class AnalysisService:
             options: Analysis options
             job_id: Associated job ID for progress tracking
             db: Database session for saving plan
+            plan_name: Optional custom name for the plan
 
         Returns:
             Generated analysis plan
@@ -104,28 +108,15 @@ class AnalysisService:
         logger.debug(
             f"analyze_scenes called with scene_ids: {scene_ids}, filters: {filters}"
         )
-        if scene_ids:
-            logger.debug(f"Getting scenes by IDs: {scene_ids}")
-            scenes = await self._get_scenes_by_ids(scene_ids)
-        else:
-            logger.debug(f"Getting scenes by filters: {filters}")
-            scenes = await self._get_scenes_by_filters(filters)
+
+        if not db:
+            raise ValueError("Database session is required for scene analysis")
+
+        # Sync scenes from Stash to database first
+        scenes = await self._sync_and_get_scenes(scene_ids, filters, db)
 
         if not scenes:
-            logger.warning("No scenes found to analyze")
-            if db:
-                return await self.plan_manager.create_plan(
-                    name="Empty Analysis",
-                    changes=[],
-                    metadata={"reason": "No scenes found"},
-                    db=db,
-                )
-            # Return a mock plan for cases where no scenes are found
-            return AnalysisPlan(
-                name="Empty Analysis",
-                metadata={"reason": "No scenes found"},
-                status="draft",
-            )
+            return await self._create_empty_plan(db)
 
         logger.info(f"Starting analysis of {len(scenes)} scenes")
         logger.debug(
@@ -143,8 +134,10 @@ class AnalysisService:
             await progress_callback(0, f"Starting analysis of {len(scenes)} scenes")
 
         # Process scenes in batches
+        # Cast scenes to the expected type for batch processor
+        scenes_for_processing: List[Union[Scene, Dict[str, Any], Any]] = scenes  # type: ignore[assignment]
         all_changes = await self.batch_processor.process_scenes(
-            scenes=scenes,
+            scenes=scenes_for_processing,
             analyzer=lambda batch: self._analyze_batch(batch, options),
             progress_callback=lambda c, t, p, s: (
                 self._on_progress(job_id or "", c, t, p, s, progress_callback)
@@ -154,7 +147,8 @@ class AnalysisService:
         )
 
         # Generate plan name
-        plan_name = self._generate_plan_name(options, len(scenes))
+        if plan_name is None:
+            plan_name = self._generate_plan_name(options, len(scenes), scenes)
 
         # Create metadata
         metadata = {
@@ -176,6 +170,12 @@ class AnalysisService:
             plan = await self.plan_manager.create_plan(
                 name=plan_name, changes=all_changes, metadata=metadata, db=db
             )
+
+            # Mark scenes as analyzed
+            for scene in scenes:
+                scene.analyzed = True  # type: ignore[assignment]
+
+            await db.flush()
 
             # Update job as completed
             if job_id:
@@ -522,38 +522,45 @@ class AnalysisService:
         except Exception as e:
             logger.error(f"Failed to refresh cache: {e}")
 
-    async def _get_scenes_by_ids(
-        self, scene_ids: List[str]
-    ) -> List[Union[Scene, Dict[str, Any], Any]]:
-        """Get scenes by IDs from Stash.
+    async def _sync_and_get_scenes(
+        self, scene_ids: Optional[List[str]], filters: Optional[Dict], db: AsyncSession
+    ) -> List[Scene]:
+        """Sync scenes from Stash to database and return them.
 
         Args:
-            scene_ids: List of scene IDs
+            scene_ids: Optional list of scene IDs to sync
+            filters: Optional filters for scene selection
+            db: Database session
 
         Returns:
-            List of scenes
+            List of synced Scene objects
         """
-        scenes = []
-        for scene_id in scene_ids:
-            try:
-                scene_data = await self.stash_service.get_scene(scene_id)
-                if scene_data:
-                    # Convert to Scene-like object
-                    scenes.append(self._dict_to_scene(scene_data))
-            except Exception as e:
-                logger.error(f"Failed to get scene {scene_id}: {e}")
-        return scenes
+        if scene_ids:
+            logger.debug(f"Syncing scenes by IDs: {scene_ids}")
+            return await self.scene_sync_utils.sync_scenes_by_ids(
+                scene_ids=scene_ids, db=db, update_existing=True
+            )
+        else:
+            logger.debug(f"Getting scenes by filters: {filters}")
+            # For filtered queries, we need to get IDs first then sync
+            stash_scenes = await self._get_stash_scenes_by_filters(filters)
+            scene_ids_to_sync = [s["id"] for s in stash_scenes if s.get("id")]
+            if scene_ids_to_sync:
+                return await self.scene_sync_utils.sync_scenes_by_ids(
+                    scene_ids=scene_ids_to_sync, db=db, update_existing=True
+                )
+            return []
 
-    async def _get_scenes_by_filters(
+    async def _get_stash_scenes_by_filters(
         self, filters: Optional[Dict]
-    ) -> List[Union[Scene, Dict[str, Any], Any]]:
-        """Get scenes by filters from Stash.
+    ) -> List[Dict[str, Any]]:
+        """Get scenes by filters from Stash API.
 
         Args:
             filters: Scene filters
 
         Returns:
-            List of scenes
+            List of scene dictionaries from Stash
         """
         # Default filters
         if not filters:
@@ -564,8 +571,7 @@ class AnalysisService:
             scenes, _ = await self.stash_service.get_scenes(
                 filter=filters, page=1, per_page=1000  # Get many at once
             )
-            scenes_data = scenes
-            return [self._dict_to_scene(s) for s in scenes_data]
+            return scenes
         except Exception as e:
             logger.error(f"Failed to get scenes with filters: {e}")
             return []
@@ -631,16 +637,94 @@ class AnalysisService:
 
         return SceneLike(data)
 
-    def _generate_plan_name(self, options: AnalysisOptions, scene_count: int) -> str:
+    def _generate_plan_name(
+        self,
+        options: AnalysisOptions,
+        scene_count: int,
+        scenes: Optional[List[Scene]] = None,
+    ) -> str:
         """Generate a descriptive plan name.
 
         Args:
             options: Analysis options
             scene_count: Number of scenes
+            scenes: Optional list of scenes for more descriptive naming
 
         Returns:
             Plan name
         """
+        # Try to create a descriptive name based on the scenes
+        if scenes:
+            name = self._generate_descriptive_name(scenes, scene_count)
+            if name:
+                return name
+
+        # Fallback to original naming if no scene data available
+        return self._generate_fallback_name(options, scene_count)
+
+    def _generate_descriptive_name(
+        self, scenes: List[Scene], scene_count: int
+    ) -> Optional[str]:
+        """Generate a descriptive name based on scene attributes."""
+        # Extract common attributes from scenes
+        studios, performers, dates = self._extract_scene_attributes(scenes[:20])
+
+        # Build name parts
+        name_parts = self._build_name_parts(studios, performers, dates)
+
+        if name_parts:
+            name_parts.append(f"({scene_count} scenes)")
+            timestamp = datetime.utcnow().strftime("%m-%d %H:%M")
+            return f"{' - '.join(name_parts)} - {timestamp}"
+
+        return None
+
+    def _extract_scene_attributes(self, scenes: List[Scene]) -> tuple[set, set, set]:
+        """Extract common attributes from scenes."""
+        studios = set()
+        performers = set()
+        dates = set()
+
+        for scene in scenes:
+            if hasattr(scene, "studio") and scene.studio:
+                studios.add(scene.studio.name)
+            if hasattr(scene, "performers"):
+                for performer in scene.performers:
+                    performers.add(performer.name)
+            if hasattr(scene, "stash_date") and scene.stash_date:
+                try:
+                    year = scene.stash_date.year
+                    dates.add(str(year))
+                except Exception:
+                    pass
+
+        return studios, performers, dates
+
+    def _build_name_parts(self, studios: set, performers: set, dates: set) -> List[str]:
+        """Build name parts from extracted attributes."""
+        name_parts = []
+
+        if len(studios) == 1:
+            name_parts.append(f"{list(studios)[0]}")
+        elif len(studios) <= 3:
+            name_parts.append(f"{', '.join(sorted(studios))}")
+
+        if len(performers) == 1:
+            name_parts.append(f"{list(performers)[0]}")
+        elif len(performers) <= 2:
+            name_parts.append(f"{', '.join(sorted(performers))}")
+
+        if len(dates) == 1:
+            name_parts.append(f"{list(dates)[0]}")
+        elif len(dates) <= 2:
+            name_parts.append(f"{'-'.join(sorted(dates))}")
+
+        return name_parts
+
+    def _generate_fallback_name(
+        self, options: AnalysisOptions, scene_count: int
+    ) -> str:
+        """Generate fallback name based on analysis options."""
         parts = []
 
         if options.detect_studios:
@@ -657,6 +741,23 @@ class AnalysisService:
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
         return f"{', '.join(parts)} Analysis - {scene_count} scenes - {timestamp}"
+
+    async def _create_empty_plan(self, db: Optional[AsyncSession]) -> AnalysisPlan:
+        """Create an empty analysis plan when no scenes are found."""
+        logger.warning("No scenes found to analyze")
+        if db:
+            return await self.plan_manager.create_plan(
+                name="Empty Analysis",
+                changes=[],
+                metadata={"reason": "No scenes found"},
+                db=db,
+            )
+        # Return a mock plan for cases where no scenes are found
+        return AnalysisPlan(
+            name="Empty Analysis",
+            metadata={"reason": "No scenes found"},
+            status="draft",
+        )
 
     def _calculate_statistics(self, changes: List[SceneChanges]) -> Dict[str, Any]:
         """Calculate statistics from analysis results.

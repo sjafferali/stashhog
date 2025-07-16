@@ -240,9 +240,13 @@ class TestAnalysisService:
             )
             scenes.append(scene)
 
-        # Mock database query
+        # Mock database query to fetch scenes
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = scenes
+        mock_scalars.unique.return_value = mock_scalars  # For chained calls
+
         mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = scenes
+        mock_result.scalars.return_value = mock_scalars
         mock_db.execute.return_value = mock_result
 
         # Mock Stash responses
@@ -250,6 +254,11 @@ class TestAnalysisService:
             {"id": f"scene{i+1}", "title": f"Scene {i+1}", "performers": [], "tags": []}
             for i in range(3)
         ]
+
+        # Mock scene_sync_utils to return the scenes
+        analysis_service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(
+            return_value=scenes
+        )
 
         # Mock analyze_single_scene to return list of ProposedChange
         analysis_service.analyze_single_scene = AsyncMock(
@@ -460,9 +469,13 @@ class TestAnalysisService:
             )
             scenes.append(scene)
 
-        # Mock database
+        # Mock database query to fetch scenes
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = scenes
+        mock_scalars.unique.return_value = mock_scalars  # For chained calls
+
         mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = scenes
+        mock_result.scalars.return_value = mock_scalars
         mock_db.execute.return_value = mock_result
 
         # Mock Stash service
@@ -470,6 +483,11 @@ class TestAnalysisService:
         mock_stash_service.get_scene.side_effect = [
             {"id": f"scene{i+1}", "title": f"Scene {i+1}"} for i in range(10)
         ]
+
+        # Mock scene_sync_utils to return the scenes
+        analysis_service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(
+            return_value=scenes
+        )
 
         # Mock analyze_single_scene to return empty changes
         analysis_service.analyze_single_scene = AsyncMock(
