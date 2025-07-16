@@ -260,7 +260,12 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           description="No analysis results yet"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
-          <Button type="primary" icon={<ExperimentOutlined />}>
+          <Button
+            type="primary"
+            icon={<ExperimentOutlined />}
+            onClick={handleAnalyze}
+            loading={analyzeMutation.isLoading}
+          >
             Analyze Scene
           </Button>
         </Empty>
