@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from app.models.scene import Scene
 
@@ -28,7 +28,7 @@ class BatchProcessor:
 
     async def process_scenes(
         self,
-        scenes: List[Scene],
+        scenes: List[Union[Scene, Dict[str, Any], Any]],
         analyzer: Callable,
         progress_callback: Optional[Callable] = None,
         error_callback: Optional[Callable] = None,
@@ -84,9 +84,20 @@ class BatchProcessor:
                             "path", scene.get("file", {}).get("path", "")
                         )
                     else:
-                        scene_id = str(scene.id)
-                        scene_title = str(scene.title or "Untitled")
-                        scene_path = scene.get_primary_path() or ""
+                        # Handle Scene-like objects
+                        scene_id = str(getattr(scene, "id", ""))
+                        scene_title = str(
+                            getattr(scene, "title", "Untitled") or "Untitled"
+                        )
+                        scene_path = (
+                            getattr(
+                                scene,
+                                "get_primary_path",
+                                lambda: getattr(scene, "path", ""),
+                            )()
+                            if hasattr(scene, "get_primary_path")
+                            else getattr(scene, "path", "")
+                        )
 
                     results.append(
                         SceneChanges(
@@ -110,7 +121,7 @@ class BatchProcessor:
         return results
 
     async def process_batch(
-        self, batch: List[Scene], analyzer: Callable
+        self, batch: List[Union[Scene, Dict[str, Any], Any]], analyzer: Callable
     ) -> List[SceneChanges]:
         """Process a single batch of scenes.
 
@@ -145,24 +156,70 @@ class BatchProcessor:
                     }
                 else:
                     # Scene is an object, convert it to dictionary
+                    studio = getattr(scene, "studio", None)
+                    studio_dict = None
+                    if studio:
+                        if isinstance(studio, dict):
+                            studio_dict = {
+                                "id": studio.get("id", ""),
+                                "name": studio.get("name", ""),
+                            }
+                        else:
+                            studio_dict = {
+                                "id": getattr(studio, "id", ""),
+                                "name": getattr(studio, "name", ""),
+                            }
+
                     scene_dict = {
-                        "id": scene.id,
-                        "title": scene.title,
-                        "file_path": scene.get_primary_path() or "",
-                        "details": scene.details,
-                        "duration": scene.duration,
-                        "width": scene.width,
-                        "height": scene.height,
-                        "frame_rate": scene.framerate,
-                        "performers": [
-                            {"id": p.id, "name": p.name} for p in scene.performers
-                        ],
-                        "tags": [{"id": t.id, "name": t.name} for t in scene.tags],
-                        "studio": (
-                            {"id": scene.studio.id, "name": scene.studio.name}
-                            if scene.studio
-                            else None
+                        "id": getattr(scene, "id", ""),
+                        "title": getattr(scene, "title", ""),
+                        "file_path": (
+                            getattr(
+                                scene,
+                                "get_primary_path",
+                                lambda: getattr(scene, "path", ""),
+                            )()
+                            if hasattr(scene, "get_primary_path")
+                            else getattr(scene, "path", "")
                         ),
+                        "details": getattr(scene, "details", ""),
+                        "duration": getattr(scene, "duration", 0),
+                        "width": getattr(scene, "width", 0),
+                        "height": getattr(scene, "height", 0),
+                        "frame_rate": getattr(
+                            scene, "framerate", getattr(scene, "frame_rate", 0)
+                        ),
+                        "performers": [
+                            {
+                                "id": (
+                                    p.get("id", "")
+                                    if isinstance(p, dict)
+                                    else getattr(p, "id", "")
+                                ),
+                                "name": (
+                                    p.get("name", "")
+                                    if isinstance(p, dict)
+                                    else getattr(p, "name", "")
+                                ),
+                            }
+                            for p in getattr(scene, "performers", [])
+                        ],
+                        "tags": [
+                            {
+                                "id": (
+                                    t.get("id", "")
+                                    if isinstance(t, dict)
+                                    else getattr(t, "id", "")
+                                ),
+                                "name": (
+                                    t.get("name", "")
+                                    if isinstance(t, dict)
+                                    else getattr(t, "name", "")
+                                ),
+                            }
+                            for t in getattr(scene, "tags", [])
+                        ],
+                        "studio": studio_dict,
                     }
                 batch_data.append(scene_dict)
 
@@ -183,9 +240,18 @@ class BatchProcessor:
                         "path", scene.get("file", {}).get("path", "")
                     )
                 else:
-                    scene_id = str(scene.id)
-                    scene_title = str(scene.title or "Untitled")
-                    scene_path = scene.get_primary_path() or ""
+                    # Handle Scene-like objects
+                    scene_id = str(getattr(scene, "id", ""))
+                    scene_title = str(getattr(scene, "title", "Untitled") or "Untitled")
+                    scene_path = (
+                        getattr(
+                            scene,
+                            "get_primary_path",
+                            lambda: getattr(scene, "path", ""),
+                        )()
+                        if hasattr(scene, "get_primary_path")
+                        else getattr(scene, "path", "")
+                    )
 
                 results.append(
                     SceneChanges(
@@ -200,7 +266,7 @@ class BatchProcessor:
 
     async def _process_batch_with_progress(
         self,
-        batch: List[Scene],
+        batch: List[Union[Scene, Dict[str, Any], Any]],
         batch_idx: int,
         analyzer: Callable,
         progress_callback: Optional[Callable],
@@ -238,7 +304,9 @@ class BatchProcessor:
                     await error_callback(batch_idx, e)
                 raise
 
-    def _create_batches(self, scenes: List[Scene]) -> List[List[Scene]]:
+    def _create_batches(
+        self, scenes: List[Union[Scene, Dict[str, Any], Any]]
+    ) -> List[List[Union[Scene, Dict[str, Any], Any]]]:
         """Create batches from scene list.
 
         Args:

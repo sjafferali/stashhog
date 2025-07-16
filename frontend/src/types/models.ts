@@ -94,20 +94,24 @@ export interface AnalysisPlan {
   id: number;
   name: string;
   description?: string;
-  prompt_template: string;
-  model: string;
-  temperature: number;
-  max_tokens?: number;
-  extract_performers: boolean;
-  extract_tags: boolean;
-  extract_studio: boolean;
-  extract_title: boolean;
-  extract_date: boolean;
-  extract_details: boolean;
-  custom_fields?: Record<string, string | number | boolean | null>;
-  active: boolean;
+  status: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  total_scenes: number;
+  total_changes: number;
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  extract_performers?: boolean;
+  extract_tags?: boolean;
+  extract_studio?: boolean;
+  extract_title?: boolean;
+  extract_date?: boolean;
+  extract_details?: boolean;
+  custom_fields?: Record<string, string | number | boolean | null>;
+  prompt_template?: string;
 }
 
 export interface AnalysisResult {
@@ -171,6 +175,7 @@ export interface SyncStatus {
   pending_performers: number;
   pending_tags: number;
   pending_studios: number;
+  is_syncing: boolean;
 }
 
 export interface Settings {

@@ -16,12 +16,30 @@ import {
   PauseCircleOutlined,
 } from '@ant-design/icons';
 import apiClient from '@/services/apiClient';
+import api from '@/services/api';
 import { SyncStatus } from '@/types/models';
+
+interface SyncHistoryItem {
+  id: string;
+  entity_type: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  total_items: number;
+  processed_items: number;
+  created_items: number;
+  updated_items: number;
+  skipped_items: number;
+  failed_items: number;
+  error: string | null;
+}
 
 const SyncManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<SyncStatus | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncHistory, setSyncHistory] = useState<SyncHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchStats = async () => {
     try {
@@ -35,9 +53,35 @@ const SyncManagement: React.FC = () => {
     }
   };
 
+  const fetchSyncHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const response = await api.get('/sync/history', {
+        params: { limit: 10 },
+      });
+      setSyncHistory(response.data);
+    } catch (error) {
+      console.error('Failed to fetch sync history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     void fetchStats();
+    void fetchSyncHistory();
   }, []);
+
+  // Auto-refresh when syncing
+  useEffect(() => {
+    if (stats?.is_syncing) {
+      const interval = setInterval(() => {
+        void fetchStats();
+        void fetchSyncHistory();
+      }, 5000); // Refresh every 5 seconds
+      return () => clearInterval(interval);
+    }
+  }, [stats?.is_syncing]);
 
   const handleStartSync = async () => {
     try {
@@ -60,7 +104,7 @@ const SyncManagement: React.FC = () => {
     }
   };
 
-  const isSyncing = false; // TODO: Implement proper sync status check
+  const isSyncing = stats?.is_syncing || false;
 
   return (
     <div>
@@ -138,19 +182,58 @@ const SyncManagement: React.FC = () => {
         <p>Pending scenes: {stats?.pending_scenes || 0}</p>
       </Card>
 
-      <Card title="Recent Sync History" style={{ marginTop: 16 }}>
-        <Timeline
-          items={[
-            {
-              color: 'green',
-              children: 'Example sync completed - 2024-01-01 12:00:00',
-            },
-            {
-              color: 'blue',
-              children: 'Example sync started - 2024-01-01 11:00:00',
-            },
-          ]}
-        />
+      <Card
+        title="Recent Sync History"
+        style={{ marginTop: 16 }}
+        loading={historyLoading}
+      >
+        {syncHistory.length > 0 ? (
+          <Timeline
+            items={syncHistory.map((item) => {
+              const getColor = () => {
+                if (item.status === 'completed') return 'green';
+                if (item.status === 'failed') return 'red';
+                if (item.status === 'running') return 'blue';
+                return 'gray';
+              };
+
+              const getDescription = () => {
+                const parts = [];
+                parts.push(`${item.entity_type} sync`);
+                if (item.status === 'completed') {
+                  parts.push(
+                    `Processed: ${item.processed_items}/${item.total_items}`
+                  );
+                  if (item.created_items > 0) {
+                    parts.push(`Created: ${item.created_items}`);
+                  }
+                  if (item.updated_items > 0) {
+                    parts.push(`Updated: ${item.updated_items}`);
+                  }
+                  if (item.failed_items > 0) {
+                    parts.push(`Failed: ${item.failed_items}`);
+                  }
+                }
+                if (item.error) {
+                  parts.push(`Error: ${item.error}`);
+                }
+                return parts.join(' - ');
+              };
+
+              const getTime = () => {
+                const time = item.completed_at || item.started_at;
+                return time ? new Date(time).toLocaleString() : 'Unknown time';
+              };
+
+              return {
+                color: getColor(),
+                children: `${getDescription()} - ${getTime()}`,
+              };
+            })}
+          />
+        ) : (
+          <p>No sync history available</p>
+        )}
       </Card>
     </div>
   );

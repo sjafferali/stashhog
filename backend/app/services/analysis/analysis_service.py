@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -129,7 +129,7 @@ class AnalysisService:
 
         logger.info(f"Starting analysis of {len(scenes)} scenes")
         logger.debug(
-            f"First few scene IDs being analyzed: {[s.id for s in scenes[:5]]}"
+            f"First few scene IDs being analyzed: {[s.get('id') if isinstance(s, dict) else s.id for s in scenes[:5]]}"
         )
 
         # Update job progress if provided
@@ -536,7 +536,9 @@ class AnalysisService:
         except Exception as e:
             logger.error(f"Failed to refresh cache: {e}")
 
-    async def _get_scenes_by_ids(self, scene_ids: List[str]) -> List[Scene]:
+    async def _get_scenes_by_ids(
+        self, scene_ids: List[str]
+    ) -> List[Union[Scene, Dict[str, Any], Any]]:
         """Get scenes by IDs from Stash.
 
         Args:
@@ -556,7 +558,9 @@ class AnalysisService:
                 logger.error(f"Failed to get scene {scene_id}: {e}")
         return scenes
 
-    async def _get_scenes_by_filters(self, filters: Optional[Dict]) -> List[Scene]:
+    async def _get_scenes_by_filters(
+        self, filters: Optional[Dict]
+    ) -> List[Union[Scene, Dict[str, Any], Any]]:
         """Get scenes by filters from Stash.
 
         Args:
@@ -804,7 +808,7 @@ class AnalysisService:
             if not plan:
                 raise ValueError(f"Plan {plan_id} not found")
 
-            total_changes = len(plan.changes)
+            total_changes = plan.get_change_count()
 
             if progress_callback:
                 await progress_callback(5, f"Applying {total_changes} changes")

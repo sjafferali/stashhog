@@ -281,8 +281,103 @@ async def sync_single_scene(
     )
 
 
+@router.get("/history")
+async def get_sync_history(
+    limit: int = Query(10, description="Number of items to return"),
+    offset: int = Query(0, description="Number of items to skip"),
+    db: AsyncDBSession = Depends(get_db),
+) -> List[dict]:
+    """
+    Get sync history.
+
+    Returns recent sync operations with their details.
+
+    Args:
+        limit: Number of items to return
+        offset: Number of items to skip
+        db: Database session
+
+    Returns:
+        List of sync history entries
+    """
+    from sqlalchemy import select
+
+    query = (
+        select(SyncHistory)
+        .order_by(SyncHistory.started_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+
+    result = await db.execute(query)
+    history_items = result.scalars().all()
+
+    return [
+        {
+            "id": str(item.id),
+            "entity_type": item.entity_type,
+            "status": item.status,
+            "started_at": item.started_at.isoformat() if item.started_at else None,
+            "completed_at": (
+                item.completed_at.isoformat() if item.completed_at else None
+            ),
+            "total_items": item.total_items,
+            "processed_items": item.processed_items,
+            "created_items": item.created_items,
+            "updated_items": item.updated_items,
+            "skipped_items": item.skipped_items,
+            "failed_items": item.failed_items,
+            "error": item.error,
+        }
+        for item in history_items
+    ]
+
+
+@router.post("/stop")
+async def stop_sync(
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncDBSession = Depends(get_db),
+) -> dict:
+    """
+    Stop any running sync operations.
+
+    Returns:
+        Status message
+    """
+    # Get all running sync jobs
+    from sqlalchemy import select
+
+    from app.models.job import Job, JobStatus
+
+    query = select(Job).where(
+        Job.type.in_(
+            [
+                ModelJobType.SYNC,
+                ModelJobType.SYNC_SCENES,
+                ModelJobType.SYNC_PERFORMERS,
+                ModelJobType.SYNC_TAGS,
+                ModelJobType.SYNC_STUDIOS,
+            ]
+        ),
+        Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
+    )
+
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+
+    cancelled_count = 0
+    for job in jobs:
+        await job_service.cancel_job(str(job.id), db)
+        cancelled_count += 1
+
+    return {"message": f"Cancelled {cancelled_count} sync job(s)"}
+
+
 @router.get("/stats", response_model=SyncStatsResponse)
-async def get_sync_stats(db: AsyncDBSession = Depends(get_db)) -> SyncStatsResponse:
+async def get_sync_stats(
+    db: AsyncDBSession = Depends(get_db),
+    sync_service: SyncService = Depends(get_sync_service),
+) -> SyncStatsResponse:
     """
     Get sync statistics.
 
@@ -290,12 +385,15 @@ async def get_sync_stats(db: AsyncDBSession = Depends(get_db)) -> SyncStatsRespo
 
     Args:
         db: Database session
+        sync_service: Sync service instance
 
     Returns:
         Sync statistics
     """
     # Get last sync times for each entity type
     from sqlalchemy import func, select
+
+    from app.models.job import Job, JobStatus
 
     last_syncs = {}
     for entity_type in ["scene", "performer", "tag", "studio"]:
@@ -330,12 +428,45 @@ async def get_sync_stats(db: AsyncDBSession = Depends(get_db)) -> SyncStatsRespo
     studio_count_result = await db.execute(select(func.count(Studio.id)))
     studio_count = studio_count_result.scalar_one()
 
-    # Get pending sync counts (simplified)
-    # In a real implementation, this would check which items need syncing
+    # Calculate pending sync counts
+    # Check for scenes that have been updated in Stash since last sync
     pending_scenes = 0
-    pending_performers = 0
-    pending_tags = 0
-    pending_studios = 0
+    if last_syncs.get("scene"):
+        try:
+            # Get scenes from Stash that were updated after last sync
+            from datetime import datetime
+
+            last_sync_time = datetime.fromisoformat(
+                last_syncs["scene"].replace("Z", "+00:00")
+            )
+
+            # This would need to query Stash API to get updated scenes count
+            # For now, we'll check local scenes that might need re-sync
+            pending_query = select(func.count(Scene.id)).where(
+                Scene.updated_at > last_sync_time
+            )
+            result = await db.execute(pending_query)
+            pending_scenes = result.scalar_one() or 0
+        except Exception:
+            pending_scenes = 0
+
+    # Check if there's an active sync job
+    is_syncing = False
+    sync_job_query = select(Job).where(
+        Job.type.in_(
+            [
+                ModelJobType.SYNC,
+                ModelJobType.SYNC_SCENES,
+                ModelJobType.SYNC_PERFORMERS,
+                ModelJobType.SYNC_TAGS,
+                ModelJobType.SYNC_STUDIOS,
+            ]
+        ),
+        Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
+    )
+    result = await db.execute(sync_job_query)
+    active_jobs = result.scalars().all()
+    is_syncing = len(active_jobs) > 0
 
     return SyncStatsResponse(
         scene_count=scene_count,
@@ -347,7 +478,8 @@ async def get_sync_stats(db: AsyncDBSession = Depends(get_db)) -> SyncStatsRespo
         last_tag_sync=last_syncs.get("tag"),
         last_studio_sync=last_syncs.get("studio"),
         pending_scenes=pending_scenes,
-        pending_performers=pending_performers,
-        pending_tags=pending_tags,
-        pending_studios=pending_studios,
+        pending_performers=0,  # Simplified for now
+        pending_tags=0,  # Simplified for now
+        pending_studios=0,  # Simplified for now
+        is_syncing=is_syncing,
     )

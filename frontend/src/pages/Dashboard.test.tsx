@@ -28,6 +28,7 @@ describe('Dashboard', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -68,6 +69,7 @@ describe('Dashboard', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(

@@ -75,7 +75,7 @@ class ApiClient {
   // Analysis
   async getAnalysisPlans(): Promise<AnalysisPlan[]> {
     const response = await api.get('/analysis/plans');
-    return response.data;
+    return response.data.items || [];
   }
 
   async getAnalysisPlan(id: number): Promise<AnalysisPlan> {

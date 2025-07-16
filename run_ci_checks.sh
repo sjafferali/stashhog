@@ -240,9 +240,15 @@ if [ "$BACKEND_ONLY" = false ]; then
     if npm run format:check; then
         print_success "Prettier formatting check passed"
     else
-        print_error "Prettier formatting check failed (non-blocking)"
-        echo "Run 'npm run format' in frontend/ to fix formatting issues"
-        # Don't exit - this is non-critical
+        print_error "Prettier formatting check failed - applying fixes"
+        print_command "npm run format"
+        if npm run format; then
+            print_success "Prettier formatting fixes applied successfully"
+        else
+            print_error "Failed to apply Prettier formatting fixes"
+            deactivate
+            exit 1
+        fi
     fi
     cd ..
 fi

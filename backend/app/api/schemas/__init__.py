@@ -447,6 +447,7 @@ class SyncStatsResponse(BaseSchema):
     pending_performers: int = Field(0, description="Performers pending sync")
     pending_tags: int = Field(0, description="Tags pending sync")
     pending_studios: int = Field(0, description="Studios pending sync")
+    is_syncing: bool = Field(False, description="Whether a sync is currently running")
 
 
 # Export all schemas

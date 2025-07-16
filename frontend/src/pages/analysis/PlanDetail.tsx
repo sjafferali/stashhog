@@ -398,6 +398,9 @@ const PlanDetail: React.FC = () => {
                 id: plan.id,
                 name: plan.name,
                 description: plan.description,
+                status: plan.status,
+                total_scenes: plan.total_scenes,
+                total_changes: plan.total_changes,
                 model: plan.metadata.model || 'gpt-4',
                 temperature: plan.metadata.temperature || 0.7,
                 active: plan.status !== 'CANCELLED',
@@ -411,6 +414,7 @@ const PlanDetail: React.FC = () => {
                 extract_date: true,
                 extract_details: plan.metadata.options?.detect_details || false,
                 prompt_template: '',
+                metadata: plan.metadata,
               }}
               statistics={{
                 totalScenes: plan.total_scenes,

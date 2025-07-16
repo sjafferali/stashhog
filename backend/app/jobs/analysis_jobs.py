@@ -67,25 +67,19 @@ async def analyze_scenes_job(
 
     return {
         "plan_id": plan.id,
-        "total_changes": len(plan.changes),
-        "scenes_analyzed": len(plan.scenes_analyzed),
+        "total_changes": plan.get_change_count(),
+        "scenes_analyzed": plan.get_metadata("scene_count", 0),
         "summary": {
-            "performers_to_add": len(
-                [
-                    c
-                    for c in plan.changes
-                    if c.field == "performers" and c.action == "add"
-                ]
-            ),
-            "tags_to_add": len(
-                [c for c in plan.changes if c.field == "tags" and c.action == "add"]
-            ),
-            "studios_to_set": len(
-                [c for c in plan.changes if c.field == "studio" and c.action == "set"]
-            ),
-            "titles_to_update": len(
-                [c for c in plan.changes if c.field == "title" and c.action == "set"]
-            ),
+            "performers_to_add": plan.changes.filter_by(
+                field="performers", action="add"
+            ).count(),
+            "tags_to_add": plan.changes.filter_by(field="tags", action="add").count(),
+            "studios_to_set": plan.changes.filter_by(
+                field="studio", action="set"
+            ).count(),
+            "titles_to_update": plan.changes.filter_by(
+                field="title", action="set"
+            ).count(),
         },
     }
 
@@ -227,7 +221,7 @@ async def analyze_all_unanalyzed_job(
             analyzed_count += len(batch)
 
         # Summary
-        total_changes = sum(len(plan.changes) for plan in all_plans)
+        total_changes = sum(plan.get_change_count() for plan in all_plans)
 
         return {
             "scenes_analyzed": analyzed_count,

@@ -2,15 +2,26 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SyncManagement from './SyncManagement';
 import apiClient from '@/services/apiClient';
+import api from '@/services/api';
 
 // Mock the API client
 jest.mock('@/services/apiClient');
+jest.mock('@/services/api');
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockApi = api as jest.Mocked<typeof api>;
 
 describe('SyncManagement', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Mock the sync history API call
+    mockApi.get.mockResolvedValue({ data: [] });
+  });
+
+  afterEach(() => {
+    // Clean up any pending timers
+    jest.clearAllTimers();
   });
 
   it('renders sync management title', () => {
@@ -28,6 +39,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -53,6 +65,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -79,6 +92,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -109,6 +123,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -137,6 +152,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     mockApiClient.startSync.mockResolvedValue({
@@ -179,6 +195,7 @@ describe('SyncManagement', () => {
       pending_performers: 0,
       pending_tags: 0,
       pending_studios: 0,
+      is_syncing: false,
     });
 
     render(
@@ -222,5 +239,42 @@ describe('SyncManagement', () => {
     });
 
     consoleSpy.mockRestore();
+  });
+
+  it('cleans up interval when component unmounts during sync', () => {
+    jest.useFakeTimers();
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+
+    // Mock syncing state
+    mockApiClient.getSyncStatus.mockResolvedValue({
+      scene_count: 0,
+      performer_count: 0,
+      tag_count: 0,
+      studio_count: 0,
+      last_scene_sync: undefined,
+      last_performer_sync: undefined,
+      last_tag_sync: undefined,
+      last_studio_sync: undefined,
+      pending_scenes: 0,
+      pending_performers: 0,
+      pending_tags: 0,
+      pending_studios: 0,
+      is_syncing: true,
+    });
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <SyncManagement />
+      </MemoryRouter>
+    );
+
+    // Unmount the component
+    unmount();
+
+    // Check that cleanup happened
+    expect(clearIntervalSpy).toHaveBeenCalled();
+
+    clearIntervalSpy.mockRestore();
+    jest.useRealTimers();
   });
 });
