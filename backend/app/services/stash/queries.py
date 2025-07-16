@@ -325,7 +325,7 @@ query FindTags($filter: TagFilterType!) {
 }
 """
 
-# Find studios with updated_at filter  
+# Find studios with updated_at filter
 FIND_STUDIOS_BY_UPDATED = """
 query FindStudios($filter: StudioFilterType!) {
     findStudios(studio_filter: $filter) {

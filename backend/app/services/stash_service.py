@@ -1,6 +1,7 @@
 """Stash API service with GraphQL support."""
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
@@ -671,52 +672,43 @@ class StashService:
         return result.get("stats", {})  # type: ignore[no-any-return]
 
     # Incremental sync methods
-    
+
     async def get_performers_since(self, since: datetime) -> List[Dict]:
         """Get performers created or updated since a specific time."""
         filter_dict = {
-            "updated_at": {
-                "value": since.isoformat(),
-                "modifier": "GREATER_THAN"
-            }
+            "updated_at": {"value": since.isoformat(), "modifier": "GREATER_THAN"}
         }
-        
+
         result = await self.execute_graphql(
             queries.FIND_PERFORMERS_BY_UPDATED, {"filter": filter_dict}
         )
-        
+
         raw_performers = result.get("findPerformers", {}).get("performers", [])
         return [transformers.transform_performer(p) for p in raw_performers]
 
     async def get_tags_since(self, since: datetime) -> List[Dict]:
         """Get tags created or updated since a specific time."""
         filter_dict = {
-            "updated_at": {
-                "value": since.isoformat(), 
-                "modifier": "GREATER_THAN"
-            }
+            "updated_at": {"value": since.isoformat(), "modifier": "GREATER_THAN"}
         }
-        
+
         result = await self.execute_graphql(
             queries.FIND_TAGS_BY_UPDATED, {"filter": filter_dict}
         )
-        
+
         raw_tags = result.get("findTags", {}).get("tags", [])
         return [transformers.transform_tag(t) for t in raw_tags]
 
     async def get_studios_since(self, since: datetime) -> List[Dict]:
         """Get studios created or updated since a specific time."""
         filter_dict = {
-            "updated_at": {
-                "value": since.isoformat(),
-                "modifier": "GREATER_THAN"
-            }
+            "updated_at": {"value": since.isoformat(), "modifier": "GREATER_THAN"}
         }
-        
+
         result = await self.execute_graphql(
             queries.FIND_STUDIOS_BY_UPDATED, {"filter": filter_dict}
         )
-        
+
         raw_studios = result.get("findStudios", {}).get("studios", [])
         return [transformers.transform_studio(s) for s in raw_studios]
 

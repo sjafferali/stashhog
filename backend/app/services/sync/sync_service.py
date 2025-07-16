@@ -581,10 +581,12 @@ class SyncService:
                 # Fall back to 24 hours ago if no sync history
                 last_sync = datetime.utcnow() - timedelta(days=1)
                 logger.info(f"No sync history found, using 24 hours ago: {last_sync}")
-            
+
             # Update job status
             await self._update_job_status(
-                job_id, JobStatus.RUNNING, f"Starting incremental sync since {last_sync}"
+                job_id,
+                JobStatus.RUNNING,
+                f"Starting incremental sync since {last_sync}",
             )
 
             # Report initial progress
@@ -594,7 +596,7 @@ class SyncService:
             # Sync entities first (performers, tags, studios)
             logger.info("Syncing entities incrementally...")
             entity_result = await self._sync_entities_incremental(last_sync)
-            
+
             # Update result stats
             result.stats.performers_processed = entity_result.get("performers", {}).get(
                 "processed", 0
@@ -627,11 +629,9 @@ class SyncService:
             # Sync scenes
             logger.info("Syncing scenes incrementally...")
             scene_result = await self.sync_scenes(
-                since=last_sync,
-                job_id=job_id,
-                progress_callback=progress_callback
+                since=last_sync, job_id=job_id, progress_callback=progress_callback
             )
-            
+
             # Update result stats
             result.stats.scenes_processed = scene_result.processed_items
             result.stats.scenes_created = scene_result.created_items
@@ -662,7 +662,7 @@ class SyncService:
 
             # Complete
             result.complete()
-            
+
             # Update job status
             await self._update_job_status(
                 job_id, JobStatus.COMPLETED, "Incremental sync completed"
@@ -869,8 +869,8 @@ class SyncService:
 
         # Sync performers
         try:
-            results["performers"] = await self.entity_handler.sync_performers_incremental(
-                since, self.db
+            results["performers"] = (
+                await self.entity_handler.sync_performers_incremental(since, self.db)
             )
         except Exception as e:
             logger.error(f"Failed to sync performers: {str(e)}")

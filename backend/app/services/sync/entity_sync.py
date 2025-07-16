@@ -50,10 +50,10 @@ class EntitySyncHandler:
     ) -> Dict[str, int]:
         """Sync performers updated since a specific time"""
         logger.info(f"Syncing performers updated since {since}")
-        
+
         # Get performers updated since the given time
         stash_performers = await self.stash_service.get_performers_since(since)
-        
+
         # Use regular sync method with the filtered list
         return await self.sync_performers(stash_performers, db, force=False)
 
@@ -82,10 +82,10 @@ class EntitySyncHandler:
     ) -> Dict[str, int]:
         """Sync tags updated since a specific time"""
         logger.info(f"Syncing tags updated since {since}")
-        
+
         # Get tags updated since the given time
         stash_tags = await self.stash_service.get_tags_since(since)
-        
+
         # Use regular sync method with the filtered list
         return await self.sync_tags(stash_tags, db, force=False)
 
@@ -114,10 +114,10 @@ class EntitySyncHandler:
     ) -> Dict[str, int]:
         """Sync studios updated since a specific time"""
         logger.info(f"Syncing studios updated since {since}")
-        
+
         # Get studios updated since the given time
         stash_studios = await self.stash_service.get_studios_since(since)
-        
+
         # Use regular sync method with the filtered list
         return await self.sync_studios(stash_studios, db, force=False)
 

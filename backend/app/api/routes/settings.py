@@ -10,7 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.dependencies import get_db, get_settings, get_settings_with_overrides, get_stash_service
+from app.core.dependencies import (
+    get_db,
+    get_settings,
+    get_settings_with_overrides,
+    get_stash_service,
+)
 from app.models import Setting
 from app.services.stash_service import StashService
 
@@ -19,9 +24,9 @@ router = APIRouter()
 
 @router.get("", response_model=List[Dict[str, Any]])
 async def list_settings(
-    db: AsyncSession = Depends(get_db), 
+    db: AsyncSession = Depends(get_db),
     base_settings: Settings = Depends(get_settings),
-    overridden_settings: Settings = Depends(get_settings_with_overrides)
+    overridden_settings: Settings = Depends(get_settings_with_overrides),
 ) -> List[Dict[str, Any]]:
     """
     Get all application settings with source information.
@@ -30,24 +35,80 @@ async def list_settings(
     query = select(Setting)
     result = await db.execute(query)
     db_settings = result.scalars().all()
-    
+
     # Create a map of database settings
     db_settings_map = {s.key: s.value for s in db_settings}
 
     # Define settings to expose
     settings_config = [
-        ("stash_url", "stash.url", base_settings.stash.url, overridden_settings.stash.url, "Stash URL", False),
-        ("stash_api_key", "stash.api_key", base_settings.stash.api_key, overridden_settings.stash.api_key, "Stash API key", True),
-        ("openai_api_key", "openai.api_key", base_settings.openai.api_key, overridden_settings.openai.api_key, "OpenAI API key", True),
-        ("openai_model", "openai.model", base_settings.openai.model, overridden_settings.openai.model, "OpenAI model", False),
-        ("analysis_confidence_threshold", "analysis.confidence_threshold", base_settings.analysis.confidence_threshold, overridden_settings.analysis.confidence_threshold, "Analysis confidence threshold", False),
-        ("sync_incremental", "sync.incremental", True, db_settings_map.get("sync_incremental", True), "Enable incremental sync", False),
-        ("sync_batch_size", "sync.batch_size", 100, db_settings_map.get("sync_batch_size", 100), "Sync batch size", False),
+        (
+            "stash_url",
+            "stash.url",
+            base_settings.stash.url,
+            overridden_settings.stash.url,
+            "Stash URL",
+            False,
+        ),
+        (
+            "stash_api_key",
+            "stash.api_key",
+            base_settings.stash.api_key,
+            overridden_settings.stash.api_key,
+            "Stash API key",
+            True,
+        ),
+        (
+            "openai_api_key",
+            "openai.api_key",
+            base_settings.openai.api_key,
+            overridden_settings.openai.api_key,
+            "OpenAI API key",
+            True,
+        ),
+        (
+            "openai_model",
+            "openai.model",
+            base_settings.openai.model,
+            overridden_settings.openai.model,
+            "OpenAI model",
+            False,
+        ),
+        (
+            "analysis_confidence_threshold",
+            "analysis.confidence_threshold",
+            base_settings.analysis.confidence_threshold,
+            overridden_settings.analysis.confidence_threshold,
+            "Analysis confidence threshold",
+            False,
+        ),
+        (
+            "sync_incremental",
+            "sync.incremental",
+            True,
+            db_settings_map.get("sync_incremental", True),
+            "Enable incremental sync",
+            False,
+        ),
+        (
+            "sync_batch_size",
+            "sync.batch_size",
+            100,
+            db_settings_map.get("sync_batch_size", 100),
+            "Sync batch size",
+            False,
+        ),
     ]
-    
+
     settings_list: List[Dict[str, Any]] = []
-    
-    for key, display_key, env_value, current_value, description, is_secret in settings_config:
+
+    for (
+        key,
+        display_key,
+        env_value,
+        current_value,
+        description,
+        is_secret,
+    ) in settings_config:
         # Determine source
         if key in db_settings_map:
             source = "database"
@@ -55,40 +116,44 @@ async def list_settings(
         else:
             source = "environment"
             db_value = None
-            
+
         # Handle secret masking
         display_value = current_value
         if is_secret and current_value:
             display_value = "********"
-            
+
         env_display_value = env_value
         if is_secret and env_value:
             env_display_value = "********"
-            
-        settings_list.append({
-            "key": display_key,
-            "value": display_value,
-            "description": description,
-            "source": source,
-            "env_value": env_display_value,
-            "db_value": "********" if is_secret and db_value else db_value,
-            "editable": True,
-        })
-    
+
+        settings_list.append(
+            {
+                "key": display_key,
+                "value": display_value,
+                "description": description,
+                "source": source,
+                "env_value": env_display_value,
+                "db_value": "********" if is_secret and db_value else db_value,
+                "editable": True,
+            }
+        )
+
     # Add read-only settings
     readonly_settings = [
         ("app.name", base_settings.app.name, "Application name"),
         ("app.version", base_settings.app.version, "Application version"),
     ]
-    
+
     for key, value, description in readonly_settings:
-        settings_list.append({
-            "key": key,
-            "value": value,
-            "description": description,
-            "source": "config",
-            "editable": False,
-        })
+        settings_list.append(
+            {
+                "key": key,
+                "value": value,
+                "description": description,
+                "source": "config",
+                "editable": False,
+            }
+        )
 
     return settings_list
 
@@ -151,7 +216,7 @@ async def update_settings(
 ) -> Dict[str, Any]:
     """
     Update application settings.
-    
+
     Setting a value to null or empty string will delete it from database,
     causing the system to use the environment variable default.
     """
