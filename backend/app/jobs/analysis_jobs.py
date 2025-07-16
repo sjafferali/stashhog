@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.models import PlanChange
+from app.models import AnalysisPlan, PlanChange
 from app.models.job import JobType
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import AnalysisOptions
@@ -92,26 +92,29 @@ async def analyze_scenes_job(
                 # The plan object is bound to a different session context
                 # We need to re-fetch it in our current session to access its relationships
 
-                # Since changes is a dynamic relationship, we can't use eager loading
-                # We need to query the changes directly
-                logger.debug(f"Querying changes for plan {plan.id}")
+                # Store the plan ID before any potential session issues
+                plan_id = plan.id
                 
-                # Query changes directly to avoid dynamic relationship issues
-                changes_query = select(PlanChange).where(
-                    PlanChange.plan_id == plan.id
-                )
+                # Re-fetch the plan in our current session to avoid cross-session issues
+                plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
+                plan_result = await db.execute(plan_query)
+                fresh_plan = plan_result.scalar_one()
+                
+                # Now query changes directly (since it's a dynamic relationship)
+                logger.debug(f"Querying changes for plan {plan_id}")
+                changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
                 changes_result = await db.execute(changes_query)
                 changes_list = list(changes_result.scalars().all())
                 
-                logger.debug(f"Loaded {len(changes_list)} changes for plan {plan.id}")
+                logger.debug(f"Loaded {len(changes_list)} changes for plan {plan_id}")
 
                 # Calculate summary with the loaded changes
                 summary = calculate_plan_summary(changes_list)
 
                 # Get total changes count and metadata while session is active
                 total_changes = len(changes_list)
-                scenes_analyzed = plan.get_metadata("scene_count", 0)
-                plan_id = plan.id
+                # Use the fresh plan to access metadata safely
+                scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
 
                 logger.info(
                     f"Summary calculated for job {job_id}: {total_changes} total changes"
