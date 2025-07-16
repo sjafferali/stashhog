@@ -186,7 +186,10 @@ class SyncRepository:
         """Prepare performer data for bulk insert"""
         return [
             {
-                "stash_id": p["id"],
+                "id": p.get(
+                    "stash_id", p.get("id")
+                ),  # Use stash_id if available, fallback to id
+                "stash_id": p.get("stash_id", p.get("id")),
                 "name": p.get("name", ""),
                 "aliases": p.get("aliases"),
                 "gender": p.get("gender"),
@@ -220,7 +223,10 @@ class SyncRepository:
         """Prepare tag data for bulk insert"""
         return [
             {
-                "stash_id": t["id"],
+                "id": t.get(
+                    "stash_id", t.get("id")
+                ),  # Use stash_id if available, fallback to id
+                "stash_id": t.get("stash_id", t.get("id")),
                 "name": t.get("name", ""),
                 "aliases": t.get("aliases"),
                 "description": t.get("description"),
@@ -240,7 +246,10 @@ class SyncRepository:
         """Prepare studio data for bulk insert"""
         return [
             {
-                "stash_id": s["id"],
+                "id": s.get(
+                    "stash_id", s.get("id")
+                ),  # Use stash_id if available, fallback to id
+                "stash_id": s.get("stash_id", s.get("id")),
                 "name": s.get("name", ""),
                 "aliases": s.get("aliases"),
                 "url": s.get("url"),

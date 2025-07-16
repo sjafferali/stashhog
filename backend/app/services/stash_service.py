@@ -1,7 +1,7 @@
 """Stash API service with GraphQL support."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import httpx
 from tenacity import (
@@ -184,16 +184,18 @@ class StashService:
             Tuple of (scenes list, total count)
         """
         # Build the filter for pagination
-        find_filter = {
+        find_filter: Dict[str, Union[int, str]] = {
             "page": page,
             "per_page": per_page,
         }
 
+        if sort:
+            find_filter["sort"] = sort
+            find_filter["direction"] = "DESC"
+
         variables = {
             "filter": find_filter,
             "scene_filter": filter or {},
-            "sort": sort,
-            "direction": "DESC" if sort else None,
         }
 
         result = await self.execute_graphql(queries.GET_SCENES, variables)

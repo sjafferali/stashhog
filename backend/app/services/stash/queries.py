@@ -11,7 +11,7 @@ fragment SceneData on Scene {
         caption
         funscript
         interactive
-        interactive_speed
+        interactive_heatmap
     }
     organized
     details
@@ -44,9 +44,9 @@ fragment SceneData on Scene {
     galleries {
         id
         title
-        path
+        paths
     }
-    file {
+    files {
         size
         duration
         video_codec
@@ -57,16 +57,14 @@ fragment SceneData on Scene {
         bitrate
     }
     o_counter
-    interactive
-    interactive_speed
 }
 """
 
 # Get scenes with pagination
 GET_SCENES = (
     """
-query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
-    findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
+query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!]) {
+    findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids) {
         count
         scenes {
             ...SceneData
@@ -159,8 +157,8 @@ query AllStudios {
 # Find scenes with complex filters
 FIND_SCENES = (
     """
-query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!], $page: Int, $per_page: Int, $sort: String, $direction: SortDirectionEnum) {
-    findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids, page: $page, per_page: $per_page, sort: $sort, direction: $direction) {
+query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!]) {
+    findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids) {
         count
         scenes {
             ...SceneData

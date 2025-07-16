@@ -40,11 +40,11 @@ def transform_scene(stash_scene: Dict) -> Dict:
             transform_performer(p) for p in stash_scene.get("performers", [])
         ],
         "tags": [transform_tag(t) for t in stash_scene.get("tags", [])],
-        "file": transform_file_info(stash_scene.get("file")),
+        "file": transform_file_info(
+            stash_scene.get("files", [{}])[0] if stash_scene.get("files") else None
+        ),
         "galleries": stash_scene.get("galleries", []),
         "movies": stash_scene.get("movies", []),
-        "interactive": stash_scene.get("interactive", False),
-        "interactive_speed": stash_scene.get("interactive_speed"),
     }
 
 
@@ -58,6 +58,7 @@ def transform_performer(stash_performer: Dict) -> Dict:
         logger.error(f"Performer missing 'id' field: {stash_performer}")
 
     return {
+        "id": stash_performer.get("id"),  # Include raw ID for database operations
         "stash_id": stash_performer.get("id"),
         "name": stash_performer.get("name", ""),
         "gender": stash_performer.get("gender"),
@@ -95,6 +96,7 @@ def transform_tag(stash_tag: Dict) -> Dict:
         logger.error(f"Tag missing 'id' field: {stash_tag}")
 
     return {
+        "id": stash_tag.get("id"),  # Include raw ID for database operations
         "stash_id": stash_tag.get("id"),
         "name": stash_tag.get("name", ""),
         "description": stash_tag.get("description"),
@@ -119,6 +121,7 @@ def transform_studio(stash_studio: Dict[Any, Any]) -> Dict:
         logger.error(f"Studio missing 'id' field: {stash_studio}")
 
     return {
+        "id": stash_studio.get("id"),  # Include raw ID for database operations
         "stash_id": stash_studio.get("id"),
         "name": stash_studio.get("name", ""),
         "url": stash_studio.get("url"),
