@@ -227,8 +227,8 @@ export const ListView: React.FC<ListViewProps> = ({
         width: 100,
         render: (_: unknown, record: Scene) => (
           <Space>
-            {record.organized && (
-              <Tooltip title="Organized">
+            {record.analyzed && (
+              <Tooltip title="Analyzed">
                 <CheckCircleOutlined
                   style={{ color: '#52c41a', fontSize: 16 }}
                 />

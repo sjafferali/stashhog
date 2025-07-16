@@ -170,8 +170,8 @@ export const GridView: React.FC<GridViewProps> = ({
                     </Space>
 
                     <Space size="small" className={styles.metadata}>
-                      {scene.organized && (
-                        <Tooltip title="Organized">
+                      {scene.analyzed && (
+                        <Tooltip title="Analyzed">
                           <CheckCircleOutlined style={{ color: '#52c41a' }} />
                         </Tooltip>
                       )}

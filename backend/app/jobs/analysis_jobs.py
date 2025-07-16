@@ -1,8 +1,12 @@
 import logging
 from typing import Any, Awaitable, Callable, Optional
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.models import AnalysisPlan, PlanChange
 from app.models.job import JobType
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import AnalysisOptions
@@ -83,13 +87,41 @@ async def analyze_scenes_job(
 
             # Calculate summary while still in session
             try:
-                # Access changes directly from the database query
-                summary = calculate_plan_summary(plan.changes.all())
+                logger.debug(f"Plan object session: {plan in db}")
+                logger.debug(f"Current db session: {db}")
+                
+                # The plan object is bound to a different session context
+                # We need to re-fetch it in our current session to access its relationships
+                
+                # Re-fetch the plan with its changes eagerly loaded
+                logger.debug(f"Re-fetching plan {plan.id} with eager loading")
+                plan_query = select(AnalysisPlan).where(
+                    AnalysisPlan.id == plan.id
+                ).options(selectinload(AnalysisPlan.changes))
+                
+                result = await db.execute(plan_query)
+                fresh_plan = result.scalar_one()
+                
+                logger.debug(f"Fresh plan loaded, changes count: {len(fresh_plan.changes) if hasattr(fresh_plan.changes, '__len__') else 'dynamic'}")
+                
+                # Now we can safely access the changes
+                # Handle both eager-loaded and dynamic relationships
+                if hasattr(fresh_plan.changes, '__iter__') and not hasattr(fresh_plan.changes, 'all'):
+                    # Changes were eager-loaded
+                    changes_list = list(fresh_plan.changes)
+                else:
+                    # Changes are still dynamic, need to query them
+                    changes_query = select(PlanChange).where(PlanChange.plan_id == fresh_plan.id)
+                    changes_result = await db.execute(changes_query)
+                    changes_list = list(changes_result.scalars().all())
+                
+                # Calculate summary with the loaded changes
+                summary = calculate_plan_summary(changes_list)
 
                 # Get total changes count and metadata while session is active
-                total_changes = plan.get_change_count()
-                scenes_analyzed = plan.get_metadata("scene_count", 0)
-                plan_id = plan.id
+                total_changes = len(changes_list)
+                scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
+                plan_id = fresh_plan.id
 
                 logger.info(
                     f"Summary calculated for job {job_id}: {total_changes} total changes"
@@ -109,8 +141,8 @@ async def analyze_scenes_job(
                 "summary": summary,
             }
 
-        logger.info(f"Job {job_id} completed successfully with result: {result}")
-        return result
+            logger.info(f"Job {job_id} completed successfully with result: {result}")
+            return result
 
     except Exception as e:
         logger.error(f"Job {job_id} failed with error: {str(e)}", exc_info=True)
