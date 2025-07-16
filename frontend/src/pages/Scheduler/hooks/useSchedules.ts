@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { message } from 'antd';
+import api from '@/services/api';
 import {
   Schedule,
   ScheduleRun,
@@ -7,8 +8,6 @@ import {
   UpdateScheduleData,
   ScheduleStats,
 } from '../types';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export function useSchedules() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -18,16 +17,8 @@ export function useSchedules() {
   const fetchSchedules = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/schedules`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch schedules');
-      }
-
-      const data = await response.json();
-      setSchedules(data.schedules || []);
+      const response = await api.get('/schedules');
+      setSchedules(response.data.schedules || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -39,21 +30,8 @@ export function useSchedules() {
 
   const createSchedule = async (data: CreateScheduleData) => {
     try {
-      const response = await fetch(`${API_BASE}/api/schedules`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to create schedule');
-      }
-
-      const newSchedule = await response.json();
+      const response = await api.post('/schedules', data);
+      const newSchedule = response.data;
       setSchedules((prev) => [...prev, newSchedule]);
       void message.success('Schedule created successfully');
       return newSchedule;
@@ -66,20 +44,8 @@ export function useSchedules() {
 
   const updateSchedule = async (id: number, data: UpdateScheduleData) => {
     try {
-      const response = await fetch(`${API_BASE}/api/schedules/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update schedule');
-      }
-
-      const updatedSchedule = await response.json();
+      const response = await api.put(`/schedules/${id}`, data);
+      const updatedSchedule = response.data;
       setSchedules((prev) =>
         prev.map((s) => (s.id === id ? updatedSchedule : s))
       );
@@ -93,15 +59,7 @@ export function useSchedules() {
 
   const deleteSchedule = async (id: number) => {
     try {
-      const response = await fetch(`${API_BASE}/api/schedules/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete schedule');
-      }
-
+      await api.delete(`/schedules/${id}`);
       setSchedules((prev) => prev.filter((s) => s.id !== id));
       void message.success('Schedule deleted successfully');
     } catch (err) {
@@ -116,18 +74,9 @@ export function useSchedules() {
 
   const runScheduleNow = async (id: number) => {
     try {
-      const response = await fetch(`${API_BASE}/api/schedules/${id}/run`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to trigger schedule');
-      }
-
-      const result = await response.json();
+      const response = await api.post(`/schedules/${id}/run`);
       void message.success('Schedule triggered successfully');
-      return result;
+      return response.data;
     } catch (err) {
       void message.error('Failed to trigger schedule');
       throw err;
@@ -161,18 +110,11 @@ export function useScheduleHistory(scheduleId?: number) {
     try {
       setLoading(true);
       const url = scheduleId
-        ? `${API_BASE}/api/schedules/${scheduleId}/runs`
-        : `${API_BASE}/api/schedule-runs`;
+        ? `/schedules/${scheduleId}/runs`
+        : '/schedule-runs';
 
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch schedule history');
-      }
-
-      const data = await response.json();
+      const response = await api.get(url);
+      const data = response.data;
       setRuns(data.runs || []);
       setStats(data.stats || null);
       setError(null);
@@ -219,21 +161,11 @@ export function useNextRuns(expression: string, count: number = 5) {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/schedules/preview`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ expression, count }),
+      const response = await api.post('/schedules/preview', {
+        expression,
+        count,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Invalid cron expression');
-      }
-
-      const data = await response.json();
+      const data = response.data;
       setNextRuns(data.next_runs.map((run: string) => new Date(run)));
       setError(null);
     } catch (err) {

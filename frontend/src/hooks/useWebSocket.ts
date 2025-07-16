@@ -20,7 +20,15 @@ export interface UseWebSocketReturn {
   disconnect: () => void;
 }
 
-const WEBSOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const getWebSocketUrl = () => {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  // Use the current location to build the WebSocket URL
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  return `${protocol}//${host}`;
+};
 
 export function useWebSocket(
   endpoint: string | null,
@@ -53,7 +61,7 @@ export function useWebSocket(
         ws.current.close();
       }
 
-      const url = `${WEBSOCKET_URL}${endpoint}`;
+      const url = `${getWebSocketUrl()}${endpoint}`;
       ws.current = new WebSocket(url);
 
       ws.current.onopen = (event) => {

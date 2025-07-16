@@ -48,8 +48,16 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   // Analyze mutation
   const analyzeMutation = useMutation(
     async (sceneIds: string[]) => {
-      const response = await api.post('/analysis/batch', {
+      const response = await api.post('/analysis/generate', {
         scene_ids: sceneIds.map((id) => parseInt(id, 10)),
+        options: {
+          detect_performers: true,
+          detect_studios: true,
+          detect_tags: true,
+          detect_details: true,
+          use_ai: true,
+          confidence_threshold: 0.7,
+        },
       });
       return response.data;
     },

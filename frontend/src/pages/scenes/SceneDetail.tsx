@@ -1,15 +1,55 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Descriptions, Tag, Space } from 'antd';
+import { Card, Button, Descriptions, Tag, Space, Modal, message } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
   RobotOutlined,
 } from '@ant-design/icons';
+import { useMutation, useQueryClient } from 'react-query';
+import api from '@/services/api';
 
 const SceneDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Analyze mutation
+  const analyzeMutation = useMutation(
+    async () => {
+      const response = await api.post('/analysis/generate', {
+        scene_ids: [parseInt(id || '0', 10)],
+        options: {
+          detect_performers: true,
+          detect_studios: true,
+          detect_tags: true,
+          detect_details: true,
+          use_ai: true,
+          confidence_threshold: 0.7,
+        },
+      });
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        void message.success('Started analysis for scene');
+        void queryClient.invalidateQueries('jobs');
+      },
+      onError: () => {
+        void message.error('Failed to start analysis');
+      },
+    }
+  );
+
+  const handleAnalyze = () => {
+    Modal.confirm({
+      title: 'Analyze Scene',
+      content: 'Are you sure you want to analyze this scene?',
+      onOk: () => {
+        analyzeMutation.mutate();
+      },
+    });
+  };
 
   return (
     <div>
@@ -30,7 +70,12 @@ const SceneDetail: React.FC = () => {
         extra={
           <Space>
             <Button icon={<EditOutlined />}>Edit</Button>
-            <Button type="primary" icon={<RobotOutlined />}>
+            <Button
+              type="primary"
+              icon={<RobotOutlined />}
+              onClick={handleAnalyze}
+              loading={analyzeMutation.isLoading}
+            >
               Analyze
             </Button>
           </Space>

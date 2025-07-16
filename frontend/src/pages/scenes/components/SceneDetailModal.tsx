@@ -13,6 +13,7 @@ import {
   Timeline,
   Empty,
   Spin,
+  message,
 } from 'antd';
 import {
   FileOutlined,
@@ -23,7 +24,7 @@ import {
   EditOutlined,
   // SyncOutlined,
 } from '@ant-design/icons';
-import { useQuery } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
@@ -43,6 +44,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const queryClient = useQueryClient();
 
   // Fetch full scene details with analysis results
   const { data: fullScene, isLoading } = useQuery<Scene>(
@@ -55,6 +57,43 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       enabled: visible,
     }
   );
+
+  // Analyze mutation
+  const analyzeMutation = useMutation(
+    async () => {
+      const response = await api.post('/analysis/generate', {
+        scene_ids: [scene.id],
+        options: {
+          detect_performers: true,
+          detect_studios: true,
+          detect_tags: true,
+          detect_details: true,
+          use_ai: true,
+          confidence_threshold: 0.7,
+        },
+      });
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        void message.success('Started analysis for scene');
+        void queryClient.invalidateQueries('jobs');
+      },
+      onError: () => {
+        void message.error('Failed to start analysis');
+      },
+    }
+  );
+
+  const handleAnalyze = () => {
+    Modal.confirm({
+      title: 'Analyze Scene',
+      content: 'Are you sure you want to analyze this scene?',
+      onOk: () => {
+        analyzeMutation.mutate();
+      },
+    });
+  };
 
   const formatFileSize = (bytes?: string): string => {
     if (!bytes) return 'N/A';
@@ -353,7 +392,13 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         <Button key="edit" icon={<EditOutlined />}>
           Edit
         </Button>,
-        <Button key="analyze" type="primary" icon={<ExperimentOutlined />}>
+        <Button
+          key="analyze"
+          type="primary"
+          icon={<ExperimentOutlined />}
+          onClick={handleAnalyze}
+          loading={analyzeMutation.isLoading}
+        >
           Analyze
         </Button>,
       ]}
