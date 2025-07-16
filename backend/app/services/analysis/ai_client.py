@@ -187,7 +187,16 @@ class AIClient:
             "performers": ", ".join(
                 [p.get("name", "") for p in scene_data.get("performers", [])]
             ),
-            "tags": ", ".join([t.get("name", "") for t in scene_data.get("tags", [])]),
+            "tags": (
+                scene_data.get("tags", "")
+                if isinstance(scene_data.get("tags"), str)
+                else ", ".join(
+                    [
+                        t.get("name", "") if isinstance(t, dict) else str(t)
+                        for t in scene_data.get("tags", [])
+                    ]
+                )
+            ),
             "duration": scene_data.get("duration", 0),
             "resolution": f"{scene_data.get('width', 0)}x{scene_data.get('height', 0)}",
         }
