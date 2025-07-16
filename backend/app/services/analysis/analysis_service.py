@@ -101,9 +101,14 @@ class AnalysisService:
         await self._refresh_cache()
 
         # Get scenes to analyze
+        logger.debug(
+            f"analyze_scenes called with scene_ids: {scene_ids}, filters: {filters}"
+        )
         if scene_ids:
+            logger.debug(f"Getting scenes by IDs: {scene_ids}")
             scenes = await self._get_scenes_by_ids(scene_ids)
         else:
+            logger.debug(f"Getting scenes by filters: {filters}")
             scenes = await self._get_scenes_by_filters(filters)
 
         if not scenes:
@@ -123,6 +128,9 @@ class AnalysisService:
             )
 
         logger.info(f"Starting analysis of {len(scenes)} scenes")
+        logger.debug(
+            f"First few scene IDs being analyzed: {[s.id for s in scenes[:5]]}"
+        )
 
         # Update job progress if provided
         if job_id:

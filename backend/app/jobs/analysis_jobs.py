@@ -24,6 +24,7 @@ async def analyze_scenes_job(
     logger.info(
         f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
     )
+    logger.debug(f"Scene IDs received in job: {scene_ids}")
 
     # Create service instances
     settings = get_settings()

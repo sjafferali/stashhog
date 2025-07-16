@@ -175,11 +175,23 @@ class BatchProcessor:
             # Return error results for all scenes in batch
             results = []
             for scene in batch:
+                # Handle both Scene objects and dictionaries
+                if isinstance(scene, dict):
+                    scene_id = str(scene.get("id", ""))
+                    scene_title = str(scene.get("title", "Untitled"))
+                    scene_path = scene.get(
+                        "path", scene.get("file", {}).get("path", "")
+                    )
+                else:
+                    scene_id = str(scene.id)
+                    scene_title = str(scene.title or "Untitled")
+                    scene_path = scene.get_primary_path() or ""
+
                 results.append(
                     SceneChanges(
-                        scene_id=str(scene.id),
-                        scene_title=str(scene.title or "Untitled"),
-                        scene_path=scene.get_primary_path() or "",
+                        scene_id=scene_id,
+                        scene_title=scene_title,
+                        scene_path=scene_path,
                         changes=[],
                         error=str(e),
                     )

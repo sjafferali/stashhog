@@ -60,13 +60,18 @@ class JobService:
                     job_id=job_id, status=JobStatus.RUNNING, message="Job started"
                 )
 
+                # Merge job metadata with kwargs
+                handler_kwargs = kwargs.copy()
+                if metadata:
+                    handler_kwargs.update(metadata)
+
                 # Execute handler with job context
                 result = await handler(
                     job_id=job_id,
                     progress_callback=lambda progress, message=None: self._update_job_progress(
                         job_id, progress, message
                     ),
-                    **kwargs,
+                    **handler_kwargs,
                 )
 
                 # Update job status to completed
