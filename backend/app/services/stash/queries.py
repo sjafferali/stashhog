@@ -6,13 +6,18 @@ fragment SceneData on Scene {
     id
     title
     paths {
-        path
+        screenshot
+        preview
         stream
-        caption
+        webp
+        vtt
+        sprite
         funscript
-        interactive
         interactive_heatmap
+        caption
     }
+    interactive
+    interactive_speed
     organized
     details
     created_at
@@ -44,7 +49,10 @@ fragment SceneData on Scene {
     galleries {
         id
         title
-        paths
+        paths {
+            cover
+            preview
+        }
     }
     files {
         size
@@ -53,8 +61,8 @@ fragment SceneData on Scene {
         audio_codec
         width
         height
-        framerate
-        bitrate
+        frame_rate
+        bit_rate
     }
     o_counter
 }
