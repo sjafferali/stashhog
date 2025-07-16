@@ -15,7 +15,18 @@ export function useScenes(params: SceneQueryParams) {
   return useQuery<PaginatedResponse<Scene>, Error>({
     queryKey: ['scenes', params],
     queryFn: async () => {
-      const response = await api.get('/scenes', { params });
+      // Filter out empty date strings before sending to API
+      const filteredParams = Object.entries(params).reduce(
+        (acc, [key, value]) => {
+          if ((key === 'date_from' || key === 'date_to') && value === '') {
+            return acc;
+          }
+          return { ...acc, [key]: value };
+        },
+        {} as SceneQueryParams
+      );
+
+      const response = await api.get('/scenes', { params: filteredParams });
       return response.data;
     },
     keepPreviousData: true,

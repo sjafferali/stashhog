@@ -49,10 +49,14 @@ export const useWebSocketClient = () => {
             break;
 
           case 'job_failed':
-            showNotification({
-              type: 'error',
-              content: `Job ${(message.data as JobData).name} failed: ${(message.data as JobData).error}`,
-            });
+            // Only show notification if there's an actual error message
+            // to avoid showing generic failure notifications
+            if ((message.data as JobData).error) {
+              showNotification({
+                type: 'error',
+                content: `Job ${(message.data as JobData).name} failed: ${(message.data as JobData).error}`,
+              });
+            }
             break;
 
           case 'notification':

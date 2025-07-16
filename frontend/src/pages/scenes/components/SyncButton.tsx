@@ -57,13 +57,16 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
     {
       onSuccess: (data) => {
+        console.log('Sync job created successfully:', data);
         setCurrentJob(data); // The response is the job itself
         setSyncModalVisible(true);
         void message.success('Sync started');
         void queryClient.invalidateQueries('sync-status');
       },
-      onError: () => {
-        void message.error('Failed to start sync');
+      onError: (error) => {
+        // Don't show a duplicate error message here since the API interceptor
+        // already handles error notifications globally
+        console.error('Sync mutation error:', error);
       },
     }
   );
@@ -92,9 +95,11 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
             void queryClient.invalidateQueries(['sync-status']);
             onSyncComplete?.();
           } else if (data.status === 'failed') {
-            void message.error(
-              'Sync failed: ' + (data.error || 'Unknown error')
-            );
+            // Only show error if there's actually an error message
+            // to avoid duplicate notifications from WebSocket
+            if (data.error) {
+              void message.error('Sync failed: ' + data.error);
+            }
             setSyncModalVisible(false);
           }
         }

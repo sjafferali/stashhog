@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import useAppStore from '@/store';
 
 const API_BASE_URL = '/api';
@@ -31,13 +31,23 @@ api.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
-  (error: AxiosError) => {
+  (error: unknown) => {
     const { showNotification } = useAppStore.getState();
 
-    if (error.response) {
+    // Don't show notifications for cancelled requests
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
+    const axiosError = error as AxiosError<{
+      detail?: string;
+      message?: string;
+    }>;
+
+    if (axiosError.response) {
       // Server responded with error status
-      const status = error.response.status;
-      const data = error.response.data as { detail?: string; message?: string };
+      const status = axiosError.response.status;
+      const data = axiosError.response.data;
 
       switch (status) {
         case 401:
@@ -79,7 +89,7 @@ api.interceptors.response.use(
             content: data?.detail || `Error: ${status}`,
           });
       }
-    } else if (error.request) {
+    } else if (axiosError.request) {
       // Request made but no response received
       showNotification({
         type: 'error',

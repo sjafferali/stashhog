@@ -57,8 +57,8 @@ async def list_jobs(
     # Get active jobs from queue
     active_jobs = await job_service.get_active_jobs(db)
 
-    # Build database query for completed jobs
-    query = select(Job)
+    # Build database query for completed jobs (exclude active jobs to avoid duplicates)
+    query = select(Job).where(~Job.status.in_(["pending", "running"]))
 
     if status:
         query = query.where(Job.status == status)
