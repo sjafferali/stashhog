@@ -349,6 +349,9 @@ async def retry_job(
         db=db,
     )
 
+    # Refresh the job object to ensure all attributes are loaded
+    await db.refresh(new_job)
+
     return {
         "success": True,
         "message": f"Job {job_id} retried as new job {new_job.id}",

@@ -223,6 +223,8 @@ async def sync_scenes(
             db=db,
             metadata={"incremental": incremental},
         )
+        # Refresh the job object to ensure all attributes are loaded
+        await db.refresh(job)
         return {
             "job_id": job.id,
             "status": "queued",
@@ -311,6 +313,8 @@ async def resync_scenes_bulk(
                 "force": True,  # Force resync for explicit user action
             },
         )
+        # Refresh the job object to ensure all attributes are loaded
+        await db.refresh(job)
         return {
             "job_id": job.id,
             "status": "queued",

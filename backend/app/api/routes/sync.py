@@ -60,7 +60,10 @@ async def sync_all(
         job_type=ModelJobType.SYNC, db=db, metadata={"force": force}
     )
 
-    # Eagerly load all attributes while still in session context
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
     job_id = str(job.id)
     job_created_at = job.created_at
     job_updated_at = job.updated_at
@@ -105,7 +108,10 @@ async def sync_scenes(
         metadata={"scene_ids": scene_ids, "force": force},
     )
 
-    # Eagerly load all attributes while still in session context
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
     job_id = str(job.id)
     job_created_at = job.created_at
     job_updated_at = job.updated_at
@@ -146,7 +152,10 @@ async def sync_performers(
         job_type=ModelJobType.SYNC_PERFORMERS, db=db, metadata={"force": force}
     )
 
-    # Eagerly load all attributes while still in session context
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
     job_id = str(job.id)
     job_created_at = job.created_at
     job_updated_at = job.updated_at
@@ -187,7 +196,10 @@ async def sync_tags(
         job_type=ModelJobType.SYNC_TAGS, db=db, metadata={"force": force}
     )
 
-    # Eagerly load all attributes while still in session context
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
     job_id = str(job.id)
     job_created_at = job.created_at
     job_updated_at = job.updated_at
@@ -228,7 +240,10 @@ async def sync_studios(
         job_type=ModelJobType.SYNC_STUDIOS, db=db, metadata={"force": force}
     )
 
-    # Eagerly load all attributes while still in session context
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
     job_id = str(job.id)
     job_created_at = job.created_at
     job_updated_at = job.updated_at

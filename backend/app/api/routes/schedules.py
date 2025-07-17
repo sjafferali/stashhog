@@ -229,6 +229,9 @@ async def run_schedule_now(
             metadata=job_params,
         )
 
+        # Refresh the job object to ensure all attributes are loaded
+        await db.refresh(job)
+
         # Update schedule's last job reference
         schedule.last_job_id = job.id
         await db.commit()

@@ -144,6 +144,8 @@ async def generate_analysis(
                 "plan_name": request.plan_name,
             },
         )
+        # Refresh the job object to ensure all attributes are loaded
+        await db.refresh(job)
         return {
             "job_id": job.id,
             "status": "queued",
@@ -358,6 +360,8 @@ async def apply_plan(
             db=db,
             metadata={"plan_id": plan_id, "scene_ids": scene_ids},
         )
+        # Refresh the job object to ensure all attributes are loaded
+        await db.refresh(job)
         return {
             "job_id": job.id,
             "status": "queued",
