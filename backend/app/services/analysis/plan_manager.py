@@ -46,7 +46,7 @@ class PlanManager:
         plan = AnalysisPlan(
             name=name,
             description=metadata.get("description", ""),
-            metadata=metadata,
+            plan_metadata=metadata,
             status=PlanStatus.DRAFT,
         )
 

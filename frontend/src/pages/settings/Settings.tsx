@@ -16,6 +16,7 @@ import {
 import { SaveOutlined, ApiOutlined, LoadingOutlined } from '@ant-design/icons';
 // import { apiClient } from '@/services/apiClient';
 import api from '@/services/api';
+import useAppStore from '@/store';
 
 // Type definitions for settings
 interface SettingItem {
@@ -49,6 +50,7 @@ const Settings: React.FC = () => {
   const [fieldPlaceholders, setFieldPlaceholders] = useState<
     Record<string, string>
   >({});
+  const { loadSettings } = useAppStore();
 
   // Fetch current settings
   useEffect(() => {
@@ -124,6 +126,9 @@ const Settings: React.FC = () => {
       } else {
         void message.success('Settings saved successfully');
       }
+
+      // Reload settings in the store
+      await loadSettings();
     } catch (error) {
       console.error('Failed to save settings:', error);
       void message.error('Failed to save settings');

@@ -253,9 +253,8 @@ const PlanDetail: React.FC = () => {
           <Card size="small" style={{ height: '100%' }}>
             <Statistic
               title="Accepted"
-              value={stats.acceptedChanges}
+              value={`${stats.acceptedChanges} (${stats.acceptanceRate.toFixed(0)}%)`}
               valueStyle={{ color: '#52c41a' }}
-              suffix={`(${stats.acceptanceRate.toFixed(0)}%)`}
             />
           </Card>
         </Col>

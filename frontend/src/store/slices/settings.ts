@@ -20,6 +20,7 @@ export const createSettingsSlice: StateCreator<SettingsSlice> = (set, get) => ({
   loadSettings: async () => {
     try {
       const response = await apiClient.getSettings();
+      console.log('Loaded settings:', response);
       set({ settings: response, isLoaded: true });
     } catch (error) {
       console.error('Failed to load settings:', error);

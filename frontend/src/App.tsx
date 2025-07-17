@@ -6,7 +6,15 @@ import useAppStore from './store';
 
 function App() {
   const routing = useRoutes(routes);
-  const { notification, setNotification } = useAppStore();
+  const { notification, setNotification, loadSettings, isLoaded } =
+    useAppStore();
+
+  // Load settings on app initialization
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
 
   useEffect(() => {
     if (notification) {

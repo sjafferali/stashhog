@@ -150,7 +150,43 @@ class ApiClient {
   // Settings
   async getSettings(): Promise<Settings> {
     const response = await api.get('/settings');
-    return response.data;
+    const settingsArray = response.data;
+
+    // Transform array of settings to Settings object
+    const settingsMap: Record<string, string | number | boolean> = {};
+    settingsArray.forEach(
+      (setting: { key: string; value: string | number | boolean }) => {
+        const key = setting.key.replace(/\./g, '_');
+        // Use the actual value from the setting
+        settingsMap[key] = setting.value;
+      }
+    );
+
+    // Return as Settings object with defaults for any missing values
+    return {
+      stash_url: settingsMap.stash_url || '',
+      stash_api_key: settingsMap.stash_api_key,
+      openai_api_key: settingsMap.openai_api_key,
+      openai_model: settingsMap.openai_model || 'gpt-4',
+      openai_temperature:
+        parseFloat(String(settingsMap.openai_temperature)) || 0.7,
+      openai_max_tokens: settingsMap.openai_max_tokens
+        ? parseInt(String(settingsMap.openai_max_tokens))
+        : undefined,
+      auto_analyze_new_scenes:
+        settingsMap.auto_analyze_new_scenes === 'true' ||
+        settingsMap.auto_analyze_new_scenes === true,
+      default_analysis_plan_id: settingsMap.default_analysis_plan_id
+        ? parseInt(String(settingsMap.default_analysis_plan_id))
+        : undefined,
+      sync_interval_hours: settingsMap.sync_interval_hours
+        ? parseInt(String(settingsMap.sync_interval_hours))
+        : undefined,
+      enable_websocket_notifications:
+        settingsMap.enable_websocket_notifications === 'true' ||
+        settingsMap.enable_websocket_notifications === true,
+      log_level: settingsMap.log_level || 'info',
+    } as Settings;
   }
 
   async updateSetting(
