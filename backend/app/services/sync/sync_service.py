@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Job, JobStatus, Scene
@@ -169,15 +170,23 @@ class SyncService:
                 await progress_callback(20, "Entities synced, starting scene sync")
 
             # Sync scenes
+            logger.info("=== SCENE SYNC DECISION ===")
+            logger.info(f"Force parameter: {force}")
+
             last_sync_time = None if force else await self._get_last_sync_time("scene")
+
+            logger.info(f"Last sync time retrieved: {last_sync_time}")
+
             if force:
-                logger.info("Syncing scenes... (FULL SYNC - force=True)")
+                logger.info("→ Syncing scenes... (FULL SYNC - force=True)")
             elif last_sync_time:
                 logger.info(
-                    f"Syncing scenes... (INCREMENTAL SYNC - changes since {last_sync_time})"
+                    f"→ Syncing scenes... (INCREMENTAL SYNC - changes since {last_sync_time})"
                 )
             else:
-                logger.info("Syncing scenes... (FULL SYNC - no previous sync history)")
+                logger.info(
+                    "→ Syncing scenes... (FULL SYNC - no previous sync history)"
+                )
             logger.debug(
                 f"About to sync scenes - since: {last_sync_time}, job_id: {job_id}, batch_size: {batch_size}"
             )
@@ -187,12 +196,15 @@ class SyncService:
                 batch_size=batch_size,
                 progress_callback=progress_callback,
             )
-            logger.debug(
-                f"Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
+            logger.info(
+                f"📊 Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
             )
+            logger.info(f"📊 Before merge: result.total_items = {result.total_items}")
 
             # Merge scene results
             result.total_items += scene_result.total_items
+
+            logger.info(f"📊 After merge: result.total_items = {result.total_items}")
             result.processed_items += scene_result.processed_items
             result.created_items += scene_result.created_items
             result.updated_items += scene_result.updated_items
@@ -255,6 +267,11 @@ class SyncService:
     ) -> SyncResult:
         """Sync scenes with optional incremental mode"""
         job_id = job_id or str(uuid4())
+        logger.info("=== sync_scenes called ===")
+        logger.info(f"  job_id: {job_id}")
+        logger.info(f"  since: {since}")
+        logger.info(f"  force: {force}")
+        logger.info(f"  full_sync: {full_sync}")
         logger.debug(
             f"sync_scenes started - job_id: {job_id}, since: {since}, batch_size: {batch_size}, scene_ids: {scene_ids}, force: {force}, filters: {filters}, full_sync: {full_sync}"
         )
@@ -386,7 +403,10 @@ class SyncService:
 
             # For incremental sync, we need to get the actual count of scenes to sync
             if since:
-                logger.debug(f"Getting count of scenes updated since {since}")
+                logger.info("=== INCREMENTAL SYNC MODE ===")
+                logger.info(f"Getting count of scenes updated since {since}")
+                logger.info(f"Filter will use: updated_at > {since.isoformat()}")
+
                 # Get first page to determine actual count
                 filter_dict = {
                     "updated_at": {
@@ -394,18 +414,32 @@ class SyncService:
                         "modifier": "GREATER_THAN",
                     }
                 }
-                _, total_to_sync = await self.stash_service.get_scenes(
+                logger.debug(f"Filter dict for incremental sync: {filter_dict}")
+
+                scenes_sample, total_to_sync = await self.stash_service.get_scenes(
                     page=1, per_page=1, filter=filter_dict
                 )
-                logger.debug(f"Found {total_to_sync} scenes updated since {since}")
+                logger.info(f"✓ Found {total_to_sync} scenes updated since {since}")
+                logger.info("  (Out of total scenes in Stash)")
+                logger.info(f"  Sample query returned {len(scenes_sample)} scenes")
+
+                # IMPORTANT: If the filter returns 0 scenes, we should not proceed
+                if total_to_sync == 0:
+                    logger.info("🎉 No scenes need syncing - all up to date!")
+                    result.total_items = 0
+                    result.complete()
+                    return result
+
                 result.total_items = total_to_sync
                 self._progress = SyncProgress(job_id, total_to_sync)
             else:
                 # Full sync - get total scene count
+                logger.info("=== FULL SYNC MODE ===")
+                logger.info("No 'since' timestamp provided - syncing ALL scenes")
                 stats = await self.stash_service.get_stats()
                 logger.debug(f"Stats received: {stats}")
                 total_scenes = stats.get("scene_count", 0)
-                logger.debug(f"Total scenes to sync (full sync): {total_scenes}")
+                logger.info(f"Total scenes to sync (full sync): {total_scenes}")
                 result.total_items = total_scenes
                 self._progress = SyncProgress(job_id, total_scenes)
 
@@ -514,7 +548,12 @@ class SyncService:
                     "modifier": "GREATER_THAN",
                 }
             }
-            logger.debug(f"Using filter: {filter_dict}")
+            logger.info(
+                f"📋 Fetching batch with INCREMENTAL filter: updated_at > {since.isoformat()}"
+            )
+            logger.debug(f"Full filter dict: {filter_dict}")
+        else:
+            logger.info("📋 Fetching batch with NO filter (FULL SYNC)")
 
         # Use get_scenes which returns (scenes, total_count)
         page = offset // batch_size + 1
@@ -525,7 +564,16 @@ class SyncService:
                 per_page=batch_size,
                 filter=filter_dict,
             )
-            logger.debug(f"Fetched {len(scenes)} scenes, total_count: {total_count}")
+            logger.info(
+                f"✓ Fetched batch: {len(scenes)} scenes, total_count: {total_count}"
+            )
+            if since and len(scenes) > 0:
+                # Log the first scene's updated_at to verify filter is working
+                first_scene = scenes[0]
+                if "updated_at" in first_scene:
+                    logger.debug(
+                        f"  First scene in batch updated_at: {first_scene['updated_at']}"
+                    )
             return {"scenes": scenes}
         except Exception as e:
             logger.error(f"Error fetching scene batch: {e}")
@@ -1019,11 +1067,48 @@ class SyncService:
 
     async def _get_last_sync_time(self, entity_type: str) -> Optional[datetime]:
         """Get the last successful sync time for an entity type"""
-        from sqlalchemy import and_, desc, select
+        from sqlalchemy import and_, desc, func, select
 
         from app.models.sync_history import SyncHistory
 
-        logger.debug(f"Getting last sync time for entity type: {entity_type}")
+        logger.info(f"=== Getting last sync time for entity type: {entity_type} ===")
+
+        # First, let's see what sync history records exist
+        count_stmt = select(func.count(SyncHistory.id)).where(
+            SyncHistory.entity_type == entity_type
+        )
+        count_result = self.db.execute(count_stmt)
+        total_count = count_result.scalar_one()
+        logger.info(f"Total sync history records for {entity_type}: {total_count}")
+
+        # Also check completed ones
+        completed_count_stmt = select(func.count(SyncHistory.id)).where(
+            and_(
+                SyncHistory.entity_type == entity_type,
+                SyncHistory.status == "completed",
+            )
+        )
+        completed_result = self.db.execute(completed_count_stmt)
+        completed_count = completed_result.scalar_one()
+        logger.info(
+            f"Completed sync history records for {entity_type}: {completed_count}"
+        )
+
+        # If we have records, let's see what's in them
+        if total_count > 0:
+            sample_stmt = (
+                select(SyncHistory)
+                .where(SyncHistory.entity_type == entity_type)
+                .order_by(desc(SyncHistory.id))
+                .limit(3)
+            )
+            sample_result = self.db.execute(sample_stmt)
+            samples = sample_result.scalars().all()
+            for sample in samples:
+                logger.debug(
+                    f"  Sample record - ID: {sample.id}, Status: {sample.status}, "
+                    f"Completed: {sample.completed_at}, Items: {sample.items_synced}"
+                )
 
         # Query the sync history table for the last successful sync
         stmt = (
@@ -1038,15 +1123,24 @@ class SyncService:
             .limit(1)
         )
 
+        logger.debug(
+            f"Executing query for sync history: entity_type={entity_type}, status=completed"
+        )
         result = self.db.execute(stmt)
         last_sync = result.scalar_one_or_none()
 
         if last_sync and last_sync.completed_at:
             completed_at: datetime = last_sync.completed_at  # type: ignore[assignment]
-            logger.info(f"Last successful {entity_type} sync was at: {completed_at}")
+            logger.info(
+                f"✓ Found last successful {entity_type} sync at: {completed_at}"
+            )
+            logger.info(f"  - Sync ID: {last_sync.id}")
+            logger.info(f"  - Items synced: {last_sync.items_synced}")
+            logger.info(f"  - Started at: {last_sync.started_at}")
             return completed_at
         else:
-            logger.info(f"No previous successful sync found for {entity_type}")
+            logger.warning(f"✗ No previous successful sync found for {entity_type}")
+            logger.info("  This will trigger a FULL SYNC")
             return None
 
     async def _update_last_sync_time(
@@ -1092,7 +1186,20 @@ class SyncService:
         self.db.add(sync_record)
         self.db.commit()
 
-        logger.info(f"Recorded successful sync completion for {entity_type}")
+        logger.info(f"✓ Recorded successful sync completion for {entity_type}")
+        logger.info(f"  Completed at: {sync_record.completed_at}")
+
+        # Verify it was saved
+        from sqlalchemy import func
+
+        verify_stmt = select(func.count(SyncHistory.id)).where(
+            SyncHistory.entity_type == entity_type
+        )
+        verify_result = self.db.execute(verify_stmt)
+        verify_count = verify_result.scalar_one()
+        logger.info(
+            f"  Verification: Total {entity_type} sync records now: {verify_count}"
+        )
 
     async def _update_job_status(
         self, job_id: str, status: JobStatus, message: str

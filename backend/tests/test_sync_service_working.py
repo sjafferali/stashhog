@@ -66,6 +66,18 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_all(self, sync_service, mock_stash_service, mock_db):
         """Test full sync functionality."""
+        # Mock _get_last_sync_time to avoid database queries
+        sync_service._get_last_sync_time = AsyncMock(return_value=None)
+
+        # Mock _update_job_status to avoid database queries and update the job object
+        async def mock_update_job_status(job_id, status, message=None):
+            if job_id == "test_job":
+                mock_job.status = status
+
+        sync_service._update_job_status = AsyncMock(side_effect=mock_update_job_status)
+        # Mock _update_last_sync_time to avoid database queries
+        sync_service._update_last_sync_time = AsyncMock()
+
         # Mock job in database
         mock_job = Mock(spec=Job)
         mock_job.job_metadata = {}  # Initialize metadata as dict
@@ -101,6 +113,16 @@ class TestSyncService:
             ]
         )
 
+        # Ensure get_stats returns proper values for full sync
+        mock_stash_service.get_stats = AsyncMock(
+            return_value={
+                "scene_count": 2,
+                "performer_count": 0,
+                "tag_count": 0,
+                "studio_count": 0,
+            }
+        )
+
         # Mock get_all_* methods for entity sync
         mock_stash_service.get_all_performers = AsyncMock(return_value=[])
         mock_stash_service.get_all_tags = AsyncMock(return_value=[])
@@ -126,6 +148,11 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_scenes(self, sync_service, mock_stash_service, mock_db):
         """Test scene sync functionality."""
+        # Mock _get_last_sync_time to avoid database queries
+        sync_service._get_last_sync_time = AsyncMock(return_value=None)
+        # Mock _update_last_sync_time to avoid database queries
+        sync_service._update_last_sync_time = AsyncMock()
+
         # Mock scene data
         mock_scenes = [
             {"id": "1", "title": "Scene 1", "path": "/path1.mp4"},
@@ -146,6 +173,16 @@ class TestSyncService:
                 (mock_scenes, len(mock_scenes)),  # First call returns scenes and count
                 ([], 0),  # Second call returns empty to end loop
             ]
+        )
+
+        # Ensure get_stats returns proper values for full sync
+        mock_stash_service.get_stats = AsyncMock(
+            return_value={
+                "scene_count": 2,
+                "performer_count": 0,
+                "tag_count": 0,
+                "studio_count": 0,
+            }
         )
 
         # Mock database queries
@@ -276,6 +313,11 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_with_progress_callback(self, sync_service, mock_stash_service):
         """Test sync with progress reporting."""
+        # Mock _get_last_sync_time to avoid database queries
+        sync_service._get_last_sync_time = AsyncMock(return_value=None)
+        # Mock _update_last_sync_time to avoid database queries
+        sync_service._update_last_sync_time = AsyncMock()
+
         progress_updates = []
 
         async def progress_callback(progress, message):
@@ -292,6 +334,16 @@ class TestSyncService:
                 ([{"id": "1", "title": "Scene 1"}], 1),
                 ([], 0),  # Empty batch to end loop
             ]
+        )
+
+        # Ensure get_stats returns proper values for full sync
+        mock_stash_service.get_stats = AsyncMock(
+            return_value={
+                "scene_count": 1,
+                "performer_count": 0,
+                "tag_count": 0,
+                "studio_count": 0,
+            }
         )
 
         # Mock handlers

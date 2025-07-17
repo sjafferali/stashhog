@@ -199,6 +199,15 @@ class StashService:
             "scene_filter": filter or {},
         }
 
+        # Log the filter being used
+        if filter:
+            logger.info(f"🔍 Executing GraphQL query with scene_filter: {filter}")
+        else:
+            logger.info(
+                "🔍 Executing GraphQL query with NO scene_filter (getting ALL scenes)"
+            )
+        logger.debug(f"Full variables: {variables}")
+
         result = await self.execute_graphql(queries.GET_SCENES, variables)
         logger.debug(
             f"get_scenes GraphQL result keys: {list(result.keys()) if result else 'None'}"
