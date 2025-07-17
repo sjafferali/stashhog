@@ -41,12 +41,12 @@ class ApiClient {
   async getPerformers(
     params?: FilterParams
   ): Promise<PaginatedResponse<Performer>> {
-    const response = await api.get('/performers', { params });
+    const response = await api.get('/entities/performers', { params });
     return response.data;
   }
 
   async getPerformer(id: number): Promise<Performer> {
-    const response = await api.get(`/performers/${id}`);
+    const response = await api.get(`/entities/performers/${id}`);
     return response.data;
   }
 
@@ -63,12 +63,12 @@ class ApiClient {
 
   // Studios
   async getStudios(params?: FilterParams): Promise<PaginatedResponse<Studio>> {
-    const response = await api.get('/studios', { params });
+    const response = await api.get('/entities/studios', { params });
     return response.data;
   }
 
   async getStudio(id: number): Promise<Studio> {
-    const response = await api.get(`/studios/${id}`);
+    const response = await api.get(`/entities/studios/${id}`);
     return response.data;
   }
 

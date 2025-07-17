@@ -13,6 +13,7 @@ const DEFAULT_FILTERS: SceneFilters = {
   tag_ids: [],
   studio_id: undefined,
   organized: undefined,
+  analyzed: undefined,
   date_from: '',
   date_to: '',
 };
@@ -33,6 +34,11 @@ export function useSceneFilters() {
     const organized = searchParams.get('organized');
     if (organized !== null) {
       params.organized = organized === 'true';
+    }
+
+    const analyzed = searchParams.get('analyzed');
+    if (analyzed !== null) {
+      params.analyzed = analyzed === 'true';
     }
 
     // Array filters (comma-separated IDs)
@@ -139,6 +145,7 @@ export function useSceneFilters() {
       count++;
     if (filters.studio_id) count++;
     if (filters.organized !== undefined) count++;
+    if (filters.analyzed !== undefined) count++;
     if (filters.date_from) count++;
     if (filters.date_to) count++;
     return count;

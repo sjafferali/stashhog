@@ -1,11 +1,10 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   Collapse,
   Select,
   DatePicker,
   // Switch,
-  Input,
   Space,
   Button,
   Tag,
@@ -18,7 +17,6 @@ import {
   TagsOutlined,
   HomeOutlined,
   CalendarOutlined,
-  FolderOutlined,
   ClearOutlined,
   CheckCircleOutlined,
   // FileTextOutlined,
@@ -44,7 +42,9 @@ export const AdvancedFilters: React.FC = () => {
   const { data: performers, isLoading: loadingPerformers } = useQuery<
     Performer[]
   >('performers', async () => {
-    const response = await api.get('/performers', { params: { size: 1000 } });
+    const response = await api.get('/entities/performers', {
+      params: { size: 1000 },
+    });
     return response.data.items;
   });
 
@@ -61,7 +61,9 @@ export const AdvancedFilters: React.FC = () => {
   const { data: studios, isLoading: loadingStudios } = useQuery<Studio[]>(
     'studios',
     async () => {
-      const response = await api.get('/studios', { params: { size: 1000 } });
+      const response = await api.get('/entities/studios', {
+        params: { size: 1000 },
+      });
       return response.data.items;
     }
   );
@@ -134,8 +136,8 @@ export const AdvancedFilters: React.FC = () => {
                 <UserOutlined />
                 Performers
                 {renderFilterCount(
-                  Array.isArray(filters.performers)
-                    ? filters.performers.length
+                  Array.isArray(filters.performer_ids)
+                    ? filters.performer_ids.length
                     : 0
                 )}
               </Space>
@@ -147,10 +149,12 @@ export const AdvancedFilters: React.FC = () => {
                 mode="multiple"
                 placeholder="Select performers..."
                 value={
-                  Array.isArray(filters.performers) ? filters.performers : []
+                  Array.isArray(filters.performer_ids)
+                    ? filters.performer_ids
+                    : []
                 }
                 onChange={(value: string[]) =>
-                  updateFilter('performers', value)
+                  updateFilter('performer_ids', value)
                 }
                 style={{ width: '100%' }}
                 filterOption={(
@@ -179,7 +183,7 @@ export const AdvancedFilters: React.FC = () => {
                 <TagsOutlined />
                 Tags
                 {renderFilterCount(
-                  Array.isArray(filters.tags) ? filters.tags.length : 0
+                  Array.isArray(filters.tag_ids) ? filters.tag_ids.length : 0
                 )}
               </Space>
             }
@@ -189,8 +193,8 @@ export const AdvancedFilters: React.FC = () => {
               <Select
                 mode="multiple"
                 placeholder="Select tags..."
-                value={Array.isArray(filters.tags) ? filters.tags : []}
-                onChange={(value: string[]) => updateFilter('tags', value)}
+                value={Array.isArray(filters.tag_ids) ? filters.tag_ids : []}
+                onChange={(value: string[]) => updateFilter('tag_ids', value)}
                 style={{ width: '100%' }}
                 filterOption={(
                   input: string,
@@ -217,9 +221,7 @@ export const AdvancedFilters: React.FC = () => {
               <Space>
                 <HomeOutlined />
                 Studios
-                {renderFilterCount(
-                  Array.isArray(filters.studios) ? filters.studios.length : 0
-                )}
+                {renderFilterCount(filters.studio_id ? 1 : 0)}
               </Space>
             }
             key="studios"
@@ -228,8 +230,13 @@ export const AdvancedFilters: React.FC = () => {
               <Select
                 mode="multiple"
                 placeholder="Select studios..."
-                value={Array.isArray(filters.studios) ? filters.studios : []}
-                onChange={(value: string[]) => updateFilter('studios', value)}
+                value={filters.studio_id ? [filters.studio_id.toString()] : []}
+                onChange={(value: string[]) =>
+                  updateFilter(
+                    'studio_id',
+                    value.length > 0 ? value[0] : undefined
+                  )
+                }
                 style={{ width: '100%' }}
                 filterOption={(
                   input: string,
@@ -278,10 +285,10 @@ export const AdvancedFilters: React.FC = () => {
                 <CheckCircleOutlined />
                 Status
                 {(filters.organized !== undefined ||
-                  filters.has_details !== undefined) &&
+                  filters.analyzed !== undefined) &&
                   renderFilterCount(
                     (filters.organized !== undefined ? 1 : 0) +
-                      (filters.has_details !== undefined ? 1 : 0)
+                      (filters.analyzed !== undefined ? 1 : 0)
                   )}
               </Space>
             }
@@ -312,15 +319,15 @@ export const AdvancedFilters: React.FC = () => {
               </Col>
               <Col span={12}>
                 <Space>
-                  <span>Has Details:</span>
+                  <span>Analyzed:</span>
                   <Select
                     value={
-                      typeof filters.has_details === 'boolean'
-                        ? filters.has_details
+                      typeof filters.analyzed === 'boolean'
+                        ? filters.analyzed
                         : undefined
                     }
                     onChange={(value: boolean | undefined) =>
-                      updateFilter('has_details', value)
+                      updateFilter('analyzed', value)
                     }
                     style={{ width: 120 }}
                     placeholder="Any"
@@ -333,31 +340,6 @@ export const AdvancedFilters: React.FC = () => {
                 </Space>
               </Col>
             </Row>
-          </Panel>
-
-          {/* Path Filter */}
-          <Panel
-            header={
-              <Space>
-                <FolderOutlined />
-                Path Contains
-                {filters.path_contains && renderFilterCount(1)}
-              </Space>
-            }
-            key="path"
-          >
-            <Input
-              placeholder="Filter by path..."
-              value={
-                typeof filters.path_contains === 'string'
-                  ? filters.path_contains
-                  : ''
-              }
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                updateFilter('path_contains', e.target.value)
-              }
-              allowClear
-            />
           </Panel>
         </Collapse>
       </Space>

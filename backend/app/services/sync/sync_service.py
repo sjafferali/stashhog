@@ -249,6 +249,12 @@ class SyncService:
         result = SyncResult(job_id=job_id, started_at=datetime.utcnow())
 
         # Handle special sync modes
+        if scene_ids:
+            logger.debug(f"Using scene_ids sync mode for {len(scene_ids)} scenes")
+            return await self._sync_specific_scenes(
+                scene_ids, job_id, progress_callback, result
+            )
+
         if filters:
             logger.debug("Using filter sync mode")
             return await self._sync_with_filters(db, filters)
@@ -288,6 +294,67 @@ class SyncService:
             result.add_error("sync", "scenes", str(e))
             result.complete(SyncStatus.FAILED)
             return result
+
+    async def _sync_specific_scenes(
+        self,
+        scene_ids: List[str],
+        job_id: str,
+        progress_callback: Optional[Any],
+        result: SyncResult,
+    ) -> SyncResult:
+        """Sync specific scenes by their IDs"""
+        logger.debug(f"_sync_specific_scenes started for {len(scene_ids)} scenes")
+        try:
+            # Set total items to the number of scene IDs
+            result.total_items = len(scene_ids)
+            self._progress = SyncProgress(job_id, len(scene_ids))
+
+            # Process each scene ID
+            for idx, scene_id in enumerate(scene_ids):
+                logger.debug(f"Syncing scene {idx+1}/{len(scene_ids)} - id: {scene_id}")
+
+                try:
+                    # Fetch scene data from Stash
+                    scene_data = await self.stash_service.get_scene(scene_id)
+                    if scene_data:
+                        # Process the scene
+                        await self._process_single_scene(
+                            scene_data, result, progress_callback
+                        )
+                    else:
+                        logger.warning(f"Scene {scene_id} not found in Stash")
+                        result.failed_items += 1
+                        result.add_error("sync", scene_id, "Scene not found in Stash")
+                except Exception as e:
+                    logger.error(f"Failed to sync scene {scene_id}: {str(e)}")
+                    result.failed_items += 1
+                    result.add_error("sync", scene_id, str(e))
+
+                # Update progress
+                progress = int((idx + 1) / len(scene_ids) * 100)
+                if progress_callback:
+                    await progress_callback(
+                        progress, f"Synced {idx + 1}/{len(scene_ids)} scenes"
+                    )
+
+            # Report 100% progress before completing
+            if progress_callback:
+                await progress_callback(
+                    100,
+                    f"Scene sync completed. Processed {result.processed_items} scenes.",
+                )
+
+            result.complete()
+            if self._progress:
+                await self._progress.complete(result)
+
+        except Exception as e:
+            logger.error(f"Specific scene sync failed: {str(e)}")
+            result.add_error("sync", "scenes", str(e))
+            result.complete(SyncStatus.FAILED)
+            raise
+
+        return result
 
     async def _batch_sync_scenes(
         self,
