@@ -210,7 +210,7 @@ class TestSyncScheduler:
         scheduler = SyncScheduler()
         scheduler._jobs["test_task"] = mock_job
 
-        scheduler._update_scheduled_task(mock_db, "test_task", "completed", None)
+        scheduler._update_scheduled_task_sync(mock_db, "test_task", "completed", None)
 
         assert mock_task.last_run is not None
         assert mock_task.config["last_status"] == "completed"
@@ -229,7 +229,7 @@ class TestSyncScheduler:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_task
 
         scheduler = SyncScheduler()
-        scheduler._update_scheduled_task(
+        scheduler._update_scheduled_task_sync(
             mock_db, "test_task", "failed", "Error message"
         )
 
@@ -243,7 +243,7 @@ class TestSyncScheduler:
 
         scheduler = SyncScheduler()
         # Should not raise
-        scheduler._update_scheduled_task(mock_db, "nonexistent", "completed")
+        scheduler._update_scheduled_task_sync(mock_db, "nonexistent", "completed")
 
         # Commit not called if task not found
         mock_db.commit.assert_not_called()

@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Type, TypeVar
+from typing import Any, Dict, List, Type, TypeVar, Union
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models import Performer, Studio, Tag
@@ -22,7 +24,10 @@ class EntitySyncHandler:
         self.strategy = strategy
 
     async def sync_performers(
-        self, stash_performers: List[Dict[str, Any]], db: Session, force: bool = False
+        self,
+        stash_performers: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+        force: bool = False,
     ) -> Dict[str, int]:
         """Sync all performers"""
         logger.info(f"Syncing {len(stash_performers)} performers")
@@ -46,7 +51,7 @@ class EntitySyncHandler:
         return stats
 
     async def sync_performers_incremental(
-        self, since: datetime, db: Session
+        self, since: datetime, db: Union[Session, AsyncSession]
     ) -> Dict[str, int]:
         """Sync performers updated since a specific time"""
         logger.info(f"Syncing performers updated since {since}")
@@ -58,7 +63,10 @@ class EntitySyncHandler:
         return await self.sync_performers(stash_performers, db, force=False)
 
     async def sync_tags(
-        self, stash_tags: List[Dict[str, Any]], db: Session, force: bool = False
+        self,
+        stash_tags: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+        force: bool = False,
     ) -> Dict[str, int]:
         """Sync all tags"""
         logger.info(f"Syncing {len(stash_tags)} tags")
@@ -78,7 +86,7 @@ class EntitySyncHandler:
         return stats
 
     async def sync_tags_incremental(
-        self, since: datetime, db: Session
+        self, since: datetime, db: Union[Session, AsyncSession]
     ) -> Dict[str, int]:
         """Sync tags updated since a specific time"""
         logger.info(f"Syncing tags updated since {since}")
@@ -90,7 +98,10 @@ class EntitySyncHandler:
         return await self.sync_tags(stash_tags, db, force=False)
 
     async def sync_studios(
-        self, stash_studios: List[Dict[str, Any]], db: Session, force: bool = False
+        self,
+        stash_studios: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+        force: bool = False,
     ) -> Dict[str, int]:
         """Sync all studios"""
         logger.info(f"Syncing {len(stash_studios)} studios")
@@ -110,7 +121,7 @@ class EntitySyncHandler:
         return stats
 
     async def sync_studios_incremental(
-        self, since: datetime, db: Session
+        self, since: datetime, db: Union[Session, AsyncSession]
     ) -> Dict[str, int]:
         """Sync studios updated since a specific time"""
         logger.info(f"Syncing studios updated since {since}")
@@ -122,15 +133,28 @@ class EntitySyncHandler:
         return await self.sync_studios(stash_studios, db, force=False)
 
     async def find_or_create_entity(
-        self, model_class: Type[T], entity_id: str, name: str, db: Session
+        self,
+        model_class: Type[T],
+        entity_id: str,
+        name: str,
+        db: Union[Session, AsyncSession],
     ) -> T:
         """Generic find or create for entities"""
-        entity = db.query(model_class).filter(model_class.id == entity_id).first()
+        stmt = select(model_class).where(model_class.id == entity_id)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            entity = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            entity = result.scalar_one_or_none()
 
         if not entity:
             entity = model_class(id=entity_id, name=name)
             db.add(entity)
-            db.flush()
+            if isinstance(db, AsyncSession):
+                await db.flush()
+            else:
+                db.flush()
 
         return entity
 
@@ -138,7 +162,7 @@ class EntitySyncHandler:
         self,
         model_class: Type[T],
         entity_data: Dict[str, Any],
-        db: Session,
+        db: Union[Session, AsyncSession],
         force: bool = False,
     ) -> str:
         """Sync a single entity and return the action taken"""
@@ -147,7 +171,13 @@ class EntitySyncHandler:
             raise ValueError("Entity ID is required")
 
         # Find existing entity
-        existing = db.query(model_class).filter(model_class.id == entity_id).first()
+        stmt = select(model_class).where(model_class.id == entity_id)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            existing = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            existing = result.scalar_one_or_none()
 
         # Check if we should sync
         if not force and existing:
@@ -175,7 +205,10 @@ class EntitySyncHandler:
         # Common updates
         entity.last_synced = datetime.utcnow()  # type: ignore[assignment]
 
-        db.flush()
+        if isinstance(db, AsyncSession):
+            await db.flush()
+        else:
+            db.flush()
         return action
 
     def _update_performer(self, performer: Performer, data: Dict[str, Any]) -> None:
@@ -241,12 +274,24 @@ class EntitySyncHandler:
         if data.get("image_path"):
             studio.image_url = data["image_path"]
 
-    async def resolve_tag_hierarchy(self, db: Session) -> None:
+    async def resolve_tag_hierarchy(self, db: Union[Session, AsyncSession]) -> None:
         """Resolve parent-child relationships for tags after all are synced"""
-        tags_with_parents = db.query(Tag).filter(Tag.parent_temp_id.isnot(None)).all()
+        stmt = select(Tag).where(Tag.parent_temp_id.isnot(None))
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            tags_with_parents = result.scalars().all()
+        else:
+            result = db.execute(stmt)
+            tags_with_parents = result.scalars().all()
 
         for tag in tags_with_parents:
-            parent = db.query(Tag).filter(Tag.id == tag.parent_temp_id).first()
+            stmt = select(Tag).where(Tag.id == tag.parent_temp_id)
+            if isinstance(db, AsyncSession):
+                result = await db.execute(stmt)
+                parent = result.scalar_one_or_none()
+            else:
+                result = db.execute(stmt)
+                parent = result.scalar_one_or_none()
             if parent:
                 tag.parent_id = parent.id
             else:
@@ -255,14 +300,24 @@ class EntitySyncHandler:
                 )
                 tag.parent_temp_id = None  # type: ignore[assignment]
 
-    async def resolve_studio_hierarchy(self, db: Session) -> None:
+    async def resolve_studio_hierarchy(self, db: Union[Session, AsyncSession]) -> None:
         """Resolve parent-child relationships for studios after all are synced"""
-        studios_with_parents = (
-            db.query(Studio).filter(Studio.parent_temp_id.isnot(None)).all()
-        )
+        stmt = select(Studio).where(Studio.parent_temp_id.isnot(None))
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            studios_with_parents = result.scalars().all()
+        else:
+            result = db.execute(stmt)
+            studios_with_parents = result.scalars().all()
 
         for studio in studios_with_parents:
-            parent = db.query(Studio).filter(Studio.id == studio.parent_temp_id).first()
+            stmt = select(Studio).where(Studio.id == studio.parent_temp_id)
+            if isinstance(db, AsyncSession):
+                result = await db.execute(stmt)
+                parent = result.scalar_one_or_none()
+            else:
+                result = db.execute(stmt)
+                parent = result.scalar_one_or_none()
             if parent:
                 studio.parent_id = parent.id
             else:

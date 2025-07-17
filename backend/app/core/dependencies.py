@@ -2,7 +2,7 @@
 Dependency injection functions for FastAPI.
 """
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any, Optional
 
 from fastapi import Depends, HTTPException, status
@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import AsyncSessionLocal
-from app.core.database import get_db as get_sync_db
 from app.models import Setting
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.job_service import JobService
@@ -268,29 +267,21 @@ def get_stash_service(
     return StashService(stash_url=settings.stash.url, api_key=settings.stash.api_key)
 
 
-def get_sync_service(
+async def get_sync_service(
     stash_service: StashService = Depends(get_stash_service),
-) -> Generator[SyncService, None, None]:
+    db: AsyncSession = Depends(get_db),
+) -> SyncService:
     """
     Get Sync service instance.
 
     Args:
         stash_service: Stash service
+        db: Async database session
 
     Returns:
         SyncService: Sync service instance
     """
-    # Get a synchronous session for SyncService
-    db_gen = get_sync_db()
-    db = next(db_gen)
-    try:
-        yield SyncService(stash_service=stash_service, db_session=db)
-    finally:
-        # Ensure the session is properly closed
-        try:
-            next(db_gen)
-        except StopIteration:
-            pass
+    return SyncService(stash_service=stash_service, db_session=db)
 
 
 def get_analysis_service(

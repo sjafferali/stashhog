@@ -17,11 +17,12 @@ class TestSyncService:
     @pytest.fixture
     def mock_db(self):
         """Create mock database session."""
-        db = Mock()
+        db = AsyncMock()
         db.query = Mock()
         db.add = Mock()
-        db.commit = Mock()
-        db.rollback = Mock()
+        db.commit = AsyncMock()
+        db.rollback = AsyncMock()
+        db.execute = AsyncMock()
         return db
 
     @pytest.fixture
@@ -128,6 +129,11 @@ class TestSyncService:
         mock_stash_service.get_all_tags = AsyncMock(return_value=[])
         mock_stash_service.get_all_studios = AsyncMock(return_value=[])
 
+        # Mock database execute for scene lookups
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none = Mock(return_value=None)
+        mock_db.execute.return_value = mock_result
+
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
 
@@ -186,7 +192,9 @@ class TestSyncService:
         )
 
         # Mock database queries
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none = Mock(return_value=None)
+        mock_db.execute.return_value = mock_result
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -211,8 +219,10 @@ class TestSyncService:
         # Mock stash service
         mock_stash_service.get_scene = AsyncMock(return_value=scene_data)
 
-        # Mock database
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        # Mock database - mock execute to return no existing scene
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none = Mock(return_value=None)
+        mock_db.execute.return_value = mock_result
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -391,9 +401,10 @@ class TestSyncService:
         existing_scene.id = "123"
         existing_scene.title = "Old Title"
 
-        mock_db.query.return_value.filter.return_value.first.return_value = (
-            existing_scene
-        )
+        # Mock database - mock execute to return existing scene
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none = Mock(return_value=existing_scene)
+        mock_db.execute.return_value = mock_result
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock(return_value=existing_scene)
@@ -416,6 +427,11 @@ class TestSyncService:
     async def test_sync_single_scene_skip(self, sync_service, mock_db):
         """Test skipping a scene based on strategy."""
         scene_data = {"id": "123", "title": "Scene"}
+
+        # Mock database - mock execute to return no existing scene
+        mock_result = AsyncMock()
+        mock_result.scalar_one_or_none = Mock(return_value=None)
+        mock_db.execute.return_value = mock_result
 
         # Mock strategy to skip
         sync_service.strategy.should_sync = AsyncMock(return_value=False)

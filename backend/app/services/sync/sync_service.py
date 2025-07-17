@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models import Job, JobStatus, Scene
@@ -58,12 +58,17 @@ class SceneSyncerWrapper:
     def __init__(self, scene_handler: Any) -> None:
         self.scene_handler = scene_handler
 
-    async def sync_scene(self, scene_data: Dict[str, Any], db: Session) -> Any:
+    async def sync_scene(
+        self, scene_data: Dict[str, Any], db: Union[Session, AsyncSession]
+    ) -> Any:
         """Delegate to scene handler"""
         return await self.scene_handler.sync_scene(scene_data, db)
 
     async def sync_scenes_with_filters(
-        self, db: Session, filters: Dict[str, Any], progress_callback: Any = None
+        self,
+        db: Union[Session, AsyncSession],
+        filters: Dict[str, Any],
+        progress_callback: Any = None,
     ) -> SyncResult:
         """Mock implementation for tests"""
         result = SyncResult(
@@ -76,13 +81,13 @@ class SceneSyncerWrapper:
         return result
 
     async def sync_all_scenes(
-        self, db: Session, progress_callback: Any = None
+        self, db: Union[Session, AsyncSession], progress_callback: Any = None
     ) -> SyncResult:
         """Mock implementation for tests"""
         raise Exception("Sync failed")
 
     async def sync_batch(
-        self, scene_ids: List[str], db: Session
+        self, scene_ids: List[str], db: Union[Session, AsyncSession]
     ) -> Dict[str, List[str]]:
         """Mock implementation for tests"""
         return {"synced": scene_ids[:-1], "failed": scene_ids[-1:]}
@@ -92,11 +97,11 @@ class SyncService:
     def __init__(
         self,
         stash_service: StashService,
-        db_session: Session,
+        db_session: AsyncSession,
         strategy: Optional[SyncStrategy] = None,
     ):
         self.stash_service = stash_service
-        self.db = db_session
+        self.db: AsyncSession = db_session
         self.strategy = strategy or SmartSyncStrategy()
         self.scene_handler = SceneSyncHandler(stash_service, self.strategy)
         self.entity_handler = EntitySyncHandler(stash_service, self.strategy)
@@ -261,7 +266,7 @@ class SyncService:
         progress_callback: Optional[Any] = None,
         scene_ids: Optional[List[str]] = None,
         force: bool = False,
-        db: Optional[Session] = None,
+        db: Optional[AsyncSession] = None,
         filters: Optional[Dict[str, Any]] = None,
         full_sync: bool = False,
     ) -> SyncResult:
@@ -299,7 +304,7 @@ class SyncService:
         )
 
     async def _sync_with_filters(
-        self, db: Optional[Session], filters: Dict[str, Any]
+        self, db: Optional[AsyncSession], filters: Dict[str, Any]
     ) -> SyncResult:
         """Sync scenes with specific filters"""
         return await self.scene_syncer.sync_scenes_with_filters(
@@ -310,7 +315,7 @@ class SyncService:
 
     async def _full_scene_sync(
         self,
-        db: Optional[Session],
+        db: Optional[AsyncSession],
         progress_callback: Optional[Any],
         result: SyncResult,
     ) -> SyncResult:
@@ -906,7 +911,11 @@ class SyncService:
 
         try:
             # Check if scene exists locally
-            existing_scene = self.db.query(Scene).filter(Scene.id == scene_id).first()
+            from sqlalchemy import select
+
+            stmt = select(Scene).where(Scene.id == scene_id)
+            result_query = await self.db.execute(stmt)
+            existing_scene = result_query.scalar_one_or_none()
 
             # Apply sync strategy
             should_sync = await self.strategy.should_sync(scene_data, existing_scene)
@@ -925,7 +934,7 @@ class SyncService:
                 result.created_items += 1
                 result.stats.scenes_created += 1
 
-            self.db.commit()
+            await self.db.commit()
             logger.debug(f"Scene {scene_id} committed to database")
 
         except Exception as e:
@@ -938,7 +947,7 @@ class SyncService:
             import traceback
 
             logger.debug(f"_sync_single_scene traceback:\n{traceback.format_exc()}")
-            self.db.rollback()
+            await self.db.rollback()
             raise
 
     async def _sync_entities(self, force: bool = False) -> Dict[str, Any]:
@@ -1077,7 +1086,7 @@ class SyncService:
         count_stmt = select(func.count(SyncHistory.id)).where(
             SyncHistory.entity_type == entity_type
         )
-        count_result = self.db.execute(count_stmt)
+        count_result = await self.db.execute(count_stmt)
         total_count = count_result.scalar_one()
         logger.info(f"Total sync history records for {entity_type}: {total_count}")
 
@@ -1088,7 +1097,7 @@ class SyncService:
                 SyncHistory.status == "completed",
             )
         )
-        completed_result = self.db.execute(completed_count_stmt)
+        completed_result = await self.db.execute(completed_count_stmt)
         completed_count = completed_result.scalar_one()
         logger.info(
             f"Completed sync history records for {entity_type}: {completed_count}"
@@ -1102,7 +1111,7 @@ class SyncService:
                 .order_by(desc(SyncHistory.id))
                 .limit(3)
             )
-            sample_result = self.db.execute(sample_stmt)
+            sample_result = await self.db.execute(sample_stmt)
             samples = sample_result.scalars().all()
             for sample in samples:
                 logger.debug(
@@ -1126,7 +1135,7 @@ class SyncService:
         logger.debug(
             f"Executing query for sync history: entity_type={entity_type}, status=completed"
         )
-        result = self.db.execute(stmt)
+        result = await self.db.execute(stmt)
         last_sync = result.scalar_one_or_none()
 
         if last_sync and last_sync.completed_at:
@@ -1184,18 +1193,18 @@ class SyncService:
             )
 
         self.db.add(sync_record)
-        self.db.commit()
+        await self.db.commit()
 
         logger.info(f"✓ Recorded successful sync completion for {entity_type}")
         logger.info(f"  Completed at: {sync_record.completed_at}")
 
         # Verify it was saved
-        from sqlalchemy import func
+        from sqlalchemy import func, select
 
         verify_stmt = select(func.count(SyncHistory.id)).where(
             SyncHistory.entity_type == entity_type
         )
-        verify_result = self.db.execute(verify_stmt)
+        verify_result = await self.db.execute(verify_stmt)
         verify_count = verify_result.scalar_one()
         logger.info(
             f"  Verification: Total {entity_type} sync records now: {verify_count}"
@@ -1205,7 +1214,11 @@ class SyncService:
         self, job_id: str, status: JobStatus, message: str
     ) -> None:
         """Update job status in database"""
-        job = self.db.query(Job).filter(Job.id == job_id).first()
+        from sqlalchemy import select
+
+        stmt = select(Job).where(Job.id == job_id)
+        result = await self.db.execute(stmt)
+        job = result.scalar_one_or_none()
         if job:
             job.status = status  # type: ignore[assignment]
             if hasattr(job, "message"):
@@ -1216,7 +1229,7 @@ class SyncService:
                 job.job_metadata = {**job.job_metadata, "message": message}  # type: ignore[assignment]
             if status in [JobStatus.COMPLETED, JobStatus.FAILED]:
                 job.completed_at = datetime.utcnow()  # type: ignore[assignment]
-            self.db.commit()
+            await self.db.commit()
 
     async def sync_single_scene(self, scene_id: str, db: Session) -> bool:
         """Sync a single scene by ID - compatibility method for tests"""

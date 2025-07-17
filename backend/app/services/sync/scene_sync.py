@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Union
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models import Performer, Scene, Studio, Tag
@@ -19,8 +21,29 @@ class SceneSyncHandler:
         self.stash_service = stash_service
         self.strategy = strategy
 
-    async def sync_scene(self, stash_scene: Dict[str, Any], db: Session) -> Scene:
+    async def sync_scene(
+        self, stash_scene: Dict[str, Any], db: Union[Session, AsyncSession]
+    ) -> Scene:
         """Sync a single scene with all relationships"""
+        scene_id = self._validate_scene_id(stash_scene)
+        logger.info(f"Syncing scene {scene_id}")
+
+        # Find or create scene
+        scene = await self._find_or_create_scene(scene_id, db)
+
+        # Apply sync strategy to merge data
+        scene = await self._apply_sync_strategy(scene, stash_scene, scene_id)
+
+        # Sync relationships
+        await self._sync_relationships_with_logging(scene, stash_scene, db, scene_id)
+
+        # Update metadata and save
+        await self._finalize_scene_sync(scene, db, scene_id)
+
+        return scene
+
+    def _validate_scene_id(self, stash_scene: Dict[str, Any]) -> str:
+        """Validate and extract scene ID from stash data"""
         scene_id = stash_scene.get("id")
         logger.debug(f"sync_scene called with scene_id: {scene_id}")
         logger.debug(
@@ -29,12 +52,21 @@ class SceneSyncHandler:
         if not scene_id:
             logger.error("Scene ID is missing from stash_scene data")
             raise ValueError("Scene ID is required")
+        return str(scene_id)
 
-        logger.info(f"Syncing scene {scene_id}")
-
-        # Find or create scene
+    async def _find_or_create_scene(
+        self, scene_id: str, db: Union[Session, AsyncSession]
+    ) -> Scene:
+        """Find existing scene or create new one"""
         logger.debug(f"Querying database for scene {scene_id}")
-        scene = db.query(Scene).filter(Scene.id == scene_id).first()
+        stmt = select(Scene).where(Scene.id == scene_id)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            scene = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            scene = result.scalar_one_or_none()
+
         if not scene:
             logger.debug(f"Scene {scene_id} not found, creating new scene")
             scene = Scene(id=scene_id)
@@ -44,7 +76,12 @@ class SceneSyncHandler:
             logger.debug(f"Scene {scene_id} found in database")
             logger.info(f"Updating existing scene {scene_id}")
 
-        # Apply sync strategy to merge data
+        return scene
+
+    async def _apply_sync_strategy(
+        self, scene: Scene, stash_scene: Dict[str, Any], scene_id: str
+    ) -> Scene:
+        """Apply sync strategy to merge scene data"""
         logger.debug(f"Applying sync strategy to merge data for scene {scene_id}")
         try:
             merged_scene = await self.strategy.merge_data(scene, stash_scene)
@@ -67,7 +104,16 @@ class SceneSyncHandler:
             logger.error(f"Scene object is None after merge for scene_id {scene_id}")
             raise ValueError(f"Failed to sync scene {scene_id}")
 
-        # Sync relationships
+        return scene
+
+    async def _sync_relationships_with_logging(
+        self,
+        scene: Scene,
+        stash_scene: Dict[str, Any],
+        db: Union[Session, AsyncSession],
+        scene_id: str,
+    ) -> None:
+        """Sync scene relationships with error handling and logging"""
         logger.debug(f"Syncing relationships for scene {scene_id}")
         try:
             await self._sync_scene_relationships(scene, stash_scene, db)
@@ -79,29 +125,62 @@ class SceneSyncHandler:
             )
             raise
 
-        # Update sync metadata
+    async def _finalize_scene_sync(
+        self, scene: Scene, db: Union[Session, AsyncSession], scene_id: str
+    ) -> None:
+        """Update metadata and flush to database"""
         scene.last_synced = datetime.utcnow()  # type: ignore[assignment]
         logger.debug(f"Updated last_synced for scene {scene_id}")
 
-        # Save to get ID if new
         logger.debug(f"Flushing database for scene {scene_id}")
-        db.flush()
+        if isinstance(db, AsyncSession):
+            await db.flush()
+        else:
+            db.flush()
         logger.debug(f"Scene {scene_id} flushed to database successfully")
 
-        return scene
-
     async def sync_scene_batch(
-        self, stash_scenes: List[Dict[str, Any]], db: Session
+        self, stash_scenes: List[Dict[str, Any]], db: Union[Session, AsyncSession]
     ) -> List[Scene]:
         """Efficiently sync multiple scenes"""
-        synced_scenes = []
+        synced_scenes: List[Scene] = []
 
-        # Pre-fetch all entities to reduce queries
+        # Pre-fetch existing scenes
+        existing_scenes = await self._fetch_existing_scenes(stash_scenes, db)
+
+        # Collect and pre-fetch all related entities
+        entity_maps = await self._prefetch_all_entities(stash_scenes, db)
+
+        # Process each scene
+        for scene_data in stash_scenes:
+            scene = await self._process_batch_scene(
+                scene_data, db, existing_scenes, entity_maps, synced_scenes
+            )
+            if scene:
+                synced_scenes.append(scene)
+
+        # Flush all changes
+        await self._flush_database(db)
+        return synced_scenes
+
+    async def _fetch_existing_scenes(
+        self, stash_scenes: List[Dict[str, Any]], db: Union[Session, AsyncSession]
+    ) -> Dict[str, Scene]:
+        """Fetch existing scenes from database"""
         scene_ids = [s["id"] for s in stash_scenes if s.get("id")]
-        existing_scenes = {
-            s.id: s for s in db.query(Scene).filter(Scene.id.in_(scene_ids)).all()
-        }
+        stmt = select(Scene).where(Scene.id.in_(scene_ids))
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            scenes = result.scalars().all()
+        else:
+            result = db.execute(stmt)
+            scenes = result.scalars().all()
+        return {str(s.id): s for s in scenes}
 
+    async def _prefetch_all_entities(
+        self, stash_scenes: List[Dict[str, Any]], db: Union[Session, AsyncSession]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Collect and pre-fetch all related entities"""
         # Collect all entity IDs
         all_performer_ids: Set[str] = set()
         all_tag_ids: Set[str] = set()
@@ -114,49 +193,72 @@ class SceneSyncHandler:
                 all_studio_ids.add(scene_data["studio"]["id"])
 
         # Pre-fetch all entities
-        performers_map = self._fetch_entities_map(db, Performer, all_performer_ids)
-        tags_map = self._fetch_entities_map(db, Tag, all_tag_ids)
-        studios_map = self._fetch_entities_map(db, Studio, all_studio_ids)
+        performers_map = await self._fetch_entities_map(
+            db, Performer, all_performer_ids
+        )
+        tags_map = await self._fetch_entities_map(db, Tag, all_tag_ids)
+        studios_map = await self._fetch_entities_map(db, Studio, all_studio_ids)
 
-        # Process each scene
-        for scene_data in stash_scenes:
-            try:
-                scene_id = scene_data.get("id")
-                if not scene_id:
-                    continue
+        return {"performers": performers_map, "tags": tags_map, "studios": studios_map}
 
-                # Get or create scene
-                scene = existing_scenes.get(scene_id)
-                if not scene:
-                    scene = Scene(id=scene_id)
-                    db.add(scene)
+    async def _process_batch_scene(
+        self,
+        scene_data: Dict[str, Any],
+        db: Union[Session, AsyncSession],
+        existing_scenes: Dict[str, Scene],
+        entity_maps: Dict[str, Dict[str, Any]],
+        synced_scenes: List[Scene],
+    ) -> Optional[Scene]:
+        """Process a single scene in batch mode"""
+        try:
+            scene_id = scene_data.get("id")
+            if not scene_id:
+                return None
 
-                # Apply sync strategy
-                merged_scene = await self.strategy.merge_data(scene, scene_data)
-                if merged_scene:
-                    scene = merged_scene
+            # Get or create scene
+            scene = existing_scenes.get(scene_id)
+            if not scene:
+                scene = Scene(id=scene_id)
+                db.add(scene)
 
-                if not scene:
-                    logger.error(f"Failed to merge scene data for {scene_id}")
-                    continue
+            # Apply sync strategy
+            merged_scene = await self.strategy.merge_data(scene, scene_data)
+            if merged_scene:
+                scene = merged_scene
 
-                # Sync relationships using pre-fetched entities
-                await self._sync_scene_relationships_batch(
-                    scene, scene_data, db, performers_map, tags_map, studios_map
-                )
+            if not scene:
+                logger.error(f"Failed to merge scene data for {scene_id}")
+                return None
 
-                scene.last_synced = datetime.utcnow()  # type: ignore[assignment]
-                synced_scenes.append(scene)
+            # Sync relationships using pre-fetched entities
+            await self._sync_scene_relationships_batch(
+                scene,
+                scene_data,
+                db,
+                entity_maps["performers"],
+                entity_maps["tags"],
+                entity_maps["studios"],
+            )
 
-            except Exception as e:
-                logger.error(f"Failed to sync scene {scene_data.get('id')}: {str(e)}")
-                raise
+            scene.last_synced = datetime.utcnow()  # type: ignore[assignment]
+            return scene
 
-        db.flush()
-        return synced_scenes
+        except Exception as e:
+            logger.error(f"Failed to sync scene {scene_data.get('id')}: {str(e)}")
+            raise
+
+    async def _flush_database(self, db: Union[Session, AsyncSession]) -> None:
+        """Flush database changes"""
+        if isinstance(db, AsyncSession):
+            await db.flush()
+        else:
+            db.flush()
 
     async def _sync_scene_relationships(
-        self, scene: Scene, stash_scene: Dict[str, Any], db: Session
+        self,
+        scene: Scene,
+        stash_scene: Dict[str, Any],
+        db: Union[Session, AsyncSession],
     ) -> None:
         """Sync all relationships for a scene"""
         # Sync studio
@@ -172,7 +274,7 @@ class SceneSyncHandler:
         self,
         scene: Scene,
         stash_scene: Dict[str, Any],
-        db: Session,
+        db: Union[Session, AsyncSession],
         performers_map: Dict[str, Performer],
         tags_map: Dict[str, Tag],
         studios_map: Dict[str, Studio],
@@ -201,7 +303,10 @@ class SceneSyncHandler:
                 scene.tags.append(tags_map[tag_id])
 
     async def _sync_scene_studio(
-        self, scene: Scene, studio_data: Optional[Dict[str, Any]], db: Session
+        self,
+        scene: Scene,
+        studio_data: Optional[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
     ) -> None:
         """Sync scene's studio relationship"""
         if not studio_data or not studio_data.get("id"):
@@ -210,7 +315,13 @@ class SceneSyncHandler:
             return
 
         studio_id = studio_data["id"]
-        studio = db.query(Studio).filter(Studio.id == studio_id).first()
+        stmt = select(Studio).where(Studio.id == studio_id)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            studio = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            studio = result.scalar_one_or_none()
 
         if not studio:
             # Create minimal studio - full sync will happen in entity sync
@@ -220,13 +331,19 @@ class SceneSyncHandler:
                 last_synced=datetime.utcnow(),
             )
             db.add(studio)
-            db.flush()
+            if isinstance(db, AsyncSession):
+                await db.flush()
+            else:
+                db.flush()
 
         scene.studio = studio
         scene.studio_id = studio.id
 
     async def _sync_scene_performers(
-        self, scene: Scene, performers_data: List[Dict[str, Any]], db: Session
+        self,
+        scene: Scene,
+        performers_data: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
     ) -> None:
         """Sync scene's performer relationships"""
         # Clear existing relationships
@@ -237,7 +354,13 @@ class SceneSyncHandler:
             if not performer_id:
                 continue
 
-            performer = db.query(Performer).filter(Performer.id == performer_id).first()
+            stmt = select(Performer).where(Performer.id == performer_id)
+            if isinstance(db, AsyncSession):
+                result = await db.execute(stmt)
+                performer = result.scalar_one_or_none()
+            else:
+                result = db.execute(stmt)
+                performer = result.scalar_one_or_none()
 
             if not performer:
                 # Create minimal performer - full sync will happen in entity sync
@@ -247,12 +370,18 @@ class SceneSyncHandler:
                     last_synced=datetime.utcnow(),
                 )
                 db.add(performer)
-                db.flush()
+                if isinstance(db, AsyncSession):
+                    await db.flush()
+                else:
+                    db.flush()
 
             scene.performers.append(performer)
 
     async def _sync_scene_tags(
-        self, scene: Scene, tags_data: List[Dict[str, Any]], db: Session
+        self,
+        scene: Scene,
+        tags_data: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
     ) -> None:
         """Sync scene's tag relationships"""
         # Clear existing relationships
@@ -263,7 +392,13 @@ class SceneSyncHandler:
             if not tag_id:
                 continue
 
-            tag = db.query(Tag).filter(Tag.id == tag_id).first()
+            stmt = select(Tag).where(Tag.id == tag_id)
+            if isinstance(db, AsyncSession):
+                result = await db.execute(stmt)
+                tag = result.scalar_one_or_none()
+            else:
+                result = db.execute(stmt)
+                tag = result.scalar_one_or_none()
 
             if not tag:
                 # Create minimal tag - full sync will happen in entity sync
@@ -273,22 +408,30 @@ class SceneSyncHandler:
                     last_synced=datetime.utcnow(),
                 )
                 db.add(tag)
-                db.flush()
+                if isinstance(db, AsyncSession):
+                    await db.flush()
+                else:
+                    db.flush()
 
             scene.tags.append(tag)
 
-    def _fetch_entities_map(
-        self, db: Session, model_class: type, entity_ids: Set[str]
+    async def _fetch_entities_map(
+        self, db: Union[Session, AsyncSession], model_class: type, entity_ids: Set[str]
     ) -> Dict[str, Any]:
         """Fetch entities by id and return as a map"""
         if not entity_ids:
             return {}
 
-        entities: List[Any] = (
-            db.query(model_class).filter(model_class.id.in_(entity_ids)).all()  # type: ignore[attr-defined]
-        )
+        stmt = select(model_class).where(model_class.id.in_(entity_ids))  # type: ignore[attr-defined, var-annotated]
+        entities_list: List[Any]
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            entities_list = result.scalars().all()
+        else:
+            result = db.execute(stmt)
+            entities_list = result.scalars().all()
 
-        return {entity.id: entity for entity in entities}
+        return {entity.id: entity for entity in entities_list}
 
     def _merge_scene_data(self, existing: Scene, stash_data: Dict[str, Any]) -> Scene:
         """Merge Stash data into existing scene"""

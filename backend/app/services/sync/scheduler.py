@@ -1,10 +1,12 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models import Job, JobStatus, JobType, ScheduledTask
@@ -155,10 +157,10 @@ class SyncScheduler:
         from uuid import uuid4
 
         from app.core.config import get_settings
-        from app.core.database import SessionLocal
+        from app.core.database import AsyncSessionLocal
 
         try:
-            with SessionLocal() as db:
+            async with AsyncSessionLocal() as db:
                 # Create job record
                 job_id = str(uuid4())
                 job = Job(
@@ -169,7 +171,7 @@ class SyncScheduler:
                     created_at=datetime.utcnow(),
                 )
                 db.add(job)
-                db.commit()
+                await db.commit()
 
                 # Run sync
                 settings = get_settings()
@@ -190,24 +192,24 @@ class SyncScheduler:
                     "updated_items": result.updated_items,
                     "failed_items": result.failed_items,
                 }
-                db.commit()
+                await db.commit()
 
                 # Update scheduled task
-                self._update_scheduled_task(db, "full_sync", "completed")
+                await self._update_scheduled_task(db, "full_sync", "completed")
 
         except Exception as e:
             logger.error(f"Scheduled full sync failed: {str(e)}")
-            self._update_scheduled_task(db, "full_sync", "failed", str(e))
+            await self._update_scheduled_task(db, "full_sync", "failed", str(e))
 
     async def _run_incremental_sync(self) -> None:
         """Execute incremental sync job"""
         from uuid import uuid4
 
         from app.core.config import get_settings
-        from app.core.database import SessionLocal
+        from app.core.database import AsyncSessionLocal
 
         try:
-            with SessionLocal() as db:
+            async with AsyncSessionLocal() as db:
                 # Create job record
                 job_id = str(uuid4())
                 job = Job(
@@ -218,7 +220,7 @@ class SyncScheduler:
                     created_at=datetime.utcnow(),
                 )
                 db.add(job)
-                db.commit()
+                await db.commit()
 
                 # Run sync
                 settings = get_settings()
@@ -252,19 +254,54 @@ class SyncScheduler:
                     "studios_created": result.stats.studios_created,
                     "studios_updated": result.stats.studios_updated,
                 }
-                db.commit()
+                await db.commit()
 
                 # Update scheduled task
-                self._update_scheduled_task(db, "incremental_sync", "completed")
+                await self._update_scheduled_task(db, "incremental_sync", "completed")
 
         except Exception as e:
             logger.error(f"Scheduled incremental sync failed: {str(e)}")
-            self._update_scheduled_task(db, "incremental_sync", "failed", str(e))
+            await self._update_scheduled_task(db, "incremental_sync", "failed", str(e))
 
-    def _update_scheduled_task(
-        self, db: Session, task_name: str, status: str, error: Optional[str] = None
+    async def _update_scheduled_task(
+        self,
+        db: Union[Session, AsyncSession],
+        task_name: str,
+        status: str,
+        error: Optional[str] = None,
     ) -> None:
         """Update scheduled task record"""
+        stmt = select(ScheduledTask).where(ScheduledTask.name == task_name)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            task = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            task = result.scalar_one_or_none()
+
+        if task:
+            task.last_run = datetime.utcnow()  # type: ignore[assignment]
+            # Store status and error in config
+            if task.config is None:
+                task.config = {}
+            task.config["last_status"] = status
+            task.config["error_message"] = error
+
+            # Calculate next run
+            if task_name in self._jobs:
+                job = self._jobs[task_name]
+                if job.next_run_time:
+                    task.next_run = job.next_run_time
+
+            if isinstance(db, AsyncSession):
+                await db.commit()
+            else:
+                db.commit()
+
+    def _update_scheduled_task_sync(
+        self, db: Session, task_name: str, status: str, error: Optional[str] = None
+    ) -> None:
+        """Synchronous version of _update_scheduled_task for tests"""
         task = db.query(ScheduledTask).filter(ScheduledTask.name == task_name).first()
 
         if task:

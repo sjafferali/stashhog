@@ -2,7 +2,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from app.core.config import get_settings
-from app.core.database import SessionLocal
+from app.core.database import AsyncSessionLocal
 from app.models.job import JobType
 from app.services.job_service import JobService
 from app.services.stash_service import StashService
@@ -26,7 +26,7 @@ async def sync_all_job(
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
-    with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         logger.debug(f"Created database session: {type(db)}")
         sync_service = SyncService(stash_service, db)
         logger.debug("Created sync service instance")
@@ -81,7 +81,7 @@ async def sync_scenes_job(
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
-    with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         sync_service = SyncService(stash_service, db)
 
         # Execute sync with progress callback
@@ -122,7 +122,7 @@ async def sync_performers_job(
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
-    with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         sync_service = SyncService(stash_service, db)
 
         # Execute sync with progress callback
@@ -160,7 +160,7 @@ async def sync_tags_job(
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
-    with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         sync_service = SyncService(stash_service, db)
 
         # Execute sync with progress callback
@@ -198,7 +198,7 @@ async def sync_studios_job(
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
-    with SessionLocal() as db:
+    async with AsyncSessionLocal() as db:
         sync_service = SyncService(stash_service, db)
 
         # Execute sync with progress callback
