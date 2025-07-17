@@ -17,12 +17,13 @@ import {
   CloseOutlined,
   EditOutlined,
   DiffOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { DiffViewer } from './DiffViewer';
 import styles from './ChangePreview.module.scss';
 import dayjs from 'dayjs';
 
-const { Text } = Typography;
+const { Text, Link } = Typography;
 
 export interface ProposedChange {
   id: string;
@@ -218,6 +219,15 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
                 {getConfidenceLabel(change.confidence)} Confidence
               </Tag>
             </Tooltip>
+            {change.sceneId && (
+              <Link
+                href={`/scenes/${change.sceneId}`}
+                target="_blank"
+                style={{ marginLeft: 8 }}
+              >
+                <LinkOutlined /> View Scene
+              </Link>
+            )}
           </div>
 
           <Space>

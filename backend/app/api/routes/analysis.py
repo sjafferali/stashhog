@@ -410,7 +410,7 @@ async def get_scene_analysis_results(
                     "name": plan.name,
                 },
                 "model_used": (
-                    plan.plan_metadata.get("model", "unknown")
+                    plan.plan_metadata.get("ai_model", "unknown")
                     if plan.plan_metadata
                     else "unknown"
                 ),

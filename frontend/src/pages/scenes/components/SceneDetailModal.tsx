@@ -25,6 +25,7 @@ import {
   // SyncOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
@@ -336,7 +337,13 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             <Space direction="vertical" style={{ width: '100%' }}>
               <Space>
                 <Text strong>Plan:</Text>
-                <Tag>{result.plan?.name || 'Unknown'}</Tag>
+                {result.plan ? (
+                  <Link to={`/analysis/plans/${result.plan.id}`}>
+                    <Tag style={{ cursor: 'pointer' }}>{result.plan.name}</Tag>
+                  </Link>
+                ) : (
+                  <Tag>Unknown</Tag>
+                )}
                 <Text type="secondary">
                   {dayjs(result.created_at).format('YYYY-MM-DD HH:mm:ss')}
                 </Text>

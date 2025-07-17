@@ -19,6 +19,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   PlayCircleOutlined,
+  DownOutlined,
+  UpOutlined,
 } from '@ant-design/icons';
 import { ProposedChange } from './ChangePreview';
 import { Scene } from '@/types/models';
@@ -81,6 +83,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       ? sceneChanges.map((sc) => sc.scene?.id || sc.scene_id || '')
       : []
   );
+  const [expandedArrays, setExpandedArrays] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(expandedByDefault);
 
   const handleExpandAll = () => {
@@ -251,7 +254,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       | Record<string, unknown>
       | null
       | undefined,
-    type: string
+    type: string,
+    fieldKey: string
   ) => {
     if (value === null || value === undefined) {
       return 'None';
@@ -259,20 +263,62 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
 
     if (type === 'array' && Array.isArray(value)) {
       if (value.length === 0) return 'None';
-      if (value.length <= 3) {
-        return value.join(', ');
-      }
-      return `${value.slice(0, 3).join(', ')}... (${value.length} items)`;
+
+      const isExpanded = expandedArrays.has(fieldKey);
+      const displayItems = isExpanded ? value : value.slice(0, 3);
+
+      return (
+        <div>
+          <span>{displayItems.join(', ')}</span>
+          {value.length > 3 && (
+            <Button
+              type="link"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedArrays((prev) => {
+                  const newSet = new Set(prev);
+                  if (isExpanded) {
+                    newSet.delete(fieldKey);
+                  } else {
+                    newSet.add(fieldKey);
+                  }
+                  return newSet;
+                });
+              }}
+              style={{ padding: '0 4px', height: 'auto' }}
+              icon={isExpanded ? <UpOutlined /> : <DownOutlined />}
+            >
+              {isExpanded ? 'Show less' : `Show ${value.length - 3} more`}
+            </Button>
+          )}
+        </div>
+      );
     }
 
     if (type === 'object' && typeof value === 'object') {
-      return JSON.stringify(value);
+      const jsonStr = JSON.stringify(value);
+      return (
+        <Tooltip title={jsonStr} placement="top">
+          <span>{jsonStr}</span>
+        </Tooltip>
+      );
     }
 
-    return String(value);
+    const stringValue = String(value);
+    // Add tooltip for long strings
+    if (stringValue.length > 100) {
+      return (
+        <Tooltip title={stringValue} placement="top">
+          <span>{stringValue}</span>
+        </Tooltip>
+      );
+    }
+
+    return stringValue;
   };
 
-  const renderChangesList = (changes: ProposedChange[]) => {
+  const renderChangesList = (changes: ProposedChange[], sceneId: string) => {
     if (!changes || changes.length === 0) {
       return (
         <Empty
@@ -307,6 +353,15 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                   {!change.accepted && !change.rejected && (
                     <Tag color="blue">Pending</Tag>
                   )}
+                  <a
+                    href={`/scenes/${sceneId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ fontSize: 12 }}
+                  >
+                    View Scene →
+                  </a>
                 </Space>
               </div>
               <div className={styles.changeValues}>
@@ -317,21 +372,29 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                       <Text type="secondary" className={styles.valueLabel}>
                         Current:
                       </Text>
-                      <Text className={styles.value}>
-                        {renderValue(change.currentValue, change.type)}
-                      </Text>
+                      <div className={styles.value}>
+                        {renderValue(
+                          change.currentValue,
+                          change.type,
+                          `${change.id}-current`
+                        )}
+                      </div>
                     </div>
                     <div className={styles.arrow}>+</div>
                     <div className={styles.valueRow}>
                       <Text type="secondary" className={styles.valueLabel}>
                         Adding:
                       </Text>
-                      <Text
+                      <div
                         className={styles.value}
                         style={{ color: '#52c41a' }}
                       >
-                        {renderValue(change.proposedValue, change.type)}
-                      </Text>
+                        {renderValue(
+                          change.proposedValue,
+                          change.type,
+                          `${change.id}-proposed`
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -340,18 +403,26 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                       <Text type="secondary" className={styles.valueLabel}>
                         Current:
                       </Text>
-                      <Text className={styles.value}>
-                        {renderValue(change.currentValue, change.type)}
-                      </Text>
+                      <div className={styles.value}>
+                        {renderValue(
+                          change.currentValue,
+                          change.type,
+                          `${change.id}-current`
+                        )}
+                      </div>
                     </div>
                     <div className={styles.arrow}>→</div>
                     <div className={styles.valueRow}>
                       <Text type="secondary" className={styles.valueLabel}>
                         Proposed:
                       </Text>
-                      <Text className={styles.value}>
-                        {renderValue(change.proposedValue, change.type)}
-                      </Text>
+                      <div className={styles.value}>
+                        {renderValue(
+                          change.proposedValue,
+                          change.type,
+                          `${change.id}-proposed`
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -444,7 +515,10 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                   : ''
               }
             >
-              {renderChangesList(sceneChange.changes)}
+              {renderChangesList(
+                sceneChange.changes,
+                sceneChange.scene?.id || sceneChange.scene_id || ''
+              )}
             </Card>
           </Panel>
         ))}

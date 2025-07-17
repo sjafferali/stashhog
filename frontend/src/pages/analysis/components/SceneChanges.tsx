@@ -222,7 +222,7 @@ const SceneChanges: React.FC<SceneChangesProps> = ({
                   {fieldChanges.map((change) => (
                     <ChangePreview
                       key={change.id}
-                      change={change}
+                      change={{ ...change, sceneId: scene.id }}
                       onAccept={() => onAcceptChange?.(change.id)}
                       onReject={() => onRejectChange?.(change.id)}
                       onEdit={(value) => onEditChange?.(change.id, value)}
@@ -240,7 +240,7 @@ const SceneChanges: React.FC<SceneChangesProps> = ({
             {displayedChanges.map((change) => (
               <ChangePreview
                 key={change.id}
-                change={change}
+                change={{ ...change, sceneId: scene.id }}
                 onAccept={() => onAcceptChange?.(change.id)}
                 onReject={() => onRejectChange?.(change.id)}
                 onEdit={(value) => onEditChange?.(change.id, value)}

@@ -1,6 +1,7 @@
 """Main analysis service for scene metadata detection."""
 
 import logging
+import time
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
@@ -130,6 +131,9 @@ class AnalysisService:
         # Initialize cost tracker
         self.cost_tracker = AnalysisCostTracker()
 
+        # Track processing time
+        start_time = time.time()
+
         # Process scenes in batches
         # Cast scenes to the expected type for batch processor
         scenes_for_processing: list[Union[Scene, dict[str, Any], Any]] = scenes  # type: ignore[assignment]
@@ -143,12 +147,16 @@ class AnalysisService:
             ),
         )
 
+        # Calculate processing time
+        processing_time = time.time() - start_time
+
         # Generate plan name
         if plan_name is None:
             plan_name = self._generate_plan_name(options, len(scenes), scenes)
 
         # Create metadata
         metadata = self._create_analysis_metadata(options, scenes, all_changes)
+        metadata["processing_time"] = round(processing_time, 2)
 
         # Save plan if database session provided
         if db:

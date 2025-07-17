@@ -14,11 +14,13 @@ from app.api.schemas import SyncResultResponse, SyncStatsResponse
 from app.core.dependencies import (
     get_db,
     get_job_service,
+    get_stash_service,
     get_sync_service,
 )
 from app.models import SyncHistory
 from app.models.job import JobType as ModelJobType
 from app.services.job_service import JobService
+from app.services.stash_service import StashService
 from app.services.sync.sync_service import SyncService
 
 router = APIRouter()
@@ -396,7 +398,7 @@ async def stop_sync(
 @router.get("/stats", response_model=SyncStatsResponse)
 async def get_sync_stats(
     db: AsyncDBSession = Depends(get_db),
-    sync_service: SyncService = Depends(get_sync_service),
+    stash_service: StashService = Depends(get_stash_service),
 ) -> SyncStatsResponse:
     """
     Get sync statistics.
@@ -405,7 +407,7 @@ async def get_sync_stats(
 
     Args:
         db: Database session
-        sync_service: Sync service instance
+        stash_service: Stash service instance
 
     Returns:
         Sync statistics
@@ -460,15 +462,26 @@ async def get_sync_stats(
                 last_syncs["scene"].replace("Z", "+00:00")
             )
 
-            # This would need to query Stash API to get updated scenes count
-            # For now, we'll check local scenes that might need re-sync
+            # Query Stash API to get count of scenes updated since last sync
+            filter_dict = {
+                "updated_at": {
+                    "value": last_sync_time.isoformat(),
+                    "modifier": "GREATER_THAN",
+                }
+            }
+
+            # Get only the count by fetching just 1 scene
+            _, total_count = await stash_service.get_scenes(
+                page=1, per_page=1, filter=filter_dict
+            )
+            pending_scenes = total_count
+        except Exception:
+            # If we can't get from Stash, fall back to local check
             pending_query = select(func.count(Scene.id)).where(
                 Scene.updated_at > last_sync_time
             )
             result = await db.execute(pending_query)
             pending_scenes = result.scalar_one() or 0
-        except Exception:
-            pending_scenes = 0
 
     # Check if there's an active sync job
     is_syncing = False
