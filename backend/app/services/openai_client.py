@@ -103,3 +103,63 @@ class OpenAIClient:
             return cast(str, content) if content is not None else ""
         except Exception as e:
             raise Exception(f"OpenAI API error: {str(e)}") from e
+
+    async def generate_completion_with_usage(
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[list[ChatCompletionMessageParam]] = None,
+        response_format: Optional[dict[str, Any]] = None,
+        temperature: Optional[float] = None,
+    ) -> tuple[str, dict[str, int]]:
+        """Generate completion from OpenAI and return content with usage stats.
+
+        Returns:
+            Tuple of (content, usage_dict) where usage_dict contains:
+            - prompt_tokens: Number of tokens in the prompt
+            - completion_tokens: Number of tokens in the completion
+            - total_tokens: Total tokens used
+        """
+        try:
+            # Use provided temperature or default
+            temp = temperature if temperature is not None else self.temperature
+
+            # Build messages list
+            if messages is None:
+                if prompt:
+                    messages = [{"role": "user", "content": prompt}]
+                else:
+                    raise ValueError("Either prompt or messages must be provided")
+
+            # Create completion
+            if response_format:
+                # Convert dict to ResponseFormat type
+                formatted_response_format = cast(ResponseFormat, response_format)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=self.max_tokens,
+                    temperature=temp,
+                    response_format=formatted_response_format,
+                )
+            else:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=self.max_tokens,
+                    temperature=temp,
+                )
+
+            content = response.choices[0].message.content or ""
+
+            # Extract usage information
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                "completion_tokens": (
+                    response.usage.completion_tokens if response.usage else 0
+                ),
+                "total_tokens": response.usage.total_tokens if response.usage else 0,
+            }
+
+            return content, usage
+        except Exception as e:
+            raise Exception(f"OpenAI API error: {str(e)}") from e

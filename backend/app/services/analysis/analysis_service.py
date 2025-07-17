@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.services.sync.scene_sync_utils import SceneSyncUtils
 
 from .ai_client import AIClient
 from .batch_processor import BatchProcessor
+from .cost_tracker import AnalysisCostTracker
 from .details_generator import DetailsGenerator
 from .models import (
     AnalysisOptions,
@@ -126,6 +127,9 @@ class AnalysisService:
         # Report initial progress
         await self._report_initial_progress(job_id, len(scenes), progress_callback)
 
+        # Initialize cost tracker
+        self.cost_tracker = AnalysisCostTracker()
+
         # Process scenes in batches
         # Cast scenes to the expected type for batch processor
         scenes_for_processing: list[Union[Scene, dict[str, Any], Any]] = scenes  # type: ignore[assignment]
@@ -183,6 +187,10 @@ class AnalysisService:
 
         # Perform analysis
         changes = []
+
+        # Track scene for cost calculation
+        if hasattr(self, "cost_tracker"):
+            self.cost_tracker.increment_scenes()
 
         # Detect studio
         if options.detect_studios:
@@ -344,13 +352,31 @@ class AnalysisService:
         )
 
         # Detect with AI if enabled
-        ai_results = []
+        ai_results: List[Any] = []
         if options.use_ai:
-            ai_results = await self.performer_detector.detect_with_ai(
-                scene_data=scene_data,
-                ai_client=self.ai_client,
-                known_performers=self._cache["performers"],
-            )
+            # Use tracked version if cost tracker is available
+            if hasattr(self, "cost_tracker"):
+                ai_results, cost_info = (
+                    await self.performer_detector.detect_with_ai_tracked(
+                        scene_data=scene_data,
+                        ai_client=self.ai_client,
+                        known_performers=self._cache["performers"],
+                    )
+                )
+                if cost_info:
+                    self.cost_tracker.track_operation(
+                        "performer_detection",
+                        cost_info["cost"],
+                        cost_info["usage"]["prompt_tokens"],
+                        cost_info["usage"]["completion_tokens"],
+                        cost_info["model"],
+                    )
+            else:
+                ai_results = await self.performer_detector.detect_with_ai(
+                    scene_data=scene_data,
+                    ai_client=self.ai_client,
+                    known_performers=self._cache["performers"],
+                )
 
         # Combine and deduplicate results
         all_results: dict[str, Any] = {}
@@ -403,14 +429,31 @@ class AnalysisService:
         )
 
         # Detect with AI if enabled
-        ai_results = []
+        ai_results: List[Any] = []
         if options.use_ai:
-            ai_results = await self.tag_detector.detect_with_ai(
-                scene_data=scene_data,
-                ai_client=self.ai_client,
-                existing_tags=current_names,
-                available_tags=self._cache["tags"],
-            )
+            # Use tracked version if cost tracker is available
+            if hasattr(self, "cost_tracker"):
+                ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
+                    scene_data=scene_data,
+                    ai_client=self.ai_client,
+                    existing_tags=current_names,
+                    available_tags=self._cache["tags"],
+                )
+                if cost_info:
+                    self.cost_tracker.track_operation(
+                        "tag_detection",
+                        cost_info["cost"],
+                        cost_info["usage"]["prompt_tokens"],
+                        cost_info["usage"]["completion_tokens"],
+                        cost_info["model"],
+                    )
+            else:
+                ai_results = await self.tag_detector.detect_with_ai(
+                    scene_data=scene_data,
+                    ai_client=self.ai_client,
+                    existing_tags=current_names,
+                    available_tags=self._cache["tags"],
+                )
 
         # Combine results and filter to only existing tags
         all_results: dict[str, Any] = {}
@@ -815,7 +858,7 @@ class AnalysisService:
         Returns:
             Metadata dictionary
         """
-        return {
+        metadata = {
             "description": f"Analysis of {len(scenes)} scenes",
             "settings": {
                 "detect_studios": options.detect_studios,
@@ -828,6 +871,12 @@ class AnalysisService:
             "statistics": self._calculate_statistics(all_changes),
             "ai_model": self.ai_client.model if options.use_ai else None,
         }
+
+        # Add cost information if AI was used
+        if options.use_ai and hasattr(self, "cost_tracker"):
+            metadata["api_usage"] = self.cost_tracker.get_summary()
+
+        return metadata
 
     async def _mark_scenes_as_analyzed(
         self, scenes: list[Scene], db: AsyncSession

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Form,
   Input,
@@ -13,6 +13,7 @@ import {
   Divider,
   Typography,
   message,
+  Spin,
 } from 'antd';
 import {
   ApiOutlined,
@@ -23,6 +24,8 @@ import {
   SyncOutlined,
 } from '@ant-design/icons';
 import { Settings } from '@/types/models';
+import { useModels } from '@/hooks/useModels';
+import type { SelectOptionGroup } from '@/types/antd-proper';
 import styles from './SettingsForm.module.scss';
 
 const { Title, Text } = Typography;
@@ -46,6 +49,9 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
   const [testingStash, setTestingStash] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch available models
+  const { models, loading: modelsLoading } = useModels();
 
   const handleSave = async () => {
     try {
@@ -102,12 +108,50 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
     setHasChanges(true);
   };
 
-  const openAIModels = [
-    { label: 'GPT-4', value: 'gpt-4' },
-    { label: 'GPT-4 Turbo', value: 'gpt-4-turbo-preview' },
-    { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
-    { label: 'GPT-3.5 Turbo 16k', value: 'gpt-3.5-turbo-16k' },
-  ];
+  // Transform models from API into select options
+  const openAIModels = useMemo(() => {
+    if (!models) return [];
+
+    const modelOptions = Object.entries(models.models).map(([key, model]) => ({
+      label: model.name,
+      value: key,
+      description: model.description,
+      category: model.category,
+    }));
+
+    // Group by category
+    const grouped = modelOptions.reduce(
+      (acc, model) => {
+        const category = models.categories[model.category] || model.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push({
+          label: (
+            <div>
+              <div>{model.label}</div>
+              <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                {model.description}
+              </div>
+            </div>
+          ),
+          value: model.value,
+        });
+        return acc;
+      },
+      {} as Record<string, Array<{ label: React.ReactNode; value: string }>>
+    );
+
+    // Convert to option groups
+    const optionGroups: SelectOptionGroup[] = Object.entries(grouped).map(
+      ([category, options]) => ({
+        label: category,
+        options,
+      })
+    );
+
+    return optionGroups;
+  }, [models]);
 
   const logLevels = [
     { label: 'Debug', value: 'DEBUG' },
@@ -219,8 +263,28 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
                 name="openai_model"
                 label="Model"
                 rules={[{ required: true, message: 'Please select a model' }]}
+                extra={
+                  models &&
+                  form.getFieldValue('openai_model') &&
+                  models.models[form.getFieldValue('openai_model')]
+                    ? `Cost: $${models.models[form.getFieldValue('openai_model')].input_cost}/1K input tokens, $${models.models[form.getFieldValue('openai_model')].output_cost}/1K output tokens`
+                    : 'Select a model to see pricing information'
+                }
               >
-                <Select options={openAIModels} />
+                <Select
+                  options={openAIModels}
+                  loading={modelsLoading}
+                  notFoundContent={
+                    modelsLoading ? (
+                      <Spin size="small" />
+                    ) : (
+                      'No models available'
+                    )
+                  }
+                  placeholder="Select a model"
+                  showSearch
+                  optionFilterProp="label"
+                />
               </Form.Item>
 
               <Form.Item

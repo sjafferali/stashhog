@@ -1,6 +1,7 @@
 """Tag detection module for scene analysis."""
 
 import logging
+from typing import Optional, Tuple
 
 from .ai_client import AIClient
 from .models import DetectionResult, TagSuggestionsResponse
@@ -131,6 +132,67 @@ class TagDetector:
             if hasattr(e, "__class__"):
                 logger.error(f"Error type: {e.__class__.__name__}")
             return []
+
+    async def detect_with_ai_tracked(
+        self,
+        scene_data: dict,
+        ai_client: AIClient,
+        existing_tags: list[str],
+        available_tags: list[str],
+    ) -> Tuple[list[DetectionResult], Optional[dict]]:
+        """Use AI to suggest tags and return cost information.
+
+        Args:
+            scene_data: Scene information
+            ai_client: AI client for analysis
+            existing_tags: Tags already assigned to the scene
+            available_tags: All available tags in the database
+
+        Returns:
+            Tuple of (list of suggested tags, cost information)
+        """
+        try:
+            # Add existing tags and available tags to scene data
+            scene_data_with_tags = scene_data.copy()
+            scene_data_with_tags["tags"] = (
+                ", ".join(existing_tags) if existing_tags else "None"
+            )
+            scene_data_with_tags["available_tags"] = available_tags
+
+            response, cost_info = await ai_client.analyze_scene_with_cost(
+                prompt=TAG_SUGGESTION_PROMPT,
+                scene_data=scene_data_with_tags,
+                response_format=TagSuggestionsResponse,
+                temperature=0.3,
+            )
+
+            # Ensure response is the expected type
+            if not isinstance(response, TagSuggestionsResponse):
+                logger.error(f"Unexpected response type: {type(response)}")
+                return [], cost_info
+
+            results = []
+            for tag in response.tags:
+                name = tag.name.strip()
+                confidence = tag.confidence
+
+                if name and name.lower() not in [t.lower() for t in existing_tags]:
+                    results.append(
+                        DetectionResult(
+                            value=name,
+                            confidence=confidence,
+                            source="ai",
+                            metadata={"model": ai_client.model},
+                        )
+                    )
+
+            # Filter out redundant tags
+            filtered_results = self._filter_redundant_results(results, existing_tags)
+            return filtered_results, cost_info
+
+        except Exception as e:
+            logger.error(f"AI tag detection error: {e}", exc_info=True)
+            return [], None
 
     def detect_technical_tags(
         self, scene_data: dict, existing_tags: list[str]

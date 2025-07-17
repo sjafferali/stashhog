@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .ai_client import AIClient
 from .models import DetectionResult
@@ -180,6 +180,51 @@ class StudioDetector:
             logger.error(f"AI studio detection error: {e}")
 
         return None
+
+    async def detect_with_ai_tracked(
+        self, scene_data: Dict, ai_client: AIClient, known_studios: List[str]
+    ) -> Tuple[Optional[DetectionResult], Optional[Dict]]:
+        """Use AI to detect studio and return cost information.
+
+        Args:
+            scene_data: Scene information including path, title, etc.
+            ai_client: AI client for analysis
+            known_studios: List of known studios in the database
+
+        Returns:
+            Tuple of (detection result, cost information)
+        """
+        try:
+            # Add known studios to scene data for the prompt
+            scene_data_with_studios = scene_data.copy()
+            scene_data_with_studios["available_studios"] = known_studios
+
+            # Use AI to analyze the scene with cost tracking
+            response: Any
+            response, cost_info = await ai_client.analyze_scene_with_cost(
+                prompt=STUDIO_DETECTION_PROMPT,
+                scene_data=scene_data_with_studios,
+                temperature=0.3,
+            )
+
+            # Parse response
+            if isinstance(response, dict):
+                studio = response.get("studio", "").strip()
+                confidence = float(response.get("confidence", 0.5))
+
+                if studio and studio.lower() != "unknown":
+                    result = DetectionResult(
+                        value=studio,
+                        confidence=confidence,
+                        source="ai",
+                        metadata={"model": ai_client.model},
+                    )
+                    return result, cost_info
+
+        except Exception as e:
+            logger.error(f"AI studio detection error: {e}")
+
+        return None, None
 
     async def detect(
         self,

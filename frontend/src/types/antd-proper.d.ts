@@ -53,11 +53,16 @@ export interface SelectOption<T = string | number> {
   children?: ReactNode;
 }
 
+export interface SelectOptionGroup<T = string | number> {
+  label: string;
+  options: SelectOption<T>[];
+}
+
 export interface SelectProps<T = string | number> {
   value?: T | T[];
   onChange?: (value: T, option: SelectOption<T> | SelectOption<T>[]) => void;
   onSelect?: (value: T, option: SelectOption<T>) => void;
-  options?: SelectOption<T>[];
+  options?: SelectOption<T>[] | SelectOptionGroup<T>[];
   placeholder?: string;
   mode?: 'multiple' | 'tags';
   filterOption?:
@@ -72,6 +77,10 @@ export interface SelectProps<T = string | number> {
   onKeyDown?: (e: KeyboardEvent) => void;
   showSearch?: boolean;
   suffixIcon?: ReactNode;
+  loading?: boolean;
+  notFoundContent?: ReactNode;
+  optionFilterProp?: string;
+  defaultValue?: T;
 }
 
 // AutoComplete types

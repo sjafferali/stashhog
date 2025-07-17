@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Form,
   Switch,
@@ -16,6 +16,7 @@ import {
   Row,
   Col,
   Divider,
+  Spin,
 } from 'antd';
 import {
   InfoCircleOutlined,
@@ -23,7 +24,10 @@ import {
   SettingOutlined,
   SaveOutlined,
   ExperimentOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
+import { useModels } from '@/hooks/useModels';
+import type { SelectOptionGroup } from '@/types/antd-proper';
 import styles from './AnalysisOptionsForm.module.scss';
 
 const { Panel } = Collapse;
@@ -80,6 +84,9 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
   const [_showPresetModal, _setShowPresetModal] = useState(false);
   // const [presetName, setPresetName] = useState('');
 
+  // Fetch available models
+  const { models, loading: modelsLoading } = useModels();
+
   const handleValuesChange = (_: unknown, allValues: AnalysisOptions) => {
     onChange(allValues);
   };
@@ -100,11 +107,90 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
   //   }
   // };
 
-  const models = [
-    { label: 'GPT-4 (Most Accurate)', value: 'gpt-4' },
-    { label: 'GPT-4 Turbo (Fast & Accurate)', value: 'gpt-4-turbo-preview' },
-    { label: 'GPT-3.5 Turbo (Fast & Cheap)', value: 'gpt-3.5-turbo' },
-  ];
+  // Transform models from API into select options
+  const modelOptions = useMemo(() => {
+    if (!models) return [];
+
+    // Get recommended models first
+    const recommendedModels = models.recommended
+      .map((modelKey) => {
+        const model = models.models[modelKey];
+        if (!model) return null;
+        return {
+          label: (
+            <div>
+              <div>
+                {model.name}
+                <Tag color="blue" style={{ marginLeft: 8 }}>
+                  Recommended
+                </Tag>
+              </div>
+              <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                {model.description} - ${model.input_cost}/1K in, $
+                {model.output_cost}/1K out
+              </div>
+            </div>
+          ),
+          value: modelKey,
+        };
+      })
+      .filter((item) => item !== null) as Array<{
+      label: React.ReactNode;
+      value: string;
+    }>;
+
+    // Get other models grouped by category
+    const otherModels = Object.entries(models.models)
+      .filter(([key]) => !models.recommended.includes(key))
+      .map(([key, model]) => ({
+        label: model.name,
+        value: key,
+        description: model.description,
+        category: model.category,
+        cost: `$${model.input_cost}/1K in, $${model.output_cost}/1K out`,
+      }));
+
+    // Group by category
+    const grouped = otherModels.reduce(
+      (acc, model) => {
+        const category = models.categories[model.category] || model.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push({
+          label: (
+            <div>
+              <div>{model.label}</div>
+              <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                {model.description} - {model.cost}
+              </div>
+            </div>
+          ),
+          value: model.value,
+        });
+        return acc;
+      },
+      {} as Record<string, Array<{ label: React.ReactNode; value: string }>>
+    );
+
+    // Combine recommended and grouped models
+    const result: SelectOptionGroup[] = [];
+    if (recommendedModels.length > 0) {
+      result.push({
+        label: 'Recommended Models',
+        options: recommendedModels,
+      });
+    }
+
+    Object.entries(grouped).forEach(([category, options]) => {
+      result.push({
+        label: category,
+        options,
+      });
+    });
+
+    return result;
+  }, [models]);
 
   return (
     <div className={styles.analysisOptionsForm}>
@@ -204,8 +290,36 @@ export const AnalysisOptionsForm: React.FC<AnalysisOptionsFormProps> = ({
             name="model"
             label="AI Model"
             rules={[{ required: true, message: 'Please select a model' }]}
+            extra={
+              models &&
+              form.getFieldValue('model') &&
+              models.models[form.getFieldValue('model')] ? (
+                <Space>
+                  <DollarOutlined />
+                  <Text type="secondary">
+                    Cost: $
+                    {models.models[form.getFieldValue('model')].input_cost}/1K
+                    input tokens, $
+                    {models.models[form.getFieldValue('model')].output_cost}/1K
+                    output tokens
+                  </Text>
+                </Space>
+              ) : (
+                'Select a model to see pricing information'
+              )
+            }
           >
-            <Select options={models} />
+            <Select
+              options={modelOptions}
+              loading={modelsLoading}
+              notFoundContent={
+                modelsLoading ? <Spin size="small" /> : 'No models available'
+              }
+              placeholder="Select a model"
+              showSearch
+              optionFilterProp="label"
+              defaultValue={models?.default}
+            />
           </Form.Item>
 
           <Form.Item

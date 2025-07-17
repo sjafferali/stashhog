@@ -98,6 +98,25 @@ export interface Gallery {
   updated_at: string;
 }
 
+export interface ApiUsage {
+  total_cost: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_breakdown: Record<string, number>;
+  token_breakdown: Record<
+    string,
+    {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    }
+  >;
+  model?: string;
+  scenes_analyzed?: number;
+  average_cost_per_scene?: number;
+}
+
 export interface AnalysisPlan {
   id: number;
   name: string;
@@ -107,7 +126,9 @@ export interface AnalysisPlan {
   updated_at?: string;
   total_scenes: number;
   total_changes: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> & {
+    api_usage?: ApiUsage;
+  };
   active?: boolean;
   model?: string;
   temperature?: number;
@@ -222,4 +243,45 @@ export interface FilterParams {
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
   [key: string]: string | number | boolean | string[] | undefined;
+}
+
+export interface ModelConfig {
+  name: string;
+  description: string;
+  input_cost: number;
+  cached_cost?: number;
+  output_cost: number;
+  context_window: number;
+  max_output: number;
+  category: string;
+  supports_caching?: boolean;
+}
+
+export interface ModelsResponse {
+  models: Record<string, ModelConfig>;
+  categories: Record<string, string>;
+  default: string;
+  recommended: string[];
+}
+
+export interface CostResponse {
+  plan_id: number;
+  total_cost: number;
+  total_tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost_breakdown: Record<string, number>;
+  token_breakdown: Record<
+    string,
+    {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    }
+  >;
+  model?: string;
+  scenes_analyzed?: number;
+  average_cost_per_scene?: number;
+  currency: string;
+  message?: string;
 }

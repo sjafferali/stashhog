@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { message } from 'antd';
 import api from '@/services/api';
 import type { SceneChanges } from '@/components/analysis';
+import type { CostResponse } from '@/types/models';
 
 // Raw API response types
 interface RawChange {
@@ -63,6 +64,8 @@ export interface UsePlanDetailReturn {
   plan: PlanDetailData | null;
   loading: boolean;
   error: Error | null;
+  costs: CostResponse | null;
+  costsLoading: boolean;
   refresh: () => Promise<void>;
   updateChange: (
     changeId: string,
@@ -104,6 +107,8 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
   const [plan, setPlan] = useState<PlanDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [costs, setCosts] = useState<CostResponse | null>(null);
+  const [costsLoading, setCostsLoading] = useState(false);
 
   // Helper function to determine field type
   const getFieldType = (
@@ -170,12 +175,27 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     }
   };
 
+  // Fetch plan costs
+  const fetchCosts = async () => {
+    try {
+      setCostsLoading(true);
+      const response = await api.get(`/analysis/plans/${planId}/costs`);
+      setCosts(response.data);
+    } catch (err) {
+      // Don't show error message for costs - it's optional
+      console.error('Failed to load plan costs:', err);
+    } finally {
+      setCostsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (planId) {
       void fetchPlan();
+      void fetchCosts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planId]); // fetchPlan is stable
+  }, [planId]); // fetchPlan and fetchCosts are stable
 
   // Update a specific change
   const updateChange = async (
@@ -472,6 +492,8 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     plan,
     loading,
     error,
+    costs,
+    costsLoading,
     refresh: fetchPlan,
     updateChange,
     acceptChange,

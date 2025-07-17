@@ -2,10 +2,11 @@
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
 
+from app.config.models import calculate_cost
 from app.services.openai_client import OpenAIClient
 
 logger = logging.getLogger(__name__)
@@ -15,14 +16,6 @@ T = TypeVar("T", bound=BaseModel)
 
 class AIClient:
     """Wrapper for OpenAI client with analysis-specific functionality."""
-
-    # Cost estimation constants (per million tokens)
-    MODEL_COSTS = {
-        "gpt-4o": {"input": 2.50, "output": 10.00},
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "gpt-4": {"input": 30.00, "output": 60.00},
-        "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
-    }
 
     # Token estimation constants
     AVG_CHARS_PER_TOKEN = 4
@@ -92,6 +85,69 @@ class AIClient:
             logger.error(f"OpenAI API error: {e}")
             raise
 
+    async def analyze_scene_with_cost(
+        self,
+        prompt: str,
+        scene_data: Dict[str, Any],
+        response_format: Optional[Type[T]] = None,
+        temperature: float = 0.3,
+    ) -> Tuple[T, Dict[str, Any]]:
+        """Call OpenAI with structured output and return cost information.
+
+        Args:
+            prompt: Prompt template with placeholders
+            scene_data: Scene data to fill in prompt
+            response_format: Pydantic model for structured output
+            temperature: Temperature for generation
+
+        Returns:
+            Tuple of (parsed response, cost information)
+        """
+        # Build the final prompt
+        final_prompt = self.build_prompt(prompt, scene_data)
+
+        # Make the API call with usage tracking
+        if not self.client:
+            raise ValueError("OpenAI client is not configured")
+
+        try:
+            content, usage = await self.client.generate_completion_with_usage(
+                messages=[{"role": "user", "content": final_prompt}],
+                response_format={"type": "json_object"} if response_format else None,
+                temperature=temperature,
+            )
+
+            # Calculate cost
+            cost_info = self.estimate_cost(
+                usage["prompt_tokens"], usage["completion_tokens"], self.model
+            )
+
+            # Parse the response into the expected type
+            if response_format:
+                if isinstance(content, str):
+                    try:
+                        result = response_format.model_validate_json(content)
+                    except Exception:
+                        logger.error(
+                            f"Failed to parse JSON response: {content[:200]}..."
+                        )
+                        raise
+                else:
+                    result = response_format.model_validate(content)
+            else:
+                result = content  # type: ignore[assignment]
+
+            # Return result with cost info
+            return result, {
+                "cost": cost_info["total_cost"],
+                "usage": usage,
+                "model": self.model,
+                "cost_breakdown": cost_info,
+            }
+        except Exception as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise
+
     async def batch_analyze_scenes(
         self,
         prompt_template: str,
@@ -129,28 +185,25 @@ class AIClient:
             raise
 
     def estimate_cost(
-        self, prompt_tokens: int, completion_tokens: int, model: Optional[str] = None
-    ) -> float:
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        model: Optional[str] = None,
+        cached_tokens: int = 0,
+    ) -> Dict[str, float]:
         """Estimate API cost for given token counts.
 
         Args:
             prompt_tokens: Number of input tokens
             completion_tokens: Number of output tokens
             model: Model name (defaults to instance model)
+            cached_tokens: Number of cached tokens (if applicable)
 
         Returns:
-            Estimated cost in USD
+            Cost breakdown dictionary
         """
         model = model or self.model
-
-        # Get model costs
-        costs = self.MODEL_COSTS.get(model, self.MODEL_COSTS["gpt-4o-mini"])
-
-        # Calculate costs
-        input_cost = (prompt_tokens / 1_000_000) * costs["input"]
-        output_cost = (completion_tokens / 1_000_000) * costs["output"]
-
-        return input_cost + output_cost
+        return calculate_cost(model, prompt_tokens, completion_tokens, cached_tokens)
 
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for text.

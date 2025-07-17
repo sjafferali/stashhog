@@ -823,3 +823,70 @@ async def update_change_status(
             plan.status.value if hasattr(plan.status, "value") else plan.status
         ),
     }
+
+
+@router.get("/plans/{plan_id}/costs")
+async def get_plan_costs(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Get cost breakdown for an analysis plan.
+
+    Returns API usage costs and token statistics.
+    """
+    # Get plan
+    plan = await db.get(AnalysisPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Extract API usage from metadata
+    api_usage = plan.get_metadata("api_usage", {})
+
+    if not api_usage:
+        return {
+            "plan_id": plan_id,
+            "total_cost": 0.0,
+            "total_tokens": 0,
+            "cost_breakdown": {},
+            "token_breakdown": {},
+            "model": None,
+            "currency": "USD",
+            "message": "No API usage data available for this plan",
+        }
+
+    return {
+        "plan_id": plan_id,
+        "total_cost": api_usage.get("total_cost", 0.0),
+        "total_tokens": api_usage.get("total_tokens", 0),
+        "prompt_tokens": api_usage.get("prompt_tokens", 0),
+        "completion_tokens": api_usage.get("completion_tokens", 0),
+        "cost_breakdown": api_usage.get("cost_breakdown", {}),
+        "token_breakdown": api_usage.get("token_breakdown", {}),
+        "model": api_usage.get("model"),
+        "scenes_analyzed": api_usage.get("scenes_analyzed", 0),
+        "average_cost_per_scene": api_usage.get("average_cost_per_scene", 0.0),
+        "currency": "USD",
+    }
+
+
+@router.get("/models")
+async def get_available_models() -> dict[str, Any]:
+    """
+    Get available OpenAI models with pricing information.
+
+    Returns models grouped by category with pricing details.
+    """
+    from app.config.models import (
+        DEFAULT_MODEL,
+        MODEL_CATEGORIES,
+        OPENAI_MODELS,
+        RECOMMENDED_MODELS,
+    )
+
+    return {
+        "models": OPENAI_MODELS,
+        "categories": MODEL_CATEGORIES,
+        "default": DEFAULT_MODEL,
+        "recommended": RECOMMENDED_MODELS,
+    }

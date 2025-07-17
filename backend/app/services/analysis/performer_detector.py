@@ -4,7 +4,7 @@ import logging
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .ai_client import AIClient
 from .models import DetectionResult
@@ -175,6 +175,54 @@ class PerformerDetector:
         except Exception as e:
             logger.error(f"AI performer detection error: {e}")
             return []
+
+    async def detect_with_ai_tracked(
+        self, scene_data: Dict, ai_client: AIClient, known_performers: List[Dict]
+    ) -> Tuple[List[DetectionResult], Optional[Dict]]:
+        """Use AI to detect performers and return cost information.
+
+        Args:
+            scene_data: Scene information
+            ai_client: AI client for analysis
+            known_performers: List of known performers with their aliases
+
+        Returns:
+            Tuple of (list of detection results, cost information)
+        """
+        try:
+            # Add known performers to scene data for the prompt
+            scene_data_with_performers = scene_data.copy()
+            scene_data_with_performers["available_performers"] = known_performers
+
+            response: Any
+            response, cost_info = await ai_client.analyze_scene_with_cost(
+                prompt=PERFORMER_DETECTION_PROMPT,
+                scene_data=scene_data_with_performers,
+                temperature=0.3,
+            )
+
+            results = []
+            if isinstance(response, dict) and "performers" in response:
+                for performer in response["performers"]:
+                    if isinstance(performer, dict):
+                        name = performer.get("name", "").strip()
+                        confidence = float(performer.get("confidence", 0.7))
+
+                        if name:
+                            results.append(
+                                DetectionResult(
+                                    value=name,
+                                    confidence=confidence,
+                                    source="ai",
+                                    metadata={"model": ai_client.model},
+                                )
+                            )
+
+            return results, cost_info
+
+        except Exception as e:
+            logger.error(f"AI performer detection error: {e}")
+            return [], None
 
     def normalize_name(self, name: str, split_names: bool = False) -> str:
         """Normalize performer name for matching.

@@ -48,6 +48,8 @@ const PlanDetail: React.FC = () => {
     plan,
     loading,
     error,
+    costs,
+    costsLoading,
     refresh,
     updateChange,
     acceptChange,
@@ -291,6 +293,65 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Cost Row (if AI was used) */}
+      {(costsLoading || (costs && costs.total_cost > 0)) && (
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          {costsLoading ? (
+            <Col span={24}>
+              <Card size="small" style={{ textAlign: 'center' }}>
+                <Spin size="small" /> Loading cost information...
+              </Card>
+            </Col>
+          ) : costs && costs.total_cost > 0 ? (
+            <>
+              <Col span={6}>
+                <Card size="small" style={{ height: '100%' }}>
+                  <Statistic
+                    title="Total API Cost"
+                    value={costs.total_cost}
+                    precision={4}
+                    prefix="$"
+                    valueStyle={{ color: '#722ed1' }}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card size="small" style={{ height: '100%' }}>
+                  <Statistic
+                    title="Cost per Scene"
+                    value={
+                      costs.average_cost_per_scene ||
+                      costs.total_cost / plan.total_scenes
+                    }
+                    precision={4}
+                    prefix="$"
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card size="small" style={{ height: '100%' }}>
+                  <Statistic
+                    title="Total Tokens"
+                    value={costs.total_tokens}
+                    suffix={costs.model ? ` (${costs.model})` : ''}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card size="small" style={{ height: '100%' }}>
+                  <Statistic
+                    title="Token Breakdown"
+                    value={`${costs.prompt_tokens || 0} / ${costs.completion_tokens || 0}`}
+                    suffix="prompt / completion"
+                    valueStyle={{ fontSize: '18px' }}
+                  />
+                </Card>
+              </Col>
+            </>
+          ) : null}
+        </Row>
+      )}
 
       {/* Progress Bar */}
       <Card size="small" style={{ marginBottom: 16 }}>
