@@ -6,17 +6,33 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 16px;
+  
+  > div:first-child {
+    flex: 1;
+    min-width: 0; // Allow content to shrink
+  }
   
   h4 {
     margin: 0;
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: nowrap;
+    
+    // Ensure title text doesn't wrap
+    > span:first-child {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
   
   .status {
     font-size: 14px;
     font-weight: normal;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }
 

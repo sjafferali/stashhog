@@ -36,7 +36,7 @@ export interface PlanDetailData {
   id: number;
   name: string;
   description?: string;
-  status: 'DRAFT' | 'REVIEWING' | 'APPLIED' | 'CANCELLED';
+  status: 'draft' | 'reviewing' | 'applied' | 'cancelled';
   created_at: string;
   updated_at: string;
   applied_at?: string;
@@ -46,6 +46,7 @@ export interface PlanDetailData {
     model?: string;
     temperature?: number;
     confidence_threshold?: number;
+    processing_time?: number;
     options?: {
       detect_performers?: boolean;
       detect_studios?: boolean;

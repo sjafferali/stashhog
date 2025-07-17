@@ -5,9 +5,7 @@ import re
 from html.parser import HTMLParser
 from typing import Dict, List
 
-from .ai_client import AIClient
-from .models import DetailsResponse, DetectionResult
-from .prompts import DESCRIPTION_GENERATION_PROMPT
+from .models import DetectionResult
 
 logger = logging.getLogger(__name__)
 
@@ -42,68 +40,6 @@ class DetailsGenerator:
         """Initialize details generator."""
         self._description_cache: Dict[str, DetectionResult] = {}
 
-    async def generate_description(
-        self, scene_data: Dict, ai_client: AIClient
-    ) -> DetectionResult:
-        """Generate a new scene description using AI.
-
-        Args:
-            scene_data: Scene information
-            ai_client: AI client for generation
-
-        Returns:
-            Detection result with generated description
-        """
-        try:
-            response = await ai_client.analyze_scene(
-                prompt=DESCRIPTION_GENERATION_PROMPT,
-                scene_data=scene_data,
-                response_format=DetailsResponse,
-                temperature=0.5,  # Slightly higher for more creative descriptions
-            )
-
-            # Ensure response is the expected type
-            if not isinstance(response, DetailsResponse):
-                logger.error(f"Unexpected response type: {type(response)}")
-                return DetectionResult(
-                    value="",
-                    confidence=0.0,
-                    source="ai",
-                    metadata={"error": "Invalid response format"},
-                )
-
-            description = response.description.strip()
-            confidence = response.confidence
-
-            if description:
-                # Clean and validate the description
-                cleaned = self._clean_description(description)
-
-                return DetectionResult(
-                    value=cleaned,
-                    confidence=confidence,
-                    source="ai",
-                    metadata={
-                        "model": ai_client.model,
-                        "original_length": len(description),
-                        "cleaned_length": len(cleaned),
-                    },
-                )
-
-            # Fallback if generation fails
-            return DetectionResult(
-                value="",
-                confidence=0.0,
-                source="ai",
-                metadata={"error": "Failed to generate description"},
-            )
-
-        except Exception as e:
-            logger.error(f"Description generation error: {e}")
-            return DetectionResult(
-                value="", confidence=0.0, source="ai", metadata={"error": str(e)}
-            )
-
     def clean_html(self, text: str) -> str:
         """Remove HTML tags from text.
 
@@ -133,43 +69,6 @@ class DetailsGenerator:
         cleaned = " ".join(cleaned.split())
 
         return cleaned
-
-    async def enhance_description(
-        self, current: str, scene_data: Dict, ai_client: AIClient
-    ) -> DetectionResult:
-        """Enhance an existing description.
-
-        Args:
-            current: Current description
-            scene_data: Scene information
-            ai_client: AI client for enhancement
-
-        Returns:
-            Detection result with enhanced description
-        """
-        # Clean current description
-        current_clean = self.clean_html(current).strip()
-
-        # Check if current description is substantial
-        if len(current_clean) < self.MIN_SUBSTANTIAL_LENGTH:
-            # Generate new description instead
-            return await self.generate_description(scene_data, ai_client)
-
-        # Add current description to scene data for context
-        scene_data["details"] = current_clean
-
-        # Generate enhanced version
-        result = await self.generate_description(scene_data, ai_client)
-
-        # If the new description is very similar, keep the original
-        if (
-            result.value
-            and self._calculate_similarity(current_clean, result.value) > 0.8
-        ):
-            result.value = current_clean
-            result.metadata["kept_original"] = True
-
-        return result
 
     def _clean_description(self, description: str) -> str:
         """Clean and validate a description.
@@ -216,31 +115,6 @@ class DetailsGenerator:
                 cleaned += "."
 
         return cleaned
-
-    def _calculate_similarity(self, text1: str, text2: str) -> float:
-        """Calculate similarity between two texts.
-
-        Args:
-            text1: First text
-            text2: Second text
-
-        Returns:
-            Similarity score between 0 and 1
-        """
-        if not text1 or not text2:
-            return 0.0
-
-        # Simple word-based similarity
-        words1 = set(text1.lower().split())
-        words2 = set(text2.lower().split())
-
-        if not words1 or not words2:
-            return 0.0
-
-        intersection = words1.intersection(words2)
-        union = words1.union(words2)
-
-        return len(intersection) / len(union)
 
     def create_basic_description(self, scene_data: Dict) -> DetectionResult:
         """Create a basic description from scene metadata.

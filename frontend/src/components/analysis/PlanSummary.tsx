@@ -104,7 +104,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       <div className={styles.header}>
         <div>
           <Title level={4}>
-            {plan.name}
+            <span>{plan.name}</span>
             <Badge
               status={
                 getStatusColor() as
@@ -166,15 +166,17 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
             prefix={<SyncOutlined />}
           />
         </Col>
-        <Col xs={12} sm={6}>
-          <Statistic
-            title="Avg Processing"
-            value={statistics.avgProcessingTime}
-            suffix="ms"
-            precision={0}
-            prefix={<ClockCircleOutlined />}
-          />
-        </Col>
+        {statistics.avgProcessingTime > 0 && (
+          <Col xs={12} sm={6}>
+            <Statistic
+              title="Avg Processing"
+              value={statistics.avgProcessingTime}
+              suffix="ms"
+              precision={0}
+              prefix={<ClockCircleOutlined />}
+            />
+          </Col>
+        )}
       </Row>
 
       <div className={styles.progressSection}>
@@ -270,23 +272,6 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           {new Date(plan.created_at).toLocaleDateString()}
         </Descriptions.Item>
       </Descriptions>
-
-      <div className={styles.extractionConfig}>
-        <Text type="secondary">Extraction Configuration:</Text>
-        <Space wrap>
-          {plan.extract_performers && <Tag color="purple">Performers</Tag>}
-          {plan.extract_tags && <Tag color="cyan">Tags</Tag>}
-          {plan.extract_studio && <Tag color="blue">Studio</Tag>}
-          {plan.extract_title && <Tag color="green">Title</Tag>}
-          {plan.extract_date && <Tag color="orange">Date</Tag>}
-          {plan.extract_details && <Tag color="magenta">Details</Tag>}
-          {plan.custom_fields && Object.keys(plan.custom_fields).length > 0 && (
-            <Tag color="red">
-              {Object.keys(plan.custom_fields).length} Custom Fields
-            </Tag>
-          )}
-        </Space>
-      </div>
     </Card>
   );
 };

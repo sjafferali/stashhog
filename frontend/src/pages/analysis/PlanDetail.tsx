@@ -189,15 +189,15 @@ const PlanDetail: React.FC = () => {
           <h1 style={{ margin: 0 }}>{plan.name}</h1>
           <Badge
             status={
-              plan.status === 'APPLIED'
+              plan.status === 'applied'
                 ? 'success'
-                : plan.status === 'CANCELLED'
+                : plan.status === 'cancelled'
                   ? 'error'
-                  : plan.status === 'REVIEWING'
+                  : plan.status === 'reviewing'
                     ? 'warning'
                     : 'processing'
             }
-            text={plan.status}
+            text={plan.status.toUpperCase()}
           />
         </Space>
 
@@ -316,15 +316,18 @@ const PlanDetail: React.FC = () => {
           >
             Apply Changes ({stats.acceptedChanges})
           </Button>
-          {plan.status !== 'APPLIED' && plan.status !== 'CANCELLED' && (
-            <Button
-              danger
-              icon={<CloseCircleOutlined />}
-              onClick={handleCancelPlan}
-            >
-              Cancel Plan
-            </Button>
-          )}
+          <Button
+            danger
+            icon={<CloseCircleOutlined />}
+            onClick={handleCancelPlan}
+            disabled={
+              plan.status === 'applied' ||
+              plan.status === 'cancelled' ||
+              plan.status === 'reviewing'
+            }
+          >
+            Cancel Plan
+          </Button>
         </div>
       </Card>
 
@@ -358,7 +361,7 @@ const PlanDetail: React.FC = () => {
                 total_changes: plan.total_changes,
                 model: plan.metadata.model || 'gpt-4',
                 temperature: plan.metadata.temperature || 0.7,
-                active: plan.status !== 'CANCELLED',
+                active: plan.status !== 'cancelled',
                 created_at: plan.created_at,
                 updated_at: plan.updated_at,
                 extract_performers:
@@ -380,7 +383,7 @@ const PlanDetail: React.FC = () => {
                 rejectedChanges: stats.rejectedChanges,
                 avgConfidence: stats.averageConfidence,
                 // acceptanceRate: stats.acceptanceRate / 100,
-                avgProcessingTime: 0,
+                avgProcessingTime: plan.metadata.processing_time || 0,
                 fieldBreakdown: {
                   title: allChanges.filter((c) => c.field === 'title').length,
                   performers: allChanges.filter((c) => c.field === 'performers')

@@ -241,7 +241,7 @@ export const ListView: React.FC<ListViewProps> = ({
       },
       {
         title: 'Date',
-        dataIndex: 'date',
+        dataIndex: 'stash_date',
         key: 'date',
         width: 120,
         sorter: true,

@@ -551,12 +551,8 @@ async def _update_plan_status_based_on_counts(
     if total == 0:
         return
 
-    # If all changes are either applied or rejected, mark as reviewing
-    if (
-        pending == 0
-        and (applied > 0 or rejected > 0)
-        and plan.status == PlanStatus.DRAFT
-    ):
+    # If any changes have been reviewed (applied or rejected), mark as reviewing
+    if (applied > 0 or rejected > 0) and plan.status == PlanStatus.DRAFT:
         plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
     # If all non-rejected changes are applied, mark as applied
@@ -807,6 +803,10 @@ async def update_change_status(
     await _update_plan_status_based_on_counts(
         plan, total_count, applied_count, rejected_count, pending_count
     )
+
+    # If all changes are rejected, mark plan as cancelled
+    if total_count > 0 and rejected_count == total_count:
+        plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
 
     await db.commit()
 
