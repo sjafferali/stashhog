@@ -267,3 +267,26 @@ class ConfigurationError(StashHogException):
             error_code="CONFIGURATION_ERROR",
             details=details,
         )
+
+
+class JobConflictError(StashHogException):
+    """Job conflict error when trying to create a job that conflicts with existing jobs."""
+
+    def __init__(self, job_type: str, existing_job_id: Optional[str] = None):
+        """
+        Initialize job conflict error.
+
+        Args:
+            job_type: Type of job that has conflict
+            existing_job_id: ID of the existing active job
+        """
+        details = {"job_type": job_type}
+        if existing_job_id:
+            details["existing_job_id"] = existing_job_id
+
+        super().__init__(
+            message=f"A {job_type} job is already running. Please wait for it to complete.",
+            status_code=409,
+            error_code="JOB_CONFLICT",
+            details=details,
+        )

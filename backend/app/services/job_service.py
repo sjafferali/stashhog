@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -19,6 +20,17 @@ class JobService:
 
     def __init__(self) -> None:
         self.job_handlers: dict[JobType, Callable] = {}
+        # Locks for each job type to prevent concurrent execution
+        self.job_type_locks: dict[JobType, asyncio.Lock] = {}
+        # Track which jobs should use mutual exclusion
+        self.sync_job_types = {
+            JobType.SYNC,
+            JobType.SYNC_ALL,
+            JobType.SYNC_SCENES,
+            JobType.SYNC_PERFORMERS,
+            JobType.SYNC_TAGS,
+            JobType.SYNC_STUDIOS,
+        }
 
     def register_handler(self, job_type: JobType, handler: Callable) -> None:
         """Register a handler function for a specific job type."""
@@ -52,75 +64,43 @@ class JobService:
             )
             raise ValueError(f"No handler registered for job type: {job_type.value}")
 
+        # Get or create lock for this job type if it's a sync job
+        job_lock = None
+        if job_type in self.sync_job_types:
+            if job_type not in self.job_type_locks:
+                self.job_type_locks[job_type] = asyncio.Lock()
+            job_lock = self.job_type_locks[job_type]
+
         # Create task wrapper with progress callback
         async def task_wrapper() -> str:
             from app.core.database import AsyncSessionLocal
 
-            try:
-                # Create a single database session for all job status updates
-                async with AsyncSessionLocal() as status_db:
-                    # Update job status to running
-                    await self._update_job_status_with_session(
-                        job_id=job_id,
-                        status=JobStatus.RUNNING,
-                        message="Job started",
-                        db=status_db,
-                    )
-                    await status_db.commit()
+            # Acquire lock if this is a sync job
+            if job_lock:
+                logger.info(f"Job {job_id} ({job_type.value}) waiting for lock...")
 
-                # Merge job metadata with kwargs
-                handler_kwargs = kwargs.copy()
-                if metadata:
-                    handler_kwargs.update(metadata)
-
-                # Create an async progress callback that uses its own session
-                async def async_progress_callback(
-                    progress: int, message: Optional[str] = None
-                ) -> None:
-                    async with AsyncSessionLocal() as progress_db:
+                # Check if lock is already held
+                if job_lock.locked():
+                    # Update job status to indicate waiting
+                    async with AsyncSessionLocal() as wait_db:
                         await self._update_job_status_with_session(
                             job_id=job_id,
-                            status=JobStatus.RUNNING,
-                            progress=progress,
-                            message=message,
-                            db=progress_db,
+                            status=JobStatus.PENDING,
+                            message=f"Waiting for another {job_type.value} job to complete",
+                            db=wait_db,
                         )
-                        await progress_db.commit()
+                        await wait_db.commit()
 
-                # Execute handler with job context
-                result = await handler(
-                    job_id=job_id,
-                    progress_callback=async_progress_callback,
-                    **handler_kwargs,
+                async with job_lock:
+                    logger.info(f"Job {job_id} ({job_type.value}) acquired lock")
+                    return await self._execute_job_with_lock(
+                        job_id, job_type, handler, metadata, kwargs
+                    )
+            else:
+                # Non-sync jobs don't need locks
+                return await self._execute_job_with_lock(
+                    job_id, job_type, handler, metadata, kwargs
                 )
-
-                # Update job status to completed in a new session
-                async with AsyncSessionLocal() as final_db:
-                    await self._update_job_status_with_session(
-                        job_id=job_id,
-                        status=JobStatus.COMPLETED,
-                        progress=100,
-                        result=result,
-                        message="Job completed successfully",
-                        db=final_db,
-                    )
-                    await final_db.commit()
-
-                return str(result) if result is not None else ""
-
-            except Exception as e:
-                logger.error(f"Job {job_id} failed: {str(e)}")
-                # Update status in a new session for error case
-                async with AsyncSessionLocal() as error_db:
-                    await self._update_job_status_with_session(
-                        job_id=job_id,
-                        status=JobStatus.FAILED,
-                        error=str(e),
-                        message=f"Job failed: {str(e)}",
-                        db=error_db,
-                    )
-                    await error_db.commit()
-                raise
 
         # Queue the task
         task_queue = get_task_queue()
@@ -137,6 +117,83 @@ class JobService:
 
         logger.info(f"Created job {job_id} of type {job_type.value}")
         return job
+
+    async def _execute_job_with_lock(
+        self,
+        job_id: str,
+        job_type: JobType,
+        handler: Callable,
+        metadata: Optional[dict[str, Any]],
+        kwargs: dict[str, Any],
+    ) -> str:
+        """Execute a job with proper status updates."""
+        from app.core.database import AsyncSessionLocal
+
+        try:
+            # Create a single database session for all job status updates
+            async with AsyncSessionLocal() as status_db:
+                # Update job status to running
+                await self._update_job_status_with_session(
+                    job_id=job_id,
+                    status=JobStatus.RUNNING,
+                    message="Job started",
+                    db=status_db,
+                )
+                await status_db.commit()
+
+            # Merge job metadata with kwargs
+            handler_kwargs = kwargs.copy()
+            if metadata:
+                handler_kwargs.update(metadata)
+
+            # Create an async progress callback that uses its own session
+            async def async_progress_callback(
+                progress: int, message: Optional[str] = None
+            ) -> None:
+                async with AsyncSessionLocal() as progress_db:
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.RUNNING,
+                        progress=progress,
+                        message=message,
+                        db=progress_db,
+                    )
+                    await progress_db.commit()
+
+            # Execute handler with job context
+            result = await handler(
+                job_id=job_id,
+                progress_callback=async_progress_callback,
+                **handler_kwargs,
+            )
+
+            # Update job status to completed in a new session
+            async with AsyncSessionLocal() as final_db:
+                await self._update_job_status_with_session(
+                    job_id=job_id,
+                    status=JobStatus.COMPLETED,
+                    progress=100,
+                    result=result,
+                    message="Job completed successfully",
+                    db=final_db,
+                )
+                await final_db.commit()
+
+            return str(result) if result is not None else ""
+
+        except Exception as e:
+            logger.error(f"Job {job_id} failed: {str(e)}")
+            # Update status in a new session for error case
+            async with AsyncSessionLocal() as error_db:
+                await self._update_job_status_with_session(
+                    job_id=job_id,
+                    status=JobStatus.FAILED,
+                    error=str(e),
+                    message=f"Job failed: {str(e)}",
+                    db=error_db,
+                )
+                await error_db.commit()
+            raise
 
     async def get_job(
         self, job_id: str, db: Union[Session, AsyncSession]
