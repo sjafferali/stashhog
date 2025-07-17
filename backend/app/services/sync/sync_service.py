@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -950,70 +950,80 @@ class SyncService:
             await self.db.rollback()
             raise
 
+    async def _sync_entity_type(
+        self,
+        entity_type: str,
+        force: bool,
+        get_all_func: Any,
+        get_since_func: Any,
+        sync_func: Any,
+    ) -> Dict[str, Any]:
+        """Helper method to sync a specific entity type with incremental support."""
+        try:
+            # Get last sync time for incremental sync
+            last_sync_time = (
+                None if force else await self._get_last_sync_time(entity_type)
+            )
+
+            if force or not last_sync_time:
+                entity_data = await get_all_func()
+                logger.debug(
+                    f"Full sync: Retrieved {len(entity_data)} {entity_type}s from Stash"
+                )
+            else:
+                entity_data = await get_since_func(last_sync_time)
+                logger.debug(
+                    f"Incremental sync: Retrieved {len(entity_data)} {entity_type}s updated since {last_sync_time}"
+                )
+
+            if entity_data:
+                logger.debug(f"First {entity_type} data: {entity_data[0]}")
+
+            result = await sync_func(entity_data, self.db, force=force)
+            return cast(Dict[str, Any], result)
+
+        except Exception as e:
+            logger.error(f"Failed to sync {entity_type}s: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception details: {repr(e)}")
+            return {
+                "error": str(e),
+                "processed": 0,
+                "created": 0,
+                "updated": 0,
+            }
+
     async def _sync_entities(self, force: bool = False) -> Dict[str, Any]:
         """Sync performers, tags, and studios"""
         logger.debug(f"_sync_entities called with force={force}")
         results: Dict[str, Any] = {}
 
         # Sync performers
-        try:
-            performers_data = await self.stash_service.get_all_performers()
-            logger.debug(f"Retrieved {len(performers_data)} performers from Stash")
-            if performers_data:
-                logger.debug(f"First performer data: {performers_data[0]}")
-            results["performers"] = await self.entity_handler.sync_performers(
-                performers_data, self.db, force=force
-            )
-        except Exception as e:
-            logger.error(f"Failed to sync performers: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Exception details: {repr(e)}")
-            results["performers"] = {
-                "error": str(e),
-                "processed": 0,
-                "created": 0,
-                "updated": 0,
-            }
+        results["performers"] = await self._sync_entity_type(
+            "performer",
+            force,
+            self.stash_service.get_all_performers,
+            self.stash_service.get_performers_since,
+            self.entity_handler.sync_performers,
+        )
 
         # Sync tags
-        try:
-            tags_data = await self.stash_service.get_all_tags()
-            logger.debug(f"Retrieved {len(tags_data)} tags from Stash")
-            if tags_data:
-                logger.debug(f"First tag data: {tags_data[0]}")
-            results["tags"] = await self.entity_handler.sync_tags(
-                tags_data, self.db, force=force
-            )
-        except Exception as e:
-            logger.error(f"Failed to sync tags: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Exception details: {repr(e)}")
-            results["tags"] = {
-                "error": str(e),
-                "processed": 0,
-                "created": 0,
-                "updated": 0,
-            }
+        results["tags"] = await self._sync_entity_type(
+            "tag",
+            force,
+            self.stash_service.get_all_tags,
+            self.stash_service.get_tags_since,
+            self.entity_handler.sync_tags,
+        )
 
         # Sync studios
-        try:
-            studios_data = await self.stash_service.get_all_studios()
-            logger.debug(f"Retrieved {len(studios_data)} studios from Stash")
-            if studios_data:
-                logger.debug(f"First studio data: {studios_data[0]}")
-            results["studios"] = await self.entity_handler.sync_studios(
-                studios_data, self.db, force=force
-            )
-        except Exception as e:
-            logger.error(f"Failed to sync studios: {str(e)}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            logger.error(f"Exception details: {repr(e)}")
-            results["studios"] = {
-                "error": str(e),
-                "processed": 0,
-                "created": 0,
-                "updated": 0,
-            }
+        results["studios"] = await self._sync_entity_type(
+            "studio",
+            force,
+            self.stash_service.get_all_studios,
+            self.stash_service.get_studios_since,
+            self.entity_handler.sync_studios,
+        )
 
         return results
 
@@ -1173,7 +1183,7 @@ class SyncService:
                 items_updated=result.updated_items,
                 items_failed=result.failed_items,
                 error_details=(
-                    {"errors": [e.__dict__ for e in result.errors]}
+                    {"errors": [e.to_dict() for e in result.errors]}
                     if result.errors
                     else None
                 ),

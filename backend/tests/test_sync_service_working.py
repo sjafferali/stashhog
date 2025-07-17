@@ -450,6 +450,9 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_entities_error_handling(self, sync_service, mock_stash_service):
         """Test error handling in entity sync."""
+        # Mock _get_last_sync_time to avoid database queries
+        sync_service._get_last_sync_time = AsyncMock(return_value=None)
+
         # Mock performer sync to fail
         mock_stash_service.get_all_performers = AsyncMock(
             side_effect=Exception("API Error")

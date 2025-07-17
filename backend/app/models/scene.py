@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -47,7 +48,7 @@ class Scene(BaseModel):
 
     # File properties
     duration = Column(Float, nullable=True)  # Duration in seconds
-    size = Column(Integer, nullable=True)  # File size in bytes
+    size = Column(BigInteger, nullable=True)  # File size in bytes
     height = Column(Integer, nullable=True)  # Video height in pixels
     width = Column(Integer, nullable=True)  # Video width in pixels
     framerate = Column(Float, nullable=True)  # Frames per second

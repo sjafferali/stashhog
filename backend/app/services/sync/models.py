@@ -23,6 +23,16 @@ class SyncError:
         """Alias for error_message for compatibility"""
         return self.error_message
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary with JSON-serializable values"""
+        return {
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "error_message": self.error_message,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "details": self.details,
+        }
+
 
 @dataclass
 class SyncStats:
