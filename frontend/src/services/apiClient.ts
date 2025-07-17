@@ -52,12 +52,12 @@ class ApiClient {
 
   // Tags
   async getTags(params?: FilterParams): Promise<PaginatedResponse<Tag>> {
-    const response = await api.get('/tags', { params });
+    const response = await api.get('/entities/tags', { params });
     return response.data;
   }
 
   async getTag(id: number): Promise<Tag> {
-    const response = await api.get(`/tags/${id}`);
+    const response = await api.get(`/entities/tags/${id}`);
     return response.data;
   }
 

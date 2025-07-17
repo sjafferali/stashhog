@@ -16,6 +16,7 @@ import {
   DownOutlined,
   PlusOutlined,
   MinusOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import api from '@/services/api';
@@ -41,7 +42,9 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
 
   // Fetch tags for the modal
   const { data: tags } = useQuery<TagType[]>('tags', async () => {
-    const response = await api.get('/tags', { params: { size: 1000 } });
+    const response = await api.get('/entities/tags', {
+      params: { size: 1000 },
+    });
     return response.data.items;
   });
 
@@ -70,6 +73,26 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       },
       onError: () => {
         void message.error('Failed to start analysis');
+      },
+    }
+  );
+
+  // Sync mutation
+  const syncMutation = useMutation(
+    async (sceneIds: string[]) => {
+      const response = await api.post('/scenes/resync-bulk', sceneIds, {
+        params: { background: true },
+      });
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        void message.success(`Started sync for ${selectedCount} scenes`);
+        onClearSelection();
+        void queryClient.invalidateQueries('jobs');
+      },
+      onError: () => {
+        void message.error('Failed to start sync');
       },
     }
   );
@@ -113,6 +136,16 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       content: `Are you sure you want to analyze ${selectedCount} selected scenes?`,
       onOk: () => {
         analyzeMutation.mutate(Array.from(selectedScenes));
+      },
+    });
+  };
+
+  const handleSync = () => {
+    Modal.confirm({
+      title: 'Sync Scenes',
+      content: `Are you sure you want to sync ${selectedCount} selected scenes from Stash?`,
+      onOk: () => {
+        syncMutation.mutate(Array.from(selectedScenes));
       },
     });
   };
@@ -209,6 +242,14 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
         >
           <Space>
             <Tag color="blue">{selectedCount} selected</Tag>
+
+            <Button
+              icon={<SyncOutlined />}
+              onClick={handleSync}
+              loading={syncMutation.isLoading}
+            >
+              Sync Selected
+            </Button>
 
             <Button
               icon={<ExperimentOutlined />}

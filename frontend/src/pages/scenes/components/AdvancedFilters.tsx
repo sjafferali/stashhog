@@ -51,7 +51,9 @@ export const AdvancedFilters: React.FC = () => {
   const { data: tags, isLoading: loadingTags } = useQuery<TagType[]>(
     'tags',
     async () => {
-      const response = await api.get('/tags', { params: { size: 1000 } });
+      const response = await api.get('/entities/tags', {
+        params: { size: 1000 },
+      });
       return response.data.items;
     }
   );
