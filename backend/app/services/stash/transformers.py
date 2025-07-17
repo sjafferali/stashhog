@@ -32,23 +32,14 @@ def transform_scene(stash_scene: Dict) -> Dict:
     scene_id = stash_scene.get("id", "unknown")
     logger.debug(f"transform_scene called for scene {scene_id}")
 
-    # Extract primary path
-    primary_path = ""
-    paths_data = stash_scene.get("paths")
-    if paths_data:
-        # Handle paths as a dictionary (new format from Stash API)
-        if isinstance(paths_data, dict):
-            # Use stream path as primary if available
-            primary_path = paths_data.get("stream", "")
-        # Handle paths as a list (legacy format)
-        elif isinstance(paths_data, list) and len(paths_data) > 0:
-            primary_path = paths_data[0].get("path", "")
-
     # Extract actual file path from files array
     file_path = None
+    primary_path = ""
     files = stash_scene.get("files", [])
     if files and len(files) > 0:
         file_path = files[0].get("path")
+        # Use actual file path as primary path
+        primary_path = file_path or ""
 
     # Transform to internal format
     logger.debug(f"Transforming scene {scene_id} to internal format")

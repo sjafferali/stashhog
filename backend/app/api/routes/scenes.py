@@ -88,7 +88,11 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
     # Use filename if title is empty or blank
     title = scene.title
     if not title or not title.strip():
-        if scene.paths and len(scene.paths) > 0:
+        # First try to use actual file path if available
+        if scene.file_path:
+            title = os.path.basename(scene.file_path)
+        # Fall back to paths array if no file_path
+        elif scene.paths and len(scene.paths) > 0:
             title = os.path.basename(scene.paths[0])
 
     return SceneResponse(
