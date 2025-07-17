@@ -140,6 +140,9 @@ class TestAnalysisService:
         self, analysis_service, mock_db, mock_stash_service
     ):
         """Test analyzing a single scene."""
+        # Populate cache with existing tags for the filtering logic
+        analysis_service._cache["tags"] = ["outdoor", "nature", "1080p", "short"]
+
         # Create mock scene
         scene = self.create_mock_scene()
 
@@ -382,6 +385,15 @@ class TestAnalysisService:
     @pytest.mark.asyncio
     async def test_detection_with_confidence_threshold(self, analysis_service):
         """Test that low confidence detections are filtered out."""
+        # Populate cache with existing tags for the filtering logic
+        analysis_service._cache["tags"] = [
+            "high_conf",
+            "low_conf",
+            "med_conf",
+            "1080p",
+            "short",
+        ]
+
         # Mock detector with mixed confidence results
         analysis_service.tag_detector.detect = AsyncMock(
             return_value=[

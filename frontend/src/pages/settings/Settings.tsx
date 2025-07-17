@@ -106,10 +106,12 @@ const Settings: React.FC = () => {
       setSaving(true);
 
       // Transform form values to API format
-      const updates: Record<string, string | number | boolean> = {};
+      // For empty strings, we'll send null to clear the database value
+      const updates: Record<string, string | number | boolean | null> = {};
       Object.entries(values).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
-          updates[key] = value;
+        if (value !== undefined) {
+          // Send null for empty strings to clear the database value
+          updates[key] = value === '' ? null : value;
         }
       });
 
@@ -216,7 +218,7 @@ const Settings: React.FC = () => {
           <Form.Item
             label="Stash URL"
             name="stash_url"
-            rules={[{ required: true, message: 'Please enter the Stash URL' }]}
+            tooltip="Leave empty to use environment variable"
           >
             <Input
               placeholder={
@@ -254,9 +256,7 @@ const Settings: React.FC = () => {
           <Form.Item
             label="OpenAI API Key"
             name="openai_api_key"
-            rules={[
-              { required: true, message: 'Please enter your OpenAI API key' },
-            ]}
+            tooltip="Leave empty to use environment variable"
           >
             <Input.Password
               placeholder={fieldPlaceholders.openai_api_key || 'sk-...'}

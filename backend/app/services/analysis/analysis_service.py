@@ -412,16 +412,28 @@ class AnalysisService:
                 available_tags=self._cache["tags"],
             )
 
-        # Combine results
+        # Combine results and filter to only existing tags
         all_results: dict[str, Any] = {}
+        available_tags = self._cache.get("tags", [])
+        available_tags_map = {t.lower(): t for t in available_tags}
+
         for result in tech_results + ai_results:
             if result.confidence >= options.confidence_threshold:
                 tag = result.value
-                if (
-                    tag not in all_results
-                    or result.confidence > all_results[tag].confidence
-                ):
-                    all_results[tag] = result
+                tag_lower = tag.lower()
+                # Only accept tags that already exist in the database
+                if tag_lower in available_tags_map:
+                    # Use the exact case from the database
+                    actual_tag = available_tags_map[tag_lower]
+                    if (
+                        actual_tag not in all_results
+                        or result.confidence > all_results[actual_tag].confidence
+                    ):
+                        # Update the result to use the correct case
+                        result.value = actual_tag
+                        all_results[actual_tag] = result
+                else:
+                    logger.debug(f"Discarding non-existent tag: {tag}")
 
         # Create changes for new tags
         if all_results:

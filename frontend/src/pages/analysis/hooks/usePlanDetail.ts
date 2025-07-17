@@ -7,6 +7,7 @@ import type { SceneChanges } from '@/components/analysis';
 interface RawChange {
   id?: number;
   field: string;
+  action?: string;
   current_value:
     | string
     | number
@@ -149,6 +150,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
             sceneId: scene.scene_id,
             field: change.field,
             fieldLabel: getFieldLabel(change.field),
+            action: change.action as 'set' | 'add' | 'update' | undefined,
             currentValue: change.current_value,
             proposedValue: change.proposed_value,
             confidence: change.confidence,

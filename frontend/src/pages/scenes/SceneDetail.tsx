@@ -25,13 +25,19 @@ const SceneDetail: React.FC = () => {
   }, [isLoaded, loadSettings]);
 
   const handleOpenInStash = () => {
-    if (settings?.stash_url && id) {
+    const stashUrl = settings?.stash_url || '';
+    if (stashUrl && id) {
       // Remove trailing slash from stash_url if present
-      const baseUrl = settings.stash_url.replace(/\/$/, '');
-      const stashUrl = `${baseUrl}/scenes/${id}`;
-      window.open(stashUrl, '_blank');
+      const baseUrl = stashUrl.replace(/\/$/, '');
+      const fullUrl = `${baseUrl}/scenes/${id}`;
+      window.open(fullUrl, '_blank');
     }
   };
+
+  // Check if we have a valid stash URL
+  const hasStashUrl = Boolean(
+    settings?.stash_url && settings.stash_url.trim() !== ''
+  );
 
   // Analyze mutation
   const analyzeMutation = useMutation(
@@ -93,7 +99,7 @@ const SceneDetail: React.FC = () => {
             <Button
               icon={<LinkOutlined />}
               onClick={handleOpenInStash}
-              disabled={!settings?.stash_url}
+              disabled={!hasStashUrl}
             >
               Open in Stash
             </Button>

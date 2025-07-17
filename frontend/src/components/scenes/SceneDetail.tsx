@@ -50,13 +50,19 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
   }, [isLoaded, loadSettings]);
 
   const handleOpenInStash = () => {
-    if (settings?.stash_url) {
+    const stashUrl = settings?.stash_url || '';
+    if (stashUrl && scene.id) {
       // Remove trailing slash from stash_url if present
-      const baseUrl = settings.stash_url.replace(/\/$/, '');
-      const stashUrl = `${baseUrl}/scenes/${scene.id}`;
-      window.open(stashUrl, '_blank');
+      const baseUrl = stashUrl.replace(/\/$/, '');
+      const fullUrl = `${baseUrl}/scenes/${scene.id}`;
+      window.open(fullUrl, '_blank');
     }
   };
+
+  // Check if we have a valid stash URL
+  const hasStashUrl = Boolean(
+    settings?.stash_url && settings.stash_url.trim() !== ''
+  );
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return 'N/A';
@@ -356,7 +362,7 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 icon={<LinkOutlined />}
                 style={{ width: '100%' }}
                 onClick={handleOpenInStash}
-                disabled={!settings?.stash_url}
+                disabled={!hasStashUrl}
               >
                 Open in Stash
               </Button>

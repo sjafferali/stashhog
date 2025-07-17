@@ -29,6 +29,7 @@ export interface ProposedChange {
   sceneId?: string | number;
   field: string;
   fieldLabel: string;
+  action?: 'set' | 'add' | 'update';
   currentValue:
     | string
     | number

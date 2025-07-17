@@ -310,23 +310,51 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 </Space>
               </div>
               <div className={styles.changeValues}>
-                <div className={styles.valueRow}>
-                  <Text type="secondary" className={styles.valueLabel}>
-                    Current:
-                  </Text>
-                  <Text className={styles.value}>
-                    {renderValue(change.currentValue, change.type)}
-                  </Text>
-                </div>
-                <div className={styles.arrow}>→</div>
-                <div className={styles.valueRow}>
-                  <Text type="secondary" className={styles.valueLabel}>
-                    Proposed:
-                  </Text>
-                  <Text className={styles.value}>
-                    {renderValue(change.proposedValue, change.type)}
-                  </Text>
-                </div>
+                {change.action === 'add' &&
+                (change.field === 'tags' || change.field === 'performers') ? (
+                  <>
+                    <div className={styles.valueRow}>
+                      <Text type="secondary" className={styles.valueLabel}>
+                        Current:
+                      </Text>
+                      <Text className={styles.value}>
+                        {renderValue(change.currentValue, change.type)}
+                      </Text>
+                    </div>
+                    <div className={styles.arrow}>+</div>
+                    <div className={styles.valueRow}>
+                      <Text type="secondary" className={styles.valueLabel}>
+                        Adding:
+                      </Text>
+                      <Text
+                        className={styles.value}
+                        style={{ color: '#52c41a' }}
+                      >
+                        {renderValue(change.proposedValue, change.type)}
+                      </Text>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.valueRow}>
+                      <Text type="secondary" className={styles.valueLabel}>
+                        Current:
+                      </Text>
+                      <Text className={styles.value}>
+                        {renderValue(change.currentValue, change.type)}
+                      </Text>
+                    </div>
+                    <div className={styles.arrow}>→</div>
+                    <div className={styles.valueRow}>
+                      <Text type="secondary" className={styles.valueLabel}>
+                        Proposed:
+                      </Text>
+                      <Text className={styles.value}>
+                        {renderValue(change.proposedValue, change.type)}
+                      </Text>
+                    </div>
+                  </>
+                )}
               </div>
               {onAcceptChange &&
                 onRejectChange &&

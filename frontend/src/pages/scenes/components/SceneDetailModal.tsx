@@ -57,13 +57,19 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   }, [isLoaded, loadSettings]);
 
   const handleOpenInStash = () => {
-    if (settings?.stash_url) {
+    const stashUrl = settings?.stash_url || '';
+    if (stashUrl && scene.id) {
       // Remove trailing slash from stash_url if present
-      const baseUrl = settings.stash_url.replace(/\/$/, '');
-      const stashUrl = `${baseUrl}/scenes/${scene.id}`;
-      window.open(stashUrl, '_blank');
+      const baseUrl = stashUrl.replace(/\/$/, '');
+      const fullUrl = `${baseUrl}/scenes/${scene.id}`;
+      window.open(fullUrl, '_blank');
     }
   };
+
+  // Check if we have a valid stash URL
+  const hasStashUrl = Boolean(
+    settings?.stash_url && settings.stash_url.trim() !== ''
+  );
 
   // Fetch full scene details
   const { data: fullScene, isLoading } = useQuery<Scene>(
@@ -454,7 +460,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           key="stash"
           icon={<LinkOutlined />}
           onClick={handleOpenInStash}
-          disabled={!settings?.stash_url}
+          disabled={!hasStashUrl}
         >
           Open in Stash
         </Button>,
