@@ -347,7 +347,9 @@ class AnalysisService:
         ai_results = []
         if options.use_ai:
             ai_results = await self.performer_detector.detect_with_ai(
-                scene_data=scene_data, ai_client=self.ai_client
+                scene_data=scene_data,
+                ai_client=self.ai_client,
+                known_performers=self._cache["performers"],
             )
 
         # Combine and deduplicate results
@@ -407,6 +409,7 @@ class AnalysisService:
                 scene_data=scene_data,
                 ai_client=self.ai_client,
                 existing_tags=current_names,
+                available_tags=self._cache["tags"],
             )
 
         # Combine results

@@ -139,21 +139,28 @@ class StudioDetector:
         return None
 
     async def detect_with_ai(
-        self, scene_data: Dict, ai_client: AIClient
+        self, scene_data: Dict, ai_client: AIClient, known_studios: List[str]
     ) -> Optional[DetectionResult]:
         """Use AI to detect studio from scene data.
 
         Args:
             scene_data: Scene information including path, title, etc.
             ai_client: AI client for analysis
+            known_studios: List of known studios in the database
 
         Returns:
             Detection result with studio name and confidence
         """
         try:
+            # Add known studios to scene data for the prompt
+            scene_data_with_studios = scene_data.copy()
+            scene_data_with_studios["available_studios"] = known_studios
+
             # Use AI to analyze the scene
             response: Dict = await ai_client.analyze_scene(
-                prompt=STUDIO_DETECTION_PROMPT, scene_data=scene_data, temperature=0.3
+                prompt=STUDIO_DETECTION_PROMPT,
+                scene_data=scene_data_with_studios,
+                temperature=0.3,
             )
 
             # Parse response
@@ -203,7 +210,7 @@ class StudioDetector:
 
         # Try AI detection if enabled
         if use_ai and ai_client:
-            ai_result = await self.detect_with_ai(scene_data, ai_client)
+            ai_result = await self.detect_with_ai(scene_data, ai_client, known_studios)
 
             # Compare results and use the one with higher confidence
             if ai_result:

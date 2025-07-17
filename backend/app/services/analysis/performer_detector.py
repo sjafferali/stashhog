@@ -130,21 +130,26 @@ class PerformerDetector:
         return results
 
     async def detect_with_ai(
-        self, scene_data: Dict, ai_client: AIClient
+        self, scene_data: Dict, ai_client: AIClient, known_performers: List[Dict]
     ) -> List[DetectionResult]:
         """Use AI to detect performers from scene data.
 
         Args:
             scene_data: Scene information
             ai_client: AI client for analysis
+            known_performers: List of known performers with their aliases
 
         Returns:
             List of detection results
         """
         try:
+            # Add known performers to scene data for the prompt
+            scene_data_with_performers = scene_data.copy()
+            scene_data_with_performers["available_performers"] = known_performers
+
             response: Dict = await ai_client.analyze_scene(
                 prompt=PERFORMER_DETECTION_PROMPT,
-                scene_data=scene_data,
+                scene_data=scene_data_with_performers,
                 temperature=0.3,
             )
 

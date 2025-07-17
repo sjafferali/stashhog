@@ -75,20 +75,27 @@ Suggest relevant tags for this adult content scene.
 File path: {file_path}
 Title: {title}
 Details: {details}
+Current studio: {studio}
 Current tags: {tags}
 Duration: {duration} seconds
 Resolution: {resolution}
 
+Available Tags:
+{available_tags}
+
 Suggest appropriate content tags based on:
 1. Technical aspects (resolution, duration)
-2. Content type inferred from title/path
-3. Studio style (if identifiable)
-4. Common adult content categories
+2. Content type inferred from title/path/details
+3. Studio style and typical content
+4. Scene participants and activities
+
+IMPORTANT: You MUST only suggest tags from the "Available Tags" list above.
+Do NOT create new tags or suggest tags not in the list.
 
 Avoid:
-- Redundant tags already present
-- Overly specific tags
-- Inappropriate or offensive tags
+- Tags already present in "Current tags"
+- Tags that don't match the scene content
+- Generic tags when more specific ones apply
 
 Return a JSON list of suggested tags with confidence:
 {{

@@ -69,7 +69,11 @@ class TagDetector:
                 self.parent_tags[child.lower()] = parent
 
     async def detect_with_ai(
-        self, scene_data: dict, ai_client: AIClient, existing_tags: list[str]
+        self,
+        scene_data: dict,
+        ai_client: AIClient,
+        existing_tags: list[str],
+        available_tags: list[str],
     ) -> list[DetectionResult]:
         """Use AI to suggest tags for the scene.
 
@@ -77,17 +81,22 @@ class TagDetector:
             scene_data: Scene information
             ai_client: AI client for analysis
             existing_tags: Tags already assigned to the scene
+            available_tags: All available tags in the database
 
         Returns:
             List of suggested tags with confidence scores
         """
         try:
-            # Add existing tags to scene data for context
-            scene_data["tags"] = ", ".join(existing_tags) if existing_tags else "None"
+            # Add existing tags and available tags to scene data
+            scene_data_with_tags = scene_data.copy()
+            scene_data_with_tags["tags"] = (
+                ", ".join(existing_tags) if existing_tags else "None"
+            )
+            scene_data_with_tags["available_tags"] = available_tags
 
             response = await ai_client.analyze_scene(
                 prompt=TAG_SUGGESTION_PROMPT,
-                scene_data=scene_data,
+                scene_data=scene_data_with_tags,
                 response_format=TagSuggestionsResponse,
                 temperature=0.3,
             )

@@ -201,6 +201,34 @@ class AIClient:
             "resolution": f"{scene_data.get('width', 0)}x{scene_data.get('height', 0)}",
         }
 
+        # Add available entities lists if provided
+        if "available_studios" in scene_data:
+            prompt_data["available_studios"] = "\n".join(
+                f"- {studio}" for studio in scene_data["available_studios"]
+            )
+
+        if "available_performers" in scene_data:
+            # Format performers with their aliases
+            performer_lines = []
+            for performer in scene_data["available_performers"]:
+                if isinstance(performer, dict):
+                    name = performer.get("name", "")
+                    aliases = performer.get("aliases", [])
+                    if aliases:
+                        performer_lines.append(
+                            f"- {name} (aliases: {', '.join(aliases)})"
+                        )
+                    else:
+                        performer_lines.append(f"- {name}")
+                else:
+                    performer_lines.append(f"- {performer}")
+            prompt_data["available_performers"] = "\n".join(performer_lines)
+
+        if "available_tags" in scene_data:
+            prompt_data["available_tags"] = "\n".join(
+                f"- {tag}" for tag in scene_data["available_tags"]
+            )
+
         # Fill the template
         try:
             return template.format(**prompt_data)
