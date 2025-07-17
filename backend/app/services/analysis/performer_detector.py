@@ -70,13 +70,17 @@ class PerformerDetector:
         self._performer_cache: Dict[str, List[DetectionResult]] = {}
 
     async def detect_from_path(
-        self, file_path: str, known_performers: List[Dict[str, str]]
+        self,
+        file_path: str,
+        known_performers: List[Dict[str, str]],
+        title: Optional[str] = None,
     ) -> List[DetectionResult]:
-        """Extract performer names from file path.
+        """Extract performer names from file path and title.
 
         Args:
             file_path: Path to the video file
             known_performers: List of known performer dictionaries with name and aliases
+            title: Optional scene title to extract names from
 
         Returns:
             List of detection results
@@ -93,6 +97,11 @@ class PerformerDetector:
             parent_names = self._extract_names_from_string(path.parent.name)
             potential_names.extend(parent_names)
 
+        # Extract from title if provided
+        if title:
+            title_names = self._extract_names_from_string(title)
+            potential_names.extend(title_names)
+
         # Remove duplicates while preserving order
         seen = set()
         unique_names = []
@@ -107,22 +116,24 @@ class PerformerDetector:
             match_result = self.find_full_name(name, known_performers)
             if match_result:
                 full_name, confidence = match_result
+                source = "title" if title and name in title else "path"
                 results.append(
                     DetectionResult(
                         value=full_name,
                         confidence=confidence,
-                        source="path",
+                        source=source,
                         metadata={"extracted_as": name},
                     )
                 )
             else:
                 # Still include unmatched names with lower confidence
                 if self._is_valid_name(name):
+                    source = "title" if title and name in title else "path"
                     results.append(
                         DetectionResult(
                             value=name,
                             confidence=0.5,
-                            source="path",
+                            source=source,
                             metadata={"unmatched": True},
                         )
                     )
@@ -355,15 +366,26 @@ class PerformerDetector:
         Returns:
             List of potential names
         """
-        # Clean the text
+        names = []
+
+        # First, try extracting with separators BEFORE cleaning
+        # This preserves original separators like "-"
+        separator_names = self._extract_with_separators(text)
+        names.extend(separator_names)
+
+        # Clean the text for further extraction
         text = self._clean_text_for_extraction(text)
 
-        # Try extracting with separators first
-        names = self._extract_with_separators(text)
-
-        # If no separators found, try capitalized word extraction
-        if not names:
-            names = self._extract_capitalized_names(text)
+        # Also try extracting individual words as potential single-word names
+        # This helps with cases like "greatwood - 2023-12-28"
+        words = text.split()
+        for word in words:
+            # Skip if already found via separators
+            if any(word.lower() in name.lower() for name in names):
+                continue
+            cleaned = self._clean_name(word)
+            if cleaned and self._is_valid_name(cleaned):
+                names.append(cleaned)
 
         return names
 
@@ -379,8 +401,15 @@ class PerformerDetector:
         """Extract names using known separators."""
         names = []
         for separator in self.SEPARATORS:
-            if separator in text.lower():
-                parts = text.split(separator)
+            # Use case-insensitive check for word separators, but case-sensitive for symbols
+            check_text = text.lower() if separator.strip() != separator else text
+            if separator in check_text:
+                # Split with the original case to preserve capitalization
+                if separator.strip() != separator:  # Word separator like " and "
+                    parts = re.split(re.escape(separator), text, flags=re.IGNORECASE)
+                else:  # Symbol separator like "-"
+                    parts = text.split(separator)
+
                 for part in parts:
                     cleaned = self._clean_name(part)
                     if cleaned:

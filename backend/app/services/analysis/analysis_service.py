@@ -349,7 +349,7 @@ class AnalysisService:
             p.get("name", "") for p in current_performers if isinstance(p, dict)
         ]
 
-        # Detect from path
+        # Detect from path and title
         path_results = await self.performer_detector.detect_from_path(
             file_path=scene_data.get("file_path", ""),
             known_performers=(
@@ -357,6 +357,7 @@ class AnalysisService:
                 if isinstance(self._cache["performers"], list)
                 else []
             ),
+            title=scene_data.get("title", ""),
         )
 
         # Detect with AI if enabled
@@ -633,8 +634,8 @@ class AnalysisService:
             "id": scene.id,
             "title": scene.title or "",
             "file_path": (
-                scene.get_primary_path()
-                if hasattr(scene, "get_primary_path")
+                scene.file_path
+                if hasattr(scene, "file_path") and scene.file_path
                 else getattr(scene, "path", "")
             ),
             "details": scene.details or "",

@@ -45,17 +45,24 @@ Available Performers:
 
 Identify all performers (actors/models) in this scene. Look for:
 1. Names in the file path (often separated by dashes, underscores, or "and")
-2. Names mentioned in the title
+2. Names mentioned in the title - CHECK EACH WORD INDIVIDUALLY
 3. Names in the description/details
 
 IMPORTANT: Match detected names against the "Available Performers" list above.
 The list includes performer names and their aliases in the format: "Name (aliases: alias1, alias2)".
 Match any variation, nickname, or alias to the official performer name.
 
+CRITICAL: For the title, check EACH WORD separately against the performer list. For example:
+- If title is "greatwood - 2023-12-28", check if "greatwood" matches any performer
+- If title is "John Smith Scene", check both "John" and "Smith" and "John Smith"
+- Single word names are valid (e.g., "greatwood", "Apollo", "Ares")
+
 Consider these patterns:
 - "PerformerA and PerformerB" or "PerformerA & PerformerB"
 - "PerformerA_PerformerB" or "PerformerA-PerformerB"
+- Single word performer names
 - Partial names, nicknames, or stage name variations
+- Case-insensitive matching
 
 Return a JSON list of performers with confidence scores:
 {{

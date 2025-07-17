@@ -1,7 +1,7 @@
 """Working tests for analysis service that match actual implementation."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -44,10 +44,11 @@ class TestAnalysisService:
         scene.last_played_at = None
         scene.play_count = 0
         scene.play_duration = 0
-        scene.created_at = datetime.utcnow()
-        scene.updated_at = datetime.utcnow()
+        scene.created_at = datetime.now(timezone.utc)
+        scene.updated_at = datetime.now(timezone.utc)
         scene.paths = [f"/path/to/{id}.mp4"]
         scene.get_primary_path = Mock(return_value=f"/path/to/{id}.mp4")
+        scene.file_path = f"/path/to/{id}.mp4"  # Add explicit file_path attribute
         scene.framerate = 30.0  # Add framerate attribute
         return scene
 
