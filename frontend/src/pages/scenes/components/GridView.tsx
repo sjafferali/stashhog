@@ -3,7 +3,6 @@ import {
   Card,
   Col,
   Row,
-  Image,
   Tag,
   Space,
   Checkbox,
@@ -19,6 +18,7 @@ import {
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { useScenesStore, GridSize } from '@/store/slices/scenes';
+import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 import styles from './GridView.module.scss';
 
 const { Text } = Typography;
@@ -93,7 +93,6 @@ export const GridView: React.FC<GridViewProps> = ({
     () =>
       scenes.map((scene) => {
         const isSelected = selectedScenes.has(scene.id.toString());
-        const thumbnailUrl = `/api/scenes/${scene.id}/thumbnail`; // Adjust based on your API
 
         return (
           <Col key={scene.id} span={colSpan}>
@@ -103,11 +102,9 @@ export const GridView: React.FC<GridViewProps> = ({
               onClick={(e: React.MouseEvent) => handleCardClick(scene, e)}
               cover={
                 <div className={styles.coverWrapper}>
-                  <Image
-                    alt={scene.title || 'Scene thumbnail'}
-                    src={thumbnailUrl}
-                    fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-                    preview={false}
+                  <SceneThumbnail
+                    sceneId={scene.id}
+                    title={scene.title || 'Scene thumbnail'}
                     className={styles.thumbnail}
                   />
                   {scene.duration && (

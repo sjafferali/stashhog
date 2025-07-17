@@ -157,6 +157,7 @@ export const AdvancedFilters: React.FC = () => {
                   updateFilter('performer_ids', value)
                 }
                 style={{ width: '100%' }}
+                showSearch
                 filterOption={(
                   input: string,
                   option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -196,6 +197,7 @@ export const AdvancedFilters: React.FC = () => {
                 value={Array.isArray(filters.tag_ids) ? filters.tag_ids : []}
                 onChange={(value: string[]) => updateFilter('tag_ids', value)}
                 style={{ width: '100%' }}
+                showSearch
                 filterOption={(
                   input: string,
                   option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -238,6 +240,7 @@ export const AdvancedFilters: React.FC = () => {
                   )
                 }
                 style={{ width: '100%' }}
+                showSearch
                 filterOption={(
                   input: string,
                   option?: any // eslint-disable-line @typescript-eslint/no-explicit-any

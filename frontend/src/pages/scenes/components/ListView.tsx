@@ -6,7 +6,6 @@ import {
   Button,
   Checkbox,
   Typography,
-  Image,
   Tooltip,
   Modal,
   message,
@@ -30,6 +29,7 @@ import { useScenesStore } from '@/store/slices/scenes';
 import { useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
+import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 
 const { Text } = Typography;
 
@@ -164,14 +164,12 @@ export const ListView: React.FC<ListViewProps> = ({
         key: 'thumbnail',
         width: 120,
         render: (_: unknown, record: Scene) => (
-          <Image
+          <SceneThumbnail
+            sceneId={record.id}
+            title={record.title || 'Scene thumbnail'}
             width={100}
             height={60}
-            src={`/api/scenes/${record.id}/thumbnail`}
-            alt={record.title || 'Scene thumbnail'}
-            preview={false}
             style={{ objectFit: 'cover', borderRadius: 4 }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
           />
         ),
       },

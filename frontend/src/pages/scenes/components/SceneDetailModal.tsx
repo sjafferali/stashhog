@@ -6,7 +6,6 @@ import {
   Tag,
   Space,
   Button,
-  Image,
   List,
   Typography,
   Divider,
@@ -30,6 +29,7 @@ import dayjs from 'dayjs';
 import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
 import useAppStore from '@/store';
+import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 
 const { TabPane } = Tabs;
 const { Text, Paragraph } = Typography;
@@ -168,11 +168,10 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Thumbnail */}
         <div style={{ textAlign: 'center' }}>
-          <Image
+          <SceneThumbnail
+            sceneId={scene.id}
+            title={scene.title || 'Scene thumbnail'}
             width={400}
-            src={`/api/scenes/${scene.id}/thumbnail`}
-            alt={scene.title || 'Scene thumbnail'}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
           />
         </div>
 
