@@ -44,6 +44,12 @@ def transform_scene(stash_scene: Dict) -> Dict:
         elif isinstance(paths_data, list) and len(paths_data) > 0:
             primary_path = paths_data[0].get("path", "")
 
+    # Extract actual file path from files array
+    file_path = None
+    files = stash_scene.get("files", [])
+    if files and len(files) > 0:
+        file_path = files[0].get("path")
+
     # Transform to internal format
     logger.debug(f"Transforming scene {scene_id} to internal format")
     try:
@@ -52,6 +58,7 @@ def transform_scene(stash_scene: Dict) -> Dict:
             "title": stash_scene.get("title", ""),
             "path": primary_path,
             "paths": _extract_paths_list(stash_scene.get("paths")),
+            "file_path": file_path,  # Add actual file path
             "details": stash_scene.get("details"),
             "date": stash_scene.get("date"),
             "rating": stash_scene.get("rating100"),

@@ -3,9 +3,9 @@ Scene management endpoints.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -95,6 +95,7 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         id=scene.id,  # type: ignore[arg-type]
         title=title,  # type: ignore[arg-type]
         paths=scene.paths,  # type: ignore[arg-type]
+        file_path=scene.file_path,  # type: ignore[arg-type]
         organized=scene.organized,  # type: ignore[arg-type]
         analyzed=scene.analyzed,  # type: ignore[arg-type]
         details=scene.details,  # type: ignore[arg-type]
@@ -268,6 +269,62 @@ async def resync_scene(
 
     # Return updated scene
     return await get_scene(scene_id, db)
+
+
+@router.post("/resync-bulk", response_model=Dict[str, Any])
+async def resync_scenes_bulk(
+    scene_ids: List[str] = Body(..., description="List of scene IDs to resync"),
+    background: bool = Query(True, description="Run as background job"),
+    job_service: JobService = Depends(get_job_service),
+    sync_service: SyncService = Depends(get_sync_service),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Resync multiple scenes from Stash.
+
+    This endpoint allows bulk resyncing of scenes by their IDs.
+    By default, it runs as a background job for better performance.
+    """
+    # Validate that all scenes exist
+    query = select(Scene.id).where(Scene.id.in_(scene_ids))
+    result = await db.execute(query)
+    existing_ids = {str(row[0]) for row in result}
+
+    missing_ids = set(scene_ids) - existing_ids
+    if missing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scenes not found: {', '.join(missing_ids)}",
+        )
+
+    if background:
+        # Queue as background job
+        job = await job_service.create_job(
+            job_type=ModelJobType.SYNC_SCENES,
+            db=db,
+            metadata={
+                "scene_ids": scene_ids,
+                "force": True,  # Force resync for explicit user action
+            },
+        )
+        return {
+            "job_id": job.id,
+            "status": "queued",
+            "message": f"Resync job queued for {len(scene_ids)} scenes",
+        }
+    else:
+        # Run synchronously (not recommended for many scenes)
+        sync_result = await sync_service.sync_scenes(
+            scene_ids=scene_ids,
+            force=True,
+            db=db,  # type: ignore[arg-type]
+        )
+        return {
+            "status": "completed",
+            "total_scenes": len(scene_ids),
+            "synced_scenes": sync_result.processed_items,
+            "failed_scenes": sync_result.failed_items,
+        }
 
 
 @router.get("/stats/summary", response_model=Dict[str, Any])

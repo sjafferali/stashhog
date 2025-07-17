@@ -89,7 +89,9 @@ def mock_scene():
     scene = Mock(spec=Scene)
     scene.id = str(uuid4())
     scene.title = "Test Scene"
+    scene.path = "/path/to/scene.mp4"
     scene.paths = ["/path/to/scene.mp4"]  # Changed from path to paths
+    scene.file_path = "/actual/path/to/scene.mp4"
     scene.details = "Scene details"
     scene.rating = 5
     scene.duration = 3600
@@ -117,7 +119,9 @@ def mock_scene():
         return_value={
             "id": scene.id,
             "title": scene.title,
+            "path": scene.path,
             "paths": scene.paths,
+            "file_path": scene.file_path,
             "details": scene.details,
             "rating": scene.rating,
             "duration": scene.duration,
@@ -240,7 +244,9 @@ class TestSceneRoutes:
             spec=Scene,
             id="123",
             title="Test Scene",
+            path="/path/to/scene.mp4",
             paths=["/path/to/scene.mp4"],
+            file_path="/actual/path/to/scene.mp4",
             organized=True,
             analyzed=False,
             details="Scene details",

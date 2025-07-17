@@ -91,6 +91,7 @@ class TestSceneRoutes:
                 title="Scene 1",
                 path="/path/1.mp4",
                 paths=["/path/1.mp4"],
+                file_path="/actual/path/1.mp4",
                 stash_created_at=datetime.now(),
                 stash_updated_at=datetime.now(),
                 date=None,
@@ -119,6 +120,7 @@ class TestSceneRoutes:
                 title="Scene 2",
                 path="/path/2.mp4",
                 paths=["/path/2.mp4"],
+                file_path="/actual/path/2.mp4",
                 stash_created_at=datetime.now(),
                 stash_updated_at=datetime.now(),
                 date=None,
@@ -167,6 +169,7 @@ class TestSceneRoutes:
         mock_scene.title = "Test Scene"
         mock_scene.path = "/path/test.mp4"
         mock_scene.paths = ["/path/test.mp4"]
+        mock_scene.file_path = "/actual/path/test.mp4"
         mock_scene.stash_created_at = datetime.now()
         mock_scene.stash_updated_at = datetime.now()
         mock_scene.stash_date = None

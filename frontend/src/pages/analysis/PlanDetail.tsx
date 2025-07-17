@@ -241,7 +241,11 @@ const PlanDetail: React.FC = () => {
       {/* Statistics Row */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic
               title="Total Changes"
               value={stats.totalChanges}
@@ -250,16 +254,29 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic
               title="Accepted"
-              value={`${stats.acceptedChanges} (${stats.acceptanceRate.toFixed(0)}%)`}
+              value={stats.acceptedChanges}
               valueStyle={{ color: '#52c41a' }}
+              suffix={
+                <span style={{ fontSize: '14px', fontWeight: 'normal' }}>
+                  ({stats.acceptanceRate.toFixed(0)}%)
+                </span>
+              }
             />
           </Card>
         </Col>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic
               title="Rejected"
               value={stats.rejectedChanges}
@@ -268,7 +285,11 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic
               title="Pending"
               value={stats.pendingChanges}
@@ -277,7 +298,11 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic
               title="Avg Confidence"
               value={stats.averageConfidence * 100}
@@ -287,7 +312,11 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
         <Col span={4}>
-          <Card size="small" style={{ height: '100%' }}>
+          <Card
+            size="small"
+            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+            bodyStyle={{ width: '100%' }}
+          >
             <Statistic title="Scenes" value={plan.total_scenes} />
           </Card>
         </Col>

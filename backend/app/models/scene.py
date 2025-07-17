@@ -37,7 +37,8 @@ class Scene(BaseModel):
 
     # Basic scene information
     title = Column(String, nullable=False, index=True)
-    paths = Column(JSON, nullable=False, default=list)  # List of file paths
+    paths = Column(JSON, nullable=False, default=list)  # List of API URLs
+    file_path = Column(String, nullable=True)  # Actual file path from Stash
     organized = Column(Boolean, default=False, nullable=False, index=True)
     analyzed = Column(Boolean, default=False, nullable=False, index=True)
     details = Column(Text, nullable=True)

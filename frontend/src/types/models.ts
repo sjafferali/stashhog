@@ -3,6 +3,7 @@ export interface Scene {
   title: string;
   paths: string[];
   path?: string; // Legacy support for single path
+  file_path?: string; // Actual file path from Stash
   organized: boolean;
   analyzed: boolean;
   details?: string;

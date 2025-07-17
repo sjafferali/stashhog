@@ -208,7 +208,8 @@ class SceneBase(BaseSchema):
 
     id: str = Field(..., description="Scene ID")
     title: str = Field(..., description="Scene title")
-    paths: list[str] = Field(..., description="File paths")
+    paths: list[str] = Field(..., description="API URLs for media")
+    file_path: Optional[str] = Field(None, description="Actual file path")
     organized: bool = Field(..., description="Is scene organized")
     analyzed: bool = Field(..., description="Is scene analyzed")
     details: Optional[str] = Field(None, description="Scene details/description")

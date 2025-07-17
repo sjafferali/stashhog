@@ -68,22 +68,19 @@ class FullSyncStrategy(SyncStrategy):
             scene.rating = remote_data.get("rating")  # type: ignore[assignment]
         scene.organized = remote_data.get("organized", False)
 
-        # Handle file paths
-        files = remote_data.get("files", [])
-        if files:
-            scene.paths = [f.get("path") for f in files if f.get("path")]  # type: ignore[assignment]
-        else:
-            scene.paths = []  # type: ignore[assignment]
+        # Handle file paths - use paths from remote_data
+        scene.paths = remote_data.get("paths", [])  # type: ignore[assignment]
+        scene.file_path = remote_data.get("file_path")  # type: ignore[assignment]
 
-        # Get file properties from the first file
-        if files:
-            file_data = files[0]
+        # Get file properties from the transformed file data
+        file_data = remote_data.get("file", {})
+        if file_data:
             scene.duration = file_data.get("duration")
             scene.size = file_data.get("size")
             scene.height = file_data.get("height")
             scene.width = file_data.get("width")
-            scene.framerate = file_data.get("frame_rate")
-            scene.bitrate = file_data.get("bit_rate")
+            scene.framerate = file_data.get("framerate")
+            scene.bitrate = file_data.get("bitrate")
             scene.codec = file_data.get("video_codec")
 
         # Set Stash timestamps
@@ -225,22 +222,19 @@ class SmartSyncStrategy(SyncStrategy):
         if scene.url != remote_data.get("url"):
             changes["url"] = remote_data.get("url")
 
-        # Handle file paths
-        files = remote_data.get("files", [])
-        if files:
-            scene.paths = [f.get("path") for f in files if f.get("path")]  # type: ignore[assignment]
-        else:
-            scene.paths = []  # type: ignore[assignment]
+        # Handle file paths - use paths from remote_data
+        scene.paths = remote_data.get("paths", [])  # type: ignore[assignment]
+        scene.file_path = remote_data.get("file_path")  # type: ignore[assignment]
 
         # File properties should always be updated from source
-        if files:
-            file_data = files[0]
+        file_data = remote_data.get("file", {})
+        if file_data:
             scene.duration = file_data.get("duration")
             scene.size = file_data.get("size")
             scene.height = file_data.get("height")
             scene.width = file_data.get("width")
-            scene.framerate = file_data.get("frame_rate")
-            scene.bitrate = file_data.get("bit_rate")
+            scene.framerate = file_data.get("framerate")
+            scene.bitrate = file_data.get("bitrate")
             scene.codec = file_data.get("video_codec")
 
         # Apply tracked changes
