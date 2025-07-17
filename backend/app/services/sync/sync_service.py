@@ -124,13 +124,14 @@ class SyncService:
 
         try:
             # Update job status if job_id provided
+            sync_type = "full sync" if force else "sync"
             await self._update_job_status(
-                job_id, JobStatus.RUNNING, "Starting full sync"
+                job_id, JobStatus.RUNNING, f"Starting {sync_type}"
             )
 
             # Report initial progress
             if progress_callback:
-                await progress_callback(0, "Starting full sync")
+                await progress_callback(0, f"Starting {sync_type}")
 
             # Sync entities first (performers, tags, studios)
             logger.info("Syncing entities...")
@@ -168,8 +169,15 @@ class SyncService:
                 await progress_callback(20, "Entities synced, starting scene sync")
 
             # Sync scenes
-            logger.info("Syncing scenes...")
             last_sync_time = None if force else await self._get_last_sync_time("scene")
+            if force:
+                logger.info("Syncing scenes... (FULL SYNC - force=True)")
+            elif last_sync_time:
+                logger.info(
+                    f"Syncing scenes... (INCREMENTAL SYNC - changes since {last_sync_time})"
+                )
+            else:
+                logger.info("Syncing scenes... (FULL SYNC - no previous sync history)")
             logger.debug(
                 f"About to sync scenes - since: {last_sync_time}, job_id: {job_id}, batch_size: {batch_size}"
             )
@@ -206,6 +214,10 @@ class SyncService:
                 )
 
             result.complete()
+
+            # Record sync history for "all" type
+            await self._update_last_sync_time("all", result)
+
             await self._update_job_status(
                 job_id,
                 JobStatus.COMPLETED,
@@ -371,12 +383,31 @@ class SyncService:
         try:
             # Initialize sync state
             logger.debug("Getting stats from stash service...")
-            stats = await self.stash_service.get_stats()
-            logger.debug(f"Stats received: {stats}")
-            total_scenes = stats.get("scene_count", 0)
-            logger.debug(f"Total scenes to sync: {total_scenes}")
-            result.total_items = total_scenes
-            self._progress = SyncProgress(job_id, total_scenes)
+
+            # For incremental sync, we need to get the actual count of scenes to sync
+            if since:
+                logger.debug(f"Getting count of scenes updated since {since}")
+                # Get first page to determine actual count
+                filter_dict = {
+                    "updated_at": {
+                        "value": since.isoformat(),
+                        "modifier": "GREATER_THAN",
+                    }
+                }
+                _, total_to_sync = await self.stash_service.get_scenes(
+                    page=1, per_page=1, filter=filter_dict
+                )
+                logger.debug(f"Found {total_to_sync} scenes updated since {since}")
+                result.total_items = total_to_sync
+                self._progress = SyncProgress(job_id, total_to_sync)
+            else:
+                # Full sync - get total scene count
+                stats = await self.stash_service.get_stats()
+                logger.debug(f"Stats received: {stats}")
+                total_scenes = stats.get("scene_count", 0)
+                logger.debug(f"Total scenes to sync (full sync): {total_scenes}")
+                result.total_items = total_scenes
+                self._progress = SyncProgress(job_id, total_scenes)
 
             # Process batches
             offset = 0
@@ -404,7 +435,7 @@ class SyncService:
                 )
 
             result.complete()
-            await self._update_last_sync_time("scene")
+            await self._update_last_sync_time("scene", result)
             if self._progress:
                 await self._progress.complete(result)
 
@@ -988,14 +1019,80 @@ class SyncService:
 
     async def _get_last_sync_time(self, entity_type: str) -> Optional[datetime]:
         """Get the last successful sync time for an entity type"""
-        # This would query a sync history table
-        # For now, return None to do full sync
-        return None
+        from sqlalchemy import and_, desc, select
 
-    async def _update_last_sync_time(self, entity_type: str) -> None:
+        from app.models.sync_history import SyncHistory
+
+        logger.debug(f"Getting last sync time for entity type: {entity_type}")
+
+        # Query the sync history table for the last successful sync
+        stmt = (
+            select(SyncHistory)
+            .where(
+                and_(
+                    SyncHistory.entity_type == entity_type,
+                    SyncHistory.status == "completed",
+                )
+            )
+            .order_by(desc(SyncHistory.completed_at))
+            .limit(1)
+        )
+
+        result = self.db.execute(stmt)
+        last_sync = result.scalar_one_or_none()
+
+        if last_sync and last_sync.completed_at:
+            completed_at: datetime = last_sync.completed_at  # type: ignore[assignment]
+            logger.info(f"Last successful {entity_type} sync was at: {completed_at}")
+            return completed_at
+        else:
+            logger.info(f"No previous successful sync found for {entity_type}")
+            return None
+
+    async def _update_last_sync_time(
+        self, entity_type: str, result: Optional[SyncResult] = None
+    ) -> None:
         """Update the last sync time for an entity type"""
-        # This would update a sync history table
-        pass
+        from app.models.sync_history import SyncHistory
+
+        logger.debug(f"Recording successful sync for entity type: {entity_type}")
+
+        # Use provided result or create basic record
+        if result:
+            sync_record = SyncHistory(
+                entity_type=entity_type,
+                job_id=result.job_id,
+                started_at=result.started_at,
+                completed_at=result.completed_at or datetime.utcnow(),
+                status="completed" if result.status == SyncStatus.SUCCESS else "failed",
+                items_synced=result.processed_items,
+                items_created=result.created_items,
+                items_updated=result.updated_items,
+                items_failed=result.failed_items,
+                error_details=(
+                    {"errors": [e.__dict__ for e in result.errors]}
+                    if result.errors
+                    else None
+                ),
+            )
+        else:
+            # Fallback for basic record
+            sync_record = SyncHistory(
+                entity_type=entity_type,
+                job_id=self._progress.job_id if self._progress else None,
+                started_at=datetime.utcnow(),
+                completed_at=datetime.utcnow(),
+                status="completed",
+                items_synced=self._progress.total_items if self._progress else 0,
+                items_created=0,
+                items_updated=0,
+                items_failed=0,
+            )
+
+        self.db.add(sync_record)
+        self.db.commit()
+
+        logger.info(f"Recorded successful sync completion for {entity_type}")
 
     async def _update_job_status(
         self, job_id: str, status: JobStatus, message: str

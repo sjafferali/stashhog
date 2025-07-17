@@ -169,8 +169,24 @@ run_all_checks() {
         if output=$(python -m pytest -v 2>&1); then
             print_passed "Backend tests"
         else
+            # Extract only the short test summary section
+            short_summary=$(echo "$output" | awk '/=+ FAILURES =+|=+ short test summary info =+/{flag=1} flag; /=+ [0-9]+ failed,.*=+/{print; flag=0}')
+            
+            # If no short summary found, try to extract just the failed lines
+            if [ -z "$short_summary" ]; then
+                short_summary=$(echo "$output" | grep -E "^FAILED " || true)
+                
+                # If still no FAILED lines found, exit with error
+                if [ -z "$short_summary" ]; then
+                    cd ..
+                    print_error "Backend tests failed but no test summary could be extracted. The pytest output may be too large or in an unexpected format."
+                    deactivate
+                    return 1
+                fi
+            fi
+            
             cd ..
-            send_to_claude "$output" "backend tests"
+            send_to_claude "$short_summary" "backend tests"
             all_passed=false
             deactivate
             return 1

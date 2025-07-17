@@ -4,7 +4,6 @@ import {
   Form,
   Input,
   Button,
-  Switch,
   Select,
   Space,
   Divider,
@@ -214,7 +213,6 @@ const Settings: React.FC = () => {
           initialValues={{
             openai_model: 'gpt-4',
             analysis_confidence_threshold: 0.7,
-            sync_incremental: true,
             sync_batch_size: 100,
           }}
         >
@@ -323,14 +321,6 @@ const Settings: React.FC = () => {
           </Form.Item>
 
           <Divider orientation="left">Sync Settings</Divider>
-
-          <Form.Item
-            name="sync_incremental"
-            valuePropName="checked"
-            tooltip="Only sync changed items instead of full sync"
-          >
-            <Switch /> Enable incremental sync
-          </Form.Item>
 
           <Form.Item
             label="Sync Batch Size"
