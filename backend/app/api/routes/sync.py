@@ -341,13 +341,13 @@ async def get_sync_history(
             "completed_at": (
                 item.completed_at.isoformat() if item.completed_at else None
             ),
-            "total_items": item.total_items,
-            "processed_items": item.processed_items,
-            "created_items": item.created_items,
-            "updated_items": item.updated_items,
-            "skipped_items": item.skipped_items,
-            "failed_items": item.failed_items,
-            "error": item.error,
+            "total_items": item.items_synced,
+            "processed_items": item.items_synced,
+            "created_items": item.items_created,
+            "updated_items": item.items_updated,
+            "skipped_items": 0,
+            "failed_items": item.items_failed,
+            "error": item.error_details,
         }
         for item in history_items
     ]
