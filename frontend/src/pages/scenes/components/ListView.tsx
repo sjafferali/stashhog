@@ -8,6 +8,8 @@ import {
   Typography,
   Image,
   Tooltip,
+  Modal,
+  message,
 } from 'antd';
 import type { CheckboxChangeEvent } from '@/types/antd-proper';
 import {
@@ -25,7 +27,9 @@ import type {
 import { useSearchParams } from 'react-router-dom';
 import { Scene } from '@/types/models';
 import { useScenesStore } from '@/store/slices/scenes';
+import { useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
+import api from '@/services/api';
 
 const { Text } = Typography;
 
@@ -38,7 +42,7 @@ const formatDuration = (seconds?: number): string => {
   if (!seconds) return 'N/A';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
 
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -57,9 +61,52 @@ export const ListView: React.FC<ListViewProps> = ({
     selectAllScenes,
     clearSelection,
   } = useScenesStore();
+  const queryClient = useQueryClient();
 
   const sortBy = searchParams.get('sort_by') || 'created_at';
   const sortOrder = searchParams.get('sort_order') || 'desc';
+
+  // Analyze mutation
+  const analyzeMutation = useMutation(
+    async (sceneId: string) => {
+      const response = await api.post('/analysis/generate', {
+        scene_ids: [sceneId],
+        plan_name: `Scene #${sceneId} Analysis - ${new Date().toISOString()}`,
+        options: {
+          detect_performers: true,
+          detect_studios: true,
+          detect_tags: true,
+          detect_details: true,
+          use_ai: true,
+          confidence_threshold: 0.7,
+        },
+      });
+      return response.data;
+    },
+    {
+      onSuccess: () => {
+        void message.success('Started analysis for scene');
+        void queryClient.invalidateQueries('jobs');
+        void queryClient.invalidateQueries(['scene-analysis']);
+      },
+      onError: () => {
+        void message.error('Failed to start analysis');
+      },
+    }
+  );
+
+  const handleAnalyze = useCallback(
+    (scene: Scene) => {
+      Modal.confirm({
+        title: 'Analyze Scene',
+        content: `Are you sure you want to analyze scene "${scene.title || `#${scene.id}`}"?`,
+        onOk: () => {
+          analyzeMutation.mutate(scene.id.toString());
+        },
+      });
+    },
+    [analyzeMutation]
+  );
 
   const handleSortChange = useCallback(
     (column: string) => {
@@ -266,8 +313,9 @@ export const ListView: React.FC<ListViewProps> = ({
               icon={<ExperimentOutlined />}
               onClick={(e: MouseEvent<HTMLElement>) => {
                 e.stopPropagation();
-                // TODO: Implement analyze action
+                handleAnalyze(record);
               }}
+              loading={analyzeMutation.isLoading}
             >
               Analyze
             </Button>
@@ -284,6 +332,8 @@ export const ListView: React.FC<ListViewProps> = ({
       toggleSceneSelection,
       selectAllScenes,
       clearSelection,
+      handleAnalyze,
+      analyzeMutation.isLoading,
     ]
   );
 

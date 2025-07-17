@@ -3,7 +3,7 @@ Analysis operations endpoints.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Optional, cast
+from typing import Any, Optional, Sequence, cast
 
 from fastapi import (
     APIRouter,
@@ -15,6 +15,7 @@ from fastapi import (
 )
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from app.api.schemas import (
     AnalysisRequest,
@@ -373,6 +374,92 @@ async def apply_plan(
         }
 
 
+@router.get("/scenes/{scene_id}/results")
+async def get_scene_analysis_results(
+    scene_id: str, db: AsyncSession = Depends(get_db)
+) -> list[dict[str, Any]]:
+    """
+    Get all analysis results for a specific scene.
+
+    Returns analysis results from all plans that include this scene.
+    """
+    # Get all plan changes for this scene
+    query = (
+        select(PlanChange, AnalysisPlan)
+        .join(AnalysisPlan, PlanChange.plan_id == AnalysisPlan.id)
+        .where(PlanChange.scene_id == scene_id)
+        .order_by(AnalysisPlan.created_at.desc())
+    )
+    result = await db.execute(query)
+    changes_with_plans = result.all()
+
+    # Group changes by plan
+    results_by_plan = {}
+    for change, plan in changes_with_plans:
+        if plan.id not in results_by_plan:
+            results_by_plan[plan.id] = {
+                "id": plan.id,
+                "plan_id": plan.id,
+                "scene_id": scene_id,
+                "plan": {
+                    "id": plan.id,
+                    "name": plan.name,
+                },
+                "model_used": (
+                    plan.plan_metadata.get("model", "unknown")
+                    if plan.plan_metadata
+                    else "unknown"
+                ),
+                "prompt_used": (
+                    plan.plan_metadata.get("prompt_template", "")
+                    if plan.plan_metadata
+                    else ""
+                ),
+                "raw_response": (
+                    plan.plan_metadata.get("raw_response", "")
+                    if plan.plan_metadata
+                    else ""
+                ),
+                "extracted_data": {},
+                "confidence_scores": {},
+                "processing_time": (
+                    plan.plan_metadata.get("processing_time", 0)
+                    if plan.plan_metadata
+                    else 0
+                ),
+                "created_at": (
+                    plan.created_at.isoformat()
+                    if plan.created_at
+                    else datetime.now(timezone.utc).isoformat()
+                ),
+            }
+
+        # Add change data to extracted_data
+        field = change.field
+        if change.action in ["set", "update"]:
+            results_by_plan[plan.id]["extracted_data"][field] = change.proposed_value
+        elif change.action == "add" and field in ["performers", "tags"]:
+            if field not in results_by_plan[plan.id]["extracted_data"]:
+                results_by_plan[plan.id]["extracted_data"][field] = []
+            if (
+                isinstance(change.proposed_value, dict)
+                and "name" in change.proposed_value
+            ):
+                results_by_plan[plan.id]["extracted_data"][field].append(
+                    change.proposed_value["name"]
+                )
+            else:
+                results_by_plan[plan.id]["extracted_data"][field].append(
+                    change.proposed_value
+                )
+
+        # Add confidence score if available
+        if change.confidence is not None:
+            results_by_plan[plan.id]["confidence_scores"][field] = change.confidence
+
+    return list(results_by_plan.values())
+
+
 @router.patch("/changes/{change_id}")
 async def update_change(
     change_id: int, proposed_value: Any = Body(...), db: AsyncSession = Depends(get_db)
@@ -477,6 +564,190 @@ async def _update_plan_status_based_on_counts(
         plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
         if not plan.applied_at:
             plan.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+
+
+def _validate_bulk_action_params(
+    action: str, field: Optional[str], confidence_threshold: Optional[float]
+) -> None:
+    """Validate parameters for bulk actions."""
+    if action in ["accept_by_field", "reject_by_field"] and not field:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Field parameter is required for field-based actions",
+        )
+
+    if action == "accept_by_confidence" and confidence_threshold is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confidence threshold is required for accept_by_confidence action",
+        )
+
+
+def _build_bulk_update_query(
+    plan_id: int,
+    action: str,
+    scene_id: Optional[str],
+    field: Optional[str],
+    confidence_threshold: Optional[float],
+) -> Select[tuple[PlanChange]]:
+    """Build query for bulk update based on action and filters."""
+    query = select(PlanChange).where(
+        PlanChange.plan_id == plan_id,
+        PlanChange.applied.is_(False),  # Don't modify already applied changes
+    )
+
+    # Add scene filter if provided
+    if scene_id:
+        query = query.where(PlanChange.scene_id == scene_id)
+
+    # Apply action-specific filters
+    if action in ["accept_by_field", "reject_by_field"]:
+        query = query.where(PlanChange.field == field)
+    elif action == "accept_by_confidence":
+        query = query.where(PlanChange.confidence >= confidence_threshold)
+
+    # Only update pending changes
+    query = query.where(
+        PlanChange.rejected.is_(False),
+        PlanChange.applied.is_(False),
+    )
+
+    return query
+
+
+def _apply_bulk_action(changes: Sequence[PlanChange], action: str) -> int:
+    """Apply the bulk action to changes and return count of updated items."""
+    updated_count = 0
+    is_accept_action = action in [
+        "accept_all",
+        "accept_by_field",
+        "accept_by_confidence",
+    ]
+
+    for change in changes:
+        # Type ignore needed because MyPy doesn't understand SQLAlchemy attribute assignment
+        change.applied = False  # type: ignore[assignment]
+        change.rejected = not is_accept_action  # type: ignore[assignment]
+        updated_count += 1
+
+    return updated_count
+
+
+@router.post("/plans/{plan_id}/bulk-update")
+async def bulk_update_changes(
+    plan_id: int,
+    action: str = Body(
+        ...,
+        description="Action to perform: accept_all, reject_all, accept_by_field, reject_by_field, accept_by_confidence",
+    ),
+    field: Optional[str] = Body(None, description="Field name for field-based actions"),
+    confidence_threshold: Optional[float] = Body(
+        None, description="Confidence threshold for accept_by_confidence"
+    ),
+    scene_id: Optional[str] = Body(
+        None, description="Optional scene ID to limit changes to a specific scene"
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Bulk update change statuses for a plan.
+
+    Actions:
+    - accept_all: Accept all pending changes
+    - reject_all: Reject all pending changes
+    - accept_by_field: Accept all changes for a specific field
+    - reject_by_field: Reject all changes for a specific field
+    - accept_by_confidence: Accept all changes above a confidence threshold
+    """
+    # Verify plan exists
+    plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
+    plan_result = await db.execute(plan_query)
+    plan = plan_result.scalar_one_or_none()
+
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis plan {plan_id} not found",
+        )
+
+    # Validate parameters
+    _validate_bulk_action_params(action, field, confidence_threshold)
+
+    # Build and execute query
+    query = _build_bulk_update_query(
+        plan_id, action, scene_id, field, confidence_threshold
+    )
+    result = await db.execute(query)
+    changes = result.scalars().all()
+
+    # Apply the action
+    updated_count = _apply_bulk_action(changes, action)
+
+    # Commit changes
+    await db.commit()
+
+    # Update plan status
+    total_count, applied_count, rejected_count, pending_count = (
+        await _get_plan_change_counts(plan_id, db)
+    )
+    await _update_plan_status_based_on_counts(
+        plan, total_count, applied_count, rejected_count, pending_count
+    )
+
+    # If all changes are rejected, mark plan as cancelled
+    if total_count > 0 and rejected_count == total_count:
+        plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
+
+    await db.commit()
+
+    return {
+        "action": action,
+        "updated_count": updated_count,
+        "plan_status": (
+            plan.status.value if hasattr(plan.status, "value") else plan.status
+        ),
+        "total_changes": total_count,
+        "applied_changes": applied_count,
+        "rejected_changes": rejected_count,
+        "pending_changes": pending_count,
+    }
+
+
+@router.patch("/plans/{plan_id}/cancel")
+async def cancel_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Cancel a plan, marking it as cancelled.
+    """
+    # Get the plan
+    query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
+    result = await db.execute(query)
+    plan = result.scalar_one_or_none()
+
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Analysis plan {plan_id} not found",
+        )
+
+    # Check if plan can be cancelled
+    if plan.status == PlanStatus.APPLIED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel an already applied plan",
+        )
+
+    # Update status
+    plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
+    await db.commit()
+
+    return {
+        "id": plan.id,
+        "status": plan.status.value if hasattr(plan.status, "value") else plan.status,
+        "message": "Plan has been cancelled",
+    }
 
 
 @router.patch("/changes/{change_id}/status")

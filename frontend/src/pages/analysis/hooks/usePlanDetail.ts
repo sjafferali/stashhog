@@ -76,6 +76,10 @@ export interface UsePlanDetailReturn {
   rejectChange: (changeId: string | number) => Promise<void>;
   acceptAllChanges: (sceneId?: string) => void;
   rejectAllChanges: (sceneId?: string) => void;
+  acceptByConfidence: (confidenceThreshold: number) => Promise<void>;
+  acceptByField: (field: string) => Promise<void>;
+  rejectByField: (field: string) => Promise<void>;
+  cancelPlan: () => Promise<void>;
   getStatistics: () => {
     totalChanges: number;
     acceptedChanges: number;
@@ -83,6 +87,14 @@ export interface UsePlanDetailReturn {
     pendingChanges: number;
     acceptanceRate: number;
     averageConfidence: number;
+  };
+  getFieldCounts: () => {
+    title: number;
+    performers: number;
+    tags: number;
+    studio: number;
+    details: number;
+    date: number;
   };
 }
 
@@ -273,49 +285,114 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
   };
 
   // Accept all changes for a scene or all scenes
-  const acceptAllChanges = (sceneId?: string) => {
-    setPlan((prev) => {
-      if (!prev) return null;
+  const acceptAllChanges = async (sceneId?: string) => {
+    try {
+      const response = await api.post(`/analysis/plans/${planId}/bulk-update`, {
+        action: 'accept_all',
+        scene_id: sceneId,
+      });
 
-      return {
-        ...prev,
-        scenes: prev.scenes.map((scene) => {
-          if (sceneId && scene.scene_id !== sceneId) return scene;
+      // Refresh plan data to get updated statuses
+      await fetchPlan();
 
-          return {
-            ...scene,
-            changes: scene.changes.map((change) => ({
-              ...change,
-              accepted: true,
-              rejected: false,
-            })),
-          };
-        }),
-      };
-    });
+      void message.success(`${response.data.updated_count} changes accepted`);
+    } catch (err) {
+      void message.error('Failed to accept changes');
+      throw err;
+    }
   };
 
   // Reject all changes for a scene or all scenes
-  const rejectAllChanges = (sceneId?: string) => {
-    setPlan((prev) => {
-      if (!prev) return null;
+  const rejectAllChanges = async (sceneId?: string) => {
+    try {
+      const response = await api.post(`/analysis/plans/${planId}/bulk-update`, {
+        action: 'reject_all',
+        scene_id: sceneId,
+      });
 
-      return {
-        ...prev,
-        scenes: prev.scenes.map((scene) => {
-          if (sceneId && scene.scene_id !== sceneId) return scene;
+      // Refresh plan data to get updated statuses
+      await fetchPlan();
 
-          return {
-            ...scene,
-            changes: scene.changes.map((change) => ({
-              ...change,
-              accepted: false,
-              rejected: true,
-            })),
-          };
-        }),
-      };
-    });
+      void message.success(`${response.data.updated_count} changes rejected`);
+    } catch (err) {
+      void message.error('Failed to reject changes');
+      throw err;
+    }
+  };
+
+  // Accept changes by confidence threshold
+  const acceptByConfidence = async (confidenceThreshold: number) => {
+    try {
+      const response = await api.post(`/analysis/plans/${planId}/bulk-update`, {
+        action: 'accept_by_confidence',
+        confidence_threshold: confidenceThreshold,
+      });
+
+      // Refresh plan data to get updated statuses
+      await fetchPlan();
+
+      void message.success(
+        `${response.data.updated_count} changes accepted with confidence ≥ ${(confidenceThreshold * 100).toFixed(0)}%`
+      );
+    } catch (err) {
+      void message.error('Failed to accept changes by confidence');
+      throw err;
+    }
+  };
+
+  // Accept changes by field
+  const acceptByField = async (field: string) => {
+    try {
+      const response = await api.post(`/analysis/plans/${planId}/bulk-update`, {
+        action: 'accept_by_field',
+        field: field,
+      });
+
+      // Refresh plan data to get updated statuses
+      await fetchPlan();
+
+      void message.success(
+        `${response.data.updated_count} ${field} changes accepted`
+      );
+    } catch (err) {
+      void message.error(`Failed to accept ${field} changes`);
+      throw err;
+    }
+  };
+
+  // Reject changes by field
+  const rejectByField = async (field: string) => {
+    try {
+      const response = await api.post(`/analysis/plans/${planId}/bulk-update`, {
+        action: 'reject_by_field',
+        field: field,
+      });
+
+      // Refresh plan data to get updated statuses
+      await fetchPlan();
+
+      void message.success(
+        `${response.data.updated_count} ${field} changes rejected`
+      );
+    } catch (err) {
+      void message.error(`Failed to reject ${field} changes`);
+      throw err;
+    }
+  };
+
+  // Cancel the plan
+  const cancelPlan = async () => {
+    try {
+      await api.patch(`/analysis/plans/${planId}/cancel`);
+
+      // Refresh plan data to get updated status
+      await fetchPlan();
+
+      void message.success('Plan cancelled');
+    } catch (err) {
+      void message.error('Failed to cancel plan');
+      throw err;
+    }
   };
 
   // Calculate statistics
@@ -361,6 +438,33 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     };
   };
 
+  // Get field counts for bulk actions
+  const getFieldCounts = () => {
+    const counts = {
+      title: 0,
+      performers: 0,
+      tags: 0,
+      studio: 0,
+      details: 0,
+      date: 0,
+    };
+
+    if (!plan) return counts;
+
+    plan.scenes.forEach((scene) => {
+      scene.changes.forEach((change) => {
+        if (!change.accepted && !change.rejected) {
+          const field = change.field as keyof typeof counts;
+          if (field in counts) {
+            counts[field]++;
+          }
+        }
+      });
+    });
+
+    return counts;
+  };
+
   return {
     plan,
     loading,
@@ -369,8 +473,15 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     updateChange,
     acceptChange,
     rejectChange,
-    acceptAllChanges,
-    rejectAllChanges,
+    acceptAllChanges: (...args: Parameters<typeof acceptAllChanges>) =>
+      void acceptAllChanges(...args),
+    rejectAllChanges: (...args: Parameters<typeof rejectAllChanges>) =>
+      void rejectAllChanges(...args),
+    acceptByConfidence,
+    acceptByField,
+    rejectByField,
+    cancelPlan,
     getStatistics,
+    getFieldCounts,
   };
 }

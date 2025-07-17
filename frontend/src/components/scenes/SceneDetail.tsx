@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Descriptions,
   Tag,
@@ -22,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneCard } from './SceneCard';
+import useAppStore from '@/store';
 import styles from './SceneDetail.module.scss';
 
 const { Title, Paragraph } = Typography;
@@ -39,11 +40,29 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
   onAnalyze,
   relatedScenes = [],
 }) => {
+  const { settings, loadSettings, isLoaded } = useAppStore();
+
+  // Load settings if not already loaded
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
+
+  const handleOpenInStash = () => {
+    if (settings?.stash_url) {
+      // Remove trailing slash from stash_url if present
+      const baseUrl = settings.stash_url.replace(/\/$/, '');
+      const stashUrl = `${baseUrl}/scenes/${scene.id}`;
+      window.open(stashUrl, '_blank');
+    }
+  };
+
   const formatDuration = (seconds?: number) => {
     if (!seconds) return 'N/A';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
 
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -286,7 +305,9 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               </Descriptions.Item>
 
               <Descriptions.Item label="Last Updated">
-                {new Date(scene.updated_at).toLocaleString()}
+                {scene.stash_updated_at
+                  ? new Date(scene.stash_updated_at).toLocaleString()
+                  : 'N/A'}
               </Descriptions.Item>
             </Descriptions>
           </Card>
@@ -331,7 +352,12 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               <Button icon={<DownloadOutlined />} style={{ width: '100%' }}>
                 Download
               </Button>
-              <Button icon={<LinkOutlined />} style={{ width: '100%' }}>
+              <Button
+                icon={<LinkOutlined />}
+                style={{ width: '100%' }}
+                onClick={handleOpenInStash}
+                disabled={!settings?.stash_url}
+              >
                 Open in Stash
               </Button>
               <Button danger style={{ width: '100%' }}>

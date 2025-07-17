@@ -15,16 +15,12 @@ import {
   Menu,
   // Divider,
   Modal,
-  InputNumber,
   message,
 } from 'antd';
 import {
   ArrowLeftOutlined,
-  CheckCircleOutlined,
   CloseCircleOutlined,
   ExportOutlined,
-  ThunderboltOutlined,
-  FilterOutlined,
   // SortAscendingOutlined,
   UndoOutlined,
   RedoOutlined,
@@ -34,6 +30,7 @@ import { usePlanDetail } from './hooks/usePlanDetail';
 import { useChangeManager } from './hooks/useChangeManager';
 import { SceneChangesList, PlanSummary } from '@/components/analysis';
 import ApplyPlanModal from './components/ApplyPlanModal';
+import BulkActions from './components/BulkActions';
 import api from '@/services/api';
 import { Scene } from '@/types/models';
 
@@ -46,7 +43,6 @@ const PlanDetail: React.FC = () => {
     undefined
   );
   const [showApplyModal, setShowApplyModal] = useState(false);
-  const [confidenceThreshold, setConfidenceThreshold] = useState(0.8);
 
   const {
     plan,
@@ -58,7 +54,12 @@ const PlanDetail: React.FC = () => {
     rejectChange,
     acceptAllChanges,
     rejectAllChanges,
+    acceptByConfidence,
+    acceptByField,
+    rejectByField,
+    cancelPlan,
     getStatistics,
+    getFieldCounts,
   } = usePlanDetail(planId);
 
   // Flatten all changes for change manager
@@ -100,98 +101,24 @@ const PlanDetail: React.FC = () => {
 
   // Handle accept/reject all for a scene
   const handleAcceptAllScene = (sceneId: string) => {
-    acceptAllChanges(sceneId);
-    void message.success('All changes accepted for scene');
+    void acceptAllChanges(sceneId);
   };
 
   const handleRejectAllScene = (sceneId: string) => {
-    rejectAllChanges(sceneId);
-    void message.success('All changes rejected for scene');
+    void rejectAllChanges(sceneId);
   };
 
-  // Bulk actions menu
-  const bulkActionsMenu = (
-    <Menu>
-      <Menu.Item
-        key="accept-all"
-        icon={<CheckCircleOutlined />}
-        onClick={() => {
-          acceptAllChanges();
-          void message.success('All changes accepted');
-        }}
-      >
-        Accept All Changes
-      </Menu.Item>
-      <Menu.Item
-        key="reject-all"
-        icon={<CloseCircleOutlined />}
-        onClick={() => {
-          rejectAllChanges();
-          void message.success('All changes rejected');
-        }}
-      >
-        Reject All Changes
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item
-        key="accept-confidence"
-        icon={<ThunderboltOutlined />}
-        onClick={() => {
-          Modal.confirm({
-            title: 'Accept High Confidence Changes',
-            content: (
-              <div>
-                <p>Set minimum confidence threshold:</p>
-                <InputNumber
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={confidenceThreshold}
-                  onChange={(val: number | null) =>
-                    setConfidenceThreshold(val || 0.8)
-                  }
-                  formatter={(value?: number) =>
-                    `${((value || 0) * 100).toFixed(0)}%`
-                  }
-                  parser={(value?: string) =>
-                    value ? parseInt(value.replace('%', '')) / 100 : 0
-                  }
-                  style={{ width: '100%' }}
-                />
-              </div>
-            ),
-            onOk: () =>
-              void changeManager.acceptByConfidence(confidenceThreshold),
-          });
-        }}
-      >
-        Accept by Confidence
-      </Menu.Item>
-      <Menu.SubMenu
-        key="accept-field"
-        title="Accept by Field"
-        icon={<FilterOutlined />}
-      >
-        <Menu.Item onClick={() => void changeManager.acceptByField('title')}>
-          Title
-        </Menu.Item>
-        <Menu.Item
-          onClick={() => void changeManager.acceptByField('performers')}
-        >
-          Performers
-        </Menu.Item>
-        <Menu.Item onClick={() => void changeManager.acceptByField('tags')}>
-          Tags
-        </Menu.Item>
-        <Menu.Item onClick={() => void changeManager.acceptByField('studio')}>
-          Studio
-        </Menu.Item>
-        <Menu.Item onClick={() => void changeManager.acceptByField('details')}>
-          Details
-        </Menu.Item>
-      </Menu.SubMenu>
-    </Menu>
-  );
+  // Handle cancel plan
+  const handleCancelPlan = () => {
+    Modal.confirm({
+      title: 'Cancel Plan',
+      content:
+        'Are you sure you want to cancel this plan? This action cannot be undone.',
+      onOk: () => void cancelPlan(),
+    });
+  };
+
+  const fieldCounts = getFieldCounts();
 
   // Export menu
   const exportMenu = (
@@ -261,7 +188,15 @@ const PlanDetail: React.FC = () => {
           </Button>
           <h1 style={{ margin: 0 }}>{plan.name}</h1>
           <Badge
-            status={plan.status === 'APPLIED' ? 'success' : 'processing'}
+            status={
+              plan.status === 'APPLIED'
+                ? 'success'
+                : plan.status === 'CANCELLED'
+                  ? 'error'
+                  : plan.status === 'REVIEWING'
+                    ? 'warning'
+                    : 'processing'
+            }
             text={plan.status}
           />
         </Space>
@@ -284,9 +219,20 @@ const PlanDetail: React.FC = () => {
           <Dropdown overlay={exportMenu}>
             <Button icon={<ExportOutlined />}>Export</Button>
           </Dropdown>
-          <Dropdown overlay={bulkActionsMenu}>
-            <Button type="primary">Bulk Actions</Button>
-          </Dropdown>
+          <BulkActions
+            totalChanges={stats.totalChanges}
+            acceptedChanges={stats.acceptedChanges}
+            rejectedChanges={stats.rejectedChanges}
+            pendingChanges={stats.pendingChanges}
+            onAcceptAll={() => void acceptAllChanges()}
+            onRejectAll={() => void rejectAllChanges()}
+            onAcceptByConfidence={(threshold) =>
+              void acceptByConfidence(threshold)
+            }
+            onAcceptByField={(field) => void acceptByField(field)}
+            onRejectByField={(field) => void rejectByField(field)}
+            fieldCounts={fieldCounts}
+          />
         </Space>
       </div>
 
@@ -370,6 +316,15 @@ const PlanDetail: React.FC = () => {
           >
             Apply Changes ({stats.acceptedChanges})
           </Button>
+          {plan.status !== 'APPLIED' && plan.status !== 'CANCELLED' && (
+            <Button
+              danger
+              icon={<CloseCircleOutlined />}
+              onClick={handleCancelPlan}
+            >
+              Cancel Plan
+            </Button>
+          )}
         </div>
       </Card>
 

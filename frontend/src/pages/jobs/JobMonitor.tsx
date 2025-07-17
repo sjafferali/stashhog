@@ -34,6 +34,10 @@ import {
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
+import {
+  AnalysisJobResult,
+  AnalysisJobResultData,
+} from '@/components/jobs/AnalysisJobResult';
 import styles from './JobMonitor.module.scss';
 
 const { Text, Title, Paragraph } = Typography;
@@ -228,9 +232,17 @@ const JobMonitor: React.FC = () => {
               </Button>
             }
           >
-            <pre style={{ maxHeight: 200, overflow: 'auto' }}>
-              {JSON.stringify(record.result, null, 2)}
-            </pre>
+            {record.type === 'scene_analysis' ||
+            record.type === 'batch_analysis' ||
+            record.type === 'analysis' ? (
+              <AnalysisJobResult
+                result={record.result as unknown as AnalysisJobResultData}
+              />
+            ) : (
+              <pre style={{ maxHeight: 200, overflow: 'auto' }}>
+                {JSON.stringify(record.result, null, 2)}
+              </pre>
+            )}
           </Card>
         )}
       </div>
@@ -589,9 +601,19 @@ const JobMonitor: React.FC = () => {
               Object.keys(selectedJob.result).length > 0 && (
                 <>
                   <Divider orientation="left">Result</Divider>
-                  <pre className={styles.codeBlock}>
-                    {JSON.stringify(selectedJob.result, null, 2)}
-                  </pre>
+                  {selectedJob.type === 'scene_analysis' ||
+                  selectedJob.type === 'batch_analysis' ||
+                  selectedJob.type === 'analysis' ? (
+                    <AnalysisJobResult
+                      result={
+                        selectedJob.result as unknown as AnalysisJobResultData
+                      }
+                    />
+                  ) : (
+                    <pre className={styles.codeBlock}>
+                      {JSON.stringify(selectedJob.result, null, 2)}
+                    </pre>
+                  )}
                 </>
               )}
 

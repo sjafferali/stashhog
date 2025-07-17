@@ -1,18 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Descriptions, Tag, Space, Modal, message } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
   RobotOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from 'react-query';
 import api from '@/services/api';
+import useAppStore from '@/store';
 
 const SceneDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { settings, loadSettings, isLoaded } = useAppStore();
+
+  // Load settings if not already loaded
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
+
+  const handleOpenInStash = () => {
+    if (settings?.stash_url && id) {
+      // Remove trailing slash from stash_url if present
+      const baseUrl = settings.stash_url.replace(/\/$/, '');
+      const stashUrl = `${baseUrl}/scenes/${id}`;
+      window.open(stashUrl, '_blank');
+    }
+  };
 
   // Analyze mutation
   const analyzeMutation = useMutation(
@@ -71,6 +90,13 @@ const SceneDetail: React.FC = () => {
         extra={
           <Space>
             <Button icon={<EditOutlined />}>Edit</Button>
+            <Button
+              icon={<LinkOutlined />}
+              onClick={handleOpenInStash}
+              disabled={!settings?.stash_url}
+            >
+              Open in Stash
+            </Button>
             <Button
               type="primary"
               icon={<RobotOutlined />}

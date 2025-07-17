@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Tabs,
@@ -20,6 +20,7 @@ import {
   InfoCircleOutlined,
   ExperimentOutlined,
   HistoryOutlined,
+  LinkOutlined,
   // ExportOutlined,
   EditOutlined,
   // SyncOutlined,
@@ -28,6 +29,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
+import useAppStore from '@/store';
 
 const { TabPane } = Tabs;
 const { Text, Paragraph } = Typography;
@@ -45,12 +47,41 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const queryClient = useQueryClient();
+  const { settings, loadSettings, isLoaded } = useAppStore();
 
-  // Fetch full scene details with analysis results
+  // Load settings if not already loaded
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
+
+  const handleOpenInStash = () => {
+    if (settings?.stash_url) {
+      // Remove trailing slash from stash_url if present
+      const baseUrl = settings.stash_url.replace(/\/$/, '');
+      const stashUrl = `${baseUrl}/scenes/${scene.id}`;
+      window.open(stashUrl, '_blank');
+    }
+  };
+
+  // Fetch full scene details
   const { data: fullScene, isLoading } = useQuery<Scene>(
     ['scene', scene.id],
     async () => {
       const response = await api.get(`/scenes/${scene.id}`);
+      return response.data;
+    },
+    {
+      enabled: visible,
+    }
+  );
+
+  // Fetch analysis results for the scene
+  const { data: analysisResults } = useQuery<AnalysisResult[]>(
+    ['scene-analysis', scene.id],
+    async () => {
+      const response = await api.get(`/analysis/scenes/${scene.id}/results`);
       return response.data;
     },
     {
@@ -79,6 +110,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       onSuccess: () => {
         void message.success('Started analysis for scene');
         void queryClient.invalidateQueries('jobs');
+        void queryClient.invalidateQueries(['scene-analysis', scene.id]);
       },
       onError: () => {
         void message.error('Failed to start analysis');
@@ -117,7 +149,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     if (!seconds) return 'N/A';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
 
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -153,7 +185,9 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           </Descriptions.Item>
 
           <Descriptions.Item label="Date">
-            {fullScene?.date || 'N/A'}
+            {fullScene?.stash_date
+              ? dayjs(fullScene.stash_date).format('YYYY-MM-DD')
+              : 'N/A'}
           </Descriptions.Item>
 
           <Descriptions.Item label="Duration">
@@ -224,8 +258,18 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
 
   const renderFilesTab = () => (
     <Descriptions bordered column={1}>
-      <Descriptions.Item label="Path">
-        <Text code>{fullScene?.path || 'N/A'}</Text>
+      <Descriptions.Item label="Path(s)">
+        {fullScene?.paths && fullScene.paths.length > 0 ? (
+          <Space direction="vertical" size="small">
+            {fullScene.paths.map((path, index) => (
+              <Text key={index} code>
+                {path}
+              </Text>
+            ))}
+          </Space>
+        ) : (
+          <Text>N/A</Text>
+        )}
       </Descriptions.Item>
 
       <Descriptions.Item label="ID">
@@ -233,7 +277,9 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       </Descriptions.Item>
 
       <Descriptions.Item label="Perceptual Hash">
-        <Text code>{fullScene?.phash || 'N/A'}</Text>
+        <Text code type="secondary">
+          Not synchronized from Stash
+        </Text>
       </Descriptions.Item>
 
       <Descriptions.Item label="File Modified">
@@ -242,20 +288,24 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           : 'N/A'}
       </Descriptions.Item>
 
-      <Descriptions.Item label="Created">
-        {dayjs(fullScene?.created_at).format('YYYY-MM-DD HH:mm:ss')}
+      <Descriptions.Item label="Created in Stash">
+        {fullScene?.stash_created_at
+          ? dayjs(fullScene.stash_created_at).format('YYYY-MM-DD HH:mm:ss')
+          : 'N/A'}
       </Descriptions.Item>
 
-      <Descriptions.Item label="Updated">
-        {dayjs(fullScene?.updated_at).format('YYYY-MM-DD HH:mm:ss')}
+      <Descriptions.Item label="Updated in Stash">
+        {fullScene?.stash_updated_at
+          ? dayjs(fullScene.stash_updated_at).format('YYYY-MM-DD HH:mm:ss')
+          : 'N/A'}
       </Descriptions.Item>
     </Descriptions>
   );
 
   const renderAnalysisTab = () => {
-    const analysisResults = fullScene?.analysis_results || [];
+    const results = analysisResults || [];
 
-    if (analysisResults.length === 0) {
+    if (results.length === 0) {
       return (
         <Empty
           description="No analysis results yet"
@@ -275,7 +325,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
 
     return (
       <List
-        dataSource={analysisResults}
+        dataSource={results}
         renderItem={(result: AnalysisResult) => (
           <List.Item>
             <Space direction="vertical" style={{ width: '100%' }}>
@@ -341,10 +391,12 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   const renderHistoryTab = () => (
     <Timeline>
       <Timeline.Item color="green">
-        <Text strong>Scene Created</Text>
+        <Text strong>Scene Created in Stash</Text>
         <br />
         <Text type="secondary">
-          {dayjs(fullScene?.created_at).format('YYYY-MM-DD HH:mm:ss')}
+          {fullScene?.stash_created_at
+            ? dayjs(fullScene.stash_created_at).format('YYYY-MM-DD HH:mm:ss')
+            : 'N/A'}
         </Text>
       </Timeline.Item>
 
@@ -356,7 +408,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         </Timeline.Item>
       )}
 
-      {fullScene?.analysis_results?.map((result, index) => (
+      {analysisResults?.map((result, index) => (
         <Timeline.Item key={result.id}>
           <Text strong>Analysis #{index + 1}</Text>
           <br />
@@ -369,10 +421,12 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       ))}
 
       <Timeline.Item>
-        <Text strong>Last Updated</Text>
+        <Text strong>Last Updated in Stash</Text>
         <br />
         <Text type="secondary">
-          {dayjs(fullScene?.updated_at).format('YYYY-MM-DD HH:mm:ss')}
+          {fullScene?.stash_updated_at
+            ? dayjs(fullScene.stash_updated_at).format('YYYY-MM-DD HH:mm:ss')
+            : 'N/A'}
         </Text>
       </Timeline.Item>
     </Timeline>
@@ -395,6 +449,14 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         </Button>,
         <Button key="edit" icon={<EditOutlined />}>
           Edit
+        </Button>,
+        <Button
+          key="stash"
+          icon={<LinkOutlined />}
+          onClick={handleOpenInStash}
+          disabled={!settings?.stash_url}
+        >
+          Open in Stash
         </Button>,
         <Button
           key="analyze"
