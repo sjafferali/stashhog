@@ -327,6 +327,42 @@ async def resync_scenes_bulk(
         }
 
 
+@router.patch("/{scene_id}", response_model=SceneResponse)
+async def update_scene(
+    scene_id: str,
+    updates: Dict[str, Any] = Body(..., description="Fields to update"),
+    sync_service: SyncService = Depends(get_sync_service),
+    db: AsyncSession = Depends(get_db),
+) -> SceneResponse:
+    """
+    Update scene metadata.
+
+    This endpoint updates the scene in both Stashhog's database and Stash.
+    """
+    # Verify scene exists
+    query = select(Scene).where(Scene.id == scene_id)
+    result = await db.execute(query)
+    scene = result.scalar_one_or_none()
+
+    if not scene:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Scene {scene_id} not found"
+        )
+
+    # Update in Stash first
+    stash_service = sync_service.stash_service
+    await stash_service.update_scene(scene_id, updates)
+
+    # Sync the updated scene back to our database
+    await sync_service.sync_scene_by_id(scene_id)
+
+    # Get updated scene
+    await db.refresh(scene)
+
+    # Return updated scene
+    return await get_scene(scene_id, db)
+
+
 @router.get("/stats/summary", response_model=Dict[str, Any])
 async def get_scene_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """

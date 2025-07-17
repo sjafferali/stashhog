@@ -28,6 +28,7 @@ import api from '@/services/api';
 import apiClient from '@/services/apiClient';
 import useAppStore from '@/store';
 import { Scene, AnalysisResult } from '@/types/models';
+import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 
 const { TabPane } = Tabs;
 const { Text } = Typography;
@@ -38,6 +39,7 @@ const SceneDetail: React.FC = () => {
   const queryClient = useQueryClient();
   const { settings, loadSettings, isLoaded } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   // Fetch scene data
   const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>(
@@ -356,7 +358,12 @@ const SceneDetail: React.FC = () => {
         title={scene?.title || `Scene #${id}`}
         extra={
           <Space>
-            <Button icon={<EditOutlined />}>Edit</Button>
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => setEditModalVisible(true)}
+            >
+              Edit
+            </Button>
             <Button
               icon={<LinkOutlined />}
               onClick={handleOpenInStash}
@@ -399,6 +406,17 @@ const SceneDetail: React.FC = () => {
           </TabPane>
         </Tabs>
       </Card>
+
+      {scene && (
+        <SceneEditModal
+          visible={editModalVisible}
+          scene={scene}
+          onClose={() => setEditModalVisible(false)}
+          onSuccess={() => {
+            void queryClient.invalidateQueries(['scene', id]);
+          }}
+        />
+      )}
     </div>
   );
 };

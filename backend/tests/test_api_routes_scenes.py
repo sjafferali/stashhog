@@ -293,8 +293,61 @@ class TestSceneRoutes:
         data = response.json()
         assert "detail" in data
 
-    def test_update_scene(self, client):
-        """Test updating a scene - endpoint doesn't exist."""
+    def test_update_scene(self, client, mock_db, mock_sync_service):
+        """Test updating a scene."""
+        # Create complete mock scene with all required attributes
+        mock_studio = Mock()
+        mock_studio.id = "studio1"
+        mock_studio.name = "Test Studio"
+
+        mock_scene = Mock(
+            spec=Scene,
+            id="1",
+            title="Test Scene",
+            paths=["/path/to/scene.mp4"],
+            file_path="/actual/path/to/scene.mp4",
+            organized=True,
+            analyzed=False,
+            details="Scene details",
+            stash_created_at=datetime.utcnow(),
+            stash_updated_at=datetime.utcnow(),
+            stash_date=datetime.utcnow(),
+            last_synced=datetime.utcnow(),
+            studio=mock_studio,
+            performers=[],
+            tags=[],
+            # Metadata fields
+            duration=1800.5,
+            size=1024000000,
+            width=1920,
+            height=1080,
+            framerate=30.0,
+            bitrate=5000,
+            codec="h264",
+            video_codec="h264",
+        )
+
+        # Mock initial scene query for verification
+        mock_result1 = Mock()
+        mock_result1.scalar_one_or_none.return_value = mock_scene
+
+        # Mock get_scene query with relationships
+        mock_result2 = Mock()
+        mock_result2.scalar_one_or_none.return_value = mock_scene
+
+        mock_db.execute = AsyncMock(side_effect=[mock_result1, mock_result2])
+
+        # Mock sync service with stash_service
+        mock_stash_service = AsyncMock()
+        mock_stash_service.update_scene = AsyncMock(
+            return_value={"id": "1", "title": "Updated Title"}
+        )
+        mock_sync_service.stash_service = mock_stash_service
+        mock_sync_service.sync_scene_by_id = AsyncMock()
+
+        # Mock refresh
+        mock_db.refresh = AsyncMock()
+
         update_data = {
             "title": "Updated Title",
             "details": "Updated details",
@@ -303,13 +356,20 @@ class TestSceneRoutes:
 
         response = client.patch("/api/scenes/1", json=update_data)
 
-        assert response.status_code == 405  # Method not allowed
+        assert response.status_code == 200  # Scene successfully updated
+        mock_stash_service.update_scene.assert_called_once_with("1", update_data)
+        mock_sync_service.sync_scene_by_id.assert_called_once_with("1")
 
-    def test_update_scene_not_found(self, client):
-        """Test updating a scene that doesn't exist - endpoint doesn't exist."""
+    def test_update_scene_not_found(self, client, mock_db):
+        """Test updating a scene that doesn't exist."""
+        # Mock scene query to return None
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
         response = client.patch("/api/scenes/nonexistent-id", json={"title": "Updated"})
 
-        assert response.status_code == 405  # Method not allowed
+        assert response.status_code == 404  # Not found
 
     def test_delete_scene(self, client):
         """Test deleting a scene - endpoint doesn't exist."""
