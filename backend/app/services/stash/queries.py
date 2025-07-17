@@ -62,8 +62,8 @@ fragment SceneData on Scene {
         audio_codec
         width
         height
-        frame_rate
-        bit_rate
+        framerate
+        bitrate
     }
     o_counter
 }
