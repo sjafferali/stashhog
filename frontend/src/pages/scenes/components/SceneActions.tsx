@@ -49,7 +49,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const analyzeMutation = useMutation(
     async (sceneIds: string[]) => {
       const response = await api.post('/analysis/generate', {
-        scene_ids: sceneIds.map((id) => parseInt(id, 10)),
+        scene_ids: sceneIds,
         plan_name: `Bulk Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
         options: {
           detect_performers: true,
