@@ -79,6 +79,7 @@ class PlanManager:
                 .where(Scene.id.in_(analyzed_scene_ids))
                 .values(analyzed=True)
             )
+            await db.flush()
 
         # Update metadata with statistics
         plan.add_metadata("total_changes", change_count)

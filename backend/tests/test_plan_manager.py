@@ -5,7 +5,7 @@ This module tests plan CRUD operations, plan execution, and change management.
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 from sqlalchemy import select
@@ -626,6 +626,22 @@ class TestPlanExecution:
         assert change_result.scalar_one_or_none() is None
 
     @pytest.mark.asyncio
+    async def test_delete_applied_plan_fails(self, test_async_session):
+        """Test that deleting an applied plan fails."""
+        manager = PlanManager()
+
+        # Create an applied plan
+        plan = AnalysisPlan(
+            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
+        )
+        test_async_session.add(plan)
+        await test_async_session.commit()
+
+        # Try to delete the plan
+        with pytest.raises(ValueError, match="Cannot delete an applied plan"):
+            await manager.delete_plan(plan.id, test_async_session)
+
+    @pytest.mark.asyncio
     async def test_get_plan_statistics(self, test_async_session):
         """Test getting plan statistics."""
         manager = PlanManager()
@@ -672,3 +688,558 @@ class TestPlanExecution:
             "rating": 1,
         }
         assert stats["average_confidence"] == pytest.approx(0.84, rel=0.01)
+
+    @pytest.mark.asyncio
+    async def test_apply_single_change_success(self, test_async_session):
+        """Test applying a single change successfully."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.get_scene = AsyncMock(
+            return_value={
+                "id": "scene1",
+                "title": "Old Title",
+                "details": "Old details",
+            }
+        )
+        stash_service.update_scene = AsyncMock(return_value=True)
+
+        # Create a change
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="title",
+            action=ChangeAction.UPDATE,
+            current_value="Old Title",
+            proposed_value="New Title",
+            confidence=0.9,
+        )
+        test_async_session.add(change)
+        await test_async_session.commit()
+
+        # Apply the change
+        result = await manager.apply_single_change(
+            change, test_async_session, stash_service
+        )
+
+        assert result is True
+        assert change.applied is True
+        assert change.applied_at is not None
+        stash_service.update_scene.assert_called_once_with(
+            "scene1", {"title": "New Title"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_apply_single_change_scene_not_found(self, test_async_session):
+        """Test applying a change when scene is not found."""
+        manager = PlanManager()
+
+        # Create mock stash service that returns None
+        stash_service = Mock(spec=StashService)
+        stash_service.get_scene = AsyncMock(return_value=None)
+
+        # Create a change
+        change = PlanChange(
+            plan_id=1,
+            scene_id="missing_scene",
+            field="title",
+            action=ChangeAction.UPDATE,
+            current_value="Old",
+            proposed_value="New",
+            confidence=0.9,
+        )
+
+        # Apply the change
+        result = await manager.apply_single_change(
+            change, test_async_session, stash_service
+        )
+
+        assert result is False
+        # Check that change wasn't marked as applied
+        assert change.applied is None or change.applied is False
+
+    @pytest.mark.asyncio
+    async def test_prepare_studio_update(self, test_async_session):
+        """Test preparing studio update data."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.find_studio = AsyncMock(return_value=None)
+        stash_service.create_studio = AsyncMock(return_value={"id": "studio123"})
+
+        # Test SET action with new studio
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="studio",
+            action=ChangeAction.SET,
+            proposed_value="New Studio",
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_studio_update(change, stash_service)
+
+        assert update_data == {"studio_id": "studio123"}
+        stash_service.find_studio.assert_called_once_with("New Studio")
+        stash_service.create_studio.assert_called_once_with("New Studio")
+
+    @pytest.mark.asyncio
+    async def test_prepare_studio_update_existing(self, test_async_session):
+        """Test preparing studio update with existing studio."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.find_studio = AsyncMock(return_value={"id": "existing_studio"})
+
+        # Test SET action with existing studio
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="studio",
+            action=ChangeAction.SET,
+            proposed_value={"name": "Existing Studio"},
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_studio_update(change, stash_service)
+
+        assert update_data == {"studio_id": "existing_studio"}
+        stash_service.find_studio.assert_called_once_with("Existing Studio")
+
+    @pytest.mark.asyncio
+    async def test_prepare_performers_update_add(self, test_async_session):
+        """Test preparing performers update for ADD action."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.find_performer = AsyncMock(side_effect=[None, {"id": "perf2"}])
+        stash_service.create_performer = AsyncMock(return_value={"id": "perf1"})
+
+        # Current scene data
+        scene = {
+            "id": "scene1",
+            "performers": [{"id": "existing_perf", "name": "Existing Performer"}],
+        }
+
+        # Test ADD action
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="performers",
+            action=ChangeAction.ADD,
+            proposed_value=["New Performer 1", "Existing Performer 2"],
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_performers_update(
+            change, scene, stash_service
+        )
+
+        assert update_data == {"performer_ids": ["existing_perf", "perf1", "perf2"]}
+        assert stash_service.find_performer.call_count == 2
+        assert stash_service.create_performer.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_prepare_performers_update_remove(self, test_async_session):
+        """Test preparing performers update for REMOVE action."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+
+        # Current scene data
+        scene = {
+            "id": "scene1",
+            "performers": [
+                {"id": "perf1", "name": "Performer 1"},
+                {"id": "perf2", "name": "Performer 2"},
+                {"id": "perf3", "name": "Performer 3"},
+            ],
+        }
+
+        # Test REMOVE action
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="performers",
+            action=ChangeAction.REMOVE,
+            proposed_value=["Performer 2"],
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_performers_update(
+            change, scene, stash_service
+        )
+
+        assert update_data == {"performer_ids": ["perf1", "perf3"]}
+
+    @pytest.mark.asyncio
+    async def test_prepare_tags_update(self, test_async_session):
+        """Test preparing tags update."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.find_tag = AsyncMock(side_effect=[None, {"id": "tag2"}])
+        stash_service.create_tag = AsyncMock(return_value={"id": "tag1"})
+
+        # Current scene data
+        scene = {
+            "id": "scene1",
+            "tags": [{"id": "existing_tag", "name": "Existing Tag"}],
+        }
+
+        # Test ADD action
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="tags",
+            action=ChangeAction.ADD,
+            proposed_value=["New Tag", {"name": "Another Tag"}],
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_tags_update(change, scene, stash_service)
+
+        assert update_data == {"tag_ids": ["existing_tag", "tag1", "tag2"]}
+
+    @pytest.mark.asyncio
+    async def test_prepare_details_update(self, test_async_session):
+        """Test preparing details update."""
+        manager = PlanManager()
+
+        # Test UPDATE action
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="details",
+            action=ChangeAction.UPDATE,
+            proposed_value="New scene details",
+            confidence=0.9,
+        )
+
+        update_data = manager._prepare_details_update(change)
+
+        assert update_data == {"details": "New scene details"}
+
+        # Test with dict value
+        change.proposed_value = {"text": "Details from dict"}
+        update_data = manager._prepare_details_update(change)
+
+        assert update_data == {"details": "Details from dict"}
+
+
+class TestBulkOperations:
+    """Test cases for bulk operations and edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_create_plan_with_many_changes(self, test_async_session):
+        """Test creating a plan with many changes to ensure bulk operations work."""
+        manager = PlanManager()
+
+        # Create many test scenes
+        scenes = []
+        for i in range(50):
+            scene = Scene(
+                id=f"scene{i}",
+                title=f"Scene {i}",
+                paths=[],
+                stash_created_at=datetime.utcnow(),
+                stash_updated_at=datetime.utcnow(),
+                last_synced=datetime.utcnow(),
+            )
+            scenes.append(scene)
+        test_async_session.add_all(scenes)
+        await test_async_session.commit()
+
+        # Create changes for all scenes
+        changes = []
+        for i in range(50):
+            scene_changes = SceneChanges(
+                scene_id=f"scene{i}",
+                scene_title=f"Scene {i}",
+                scene_path=f"/path/to/scene{i}",
+                changes=[
+                    ProposedChange(
+                        field="title",
+                        action="update",
+                        current_value=f"Scene {i}",
+                        proposed_value=f"Updated Scene {i}",
+                        confidence=0.9,
+                    ),
+                    ProposedChange(
+                        field="tags",
+                        action="add",
+                        current_value=[],
+                        proposed_value=[f"tag{i}", f"tag{i+1}"],
+                        confidence=0.85,
+                    ),
+                ],
+            )
+            changes.append(scene_changes)
+
+        metadata = {"description": "Bulk plan test"}
+
+        plan = await manager.create_plan(
+            "Bulk Plan", changes, metadata, test_async_session
+        )
+
+        assert plan.plan_metadata["total_changes"] == 100  # 2 changes per scene
+        assert plan.plan_metadata["scene_count"] == 50
+
+        # Verify all scenes marked as analyzed
+        # Need to expire all objects to get fresh data after the commit in create_plan
+        test_async_session.expire_all()
+        result = await test_async_session.execute(
+            select(Scene).where(Scene.analyzed.is_(True))
+        )
+        analyzed_scenes = result.scalars().all()
+        assert len(analyzed_scenes) == 50
+
+    @pytest.mark.asyncio
+    async def test_apply_plan_with_many_changes(self, test_async_session):
+        """Test applying a plan with many changes."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.update_scene = AsyncMock(return_value=True)
+        stash_service.get_scene = AsyncMock(
+            side_effect=[
+                {"id": f"scene{i}", "title": f"Old Title {i}"} for i in range(20)
+            ]
+        )
+
+        # Create a plan
+        plan = AnalysisPlan(
+            name="Bulk Apply Plan", status=PlanStatus.DRAFT, plan_metadata={}
+        )
+        test_async_session.add(plan)
+        await test_async_session.flush()
+
+        # Add many changes
+        for i in range(20):
+            change = PlanChange(
+                plan_id=plan.id,
+                scene_id=f"scene{i}",
+                field="title",
+                action=ChangeAction.UPDATE,
+                current_value=f"Old Title {i}",
+                proposed_value=f"New Title {i}",
+                confidence=0.9,
+            )
+            test_async_session.add(change)
+
+        await test_async_session.commit()
+
+        # Apply the plan
+        result = await manager.apply_plan(plan.id, test_async_session, stash_service)
+
+        assert result.total_changes == 20
+        assert result.applied_changes == 20
+        assert result.failed_changes == 0
+        assert stash_service.update_scene.call_count == 20
+
+    @pytest.mark.asyncio
+    async def test_prepare_update_data_unknown_field(self, test_async_session):
+        """Test prepare update data with unknown field."""
+        manager = PlanManager()
+
+        stash_service = Mock(spec=StashService)
+        scene = {"id": "scene1"}
+
+        change = PlanChange(
+            plan_id=1,
+            scene_id="scene1",
+            field="unknown_field",
+            action=ChangeAction.UPDATE,
+            proposed_value="some value",
+            confidence=0.9,
+        )
+
+        update_data = await manager._prepare_update_data(change, scene, stash_service)
+
+        assert update_data == {}
+
+    @pytest.mark.asyncio
+    async def test_map_action_set_action(self, test_async_session):
+        """Test mapping SET action."""
+        manager = PlanManager()
+
+        assert manager._map_action("set") == ChangeAction.SET
+        assert manager._map_action("SET") == ChangeAction.SET
+
+    @pytest.mark.asyncio
+    async def test_delete_plan_not_found(self, test_async_session):
+        """Test deleting a non-existent plan."""
+        manager = PlanManager()
+
+        result = await manager.delete_plan(99999, test_async_session)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_get_plan_statistics_empty_plan(self, test_async_session):
+        """Test getting statistics for a plan with no changes."""
+        manager = PlanManager()
+
+        # Create a plan with no changes
+        plan = AnalysisPlan(
+            name="Empty Plan", status=PlanStatus.DRAFT, plan_metadata={}
+        )
+        test_async_session.add(plan)
+        await test_async_session.commit()
+
+        stats = await manager.get_plan_statistics(plan.id, test_async_session)
+
+        assert stats["total_changes"] == 0
+        assert stats["scenes_affected"] == 0
+        assert stats["changes_by_action"] == {}
+        assert stats["changes_by_field"] == {}
+        assert stats["average_confidence"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_plan_statistics_non_existent(self, test_async_session):
+        """Test getting statistics for non-existent plan."""
+        manager = PlanManager()
+
+        stats = await manager.get_plan_statistics(99999, test_async_session)
+
+        assert stats == {}
+
+    @pytest.mark.asyncio
+    async def test_apply_plan_mixed_field_types(self, test_async_session):
+        """Test applying a plan with mixed field types."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.update_scene = AsyncMock(return_value=True)
+        stash_service.get_scene = AsyncMock(
+            return_value={
+                "id": "scene1",
+                "title": "Old Title",
+                "rating": 3,
+                "details": "Old details",
+            }
+        )
+
+        # Create a plan
+        plan = AnalysisPlan(
+            name="Mixed Fields Plan", status=PlanStatus.DRAFT, plan_metadata={}
+        )
+        test_async_session.add(plan)
+        await test_async_session.flush()
+
+        # Add changes with different field types
+        changes = [
+            PlanChange(
+                plan_id=plan.id,
+                scene_id="scene1",
+                field="title",
+                action=ChangeAction.UPDATE,
+                current_value="Old Title",
+                proposed_value="New Title",
+                confidence=0.9,
+            ),
+            PlanChange(
+                plan_id=plan.id,
+                scene_id="scene1",
+                field="rating",
+                action=ChangeAction.UPDATE,
+                current_value=3,
+                proposed_value=5,
+                confidence=0.85,
+            ),
+            PlanChange(
+                plan_id=plan.id,
+                scene_id="scene1",
+                field="details",
+                action=ChangeAction.UPDATE,
+                current_value="Old details",
+                proposed_value="New detailed description",
+                confidence=0.8,
+            ),
+        ]
+
+        test_async_session.add_all(changes)
+        await test_async_session.commit()
+
+        # Apply the plan
+        result = await manager.apply_plan(plan.id, test_async_session, stash_service)
+
+        assert result.total_changes == 3
+        assert result.applied_changes == 3
+        assert result.failed_changes == 0
+
+        # Verify the correct update data was sent
+        expected_calls = [
+            call("scene1", {"title": "New Title"}),
+            call("scene1", {"rating": 5}),
+            call("scene1", {"details": "New detailed description"}),
+        ]
+        stash_service.update_scene.assert_has_calls(expected_calls, any_order=True)
+
+    @pytest.mark.asyncio
+    async def test_serialize_value_edge_cases(self, test_async_session):
+        """Test value serialization with edge cases."""
+        manager = PlanManager()
+
+        # Test with custom object (should convert to string)
+        class CustomObject:
+            def __str__(self):
+                return "custom_object_string"
+
+        custom_obj = CustomObject()
+        assert manager._serialize_value(custom_obj) == "custom_object_string"
+
+        # Test with nested structures
+        nested = {"a": [1, 2, {"b": 3}]}
+        assert manager._serialize_value(nested) == {"a": [1, 2, {"b": 3}]}
+
+        # Test with float
+        assert manager._serialize_value(3.14) == 3.14
+
+    @pytest.mark.asyncio
+    async def test_add_performers_with_duplicates(self, test_async_session):
+        """Test adding performers when some already exist."""
+        manager = PlanManager()
+
+        # Create mock stash service
+        stash_service = Mock(spec=StashService)
+        stash_service.find_performer = AsyncMock(
+            side_effect=[{"id": "perf1"}, {"id": "perf2"}]
+        )
+
+        current_ids = ["perf1", "perf3"]
+        new_performers = ["Performer 1", "Performer 2"]
+
+        result_ids = await manager._add_performers(
+            new_performers, current_ids, stash_service
+        )
+
+        # Should not duplicate perf1
+        assert result_ids == ["perf1", "perf3", "perf2"]
+
+    @pytest.mark.asyncio
+    async def test_remove_performers_case_insensitive(self, test_async_session):
+        """Test removing performers with case-insensitive matching."""
+        manager = PlanManager()
+
+        current_ids = ["perf1", "perf2", "perf3"]
+        current_performers = [
+            {"id": "perf1", "name": "John Doe"},
+            {"id": "perf2", "name": "Jane Smith"},
+            {"id": "perf3", "name": "Bob Johnson"},
+        ]
+
+        # Test case-insensitive removal
+        remaining_ids = manager._remove_performers(
+            ["JANE SMITH", {"name": "bob johnson"}], current_ids, current_performers
+        )
+
+        assert remaining_ids == ["perf1"]
