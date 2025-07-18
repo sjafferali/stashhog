@@ -31,6 +31,7 @@ import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
 import useAppStore from '@/store';
 import { SceneThumbnail } from '@/components/common/SceneThumbnail';
+import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 
 const { TabPane } = Tabs;
 const { Text, Paragraph } = Typography;
@@ -47,6 +48,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const queryClient = useQueryClient();
   const { settings, loadSettings, isLoaded } = useAppStore();
 
@@ -445,87 +447,109 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   );
 
   return (
-    <Modal
-      title={
-        <Space>
-          <FileOutlined />
-          {scene.title || 'Scene Details'}
-        </Space>
-      }
-      open={visible}
-      onCancel={onClose}
-      width={800}
-      footer={[
-        <Button key="close" onClick={onClose}>
-          Close
-        </Button>,
-        <Button key="edit" icon={<EditOutlined />}>
-          Edit
-        </Button>,
-        <Button
-          key="stash"
-          icon={<LinkOutlined />}
-          onClick={handleOpenInStash}
-          disabled={!hasStashUrl}
-        >
-          Open in Stash
-        </Button>,
-        <Button
-          key="analyze"
-          type="primary"
-          icon={<ExperimentOutlined />}
-          onClick={handleAnalyze}
-          loading={analyzeMutation.isLoading}
-        >
-          Analyze
-        </Button>,
-      ]}
-    >
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane
-          tab={
-            <span>
-              <InfoCircleOutlined /> Overview
-            </span>
-          }
-          key="overview"
-        >
-          {renderOverviewTab()}
-        </TabPane>
+    <>
+      <Modal
+        title={
+          <Space>
+            <FileOutlined />
+            {scene.title || 'Scene Details'}
+          </Space>
+        }
+        open={visible}
+        onCancel={() => {
+          setEditModalVisible(false);
+          onClose();
+        }}
+        width={800}
+        footer={[
+          <Button key="close" onClick={onClose}>
+            Close
+          </Button>,
+          <Button
+            key="edit"
+            icon={<EditOutlined />}
+            onClick={() => setEditModalVisible(true)}
+          >
+            Edit
+          </Button>,
+          <Button
+            key="stash"
+            icon={<LinkOutlined />}
+            onClick={handleOpenInStash}
+            disabled={!hasStashUrl}
+          >
+            Open in Stash
+          </Button>,
+          <Button
+            key="analyze"
+            type="primary"
+            icon={<ExperimentOutlined />}
+            onClick={handleAnalyze}
+            loading={analyzeMutation.isLoading}
+          >
+            Analyze
+          </Button>,
+        ]}
+      >
+        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+          <TabPane
+            tab={
+              <span>
+                <InfoCircleOutlined /> Overview
+              </span>
+            }
+            key="overview"
+          >
+            {renderOverviewTab()}
+          </TabPane>
 
-        <TabPane
-          tab={
-            <span>
-              <FileOutlined /> Files/Paths
-            </span>
-          }
-          key="files"
-        >
-          {renderFilesTab()}
-        </TabPane>
+          <TabPane
+            tab={
+              <span>
+                <FileOutlined /> Files/Paths
+              </span>
+            }
+            key="files"
+          >
+            {renderFilesTab()}
+          </TabPane>
 
-        <TabPane
-          tab={
-            <span>
-              <ExperimentOutlined /> Analysis
-            </span>
-          }
-          key="analysis"
-        >
-          {renderAnalysisTab()}
-        </TabPane>
+          <TabPane
+            tab={
+              <span>
+                <ExperimentOutlined /> Analysis
+              </span>
+            }
+            key="analysis"
+          >
+            {renderAnalysisTab()}
+          </TabPane>
 
-        <TabPane
-          tab={
-            <span>
-              <HistoryOutlined /> History
-            </span>
-          }
-          key="history"
-        >
-          {renderHistoryTab()}
-        </TabPane>
-      </Tabs>
-    </Modal>
+          <TabPane
+            tab={
+              <span>
+                <HistoryOutlined /> History
+              </span>
+            }
+            key="history"
+          >
+            {renderHistoryTab()}
+          </TabPane>
+        </Tabs>
+      </Modal>
+
+      {scene && (
+        <SceneEditModal
+          visible={editModalVisible}
+          scene={scene}
+          onClose={() => {
+            setEditModalVisible(false);
+          }}
+          onSuccess={() => {
+            void queryClient.invalidateQueries(['scene', scene.id]);
+          }}
+        />
+      )}
+    </>
   );
 };
