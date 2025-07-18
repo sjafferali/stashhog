@@ -6,8 +6,6 @@ fragment SceneData on Scene {
     id
     title
     paths {
-        screenshot
-        preview
         stream
         webp
         vtt
@@ -51,7 +49,6 @@ fragment SceneData on Scene {
         title
         paths {
             cover
-            preview
         }
     }
     files {
