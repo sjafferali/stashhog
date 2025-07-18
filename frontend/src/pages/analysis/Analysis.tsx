@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, Button, Space, Statistic, Row, Col, Modal, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
@@ -9,10 +9,21 @@ import {
 } from '@ant-design/icons';
 import api from '@/services/api';
 import { apiClient } from '@/services/apiClient';
+import {
+  AnalysisTypeSelector,
+  AnalysisTypeOptions,
+} from '@/components/forms/AnalysisTypeSelector';
 
 const Analysis: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
+    detectPerformers: true,
+    detectStudios: true,
+    detectTags: true,
+    detectDetails: false,
+    useAi: true,
+  });
 
   // Fetch analysis statistics
   const { data: analysisStats } = useQuery('analysisStats', () =>
@@ -21,18 +32,18 @@ const Analysis: React.FC = () => {
 
   // Batch analysis mutation
   const batchAnalysisMutation = useMutation(
-    async () => {
+    async (options: AnalysisTypeOptions) => {
       const response = await api.post('/analysis/generate', {
         filters: {
           analyzed: false,
         },
         plan_name: `Batch Analysis - Unanalyzed Scenes - ${new Date().toISOString()}`,
         options: {
-          detect_performers: true,
-          detect_studios: true,
-          detect_tags: true,
-          detect_details: true,
-          use_ai: true,
+          detect_performers: options.detectPerformers,
+          detect_studios: options.detectStudios,
+          detect_tags: options.detectTags,
+          detect_details: options.detectDetails,
+          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });
@@ -53,10 +64,19 @@ const Analysis: React.FC = () => {
   const handleBatchAnalysis = () => {
     Modal.confirm({
       title: 'Run Batch Analysis',
-      content: 'This will analyze all unanalyzed scenes. Continue?',
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>Analyze all unanalyzed scenes with the following options:</p>
+          <AnalysisTypeSelector
+            value={analysisOptions}
+            onChange={setAnalysisOptions}
+          />
+        </Space>
+      ),
       onOk: () => {
-        batchAnalysisMutation.mutate();
+        batchAnalysisMutation.mutate(analysisOptions);
       },
+      width: 500,
     });
   };
 

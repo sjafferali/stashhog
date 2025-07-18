@@ -23,6 +23,10 @@ import api from '@/services/api';
 import { useScenesStore } from '@/store/slices/scenes';
 import { Tag as TagType } from '@/types/models';
 import { exportToCSV, exportToJSON } from '../utils/export';
+import {
+  AnalysisTypeSelector,
+  AnalysisTypeOptions,
+} from '@/components/forms/AnalysisTypeSelector';
 import type { MenuProps } from 'antd';
 
 interface SceneActionsProps {
@@ -39,6 +43,13 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const [tagModalVisible, setTagModalVisible] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagAction, setTagAction] = useState<'add' | 'remove'>('add');
+  const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
+    detectPerformers: true,
+    detectStudios: true,
+    detectTags: true,
+    detectDetails: false,
+    useAi: true,
+  });
 
   // Fetch tags for the modal
   const { data: tags } = useQuery<TagType[]>('tags', async () => {
@@ -50,16 +61,22 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
 
   // Analyze mutation
   const analyzeMutation = useMutation(
-    async (sceneIds: string[]) => {
+    async ({
+      sceneIds,
+      options,
+    }: {
+      sceneIds: string[];
+      options: AnalysisTypeOptions;
+    }) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: sceneIds,
         plan_name: `Bulk Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
         options: {
-          detect_performers: true,
-          detect_studios: true,
-          detect_tags: true,
-          detect_details: true,
-          use_ai: true,
+          detect_performers: options.detectPerformers,
+          detect_studios: options.detectStudios,
+          detect_tags: options.detectTags,
+          detect_details: options.detectDetails,
+          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });
@@ -133,10 +150,24 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const handleAnalyze = () => {
     Modal.confirm({
       title: 'Analyze Scenes',
-      content: `Are you sure you want to analyze ${selectedCount} selected scenes?`,
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>
+            Analyze {selectedCount} selected scenes with the following options:
+          </p>
+          <AnalysisTypeSelector
+            value={analysisOptions}
+            onChange={setAnalysisOptions}
+          />
+        </Space>
+      ),
       onOk: () => {
-        analyzeMutation.mutate(Array.from(selectedScenes));
+        analyzeMutation.mutate({
+          sceneIds: Array.from(selectedScenes),
+          options: analysisOptions,
+        });
       },
+      width: 500,
     });
   };
 

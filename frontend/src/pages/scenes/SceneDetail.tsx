@@ -29,6 +29,10 @@ import apiClient from '@/services/apiClient';
 import useAppStore from '@/store';
 import { Scene, AnalysisResult } from '@/types/models';
 import { SceneEditModal } from '@/components/scenes/SceneEditModal';
+import {
+  AnalysisTypeSelector,
+  AnalysisTypeOptions,
+} from '@/components/forms/AnalysisTypeSelector';
 
 const { TabPane } = Tabs;
 const { Text } = Typography;
@@ -40,6 +44,13 @@ const SceneDetail: React.FC = () => {
   const { settings, loadSettings, isLoaded } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
+    detectPerformers: true,
+    detectStudios: true,
+    detectTags: true,
+    detectDetails: false,
+    useAi: true,
+  });
 
   // Fetch scene data
   const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>(
@@ -90,16 +101,16 @@ const SceneDetail: React.FC = () => {
 
   // Analyze mutation
   const analyzeMutation = useMutation(
-    async () => {
+    async (options: AnalysisTypeOptions) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [id || '0'],
         plan_name: `Scene #${id} Analysis - ${new Date().toISOString()}`,
         options: {
-          detect_performers: true,
-          detect_studios: true,
-          detect_tags: true,
-          detect_details: true,
-          use_ai: true,
+          detect_performers: options.detectPerformers,
+          detect_studios: options.detectStudios,
+          detect_tags: options.detectTags,
+          detect_details: options.detectDetails,
+          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });
@@ -120,10 +131,19 @@ const SceneDetail: React.FC = () => {
   const handleAnalyze = () => {
     Modal.confirm({
       title: 'Analyze Scene',
-      content: 'Are you sure you want to analyze this scene?',
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>Analyze this scene with the following options:</p>
+          <AnalysisTypeSelector
+            value={analysisOptions}
+            onChange={setAnalysisOptions}
+          />
+        </Space>
+      ),
       onOk: () => {
-        analyzeMutation.mutate();
+        analyzeMutation.mutate(analysisOptions);
       },
+      width: 500,
     });
   };
 

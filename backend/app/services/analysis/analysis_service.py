@@ -29,6 +29,7 @@ from .performer_detector import PerformerDetector
 from .plan_manager import PlanManager
 from .studio_detector import StudioDetector
 from .tag_detector import TagDetector
+from .title_generator import TitleGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class AnalysisService:
         self.performer_detector = PerformerDetector()
         self.tag_detector = TagDetector()
         self.details_generator = DetailsGenerator()
+        self.title_generator = TitleGenerator(ai_client=self.ai_client)
 
         # Initialize managers
         self.plan_manager = PlanManager()
@@ -215,7 +217,7 @@ class AnalysisService:
             tag_changes = await self._detect_tags(scene_data, options)
             changes.extend(tag_changes)
 
-        # Generate/enhance details
+        # Generate/enhance title (using detect_details option for now)
         if options.detect_details:
             details_changes = await self._detect_details(scene_data, options)
             changes.extend(details_changes)
@@ -505,9 +507,9 @@ class AnalysisService:
         return changes
 
     async def _detect_details(
-        self, scene_data: dict, options: AnalysisOptions  # noqa: ARG002
+        self, scene_data: dict, options: AnalysisOptions
     ) -> list[ProposedChange]:
-        """Clean HTML from scene details.
+        """Generate improved title for scene.
 
         Args:
             scene_data: Scene data
@@ -517,23 +519,27 @@ class AnalysisService:
             List of proposed changes
         """
         changes: list[ProposedChange] = []
-        current_details = scene_data.get("details", "")
 
-        # Only clean HTML if there are existing details
-        if current_details:
-            # Clean HTML from current details
-            cleaned = self.details_generator.clean_html(current_details)
-            if cleaned != current_details:
-                changes.append(
-                    ProposedChange(
-                        field="details",
-                        action="update",
-                        current_value=current_details,
-                        proposed_value=cleaned,
-                        confidence=1.0,
-                        reason="HTML tags removed",
-                    )
-                )
+        # Create a Scene-like object for the title generator
+        class SceneLike:
+            def __init__(self, data: dict[str, Any]) -> None:
+                self.id = data.get("id", "")
+                self.title = data.get("title", "")
+                self.path = data.get("file_path", "")
+                self.details = data.get("details", "")
+                self.duration = data.get("duration", 0)
+                self.performers = data.get("performers", [])
+                self.tags = data.get("tags", [])
+                self.studio = data.get("studio")
+
+        scene = SceneLike(scene_data)
+
+        # Generate title improvements
+        title_changes = await self.title_generator.generate_title(
+            scene, use_ai=options.use_ai  # type: ignore[arg-type]
+        )
+
+        changes.extend(title_changes)
 
         return changes
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, MouseEvent } from 'react';
+import React, { useMemo, useCallback, MouseEvent, useState } from 'react';
 import {
   Table,
   Tag,
@@ -30,6 +30,10 @@ import { useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import { SceneThumbnail } from '@/components/common/SceneThumbnail';
+import {
+  AnalysisTypeSelector,
+  AnalysisTypeOptions,
+} from '@/components/forms/AnalysisTypeSelector';
 
 const { Text } = Typography;
 
@@ -55,6 +59,13 @@ export const ListView: React.FC<ListViewProps> = ({
   onSceneSelect,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
+    detectPerformers: true,
+    detectStudios: true,
+    detectTags: true,
+    detectDetails: false,
+    useAi: true,
+  });
   const {
     selectedScenes,
     toggleSceneSelection,
@@ -68,16 +79,22 @@ export const ListView: React.FC<ListViewProps> = ({
 
   // Analyze mutation
   const analyzeMutation = useMutation(
-    async (sceneId: string) => {
+    async ({
+      sceneId,
+      options,
+    }: {
+      sceneId: string;
+      options: AnalysisTypeOptions;
+    }) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [sceneId],
         plan_name: `Scene #${sceneId} Analysis - ${new Date().toISOString()}`,
         options: {
-          detect_performers: true,
-          detect_studios: true,
-          detect_tags: true,
-          detect_details: true,
-          use_ai: true,
+          detect_performers: options.detectPerformers,
+          detect_studios: options.detectStudios,
+          detect_tags: options.detectTags,
+          detect_details: options.detectDetails,
+          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });
@@ -99,13 +116,28 @@ export const ListView: React.FC<ListViewProps> = ({
     (scene: Scene) => {
       Modal.confirm({
         title: 'Analyze Scene',
-        content: `Are you sure you want to analyze scene "${scene.title || `#${scene.id}`}"?`,
+        content: (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <p>
+              Analyze scene &quot;{scene.title || `#${scene.id}`}&quot; with the
+              following options:
+            </p>
+            <AnalysisTypeSelector
+              value={analysisOptions}
+              onChange={setAnalysisOptions}
+            />
+          </Space>
+        ),
         onOk: () => {
-          analyzeMutation.mutate(scene.id.toString());
+          analyzeMutation.mutate({
+            sceneId: scene.id.toString(),
+            options: analysisOptions,
+          });
         },
+        width: 500,
       });
     },
-    [analyzeMutation]
+    [analyzeMutation, analysisOptions]
   );
 
   const handleSortChange = useCallback(
