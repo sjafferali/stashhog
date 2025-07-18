@@ -105,6 +105,47 @@ async def list_settings(
             "Sync batch size",
             False,
         ),
+        # Video AI settings
+        (
+            "video_ai_server_url",
+            "analysis.ai_video_server_url",
+            base_settings.analysis.ai_video_server_url,
+            overridden_settings.analysis.ai_video_server_url,
+            "Video AI Server URL",
+            False,
+        ),
+        (
+            "video_ai_frame_interval",
+            "analysis.frame_interval",
+            base_settings.analysis.frame_interval,
+            overridden_settings.analysis.frame_interval,
+            "Frame extraction interval (seconds)",
+            False,
+        ),
+        (
+            "video_ai_threshold",
+            "analysis.ai_video_threshold",
+            base_settings.analysis.ai_video_threshold,
+            overridden_settings.analysis.ai_video_threshold,
+            "Video AI confidence threshold",
+            False,
+        ),
+        (
+            "video_ai_timeout",
+            "analysis.server_timeout",
+            base_settings.analysis.server_timeout,
+            overridden_settings.analysis.server_timeout,
+            "Video processing timeout (seconds)",
+            False,
+        ),
+        (
+            "video_ai_create_markers",
+            "analysis.create_markers",
+            base_settings.analysis.create_markers,
+            overridden_settings.analysis.create_markers,
+            "Create scene markers from video AI",
+            False,
+        ),
     ]
 
     settings_list: list[dict[str, Any]] = []
@@ -241,6 +282,11 @@ async def update_settings(
         "analysis_confidence_threshold",
         "sync_incremental",
         "sync_batch_size",
+        "video_ai_server_url",
+        "video_ai_frame_interval",
+        "video_ai_threshold",
+        "video_ai_timeout",
+        "video_ai_create_markers",
     }
 
     for key, value in settings_update.items():

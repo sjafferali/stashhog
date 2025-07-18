@@ -48,6 +48,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     detectStudios: true,
     detectTags: true,
     detectDetails: false,
+    detectVideoTags: false,
     useAi: true,
   });
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
@@ -57,6 +58,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       detectStudios: true,
       detectTags: true,
       detectDetails: false,
+      detectVideoTags: false,
       useAi: true,
     });
 
@@ -67,6 +69,34 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     });
     return response.data.items;
   });
+
+  // Video tags mutation
+  const videoTagsMutation = useMutation(
+    async ({
+      sceneIds,
+      options,
+    }: {
+      sceneIds: string[];
+      options: AnalysisTypeOptions;
+    }) => {
+      const response = await api.post('/analysis/video-tags', {
+        scene_ids: sceneIds,
+        options,
+        background: true,
+      });
+      return response.data;
+    },
+    {
+      onSuccess: (_data) => {
+        void message.success('Video tag analysis started');
+        onClearSelection();
+        void queryClient.invalidateQueries('jobs');
+      },
+      onError: () => {
+        void message.error('Failed to start video tag analysis');
+      },
+    }
+  );
 
   // Analyze mutation
   const analyzeMutation = useMutation(
@@ -163,10 +193,29 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
 
   const handleAnalysisModalOk = () => {
     setAnalysisOptions(tempAnalysisOptions);
-    analyzeMutation.mutate({
-      sceneIds: Array.from(selectedScenes),
-      options: tempAnalysisOptions,
-    });
+
+    // Check if only video tags is selected
+    const isVideoTagsOnly =
+      tempAnalysisOptions.detectVideoTags &&
+      !tempAnalysisOptions.detectPerformers &&
+      !tempAnalysisOptions.detectStudios &&
+      !tempAnalysisOptions.detectTags &&
+      !tempAnalysisOptions.detectDetails;
+
+    if (isVideoTagsOnly) {
+      // Use video tags endpoint for immediate application
+      videoTagsMutation.mutate({
+        sceneIds: Array.from(selectedScenes),
+        options: tempAnalysisOptions,
+      });
+    } else {
+      // Use regular analysis endpoint
+      analyzeMutation.mutate({
+        sceneIds: Array.from(selectedScenes),
+        options: tempAnalysisOptions,
+      });
+    }
+
     setAnalysisModalVisible(false);
   };
 

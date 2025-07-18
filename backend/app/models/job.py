@@ -38,6 +38,7 @@ class JobType(str, enum.Enum):
     EXPORT = "export"
     IMPORT = "import"
     CLEANUP = "cleanup"
+    VIDEO_TAG_ANALYSIS = "video_tag_analysis"
 
 
 class Job(BaseModel):

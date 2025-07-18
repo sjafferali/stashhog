@@ -70,6 +70,11 @@ def mock_base_settings():
     settings.openai.model = "gpt-4"
     settings.openai.base_url = None
     settings.analysis.confidence_threshold = 0.7
+    settings.analysis.ai_video_server_url = "http://localhost:8084"
+    settings.analysis.frame_interval = 2
+    settings.analysis.ai_video_threshold = 0.3
+    settings.analysis.server_timeout = 3700
+    settings.analysis.create_markers = True
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
     return settings
@@ -85,6 +90,11 @@ def mock_overridden_settings():
     settings.openai.model = "gpt-4"
     settings.openai.base_url = None
     settings.analysis.confidence_threshold = 0.8
+    settings.analysis.ai_video_server_url = "http://localhost:8084"
+    settings.analysis.frame_interval = 2
+    settings.analysis.ai_video_threshold = 0.3
+    settings.analysis.server_timeout = 3700
+    settings.analysis.create_markers = True
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
     return settings

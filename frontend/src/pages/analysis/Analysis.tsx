@@ -22,6 +22,7 @@ const Analysis: React.FC = () => {
     detectStudios: true,
     detectTags: true,
     detectDetails: false,
+    detectVideoTags: false,
     useAi: true,
   });
 

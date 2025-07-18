@@ -30,6 +30,7 @@ from .plan_manager import PlanManager
 from .studio_detector import StudioDetector
 from .tag_detector import TagDetector
 from .title_generator import TitleGenerator
+from .video_tag_detector import VideoTagDetector
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class AnalysisService:
         self.tag_detector = TagDetector()
         self.details_generator = DetailsGenerator()
         self.title_generator = TitleGenerator(ai_client=self.ai_client)
+        self.video_tag_detector = VideoTagDetector(settings=settings)
 
         # Initialize managers
         self.plan_manager = PlanManager()
@@ -221,6 +223,11 @@ class AnalysisService:
         if options.detect_details:
             details_changes = await self._detect_details(scene_data, options)
             changes.extend(details_changes)
+
+        # Detect tags/markers from video content
+        if options.detect_video_tags:
+            video_tag_changes = await self._detect_video_tags(scene_data, options)
+            changes.extend(video_tag_changes)
 
         return changes
 
@@ -542,6 +549,379 @@ class AnalysisService:
         changes.extend(title_changes)
 
         return changes
+
+    async def _detect_video_tags(
+        self, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
+        """Detect tags and markers from video content.
+
+        Args:
+            scene_data: Scene data
+            options: Analysis options
+
+        Returns:
+            List of proposed changes
+        """
+        changes: list[ProposedChange] = []
+
+        # Get current tags and markers
+        current_tags = scene_data.get("tags", [])
+        current_tag_names = [
+            t.get("name", "") for t in current_tags if isinstance(t, dict)
+        ]
+        current_markers = scene_data.get("markers", [])
+
+        try:
+            # Use video tag detector
+            video_changes, cost_info = await self.video_tag_detector.detect(
+                scene_data=scene_data,
+                existing_tags=current_tag_names,
+                existing_markers=current_markers,
+            )
+
+            # Track cost if available
+            if cost_info and hasattr(self, "cost_tracker"):
+                self.cost_tracker.track_operation(
+                    "video_tag_detection",
+                    cost_info.get("total_cost", 0.0),
+                    cost_info.get("prompt_tokens", 0),
+                    cost_info.get("completion_tokens", 0),
+                    cost_info.get("model", "video-analysis"),
+                )
+
+            # Filter changes by confidence threshold
+            for change in video_changes:
+                if change.confidence >= options.confidence_threshold:
+                    changes.append(change)
+
+        except Exception as e:
+            logger.error(f"Error detecting video tags: {e}")
+            # Don't fail the entire analysis if video detection fails
+
+        return changes
+
+    async def _apply_tags_to_scene(
+        self,
+        scene_id: str,
+        scene_data: dict,
+        tags_to_add: list[str],
+        has_tagme: bool,
+    ) -> int:
+        """Apply tags to a scene and return count of tags added."""
+        # Get existing tag IDs
+        current_tags = scene_data.get("tags", [])
+        existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+
+        # Get IDs for new tags (create if needed)
+        new_tag_ids = []
+        for tag_name in tags_to_add:
+            tag_id = await self.stash_service.find_or_create_tag(tag_name)
+            if tag_id and tag_id not in existing_tag_ids:
+                new_tag_ids.append(tag_id)
+
+        if not new_tag_ids:
+            return 0
+
+        # Update scene with all tags
+        all_tag_ids = existing_tag_ids + new_tag_ids
+
+        # Remove AI_TagMe if present, add AI_Tagged
+        if has_tagme:
+            tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe")
+            if tagme_id in all_tag_ids:
+                all_tag_ids.remove(tagme_id)
+
+        # Add AI_Tagged
+        tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged")
+        if tagged_id not in all_tag_ids:
+            all_tag_ids.append(tagged_id)
+
+        # Update scene
+        await self.stash_service.update_scene(scene_id, {"tag_ids": all_tag_ids})
+
+        return len(new_tag_ids)
+
+    async def _apply_markers_to_scene(
+        self,
+        scene_id: str,
+        markers_to_add: list[dict],
+    ) -> int:
+        """Apply markers to a scene and return count of markers added."""
+        markers_added = 0
+
+        for marker_data in markers_to_add:
+            marker_tags = []
+            for tag_name in marker_data.get("tags", []):
+                tag_id = await self.stash_service.find_or_create_tag(tag_name)
+                if tag_id:
+                    marker_tags.append(tag_id)
+
+            marker = {
+                "scene_id": scene_id,
+                "seconds": marker_data["seconds"],
+                "title": marker_data.get("title", ""),
+                "tag_ids": marker_tags,
+            }
+
+            await self.stash_service.create_marker(marker)
+            markers_added += 1
+
+        return markers_added
+
+    async def _update_scene_status_tags(
+        self,
+        scene_id: str,
+        current_tags: list[dict],
+        has_tagme: bool,
+        is_error: bool = False,
+    ) -> None:
+        """Update scene status tags (AI_TagMe, AI_Tagged, AI_Errored)."""
+        existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+
+        if is_error:
+            # Add AI_Errored tag
+            error_tag_id = await self.stash_service.find_or_create_tag("AI_Errored")
+            if error_tag_id not in existing_tag_ids:
+                existing_tag_ids.append(error_tag_id)
+        else:
+            # Add AI_Tagged tag
+            tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged")
+            if tagged_id not in existing_tag_ids:
+                existing_tag_ids.append(tagged_id)
+
+        # Remove AI_TagMe if present
+        if has_tagme:
+            tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe")
+            if tagme_id in existing_tag_ids:
+                existing_tag_ids.remove(tagme_id)
+
+        await self.stash_service.update_scene(scene_id, {"tag_ids": existing_tag_ids})
+
+    async def _extract_changes_from_video_detection(
+        self, video_changes: list
+    ) -> tuple[list[str], list[dict]]:
+        """Extract tags and markers from video detection changes."""
+        tags_to_add = []
+        markers_to_add = []
+
+        for change in video_changes:
+            if change.field == "tags" and change.action == "add":
+                tags_to_add.append(change.proposed_value)
+            elif change.field == "markers" and change.action == "add":
+                markers_to_add.append(change.proposed_value)
+
+        return tags_to_add, markers_to_add
+
+    async def _get_scenes_for_analysis(
+        self,
+        scene_ids: Optional[list[str]],
+        filters: Optional[dict],
+    ) -> list[dict]:
+        """Get scenes for analysis based on scene IDs or filters."""
+        if scene_ids:
+            scenes_data = []
+            for scene_id in scene_ids:
+                scene = await self.stash_service.get_scene(scene_id)
+                if scene:
+                    scenes_data.append(scene)
+            return scenes_data
+        else:
+            scenes, _ = await self.stash_service.get_scenes(filter=filters)
+            return scenes
+
+    async def _get_database_session(self) -> AsyncSession:
+        """Get database session for analysis."""
+        from app.core.database import get_async_db
+
+        async for session in get_async_db():
+            return session
+
+        raise RuntimeError("Failed to get database session")
+
+    def _build_empty_result(self) -> dict[str, Any]:
+        """Build empty result for no scenes."""
+        return {
+            "status": "completed",
+            "scenes_processed": 0,
+            "scenes_updated": 0,
+            "tags_added": 0,
+            "markers_added": 0,
+            "errors": [],
+        }
+
+    async def _process_scene_for_video_tags(
+        self,
+        scene_data: dict,
+        scene_index: int,
+        total_scenes: int,
+        progress_callback: Optional[Any] = None,
+    ) -> dict[str, Any]:
+        """Process a single scene for video tag detection.
+
+        Returns dict with: scene_modified, tags_added, markers_added, error
+        """
+        scene_id = scene_data.get("id", "")
+        result: dict[str, Any] = {
+            "scene_modified": False,
+            "tags_added": 0,
+            "markers_added": 0,
+            "error": None,
+        }
+
+        # Get current tags early for error handling
+        current_tags = scene_data.get("tags", [])
+        current_tag_names = [
+            t.get("name", "") for t in current_tags if isinstance(t, dict)
+        ]
+        has_tagme = "AI_TagMe" in current_tag_names
+
+        try:
+            # Report progress
+            if progress_callback:
+                progress = int((scene_index / total_scenes) * 90)
+                await progress_callback(
+                    progress,
+                    f"Processing scene {scene_index + 1}/{total_scenes}: {scene_data.get('title', 'Untitled')}",
+                )
+
+            # Get current markers
+            current_markers = scene_data.get("markers", [])
+
+            # Detect video tags
+            video_changes, _ = await self.video_tag_detector.detect(
+                scene_data=scene_data,
+                existing_tags=current_tag_names,
+                existing_markers=current_markers,
+            )
+
+            if video_changes:
+                # Extract and apply changes
+                tags_to_add, markers_to_add = (
+                    await self._extract_changes_from_video_detection(video_changes)
+                )
+
+                # Apply tag changes
+                if tags_to_add:
+                    result["tags_added"] = await self._apply_tags_to_scene(
+                        scene_id, scene_data, tags_to_add, has_tagme
+                    )
+                    result["scene_modified"] = True
+
+                # Apply marker changes
+                if markers_to_add:
+                    result["markers_added"] = await self._apply_markers_to_scene(
+                        scene_id, markers_to_add
+                    )
+                    result["scene_modified"] = True
+            else:
+                # No changes detected, just update status tags
+                if has_tagme:
+                    await self._update_scene_status_tags(
+                        scene_id, current_tags, has_tagme, is_error=False
+                    )
+
+        except Exception as e:
+            logger.error(f"Error processing scene {scene_id}: {e}")
+            result["error"] = {
+                "scene_id": scene_id,
+                "title": scene_data.get("title", "Untitled"),
+                "error": str(e),
+            }
+
+            # Try to add error tag
+            try:
+                await self._update_scene_status_tags(
+                    scene_id, current_tags, has_tagme, is_error=True
+                )
+            except Exception as tag_error:
+                logger.error(f"Failed to add error tag: {tag_error}")
+
+        return result
+
+    async def analyze_and_apply_video_tags(
+        self,
+        scene_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Any] = None,
+    ) -> dict[str, Any]:
+        """Analyze scenes for video tags and apply changes immediately.
+
+        This method is specifically for video tag analysis that applies changes
+        immediately rather than creating a plan.
+
+        Args:
+            scene_ids: Specific scene IDs to analyze
+            filters: Filters for scene selection
+            job_id: Associated job ID for progress tracking
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dictionary with results including processed scenes and applied changes
+        """
+        # Get database session
+        db = await self._get_database_session()
+
+        try:
+            # Report initial progress
+            if progress_callback:
+                await progress_callback(0, "Starting video tag analysis")
+
+            # Get scenes to analyze
+            scenes_data = await self._get_scenes_for_analysis(scene_ids, filters)
+
+            total_scenes = len(scenes_data)
+            if total_scenes == 0:
+                return self._build_empty_result()
+
+            # Initialize counters
+            scenes_processed = 0
+            scenes_updated = 0
+            tags_added = 0
+            markers_added = 0
+            errors = []
+
+            # Process each scene
+            for i, scene_data in enumerate(scenes_data):
+                result = await self._process_scene_for_video_tags(
+                    scene_data, i, total_scenes, progress_callback
+                )
+
+                # Update counters
+                if result["scene_modified"]:
+                    scenes_updated += 1
+
+                tags_added += result["tags_added"]
+                markers_added += result["markers_added"]
+
+                if result["error"]:
+                    errors.append(result["error"])
+
+                scenes_processed += 1
+
+            # Final progress
+            if progress_callback:
+                await progress_callback(
+                    100,
+                    f"Completed: {scenes_updated}/{scenes_processed} scenes updated",
+                )
+
+            return {
+                "status": "completed",
+                "scenes_processed": scenes_processed,
+                "scenes_updated": scenes_updated,
+                "tags_added": tags_added,
+                "markers_added": markers_added,
+                "errors": errors,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to analyze video tags: {str(e)}")
+            if progress_callback:
+                await progress_callback(100, f"Failed: {str(e)}")
+            raise
+        finally:
+            await db.close()
 
     async def _refresh_cache(self) -> None:
         """Refresh cached entities from Stash."""

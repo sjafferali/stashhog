@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from sqlalchemy import select
 
@@ -396,6 +396,81 @@ async def generate_scene_details_job(
     }
 
 
+async def analyze_video_tags_job(
+    job_id: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None,
+) -> Dict[str, Any]:
+    """Job handler for analyzing video tags on scenes.
+
+    Args:
+        job_id: The job ID
+        metadata: Job metadata containing scene_ids and filters
+        progress_callback: Callback for progress updates
+
+    Returns:
+        Job result dictionary
+    """
+    from app.core.dependencies import get_settings
+
+    if not metadata:
+        raise ValueError("No metadata provided for video tag analysis job")
+
+    # Extract parameters from metadata
+    job_params = metadata.get("job_params", {})
+    scene_ids = job_params.get("scene_ids", [])
+    filters = job_params.get("filters")
+
+    # Get services
+    settings = get_settings()
+
+    # Create OpenAI client if configured
+    openai_client = None
+    if settings.openai.api_key:
+        from app.services.openai_client import OpenAIClient
+
+        openai_client = OpenAIClient(
+            api_key=settings.openai.api_key,
+            model=settings.openai.model,
+            base_url=getattr(settings.openai, "base_url", None),
+            max_tokens=settings.openai.max_tokens,
+            temperature=settings.openai.temperature,
+            timeout=settings.openai.timeout,
+        )
+
+    # Create Stash service
+    from app.services.stash_service import StashService
+
+    stash_service = StashService(
+        stash_url=settings.stash.url,
+        api_key=settings.stash.api_key,
+        timeout=settings.stash.timeout,
+        max_retries=settings.stash.max_retries,
+    )
+
+    # For video tag analysis, we don't need OpenAI client, but AnalysisService requires it
+    # Create a dummy client if not configured
+    if openai_client is None:
+        raise ValueError("OpenAI API key is required for video tag analysis")
+
+    # Create analysis service
+    from app.services.analysis.analysis_service import AnalysisService
+
+    analysis_service = AnalysisService(
+        openai_client=openai_client, stash_service=stash_service, settings=settings
+    )
+
+    # Run analysis
+    result = await analysis_service.analyze_and_apply_video_tags(
+        scene_ids=scene_ids,
+        filters=filters,
+        job_id=job_id,
+        progress_callback=progress_callback,
+    )
+
+    return result
+
+
 def register_analysis_jobs(job_service: JobService) -> None:
     """Register all analysis job handlers with the job service.
 
@@ -405,5 +480,6 @@ def register_analysis_jobs(job_service: JobService) -> None:
     job_service.register_handler(JobType.ANALYSIS, analyze_scenes_job)
     job_service.register_handler(JobType.APPLY_PLAN, apply_analysis_plan_job)
     job_service.register_handler(JobType.GENERATE_DETAILS, generate_scene_details_job)
+    job_service.register_handler(JobType.VIDEO_TAG_ANALYSIS, analyze_video_tags_job)
 
     logger.info("Registered all analysis job handlers")

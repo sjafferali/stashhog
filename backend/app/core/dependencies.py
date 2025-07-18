@@ -58,6 +58,67 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+def _get_base_settings_dict(base_settings: Settings) -> dict[str, dict[str, Any]]:
+    """Create base settings dictionary from settings object."""
+    return {
+        "stash": {
+            "url": base_settings.stash.url,
+            "api_key": base_settings.stash.api_key,
+            "timeout": base_settings.stash.timeout,
+            "max_retries": base_settings.stash.max_retries,
+        },
+        "openai": {
+            "api_key": base_settings.openai.api_key,
+            "model": base_settings.openai.model,
+            "max_tokens": base_settings.openai.max_tokens,
+            "temperature": base_settings.openai.temperature,
+            "timeout": base_settings.openai.timeout,
+        },
+        "analysis": {
+            "batch_size": base_settings.analysis.batch_size,
+            "max_concurrent": base_settings.analysis.max_concurrent,
+            "confidence_threshold": base_settings.analysis.confidence_threshold,
+            "enable_ai": base_settings.analysis.enable_ai,
+            "create_missing": base_settings.analysis.create_missing,
+            "ai_video_server_url": base_settings.analysis.ai_video_server_url,
+            "frame_interval": base_settings.analysis.frame_interval,
+            "ai_video_threshold": base_settings.analysis.ai_video_threshold,
+            "server_timeout": base_settings.analysis.server_timeout,
+            "create_markers": base_settings.analysis.create_markers,
+        },
+    }
+
+
+def _apply_setting_override(
+    settings_dict: dict[str, dict[str, Any]], key: str, value: Optional[str]
+) -> None:
+    """Apply a single setting override to the settings dictionary."""
+    if value is None:
+        return
+
+    # Define mapping of setting keys to their locations and transformations
+    mapping = {
+        "stash_url": ("stash", "url", str),
+        "stash_api_key": ("stash", "api_key", str),
+        "openai_api_key": ("openai", "api_key", str),
+        "openai_model": ("openai", "model", str),
+        "openai_base_url": ("openai", "base_url", str),
+        "analysis_confidence_threshold": ("analysis", "confidence_threshold", float),
+        "video_ai_server_url": ("analysis", "ai_video_server_url", str),
+        "video_ai_frame_interval": ("analysis", "frame_interval", int),
+        "video_ai_threshold": ("analysis", "ai_video_threshold", float),
+        "video_ai_timeout": ("analysis", "server_timeout", int),
+        "video_ai_create_markers": ("analysis", "create_markers", bool),
+    }
+
+    if key in mapping:
+        section, field, transform = mapping[key]
+        try:
+            settings_dict[section][field] = transform(value)
+        except (ValueError, TypeError):
+            pass  # Ignore conversion errors
+
+
 async def get_settings_with_overrides(
     db: AsyncSession = Depends(get_db),
     base_settings: Settings = Depends(get_settings),
@@ -80,49 +141,11 @@ async def get_settings_with_overrides(
     db_settings = result.scalars().all()
 
     # Create a copy of base settings
-    settings_dict: dict[str, dict[str, Any]] = {
-        "stash": {
-            "url": base_settings.stash.url,
-            "api_key": base_settings.stash.api_key,
-            "timeout": base_settings.stash.timeout,
-            "max_retries": base_settings.stash.max_retries,
-        },
-        "openai": {
-            "api_key": base_settings.openai.api_key,
-            "model": base_settings.openai.model,
-            "max_tokens": base_settings.openai.max_tokens,
-            "temperature": base_settings.openai.temperature,
-            "timeout": base_settings.openai.timeout,
-        },
-        "analysis": {
-            "batch_size": base_settings.analysis.batch_size,
-            "max_concurrent": base_settings.analysis.max_concurrent,
-            "confidence_threshold": base_settings.analysis.confidence_threshold,
-            "enable_ai": base_settings.analysis.enable_ai,
-            "create_missing": base_settings.analysis.create_missing,
-        },
-    }
+    settings_dict = _get_base_settings_dict(base_settings)
 
     # Apply database overrides
     for setting in db_settings:
-        if setting.key == "stash_url" and setting.value:
-            settings_dict["stash"]["url"] = setting.value
-        elif setting.key == "stash_api_key" and setting.value:
-            settings_dict["stash"]["api_key"] = setting.value
-        elif setting.key == "openai_api_key" and setting.value:
-            settings_dict["openai"]["api_key"] = setting.value
-        elif setting.key == "openai_model" and setting.value:
-            settings_dict["openai"]["model"] = setting.value
-        elif (
-            setting.key == "analysis_confidence_threshold" and setting.value is not None
-        ):
-            settings_dict["analysis"]["confidence_threshold"] = float(setting.value)
-        elif setting.key == "sync_incremental" and setting.value is not None:
-            # Store this for sync service later
-            pass
-        elif setting.key == "sync_batch_size" and setting.value is not None:
-            # Store this for sync service later
-            pass
+        _apply_setting_override(settings_dict, setting.key, setting.value)  # type: ignore[arg-type]
 
     # Create new settings instance with overrides
     from app.core.config import AnalysisSettings, OpenAISettings, StashSettings

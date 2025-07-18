@@ -25,6 +25,7 @@ from app.api.schemas import (
     PlanDetailResponse,
     PlanResponse,
     SceneChanges,
+    SceneFilter,
 )
 from app.core.dependencies import get_analysis_service, get_db, get_job_service
 from app.models import AnalysisPlan, PlanChange, Scene
@@ -894,3 +895,133 @@ async def get_available_models() -> dict[str, Any]:
         "default": DEFAULT_MODEL,
         "recommended": RECOMMENDED_MODELS,
     }
+
+
+async def _get_scene_ids_from_filters(
+    filters: Optional[SceneFilter],
+    db: AsyncSession,
+) -> list[str]:
+    """Extract scene IDs from filters.
+
+    Args:
+        filters: Scene filters
+        db: Database session
+
+    Returns:
+        List of scene IDs
+    """
+    if not filters:
+        return []
+
+    query = select(Scene.id)
+    conditions = []
+
+    if filters.search:
+        search_term = f"%{filters.search}%"
+        conditions.append(
+            or_(Scene.title.ilike(search_term), Scene.details.ilike(search_term))
+        )
+
+    if filters.studio_id:
+        conditions.append(Scene.studio_id == filters.studio_id)
+
+    if filters.organized is not None:
+        conditions.append(Scene.organized == filters.organized)
+
+    if filters.analyzed is not None:
+        conditions.append(Scene.analyzed == filters.analyzed)
+
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    result = await db.execute(query)
+    return [str(row[0]) for row in result]
+
+
+@router.post("/video-tags")
+async def analyze_video_tags(
+    request: AnalysisRequest,
+    background: bool = Query(True, description="Run as background job"),
+    job_service: JobService = Depends(get_job_service),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Analyze scenes for tags and markers from video content.
+
+    This endpoint immediately applies detected tags and markers to scenes
+    rather than creating a plan. It communicates with an external AI server
+    to process video files.
+
+    Args:
+        request: Analysis request with scene_ids or filters
+        background: Whether to run as background job
+
+    Returns:
+        Job info if background, or results if synchronous
+    """
+    # Validate scene selection
+    if not request.scene_ids and not request.filters:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either scene_ids or filters must be provided",
+        )
+
+    # Ensure video tags option is enabled
+    if not request.options or not request.options.detect_video_tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="detect_video_tags must be enabled for this endpoint",
+        )
+
+    # Get scene IDs
+    scene_ids = request.scene_ids
+    if not scene_ids and request.filters:
+        scene_ids = await _get_scene_ids_from_filters(request.filters, db)
+
+    if not scene_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No scenes found matching the criteria",
+        )
+
+    if background:
+        # Create background job
+        job = await job_service.create_job(
+            job_type=ModelJobType.VIDEO_TAG_ANALYSIS,
+            metadata={
+                "scene_ids": scene_ids,
+                "filters": request.filters.model_dump() if request.filters else None,
+                "description": f"Analyzing video tags for {len(scene_ids)} scenes",
+                "job_params": {
+                    "scene_ids": scene_ids,
+                    "filters": (
+                        request.filters.model_dump() if request.filters else None
+                    ),
+                },
+            },
+            db=db,
+        )
+
+        return {
+            "job_id": str(job.id),
+            "status": "running",
+            "message": f"Analyzing video tags for {len(scene_ids)} scenes",
+        }
+    else:
+        # Run synchronously
+        try:
+            result = await analysis_service.analyze_and_apply_video_tags(
+                scene_ids=scene_ids,
+                filters=request.filters.model_dump() if request.filters else None,
+            )
+
+            return {
+                "status": "completed",
+                "result": result,
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Video tag analysis failed: {str(e)}",
+            )

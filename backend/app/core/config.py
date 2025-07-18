@@ -132,6 +132,23 @@ class AnalysisSettings(BaseSettings):
         False, description="Create missing entities during analysis"
     )
 
+    # Video AI server settings
+    ai_video_server_url: str = Field(
+        "http://localhost:8084", description="External AI video processing server URL"
+    )
+    frame_interval: int = Field(
+        2, description="Frame extraction interval in seconds for video analysis"
+    )
+    ai_video_threshold: float = Field(
+        0.3, description="Confidence threshold for video AI detection"
+    )
+    server_timeout: int = Field(
+        3700, description="Timeout for video processing requests in seconds"
+    )
+    create_markers: bool = Field(
+        True, description="Create scene markers from video AI detection"
+    )
+
     model_config = SettingsConfigDict(env_prefix="ANALYSIS_")
 
 

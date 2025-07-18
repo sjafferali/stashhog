@@ -577,6 +577,27 @@ class StashService:
 
         return None
 
+    async def find_or_create_tag(self, name: str) -> Optional[str]:
+        """Find or create a tag by name and return its ID.
+
+        Args:
+            name: Tag name
+
+        Returns:
+            Tag ID if found or created, None otherwise
+        """
+        # First try to find existing tag
+        existing_tag = await self.find_tag(name)
+        if existing_tag:
+            return existing_tag.get("id")
+
+        # Create new tag if not found
+        new_tag = await self.create_tag(name)
+        if new_tag:
+            return new_tag.get("id")
+
+        return None
+
     # Entity Operations - Studios
 
     async def get_all_studios(self) -> List[Dict]:
@@ -720,6 +741,44 @@ class StashService:
 
         raw_studios = result.get("findStudios", {}).get("studios", [])
         return [transformers.transform_studio(s) for s in raw_studios]
+
+    async def create_marker(self, marker_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a scene marker.
+
+        Args:
+            marker_data: Dictionary containing:
+                - scene_id: ID of the scene
+                - seconds: Time position in seconds
+                - title: Marker title (optional)
+                - tag_ids: List of tag IDs (at least one required)
+
+        Returns:
+            Created marker data
+        """
+        # Prepare input for mutation
+        input_data = {
+            "scene_id": marker_data["scene_id"],
+            "seconds": marker_data["seconds"],
+            "title": marker_data.get("title", ""),
+        }
+
+        # Stash requires at least one tag for markers
+        tag_ids = marker_data.get("tag_ids", [])
+        if tag_ids:
+            # First tag is the primary tag
+            input_data["primary_tag_id"] = tag_ids[0]
+            # Additional tags if any
+            if len(tag_ids) > 1:
+                input_data["tag_ids"] = tag_ids[1:]
+        else:
+            raise ValueError("At least one tag is required for scene markers")
+
+        result = await self.execute_graphql(
+            mutations.CREATE_SCENE_MARKER, {"input": input_data}
+        )
+
+        marker_result: Dict[str, Any] = result.get("sceneMarkerCreate", {})
+        return marker_result
 
 
 # Maintain backward compatibility with old class name

@@ -49,6 +49,7 @@ const SceneDetail: React.FC = () => {
     detectStudios: true,
     detectTags: true,
     detectDetails: false,
+    detectVideoTags: false,
     useAi: true,
   });
 

@@ -56,6 +56,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     detectStudios: true,
     detectTags: true,
     detectDetails: false,
+    detectVideoTags: false,
     useAi: true,
   });
   const [editModalVisible, setEditModalVisible] = useState(false);

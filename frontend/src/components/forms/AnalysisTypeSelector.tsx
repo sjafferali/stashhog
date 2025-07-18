@@ -5,6 +5,7 @@ import {
   ShopOutlined,
   TagsOutlined,
   FileTextOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -14,6 +15,7 @@ export interface AnalysisTypeOptions {
   detectStudios: boolean;
   detectTags: boolean;
   detectDetails: boolean;
+  detectVideoTags: boolean;
   useAi: boolean;
 }
 
@@ -28,6 +30,7 @@ const defaultOptions: AnalysisTypeOptions = {
   detectStudios: true,
   detectTags: true,
   detectDetails: false,
+  detectVideoTags: false,
   useAi: true,
 };
 
@@ -82,6 +85,16 @@ export const AnalysisTypeSelector: React.FC<AnalysisTypeSelectorProps> = ({
         <Space>
           <FileTextOutlined />
           <span>Title</span>
+        </Space>
+      </Checkbox>
+
+      <Checkbox
+        checked={value.detectVideoTags}
+        onChange={(e) => handleChange('detectVideoTags', e.target.checked)}
+      >
+        <Space>
+          <VideoCameraOutlined />
+          <span>AI Tags/Markers from Video</span>
         </Space>
       </Checkbox>
 

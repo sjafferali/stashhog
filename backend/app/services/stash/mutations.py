@@ -49,7 +49,6 @@ mutation TagCreate($input: TagCreateInput!) {
         name
         description
         aliases
-        scene_count
     }
 }
 """
@@ -63,7 +62,6 @@ mutation StudioCreate($input: StudioCreateInput!) {
         url
         details
         rating100
-        scene_count
     }
 }
 """
@@ -130,6 +128,28 @@ mutation StudioUpdate($input: StudioUpdateInput!) {
         url
         details
         rating100
+    }
+}
+"""
+
+# Create scene marker
+CREATE_SCENE_MARKER = """
+mutation SceneMarkerCreate($input: SceneMarkerCreateInput!) {
+    sceneMarkerCreate(input: $input) {
+        id
+        title
+        seconds
+        primary_tag {
+            id
+            name
+        }
+        tags {
+            id
+            name
+        }
+        scene {
+            id
+        }
     }
 }
 """

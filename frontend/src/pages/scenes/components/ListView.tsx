@@ -66,6 +66,7 @@ export const ListView: React.FC<ListViewProps> = ({
     detectStudios: true,
     detectTags: true,
     detectDetails: false,
+    detectVideoTags: false,
     useAi: true,
   });
   const {
