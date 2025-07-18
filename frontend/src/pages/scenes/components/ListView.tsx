@@ -212,6 +212,7 @@ export const ListView: React.FC<ListViewProps> = ({
         title: 'Title',
         dataIndex: 'title',
         key: 'title',
+        width: 300,
         sorter: true,
         sortOrder:
           sortBy === 'title'
@@ -220,13 +221,16 @@ export const ListView: React.FC<ListViewProps> = ({
               : 'descend'
             : null,
         render: (title: string | null, record: Scene) => (
-          <Space direction="vertical" size="small">
-            <Text strong>{title || 'Untitled'}</Text>
+          <Space direction="vertical" size="small" className={styles.titleCell}>
+            <Text strong style={{ wordBreak: 'break-word' }}>
+              {title || 'Untitled'}
+            </Text>
             {record.path && (
               <Text
                 type="secondary"
                 ellipsis
-                style={{ fontSize: 12, maxWidth: 300 }}
+                style={{ fontSize: 12 }}
+                title={record.path}
               >
                 {record.path}
               </Text>
@@ -524,7 +528,7 @@ export const ListView: React.FC<ListViewProps> = ({
           rowKey="id"
           pagination={false}
           onChange={handleTableChange}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1400 }}
           onRow={(record: Scene) => ({
             onClick: () => onSceneSelect(record),
             style: { cursor: 'pointer' },

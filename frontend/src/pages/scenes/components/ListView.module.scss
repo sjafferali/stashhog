@@ -1,8 +1,8 @@
 @import '@/styles/variables.scss';
 
 .listView {
-  // Mobile styles for iPhone screens
-  @media (max-width: $breakpoint-xs) {
+  // Mobile styles for smaller screens (phones and small tablets)
+  @media (max-width: $breakpoint-sm) {
     // Hide the table on mobile
     .desktopTable {
       display: none;
@@ -10,7 +10,7 @@
   }
 
   // Show mobile cards only on small screens
-  @media (min-width: #{$breakpoint-xs + 1px}) {
+  @media (min-width: #{$breakpoint-sm + 1px}) {
     .mobileCards {
       display: none;
     }
@@ -173,6 +173,7 @@
     .ant-table-wrapper {
       .ant-table {
         font-size: 14px;
+        table-layout: fixed;  // Use fixed table layout for better column width control
       }
 
       // Make sure horizontal scroll works smoothly on touch devices
@@ -188,11 +189,23 @@
         -webkit-overflow-scrolling: touch;
       }
 
+      // Prevent text from wrapping character by character
+      .ant-table-cell {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        
+        // Allow specific cells to wrap properly
+        .ant-space-vertical {
+          white-space: normal;
+          min-width: 0;
+        }
+      }
+
       // Improve touch targets and spacing on tablets/landscape phones
       @media (max-width: $breakpoint-md) {
         .ant-table-cell {
           padding: 12px 8px;
-          white-space: nowrap;  // Prevent text wrapping in cells
         }
 
         .ant-btn-sm {
@@ -203,9 +216,27 @@
 
         // Ensure table doesn't break on smaller screens
         .ant-table-tbody > tr > td {
-          min-width: 100px;  // Minimum width for cells
+          min-width: 80px;  // Minimum width for cells
+        }
+
+        // Title column special handling
+        .ant-table-tbody > tr > td:nth-child(3) {
+          min-width: 200px;  // Ensure title column has enough space
         }
       }
+
+    }
+  }
+}
+
+// Title cell specific styling
+.titleCell {
+  min-width: 250px;
+  max-width: 350px;
+  
+  :global {
+    .ant-typography {
+      line-height: 1.4;
     }
   }
 }

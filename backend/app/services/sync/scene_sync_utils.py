@@ -199,6 +199,7 @@ class SceneSyncUtils:
                 id=studio_id,
                 name=studio_data.get("name", ""),
                 url=studio_data.get("url", ""),
+                last_synced=datetime.utcnow(),
             )
             db.add(studio)
             await db.flush()
@@ -220,10 +221,10 @@ class SceneSyncUtils:
             performer = Performer(
                 id=performer_id,
                 name=performer_data.get("name", ""),
-                disambiguation=performer_data.get("disambiguation", ""),
                 gender=performer_data.get("gender"),
                 url=performer_data.get("url", ""),
                 image_url=performer_data.get("image_path", ""),
+                last_synced=datetime.utcnow(),
             )
             # Add aliases
             if aliases := performer_data.get("aliases"):
@@ -249,6 +250,7 @@ class SceneSyncUtils:
                 id=tag_id,
                 name=tag_data.get("name", ""),
                 description=tag_data.get("description", ""),
+                last_synced=datetime.utcnow(),
             )
             db.add(tag)
             await db.flush()
