@@ -189,9 +189,14 @@ class PlanManager:
         plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
         await db.flush()
 
-        # Process each change
-        for change in plan.changes:
-            if not apply_filters.get(change.field, True):
+        # Process each change - handle dynamic relationship in async context
+        # Convert dynamic query to list
+        changes_query = select(PlanChange).where(PlanChange.plan_id == plan.id)
+        result = await db.execute(changes_query)
+        changes = result.scalars().all()
+
+        for change in changes:
+            if not apply_filters.get(str(change.field), True):
                 continue
 
             total_changes += 1
@@ -280,7 +285,7 @@ class PlanManager:
 
         except Exception as e:
             logger.error(f"Error applying change {change.id}: {e}")
-            return False
+            raise  # Re-raise to be caught by the outer exception handler
 
     async def _prepare_update_data(
         self, change: PlanChange, scene: Dict, stash_service: StashService
@@ -294,6 +299,10 @@ class PlanManager:
             return await self._prepare_tags_update(change, scene, stash_service)
         elif change.field == "details":
             return self._prepare_details_update(change)
+        elif change.field == "title":
+            return {"title": change.proposed_value}
+        elif change.field == "rating":
+            return {"rating": change.proposed_value}
         else:
             return {}
 
@@ -427,18 +436,7 @@ class PlanManager:
 
     def _prepare_details_update(self, change: PlanChange) -> Dict[str, Any]:
         """Prepare details update data."""
-        if change.action in [
-            (
-                ChangeAction.UPDATE.value
-                if hasattr(ChangeAction.UPDATE, "value")
-                else ChangeAction.UPDATE
-            ),
-            (
-                ChangeAction.SET.value
-                if hasattr(ChangeAction.SET, "value")
-                else ChangeAction.SET
-            ),
-        ]:
+        if change.action in [ChangeAction.UPDATE, ChangeAction.SET, ChangeAction.ADD]:
             details = change.proposed_value
             if isinstance(details, dict):
                 details = details.get("text", "")
@@ -472,7 +470,7 @@ class PlanManager:
         logger.info(f"Deleted plan {plan_id}")
         return True
 
-    def _map_action(self, action: str) -> str:
+    def _map_action(self, action: str) -> ChangeAction:
         """Map string action to enum.
 
         Args:
@@ -482,12 +480,12 @@ class PlanManager:
             ChangeAction enum
         """
         action_map = {
-            "add": ChangeAction.ADD.value,
-            "remove": ChangeAction.REMOVE.value,
-            "update": ChangeAction.UPDATE.value,
-            "set": ChangeAction.SET.value,
+            "add": ChangeAction.ADD,
+            "remove": ChangeAction.REMOVE,
+            "update": ChangeAction.UPDATE,
+            "set": ChangeAction.SET,
         }
-        return action_map.get(action.lower(), ChangeAction.SET.value)
+        return action_map.get(action.lower(), ChangeAction.UPDATE)
 
     def _serialize_value(self, value: Any) -> Any:
         """Serialize a value for database storage.
@@ -507,3 +505,71 @@ class PlanManager:
         else:
             # Convert to string for unknown types
             return str(value)
+
+    async def update_plan_status(
+        self, plan_id: int, status: PlanStatus, db: AsyncSession
+    ) -> None:
+        """Update the status of a plan.
+
+        Args:
+            plan_id: Plan ID
+            status: New status
+            db: Database session
+        """
+        plan = await self.get_plan(plan_id, db)
+        if plan:
+            plan.status = status  # type: ignore[assignment]
+            await db.commit()
+
+    async def get_plan_statistics(
+        self, plan_id: int, db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Get statistics for a plan.
+
+        Args:
+            plan_id: Plan ID
+            db: Database session
+
+        Returns:
+            Dictionary of statistics
+        """
+        plan = await self.get_plan(plan_id, db)
+        if not plan:
+            return {}
+
+        # Get all changes for the plan
+        query = select(PlanChange).where(PlanChange.plan_id == plan_id)
+        result = await db.execute(query)
+        changes = result.scalars().all()
+
+        # Calculate statistics
+        total_changes = len(changes)
+        scenes_affected = len(set(c.scene_id for c in changes))
+
+        # Count by action
+        changes_by_action: Dict[str, int] = {}
+        for change in changes:
+            action_str = (
+                change.action.value
+                if hasattr(change.action, "value")
+                else str(change.action)
+            )
+            changes_by_action[action_str] = changes_by_action.get(action_str, 0) + 1
+
+        # Count by field
+        changes_by_field: Dict[str, int] = {}
+        for change in changes:
+            field_name = str(change.field)
+            changes_by_field[field_name] = changes_by_field.get(field_name, 0) + 1
+
+        # Calculate average confidence
+        confidences = [c.confidence for c in changes if c.confidence is not None]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+
+        return {
+            "total_changes": total_changes,
+            "scenes_affected": scenes_affected,
+            "changes_by_action": changes_by_action,
+            "changes_by_field": changes_by_field,
+            "average_confidence": avg_confidence,
+        }

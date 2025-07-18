@@ -103,7 +103,13 @@ def test_session(test_engine):
     TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
     session = TestSessionLocal()
     yield session
+    session.rollback()
     session.close()
+
+    # Clean up all data after each test
+    with test_engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
 
 
 @pytest.fixture

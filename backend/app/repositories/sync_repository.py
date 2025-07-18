@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from sqlalchemy import and_, or_
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Performer, Scene, Studio, SyncHistory, Tag
@@ -39,6 +40,9 @@ class SyncRepository:
                 "framerate": scene.get("file", {}).get("framerate"),
                 "bitrate": scene.get("file", {}).get("bitrate"),
                 "codec": scene.get("file", {}).get("video_codec"),
+                "paths": scene.get("paths", []),
+                "stash_created_at": scene.get("created_at", datetime.utcnow()),
+                "stash_updated_at": scene.get("updated_at", datetime.utcnow()),
                 "last_synced": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
             }
@@ -61,6 +65,8 @@ class SyncRepository:
                 "framerate": stmt.excluded.framerate,
                 "bitrate": stmt.excluded.bitrate,
                 "codec": stmt.excluded.codec,
+                "paths": stmt.excluded.paths,
+                "stash_updated_at": stmt.excluded.stash_updated_at,
                 "last_synced": stmt.excluded.last_synced,
                 "updated_at": stmt.excluded.updated_at,
             },
@@ -73,6 +79,38 @@ class SyncRepository:
         scene_ids = [s["id"] for s in scene_data]
         return db.query(Scene).filter(Scene.id.in_(scene_ids)).all()
 
+    def _prepare_entity_data(
+        self, model_class: Type[BaseModel], entities: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Prepare entity data based on model type"""
+        if model_class == Performer:
+            return self._prepare_performer_data(entities)
+        elif model_class == Tag:
+            return self._prepare_tag_data(entities)
+        elif model_class == Studio:
+            return self._prepare_studio_data(entities)
+        else:
+            raise ValueError(f"Unsupported model class: {model_class}")
+
+    def _upsert_single_entity(
+        self, model_class: Type[BaseModel], entity_dict: Dict[str, Any], db: Session
+    ) -> bool:
+        """Upsert a single entity and return True if upserted"""
+        entity_id = entity_dict["id"]
+        existing = db.query(model_class).filter(model_class.id == entity_id).first()
+
+        if existing:
+            # Update existing entity
+            for key, value in entity_dict.items():
+                if key not in ("id", "created_at"):
+                    setattr(existing, key, value)
+        else:
+            # Create new entity
+            new_entity = model_class(**entity_dict)
+            db.add(new_entity)
+
+        return True
+
     def bulk_upsert_entities(
         self, model_class: Type[BaseModel], entities: List[Dict[str, Any]], db: Session
     ) -> int:
@@ -80,31 +118,19 @@ class SyncRepository:
         if not entities:
             return 0
 
-        # Prepare data based on model type
-        if model_class == Performer:
-            entity_data = self._prepare_performer_data(entities)
-        elif model_class == Tag:
-            entity_data = self._prepare_tag_data(entities)
-        elif model_class == Studio:
-            entity_data = self._prepare_studio_data(entities)
-        else:
-            raise ValueError(f"Unsupported model class: {model_class}")
-
-        # Bulk upsert
-        stmt = insert(model_class).values(entity_data)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["id"],
-            set_={
-                col.name: getattr(stmt.excluded, col.name)
-                for col in model_class.__table__.columns
-                if col.name not in ["id", "created_at"]
-            },
+        entity_data = self._prepare_entity_data(model_class, entities)
+        upserted_count = sum(
+            self._upsert_single_entity(model_class, entity_dict, db)
+            for entity_dict in entity_data
         )
 
-        result = db.execute(stmt)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            raise
 
-        return result.rowcount
+        return upserted_count
 
     def get_last_sync_time(self, entity_type: str, db: Session) -> Optional[datetime]:
         """Get last successful sync time for an entity type"""
@@ -182,76 +208,100 @@ class SyncRepository:
         self, performers: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Prepare performer data for bulk insert"""
-        return [
-            {
-                "id": p.get("id"),
-                "name": p.get("name", ""),
-                "aliases": p.get("aliases"),
-                "gender": p.get("gender"),
-                "birthdate": p.get("birthdate"),
-                "country": p.get("country"),
-                "ethnicity": p.get("ethnicity"),
-                "hair_color": p.get("hair_color"),
-                "eye_color": p.get("eye_color"),
-                "height_cm": p.get("height"),
-                "weight_kg": p.get("weight"),
-                "measurements": p.get("measurements"),
-                "fake_tits": p.get("fake_tits"),
-                "career_length": p.get("career_length"),
-                "tattoos": p.get("tattoos"),
-                "piercings": p.get("piercings"),
-                "url": p.get("url"),
-                "twitter": p.get("twitter"),
-                "instagram": p.get("instagram"),
-                "details": p.get("details"),
-                "rating": p.get("rating"),
-                "favorite": p.get("favorite", False),
-                "ignore_auto_tag": p.get("ignore_auto_tag", False),
-                "image_url": p.get("image_path"),
-                "last_synced": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-            for p in performers
-        ]
+        prepared_data = []
+        for p in performers:
+            performer_id = p.get("id")
+            # Skip performers with None or empty ID to avoid SQLAlchemy warning
+            if performer_id is None:
+                logger.warning("Skipping performer with None ID")
+                continue
+
+            prepared_data.append(
+                {
+                    "id": performer_id,
+                    "name": p.get("name", ""),
+                    "aliases": p.get("aliases"),
+                    "gender": p.get("gender"),
+                    "birthdate": p.get("birthdate"),
+                    "country": p.get("country"),
+                    "ethnicity": p.get("ethnicity"),
+                    "hair_color": p.get("hair_color"),
+                    "eye_color": p.get("eye_color"),
+                    "height_cm": p.get("height"),
+                    "weight_kg": p.get("weight"),
+                    "measurements": p.get("measurements"),
+                    "fake_tits": p.get("fake_tits"),
+                    "career_length": p.get("career_length"),
+                    "tattoos": p.get("tattoos"),
+                    "piercings": p.get("piercings"),
+                    "url": p.get("url"),
+                    "twitter": p.get("twitter"),
+                    "instagram": p.get("instagram"),
+                    "details": p.get("details"),
+                    "rating": p.get("rating"),
+                    "favorite": p.get("favorite", False),
+                    "ignore_auto_tag": p.get("ignore_auto_tag", False),
+                    "image_url": p.get("image_path"),
+                    "last_synced": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+        return prepared_data
 
     def _prepare_tag_data(self, tags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare tag data for bulk insert"""
-        return [
-            {
-                "id": t.get("id"),
-                "name": t.get("name", ""),
-                "aliases": t.get("aliases"),
-                "description": t.get("description"),
-                "ignore_auto_tag": t.get("ignore_auto_tag", False),
-                "parent_temp_id": (
-                    t.get("parent", {}).get("id") if t.get("parent") else None
-                ),
-                "last_synced": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-            for t in tags
-        ]
+        prepared_data = []
+        for t in tags:
+            tag_id = t.get("id")
+            # Skip tags with None or empty ID
+            if tag_id is None:
+                logger.warning("Skipping tag with None ID")
+                continue
+
+            prepared_data.append(
+                {
+                    "id": tag_id,
+                    "name": t.get("name", ""),
+                    "aliases": t.get("aliases"),
+                    "description": t.get("description"),
+                    "ignore_auto_tag": t.get("ignore_auto_tag", False),
+                    "parent_temp_id": (
+                        t.get("parent", {}).get("id") if t.get("parent") else None
+                    ),
+                    "last_synced": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+        return prepared_data
 
     def _prepare_studio_data(
         self, studios: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Prepare studio data for bulk insert"""
-        return [
-            {
-                "id": s.get("id"),
-                "name": s.get("name", ""),
-                "aliases": s.get("aliases"),
-                "url": s.get("url"),
-                "details": s.get("details"),
-                "rating": s.get("rating"),
-                "favorite": s.get("favorite", False),
-                "ignore_auto_tag": s.get("ignore_auto_tag", False),
-                "parent_temp_id": (
-                    s.get("parent", {}).get("id") if s.get("parent") else None
-                ),
-                "image_url": s.get("image_path"),
-                "last_synced": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-            for s in studios
-        ]
+        prepared_data = []
+        for s in studios:
+            studio_id = s.get("id")
+            # Skip studios with None or empty ID
+            if studio_id is None:
+                logger.warning("Skipping studio with None ID")
+                continue
+
+            prepared_data.append(
+                {
+                    "id": studio_id,
+                    "name": s.get("name", ""),
+                    "aliases": s.get("aliases"),
+                    "url": s.get("url"),
+                    "details": s.get("details"),
+                    "rating": s.get("rating"),
+                    "favorite": s.get("favorite", False),
+                    "ignore_auto_tag": s.get("ignore_auto_tag", False),
+                    "parent_temp_id": (
+                        s.get("parent", {}).get("id") if s.get("parent") else None
+                    ),
+                    "image_url": s.get("image_path"),
+                    "last_synced": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+        return prepared_data
