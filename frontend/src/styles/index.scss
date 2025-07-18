@@ -162,13 +162,13 @@ body {
 }
 
 // Responsive utilities
-@media (max-width: $breakpoint-md) {
+@media (max-width: $breakpoint-xs) {
   .hide-mobile {
     display: none !important;
   }
 }
 
-@media (min-width: $breakpoint-md) {
+@media (min-width: $breakpoint-sm) {
   .hide-desktop {
     display: none !important;
   }

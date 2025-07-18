@@ -50,6 +50,15 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     detectDetails: false,
     useAi: true,
   });
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [tempAnalysisOptions, setTempAnalysisOptions] =
+    useState<AnalysisTypeOptions>({
+      detectPerformers: true,
+      detectStudios: true,
+      detectTags: true,
+      detectDetails: false,
+      useAi: true,
+    });
 
   // Fetch tags for the modal
   const { data: tags } = useQuery<TagType[]>('tags', async () => {
@@ -148,27 +157,17 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   );
 
   const handleAnalyze = () => {
-    Modal.confirm({
-      title: 'Analyze Scenes',
-      content: (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <p>
-            Analyze {selectedCount} selected scenes with the following options:
-          </p>
-          <AnalysisTypeSelector
-            value={analysisOptions}
-            onChange={setAnalysisOptions}
-          />
-        </Space>
-      ),
-      onOk: () => {
-        analyzeMutation.mutate({
-          sceneIds: Array.from(selectedScenes),
-          options: analysisOptions,
-        });
-      },
-      width: 500,
+    setTempAnalysisOptions(analysisOptions);
+    setAnalysisModalVisible(true);
+  };
+
+  const handleAnalysisModalOk = () => {
+    setAnalysisOptions(tempAnalysisOptions);
+    analyzeMutation.mutate({
+      sceneIds: Array.from(selectedScenes),
+      options: tempAnalysisOptions,
     });
+    setAnalysisModalVisible(false);
   };
 
   const handleSync = () => {
@@ -342,6 +341,28 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
             })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
           }
         />
+      </Modal>
+
+      <Modal
+        title="Analyze Scenes"
+        open={analysisModalVisible}
+        onOk={handleAnalysisModalOk}
+        onCancel={() => {
+          setAnalysisModalVisible(false);
+          setTempAnalysisOptions(analysisOptions);
+        }}
+        confirmLoading={analyzeMutation.isLoading}
+        width={500}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>
+            Analyze {selectedCount} selected scenes with the following options:
+          </p>
+          <AnalysisTypeSelector
+            value={tempAnalysisOptions}
+            onChange={setTempAnalysisOptions}
+          />
+        </Space>
       </Modal>
     </>
   );

@@ -21,8 +21,10 @@
 .mobileCards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 0 8px;
+  gap: 16px;  // Increased gap for better separation
+  padding: 12px;  // More consistent padding
+  max-width: 100%;
+  overflow-x: hidden;  // Prevent horizontal scroll
 }
 
 .mobileSelectAll {
@@ -40,10 +42,13 @@
   background: #fff;
   border: 1px solid #f0f0f0;
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;  // Increased padding for better touch targets
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
   transition: all 0.2s ease;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;  // Prevent content overflow
 
   &:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -85,10 +90,12 @@
 .cardTitle {
   flex: 1;
   min-width: 0;
+  padding-right: 8px;  // Add some spacing from edge
 
   .title {
     font-weight: 600;
-    font-size: 14px;
+    font-size: 15px;  // Slightly larger for better readability
+    line-height: 1.3;
     color: #262626;
     margin: 0;
     overflow: hidden;
@@ -97,9 +104,9 @@
   }
 
   .path {
-    font-size: 11px;
+    font-size: 12px;  // Slightly larger for better readability
     color: #8c8c8c;
-    margin-top: 2px;
+    margin-top: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -109,15 +116,16 @@
 .cardMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
+  gap: 12px;  // More spacing between meta items
+  margin-bottom: 12px;
+  font-size: 13px;  // Slightly larger for readability
   color: #595959;
 
   .metaItem {
     display: flex;
     align-items: center;
     gap: 4px;
+    white-space: nowrap;  // Prevent wrapping within items
 
     .metaLabel {
       color: #8c8c8c;
@@ -151,9 +159,10 @@
   gap: 8px;
 
   button {
-    font-size: 12px;
-    height: 28px;
-    padding: 0 12px;
+    font-size: 13px;  // Slightly larger for better touch targets
+    height: 32px;  // Taller for better touch targets
+    padding: 0 16px;  // More padding for easier tapping
+    min-width: 80px;  // Ensure minimum touch target size
   }
 }
 
@@ -169,18 +178,32 @@
       // Make sure horizontal scroll works smoothly on touch devices
       .ant-table-body {
         -webkit-overflow-scrolling: touch;
+        overflow-x: auto;
+        overflow-y: hidden;
       }
 
-      // Improve touch targets on mobile
+      // Fix table layout on smaller screens to prevent overlapping
+      .ant-table-content {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      // Improve touch targets and spacing on tablets/landscape phones
       @media (max-width: $breakpoint-md) {
         .ant-table-cell {
           padding: 12px 8px;
+          white-space: nowrap;  // Prevent text wrapping in cells
         }
 
         .ant-btn-sm {
           height: 32px;
           padding: 0 12px;
           font-size: 13px;
+        }
+
+        // Ensure table doesn't break on smaller screens
+        .ant-table-tbody > tr > td {
+          min-width: 100px;  // Minimum width for cells
         }
       }
     }

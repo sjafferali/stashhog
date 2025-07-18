@@ -217,13 +217,12 @@ async def analyze_all_unanalyzed_job(
     analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
 
     # Get unanalyzed scenes
-    from app.core.database import get_db
+    from app.core.database import AsyncSessionLocal
     from app.repositories.scene_repository import scene_repository
 
-    db = next(get_db())
-    try:
+    async with AsyncSessionLocal() as db:
         unanalyzed_scenes = await scene_repository.get_unanalyzed_scenes(db)
-        scene_ids = [scene.id for scene in unanalyzed_scenes]
+        scene_ids: list[str] = [str(scene.id) for scene in unanalyzed_scenes]
 
         logger.info(f"Found {len(scene_ids)} unanalyzed scenes")
 
@@ -233,7 +232,7 @@ async def analyze_all_unanalyzed_job(
         all_plans = []
 
         for i in range(0, total_scenes, batch_size):
-            batch = scene_ids[i : i + batch_size]
+            batch: list[str] = scene_ids[i : i + batch_size]
             batch_progress = int((i / total_scenes) * 100)
 
             progress_callback(
@@ -290,8 +289,6 @@ async def analyze_all_unanalyzed_job(
             "plans_created": len(all_plans),
             "plan_ids": [plan.id for plan in all_plans],
         }
-    finally:
-        db.close()
 
 
 async def generate_scene_details_job(

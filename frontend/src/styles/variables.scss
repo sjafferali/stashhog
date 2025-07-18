@@ -50,11 +50,11 @@ $border-radius-lg: 8px;
 $border-radius-xl: 12px;
 
 // Breakpoints
-$breakpoint-xs: 480px;
-$breakpoint-sm: 576px;
-$breakpoint-md: 768px;
-$breakpoint-lg: 992px;
-$breakpoint-xl: 1200px;
+$breakpoint-xs: 767px;  // Changed from 480px to include all phones up to small tablets
+$breakpoint-sm: 768px;
+$breakpoint-md: 992px;
+$breakpoint-lg: 1200px;
+$breakpoint-xl: 1400px;
 $breakpoint-xxl: 1600px;
 
 // Z-index
