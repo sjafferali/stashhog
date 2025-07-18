@@ -106,20 +106,7 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
   }
 
   return (
-    <List.Item
-      className={styles.sceneListItem}
-      actions={listActions}
-      extra={
-        <img
-          width={200}
-          alt={scene.title}
-          src={`/api/scenes/${scene.id}/thumbnail`}
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/placeholder-scene.png';
-          }}
-        />
-      }
-    >
+    <List.Item className={styles.sceneListItem} actions={listActions}>
       <List.Item.Meta
         avatar={
           selectable && (

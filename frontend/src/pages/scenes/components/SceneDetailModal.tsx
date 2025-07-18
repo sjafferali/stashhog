@@ -30,7 +30,6 @@ import dayjs from 'dayjs';
 import api from '@/services/api';
 import { Scene, AnalysisResult } from '@/types/models';
 import useAppStore from '@/store';
-import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 import {
   AnalysisTypeSelector,
@@ -189,15 +188,6 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   const renderOverviewTab = () => (
     <Spin spinning={isLoading}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Thumbnail */}
-        <div style={{ textAlign: 'center' }}>
-          <SceneThumbnail
-            sceneId={scene.id}
-            title={scene.title || 'Scene thumbnail'}
-            width={400}
-          />
-        </div>
-
         {/* Basic Info */}
         <Descriptions bordered column={2}>
           <Descriptions.Item label="Title" span={2}>

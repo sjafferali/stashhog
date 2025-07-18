@@ -31,7 +31,6 @@ import { useScenesStore } from '@/store/slices/scenes';
 import { useMutation, useQueryClient } from 'react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
-import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 import {
   AnalysisTypeSelector,
   AnalysisTypeOptions,
@@ -191,20 +190,6 @@ export const ListView: React.FC<ListViewProps> = ({
             checked={selectedScenes.has(record.id.toString())}
             onClick={(e: MouseEvent) => e.stopPropagation()}
             onChange={() => toggleSceneSelection(record.id.toString())}
-          />
-        ),
-      },
-      {
-        title: 'Thumbnail',
-        key: 'thumbnail',
-        width: 120,
-        render: (_: unknown, record: Scene) => (
-          <SceneThumbnail
-            sceneId={record.id}
-            title={record.title || 'Scene thumbnail'}
-            width={100}
-            height={60}
-            style={{ objectFit: 'cover', borderRadius: 4 }}
           />
         ),
       },
@@ -423,15 +408,6 @@ export const ListView: React.FC<ListViewProps> = ({
               onClick={(e: MouseEvent) => e.stopPropagation()}
               onChange={() => toggleSceneSelection(scene.id.toString())}
             />
-            <div className={styles.cardThumbnail}>
-              <SceneThumbnail
-                sceneId={scene.id}
-                title={scene.title || 'Scene thumbnail'}
-                width={80}
-                height={48}
-                style={{ width: '100%', height: '100%' }}
-              />
-            </div>
             <div className={styles.cardTitle}>
               <h4 className={styles.title}>{scene.title || 'Untitled'}</h4>
               {scene.path && <div className={styles.path}>{scene.path}</div>}

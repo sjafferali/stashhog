@@ -175,12 +175,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
           />
         )}
 
-        <Avatar
-          src={`/api/scenes/${sceneId}/thumbnail`}
-          size="large"
-          shape="square"
-          className={styles.thumbnail}
-        >
+        <Avatar size="large" shape="square" className={styles.thumbnail}>
           {sceneTitle.charAt(0)}
         </Avatar>
 

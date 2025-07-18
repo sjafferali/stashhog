@@ -130,16 +130,6 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
               </Space>
             </div>
 
-            <div className={styles.preview}>
-              <img
-                src={`/api/scenes/${scene.id}/thumbnail`}
-                alt={scene.title}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/placeholder-scene.png';
-                }}
-              />
-            </div>
-
             {scene.details && (
               <>
                 <Divider>Description</Divider>

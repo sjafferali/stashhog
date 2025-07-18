@@ -110,32 +110,27 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         className={styles.sceneCard}
         hoverable
         onClick={() => onClick?.(scene)}
-        cover={
-          <div className={styles.thumbnail}>
-            <img
-              alt={scene.title}
-              src={`/api/scenes/${scene.id}/thumbnail`}
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/placeholder-scene.png';
-              }}
-            />
-            <div className={styles.duration}>
-              <ClockCircleOutlined /> {formatDuration(scene.duration)}
-            </div>
-            {scene.rating && (
-              <div className={styles.rating}>
-                <StarFilled /> {scene.rating}
-              </div>
-            )}
-          </div>
-        }
         actions={showDetails ? cardActions : undefined}
       >
         <Card.Meta
           title={
-            <Tooltip title={scene.title}>
-              <div className={styles.title}>{scene.title}</div>
-            </Tooltip>
+            <div className={styles.titleWrapper}>
+              <Tooltip title={scene.title}>
+                <div className={styles.title}>{scene.title}</div>
+              </Tooltip>
+              <div className={styles.titleMeta}>
+                {scene.duration && (
+                  <span className={styles.duration}>
+                    <ClockCircleOutlined /> {formatDuration(scene.duration)}
+                  </span>
+                )}
+                {scene.rating && (
+                  <span className={styles.rating}>
+                    <StarFilled /> {scene.rating}
+                  </span>
+                )}
+              </div>
+            </div>
           }
           description={
             <div className={styles.metadata}>

@@ -18,7 +18,6 @@ import {
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { useScenesStore, GridSize } from '@/store/slices/scenes';
-import { SceneThumbnail } from '@/components/common/SceneThumbnail';
 import styles from './GridView.module.scss';
 
 const { Text } = Typography;
@@ -100,37 +99,32 @@ export const GridView: React.FC<GridViewProps> = ({
               hoverable
               className={`${styles.sceneCard} ${isSelected ? styles.selected : ''}`}
               onClick={(e: React.MouseEvent) => handleCardClick(scene, e)}
-              cover={
-                <div className={styles.coverWrapper}>
-                  <SceneThumbnail
-                    sceneId={scene.id}
-                    title={scene.title || 'Scene thumbnail'}
-                    className={styles.thumbnail}
-                  />
-                  {scene.duration && (
-                    <div className={styles.duration}>
-                      {formatDuration(scene.duration)}
-                    </div>
-                  )}
-                  <Checkbox
-                    checked={isSelected}
-                    onClick={(e) => handleCheckboxClick(scene.id.toString(), e)}
-                    className={styles.checkbox}
-                  />
-                </div>
-              }
             >
               <Card.Meta
                 title={
-                  <Tooltip
-                    title={
-                      scene.title ||
-                      (scene.paths && scene.paths[0]) ||
-                      'Untitled'
-                    }
-                  >
-                    <Text ellipsis>{scene.title || 'Untitled'}</Text>
-                  </Tooltip>
+                  <div className={styles.titleWrapper}>
+                    <Checkbox
+                      checked={isSelected}
+                      onClick={(e) =>
+                        handleCheckboxClick(scene.id.toString(), e)
+                      }
+                      className={styles.checkbox}
+                    />
+                    <Tooltip
+                      title={
+                        scene.title ||
+                        (scene.paths && scene.paths[0]) ||
+                        'Untitled'
+                      }
+                    >
+                      <Text ellipsis>{scene.title || 'Untitled'}</Text>
+                    </Tooltip>
+                    {scene.duration && (
+                      <Tag className={styles.duration}>
+                        {formatDuration(scene.duration)}
+                      </Tag>
+                    )}
+                  </div>
                 }
                 description={
                   <Space
