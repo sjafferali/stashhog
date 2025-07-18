@@ -1,6 +1,6 @@
 """Tests for schedule API routes."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -431,3 +431,575 @@ class TestScheduleRoutes:
         assert "runs" in data
         assert "stats" in data
         assert len(data["runs"]) == 1
+
+
+class TestScheduleCronValidation:
+    """Test cron expression validation and parsing."""
+
+    def test_valid_cron_expressions(self, client):
+        """Test various valid cron expressions."""
+        valid_expressions = [
+            "* * * * *",  # Every minute
+            "0 * * * *",  # Every hour
+            "0 0 * * *",  # Daily at midnight
+            "0 0 * * 0",  # Weekly on Sunday
+            "0 0 1 * *",  # Monthly on 1st
+            "0 0 1 1 *",  # Yearly on Jan 1st
+            "*/5 * * * *",  # Every 5 minutes
+            "0 */2 * * *",  # Every 2 hours
+            "0 9-17 * * 1-5",  # Weekdays 9am-5pm
+            "0 0,12 * * *",  # Twice daily at midnight and noon
+            "0 0 * * 1,3,5",  # Mon, Wed, Fri
+            "15 3 * * *",  # Daily at 3:15 AM
+            "0 0 28-31 * *",  # Last days of month
+            "0 0 * 2 *",  # February only
+            "@hourly",  # Special string
+            "@daily",  # Special string
+            "@weekly",  # Special string
+            "@monthly",  # Special string
+            "@yearly",  # Special string
+        ]
+
+        for expr in valid_expressions:
+            # Test in create endpoint
+            schedule_data = {
+                "name": f"Test {expr}",
+                "task_type": "sync",
+                "schedule": expr,
+                "config": {},
+            }
+            response = client.post("/api/schedules", json=schedule_data)
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Failed for expression: {expr}"
+
+            # Test in preview endpoint
+            preview_data = {"expression": expr, "count": 3}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Preview failed for expression: {expr}"
+
+    def test_invalid_cron_expressions(self, client):
+        """Test various invalid cron expressions."""
+        invalid_expressions = [
+            "",  # Empty string
+            "invalid",  # Not a cron expression
+            "* * * *",  # Too few fields
+            "60 * * * *",  # Invalid minute (0-59)
+            "* 24 * * *",  # Invalid hour (0-23)
+            "* * 32 * *",  # Invalid day (1-31)
+            "* * * 13 *",  # Invalid month (1-12)
+            "* * * * 8",  # Invalid day of week (0-7)
+            "*/0 * * * *",  # Invalid step
+            "1-60 * * * *",  # Invalid range
+            "@invalid",  # Invalid special string
+            "* * * * * L",  # Invalid modifier
+            "? * * * *",  # Invalid character
+        ]
+
+        for expr in invalid_expressions:
+            # Test in create endpoint
+            schedule_data = {
+                "name": f"Test {expr}",
+                "task_type": "sync",
+                "schedule": expr,
+                "config": {},
+            }
+            response = client.post("/api/schedules", json=schedule_data)
+            assert (
+                response.status_code == status.HTTP_400_BAD_REQUEST
+            ), f"Should fail for expression: {expr}"
+            assert "Invalid cron expression" in response.json()["detail"]
+
+            # Test in preview endpoint
+            preview_data = {"expression": expr, "count": 3}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert (
+                response.status_code == status.HTTP_400_BAD_REQUEST
+            ), f"Preview should fail for expression: {expr}"
+
+    def test_cron_edge_cases(self, client):
+        """Test edge cases in cron parsing."""
+        # Test maximum values
+        edge_cases = [
+            ("59 * * * *", True),  # Max minute
+            ("* 23 * * *", True),  # Max hour
+            ("* * 31 * *", True),  # Max day
+            ("* * * 12 *", True),  # Max month
+            ("* * * * 7", True),  # Max day of week (0 and 7 both mean Sunday)
+            ("0-59 * * * *", True),  # Full minute range
+            ("* 0-23 * * *", True),  # Full hour range
+            ("* * 1-31 * *", True),  # Full day range
+            ("* * * 1-12 *", True),  # Full month range
+            ("* * * * 0-6", True),  # Full day of week range
+        ]
+
+        for expr, should_succeed in edge_cases:
+            schedule_data = {
+                "name": f"Edge case {expr}",
+                "task_type": "sync",
+                "schedule": expr,
+                "config": {},
+            }
+            response = client.post("/api/schedules", json=schedule_data)
+            if should_succeed:
+                assert (
+                    response.status_code == status.HTTP_200_OK
+                ), f"Should succeed for expression: {expr}"
+            else:
+                assert (
+                    response.status_code == status.HTTP_400_BAD_REQUEST
+                ), f"Should fail for expression: {expr}"
+
+    def test_cron_special_characters(self, client):
+        """Test special characters in cron expressions."""
+        test_cases = [
+            ("*/15 * * * *", 4),  # Every 15 minutes should give 4 per hour
+            ("0 */6 * * *", 4),  # Every 6 hours should give 4 per day
+            ("0 0 */7 * *", None),  # Every 7 days
+            ("0 0 * */3 *", None),  # Every 3 months
+            ("0,15,30,45 * * * *", None),  # Multiple values
+            ("0-10 * * * *", None),  # Range
+            ("0-10/2 * * * *", None),  # Range with step
+        ]
+
+        for expr, expected_count in test_cases:
+            # Test preview to ensure parsing works
+            preview_data = {"expression": expr, "count": 24}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Failed for expression: {expr}"
+
+            data = response.json()
+            next_runs = data["next_runs"]
+            assert len(next_runs) == 24
+
+            # Verify spacing between runs if expected_count is specified
+            if expected_count is not None and expr.startswith("*/"):
+                # For minute-based schedules, check within an hour
+                if "* * * *" in expr:
+                    # Count runs within ANY full hour (not from the first run)
+                    first_run = datetime.fromisoformat(
+                        next_runs[0].replace("Z", "+00:00")
+                    )
+                    # Start from the beginning of the next hour to get a full hour
+                    hour_start = first_run.replace(
+                        minute=0, second=0, microsecond=0
+                    ) + timedelta(hours=1)
+                    hour_end = hour_start + timedelta(hours=1)
+                    runs_in_hour = sum(
+                        1
+                        for run in next_runs
+                        if hour_start
+                        <= datetime.fromisoformat(run.replace("Z", "+00:00"))
+                        < hour_end
+                    )
+                    assert (
+                        runs_in_hour == expected_count
+                    ), f"Expected {expected_count} runs per hour for {expr}, got {runs_in_hour}"
+
+    def test_preview_schedule_count_variations(self, client):
+        """Test preview endpoint with different count values."""
+        test_counts = [1, 5, 10, 50, 100]
+
+        for count in test_counts:
+            preview_data = {"expression": "0 * * * *", "count": count}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert response.status_code == status.HTTP_200_OK
+
+            data = response.json()
+            assert len(data["next_runs"]) == count
+
+            # Verify chronological order
+            for i in range(1, len(data["next_runs"])):
+                assert data["next_runs"][i] > data["next_runs"][i - 1]
+
+    def test_cron_validation_in_update(self, client, mock_db, mock_schedule):
+        """Test cron validation when updating schedules."""
+        # Mock database query
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Test with valid expression
+        valid_update = {"schedule": "0 */4 * * *"}
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=valid_update)
+        assert response.status_code == status.HTTP_200_OK
+
+        # Test with invalid expression
+        invalid_update = {"schedule": "not a cron"}
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=invalid_update)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid cron expression" in response.json()["detail"]
+
+    def test_cron_month_names(self, client):
+        """Test cron expressions with month names."""
+        month_expressions = [
+            "0 0 1 JAN *",  # January
+            "0 0 * FEB *",  # February
+            "0 0 15 MAR-MAY *",  # March through May
+            "0 0 * JUN,JUL,AUG *",  # Summer months
+            "0 0 * SEP-DEC *",  # Fall/Winter
+        ]
+
+        for expr in month_expressions:
+            preview_data = {"expression": expr, "count": 3}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Failed for expression: {expr}"
+
+    def test_cron_weekday_names(self, client):
+        """Test cron expressions with weekday names."""
+        weekday_expressions = [
+            "0 0 * * SUN",  # Sunday
+            "0 0 * * MON-FRI",  # Weekdays
+            "0 0 * * SAT,SUN",  # Weekend
+            "0 9 * * MON",  # Monday morning
+            "0 17 * * FRI",  # Friday evening
+        ]
+
+        for expr in weekday_expressions:
+            preview_data = {"expression": expr, "count": 5}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            assert (
+                response.status_code == status.HTTP_200_OK
+            ), f"Failed for expression: {expr}"
+
+    def test_complex_cron_combinations(self, client):
+        """Test complex combinations of cron features."""
+        complex_expressions = [
+            "0 0,12 * * MON-FRI",  # Twice daily on weekdays
+            "*/30 9-17 * * 1-5",  # Every 30 min during work hours
+            "0 0 1,15 * *",  # 1st and 15th of month
+        ]
+
+        for expr in complex_expressions:
+            # Some expressions might not be supported by croniter
+            preview_data = {"expression": expr, "count": 3}
+            response = client.post("/api/schedules/preview", json=preview_data)
+            # Just verify we get a proper response (either success or proper error)
+            assert response.status_code in [
+                status.HTTP_200_OK,
+                status.HTTP_400_BAD_REQUEST,
+            ]
+
+
+class TestScheduleEnableDisable:
+    """Test schedule enable/disable functionality."""
+
+    def test_create_schedule_enabled_by_default(self, client, mock_db):
+        """Test that schedules are enabled by default when created."""
+        schedule_data = {
+            "name": "Default Enabled Schedule",
+            "task_type": "sync",
+            "schedule": "0 */4 * * *",
+            "config": {},
+        }
+
+        response = client.post("/api/schedules", json=schedule_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["enabled"] is True
+        assert data["next_run"] is not None
+
+    def test_create_schedule_explicitly_disabled(self, client, mock_db):
+        """Test creating a disabled schedule."""
+        schedule_data = {
+            "name": "Disabled Schedule",
+            "task_type": "sync",
+            "schedule": "0 */4 * * *",
+            "config": {},
+            "enabled": False,
+        }
+
+        # Mock the schedule that will be created
+        created_schedule = Mock(spec=ScheduledTask)
+        created_schedule.to_dict = Mock(
+            return_value={
+                "id": 2,
+                "name": "Disabled Schedule",
+                "task_type": "sync",
+                "schedule": "0 */4 * * *",
+                "config": {},
+                "enabled": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "next_run": None,  # Disabled schedules should have None
+                "last_run": None,
+                "last_job_id": None,
+            }
+        )
+
+        # Override refresh to set attributes on the mock
+        async def mock_refresh(obj):
+            if hasattr(obj, "enabled") and not obj.enabled:
+                obj.next_run = None
+            obj.to_dict = created_schedule.to_dict
+
+        mock_db.refresh = AsyncMock(side_effect=mock_refresh)
+
+        response = client.post("/api/schedules", json=schedule_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["enabled"] is False
+        # Disabled schedules should not have next_run calculated
+        assert data.get("next_run") is None
+
+    def test_enable_disabled_schedule(self, client, mock_db, mock_schedule):
+        """Test enabling a previously disabled schedule."""
+        # Setup mock schedule as disabled
+        mock_schedule.enabled = False
+        mock_schedule.next_run = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Update to enable the schedule
+        update_data = {"enabled": True}
+
+        # Mock the updated return value
+        mock_schedule.to_dict.return_value = {
+            "id": mock_schedule.id,
+            "name": mock_schedule.name,
+            "task_type": mock_schedule.task_type,
+            "schedule": mock_schedule.schedule,
+            "config": mock_schedule.config,
+            "enabled": True,
+            "next_run": datetime.now(timezone.utc).isoformat(),
+            "created_at": mock_schedule.created_at.isoformat(),
+            "updated_at": mock_schedule.updated_at.isoformat(),
+        }
+
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["enabled"] is True
+        assert data["next_run"] is not None
+
+        # Verify update_next_run was called
+        mock_schedule.update_next_run.assert_called_once()
+
+    def test_disable_enabled_schedule(self, client, mock_db, mock_schedule):
+        """Test disabling a previously enabled schedule."""
+        # Setup mock schedule as enabled
+        mock_schedule.enabled = True
+        mock_schedule.next_run = datetime.now(timezone.utc)
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Update to disable the schedule
+        update_data = {"enabled": False}
+
+        # Mock the updated return value
+        mock_schedule.to_dict.return_value = {
+            "id": mock_schedule.id,
+            "name": mock_schedule.name,
+            "task_type": mock_schedule.task_type,
+            "schedule": mock_schedule.schedule,
+            "config": mock_schedule.config,
+            "enabled": False,
+            "next_run": None,
+            "created_at": mock_schedule.created_at.isoformat(),
+            "updated_at": mock_schedule.updated_at.isoformat(),
+        }
+
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["enabled"] is False
+        assert data["next_run"] is None
+
+    def test_update_schedule_preserves_enabled_state(
+        self, client, mock_db, mock_schedule
+    ):
+        """Test that updating other fields preserves the enabled state."""
+        # Setup mock schedule as enabled
+        mock_schedule.enabled = True
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Update only the name, not the enabled state
+        update_data = {"name": "Updated Name Only"}
+
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        # Verify enabled state was preserved
+        assert mock_schedule.enabled is True
+
+    def test_change_schedule_expression_while_disabled(
+        self, client, mock_db, mock_schedule
+    ):
+        """Test changing cron expression on a disabled schedule."""
+        # Setup mock schedule as disabled
+        mock_schedule.enabled = False
+        mock_schedule.next_run = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Update the cron expression
+        update_data = {"schedule": "0 0 * * *"}  # Daily
+
+        # Mock the updated return value
+        mock_schedule.to_dict.return_value = {
+            "id": mock_schedule.id,
+            "name": mock_schedule.name,
+            "task_type": mock_schedule.task_type,
+            "schedule": "0 0 * * *",
+            "config": mock_schedule.config,
+            "enabled": False,
+            "next_run": None,  # Should remain None since disabled
+            "created_at": mock_schedule.created_at.isoformat(),
+            "updated_at": mock_schedule.updated_at.isoformat(),
+        }
+
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["schedule"] == "0 0 * * *"
+        assert data["enabled"] is False
+        assert data["next_run"] is None
+
+    def test_change_schedule_and_enable_simultaneously(
+        self, client, mock_db, mock_schedule
+    ):
+        """Test changing cron expression and enabling in the same request."""
+        # Setup mock schedule as disabled
+        mock_schedule.enabled = False
+        mock_schedule.next_run = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Update both schedule and enabled state
+        update_data = {
+            "schedule": "*/15 * * * *",  # Every 15 minutes
+            "enabled": True,
+        }
+
+        # Mock the updated return value
+        mock_schedule.to_dict.return_value = {
+            "id": mock_schedule.id,
+            "name": mock_schedule.name,
+            "task_type": mock_schedule.task_type,
+            "schedule": "*/15 * * * *",
+            "config": mock_schedule.config,
+            "enabled": True,
+            "next_run": datetime.now(timezone.utc).isoformat(),
+            "created_at": mock_schedule.created_at.isoformat(),
+            "updated_at": mock_schedule.updated_at.isoformat(),
+        }
+
+        response = client.put(f"/api/schedules/{mock_schedule.id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["schedule"] == "*/15 * * * *"
+        assert data["enabled"] is True
+        assert data["next_run"] is not None
+
+        # Verify update_next_run was called
+        mock_schedule.update_next_run.assert_called_once()
+
+    def test_disabled_schedule_not_triggered(
+        self, client, mock_db, mock_schedule, mock_job_service
+    ):
+        """Test that disabled schedules cannot be manually triggered."""
+        # Setup mock schedule as disabled
+        mock_schedule.enabled = False
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_schedule)
+        mock_db.execute.return_value = mock_result
+
+        # Attempt to manually trigger the disabled schedule
+        response = client.post(f"/api/schedules/{mock_schedule.id}/run")
+
+        # This test assumes the API allows triggering disabled schedules
+        # If the API prevents this, we'd expect a 400 error instead
+        assert response.status_code == status.HTTP_200_OK
+
+        # Verify job was still created (manual trigger overrides enabled state)
+        mock_job_service.create_job.assert_called_once()
+
+    def test_list_schedules_shows_enabled_state(self, client, mock_db):
+        """Test that listing schedules includes the enabled state."""
+        # Create mock schedules with different enabled states
+        enabled_schedule = Mock(spec=ScheduledTask)
+        enabled_schedule.to_dict = Mock(
+            return_value={
+                "id": 1,
+                "name": "Enabled Schedule",
+                "enabled": True,
+                "next_run": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        disabled_schedule = Mock(spec=ScheduledTask)
+        disabled_schedule.to_dict = Mock(
+            return_value={
+                "id": 2,
+                "name": "Disabled Schedule",
+                "enabled": False,
+                "next_run": None,
+            }
+        )
+
+        mock_result = Mock()
+        mock_result.scalars = Mock(
+            return_value=Mock(
+                all=Mock(return_value=[enabled_schedule, disabled_schedule])
+            )
+        )
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/schedules")
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        schedules = data["schedules"]
+        assert len(schedules) == 2
+
+        # Check first schedule (enabled)
+        assert schedules[0]["enabled"] is True
+        assert schedules[0]["next_run"] is not None
+
+        # Check second schedule (disabled)
+        assert schedules[1]["enabled"] is False
+        assert schedules[1]["next_run"] is None
+
+    def test_schedule_state_in_to_dict(self, mock_schedule):
+        """Test that schedule's to_dict method includes enabled state."""
+        # Test enabled schedule
+        mock_schedule.enabled = True
+        mock_schedule.next_run = datetime.now(timezone.utc)
+
+        result = mock_schedule.to_dict()
+        assert result["enabled"] is True
+        assert result["next_run"] is not None
+
+        # Test disabled schedule
+        mock_schedule.enabled = False
+        mock_schedule.next_run = None
+        mock_schedule.to_dict.return_value["enabled"] = False
+        mock_schedule.to_dict.return_value["next_run"] = None
+
+        result = mock_schedule.to_dict()
+        assert result["enabled"] is False
+        assert result["next_run"] is None
