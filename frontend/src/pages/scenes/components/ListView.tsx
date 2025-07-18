@@ -16,6 +16,8 @@ import {
   ExperimentOutlined,
   CheckCircleOutlined,
   InfoCircleOutlined,
+  ClockCircleOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import type {
@@ -34,6 +36,7 @@ import {
   AnalysisTypeSelector,
   AnalysisTypeOptions,
 } from '@/components/forms/AnalysisTypeSelector';
+import styles from './ListView.module.scss';
 
 const { Text } = Typography;
 
@@ -380,21 +383,160 @@ export const ListView: React.FC<ListViewProps> = ({
     [handleSortChange]
   );
 
+  // Mobile card view component
+  const MobileCardView = () => (
+    <div className={styles.mobileCards}>
+      {scenes.length > 0 && (
+        <div className={styles.mobileSelectAll}>
+          <Checkbox
+            checked={scenes.every((s) => selectedScenes.has(s.id.toString()))}
+            indeterminate={
+              scenes.some((s) => selectedScenes.has(s.id.toString())) &&
+              !scenes.every((s) => selectedScenes.has(s.id.toString()))
+            }
+            onChange={(e: CheckboxChangeEvent) => {
+              if (e.target.checked) {
+                selectAllScenes(scenes.map((s) => s.id.toString()));
+              } else {
+                clearSelection();
+              }
+            }}
+          >
+            Select All ({scenes.length} scenes)
+          </Checkbox>
+        </div>
+      )}
+      {scenes.map((scene) => (
+        <div
+          key={scene.id}
+          className={`${styles.mobileCard} ${selectedScenes.has(scene.id.toString()) ? styles.selected : ''}`}
+          onClick={() => onSceneSelect(scene)}
+        >
+          <div className={styles.cardHeader}>
+            <Checkbox
+              className={styles.cardCheckbox}
+              checked={selectedScenes.has(scene.id.toString())}
+              onClick={(e: MouseEvent) => e.stopPropagation()}
+              onChange={() => toggleSceneSelection(scene.id.toString())}
+            />
+            <div className={styles.cardThumbnail}>
+              <SceneThumbnail
+                sceneId={scene.id}
+                title={scene.title || 'Scene thumbnail'}
+                width={80}
+                height={48}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+            <div className={styles.cardTitle}>
+              <h4 className={styles.title}>{scene.title || 'Untitled'}</h4>
+              {scene.path && <div className={styles.path}>{scene.path}</div>}
+            </div>
+          </div>
+
+          <div className={styles.cardMeta}>
+            {scene.stash_date && (
+              <div className={styles.metaItem}>
+                <CalendarOutlined />
+                <span>{dayjs(scene.stash_date).format('YYYY-MM-DD')}</span>
+              </div>
+            )}
+            {scene.duration && (
+              <div className={styles.metaItem}>
+                <ClockCircleOutlined />
+                <span>{formatDuration(scene.duration)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.cardTags}>
+            {scene.studio && <Tag color="blue">{scene.studio.name}</Tag>}
+            {scene.performers?.slice(0, 2).map((performer) => (
+              <Tag key={performer.id} color="pink">
+                {performer.name}
+              </Tag>
+            ))}
+            {scene.performers && scene.performers.length > 2 && (
+              <Tag>+{scene.performers.length - 2}</Tag>
+            )}
+            {scene.tags?.slice(0, 2).map((tag) => (
+              <Tag key={tag.id} color="green">
+                {tag.name}
+              </Tag>
+            ))}
+            {scene.tags && scene.tags.length > 2 && (
+              <Tag>+{scene.tags.length - 2}</Tag>
+            )}
+          </div>
+
+          <div className={styles.cardFooter}>
+            <div className={styles.cardStatus}>
+              {scene.analyzed && (
+                <Tooltip title="Analyzed">
+                  <CheckCircleOutlined
+                    style={{ color: '#52c41a', fontSize: 16 }}
+                  />
+                </Tooltip>
+              )}
+              {scene.details && (
+                <Tooltip title="Has details">
+                  <InfoCircleOutlined
+                    style={{ color: '#1890ff', fontSize: 16 }}
+                  />
+                </Tooltip>
+              )}
+            </div>
+            <div className={styles.cardActions}>
+              <Button
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={(e: MouseEvent<HTMLElement>) => {
+                  e.stopPropagation();
+                  onSceneSelect(scene);
+                }}
+              >
+                View
+              </Button>
+              <Button
+                size="small"
+                icon={<ExperimentOutlined />}
+                onClick={(e: MouseEvent<HTMLElement>) => {
+                  e.stopPropagation();
+                  handleAnalyze(scene);
+                }}
+                loading={analyzeMutation.isLoading}
+              >
+                Analyze
+              </Button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <Table
-      columns={columns}
-      dataSource={scenes}
-      rowKey="id"
-      pagination={false}
-      onChange={handleTableChange}
-      scroll={{ x: 1200 }}
-      onRow={(record: Scene) => ({
-        onClick: () => onSceneSelect(record),
-        style: { cursor: 'pointer' },
-      })}
-      rowClassName={(record: Scene) =>
-        selectedScenes.has(record.id.toString()) ? 'ant-table-row-selected' : ''
-      }
-    />
+    <div className={styles.listView}>
+      <div className={styles.desktopTable}>
+        <Table
+          columns={columns}
+          dataSource={scenes}
+          rowKey="id"
+          pagination={false}
+          onChange={handleTableChange}
+          scroll={{ x: 1200 }}
+          onRow={(record: Scene) => ({
+            onClick: () => onSceneSelect(record),
+            style: { cursor: 'pointer' },
+          })}
+          rowClassName={(record: Scene) =>
+            selectedScenes.has(record.id.toString())
+              ? 'ant-table-row-selected'
+              : ''
+          }
+        />
+      </div>
+      <MobileCardView />
+    </div>
   );
 };
