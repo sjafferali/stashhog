@@ -200,8 +200,8 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
         "audio_codec": file_info.get("audio_codec"),
         "width": file_info.get("width", 0),
         "height": file_info.get("height", 0),
-        "framerate": file_info.get("framerate", 0),
-        "bitrate": file_info.get("bitrate", 0),
+        "framerate": file_info.get("frame_rate", 0),
+        "bitrate": file_info.get("bit_rate", 0),
     }
 
 
