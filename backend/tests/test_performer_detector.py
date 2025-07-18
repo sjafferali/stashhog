@@ -450,6 +450,322 @@ class TestBatchDetection:
         john_count = sum(1 for name in unique_names if name == "John Doe")
         assert john_count <= 1
 
+    @pytest.mark.asyncio
+    async def test_batch_detection_complex_scenarios(self):
+        """Test batch detection with complex multi-performer scenarios."""
+        detector = PerformerDetector()
+        known_performers = [
+            {"name": "Alexander Smith", "aliases": ["Alex Smith", "A Smith"]},
+            {
+                "name": "Robert Johnson",
+                "aliases": ["Bob Johnson", "R Johnson", "Bobby J"],
+            },
+            {
+                "name": "Christopher Williams",
+                "aliases": ["Chris Williams", "C Williams"],
+            },
+            {"name": "Matthew Brown", "aliases": ["Matt Brown", "M Brown"]},
+            {"name": "Daniel Garcia", "aliases": ["Dan Garcia", "D Garcia", "Danny G"]},
+        ]
+
+        # Test various complex scenarios
+        test_cases = [
+            # Multiple performers with aliases
+            {
+                "path": "/videos/Alex Smith, Bob Johnson and Chris Williams.mp4",
+                "expected": [
+                    "Alexander Smith",
+                    "Robert Johnson",
+                    "Christopher Williams",
+                ],
+                "min_count": 3,
+            },
+            # Mixed names and aliases
+            {
+                "path": "/videos/Matt Brown and Dan Garcia - Ultimate Scene.mp4",
+                "expected": ["Matthew Brown", "Daniel Garcia"],
+                "min_count": 2,
+            },
+            # Complex separator mix
+            {
+                "path": "/videos/A Smith & R Johnson feat C Williams.mp4",
+                "expected": [
+                    "Alexander Smith",
+                    "Robert Johnson",
+                    "Christopher Williams",
+                ],
+                "min_count": 3,
+            },
+            # Directory structure with multiple performers
+            {
+                "path": "/studio/Alex Smith/Bob Johnson and Matt Brown scene.mp4",
+                "expected": ["Alexander Smith", "Robert Johnson", "Matthew Brown"],
+                "min_count": 3,
+            },
+            # Title override with many performers
+            {
+                "path": "/videos/scene123.mp4",
+                "title": "Alex Smith, Bob Johnson, Chris Williams, Matt Brown and Dan Garcia",
+                "expected": [
+                    "Alexander Smith",
+                    "Robert Johnson",
+                    "Christopher Williams",
+                    "Matthew Brown",
+                    "Daniel Garcia",
+                ],
+                "min_count": 5,
+            },
+        ]
+
+        for test_case in test_cases:
+            path = test_case["path"]
+            title = test_case.get("title")
+            expected = test_case["expected"]
+            min_count = test_case["min_count"]
+
+            results = await detector.detect_from_path(
+                path, known_performers, title=title
+            )
+
+            # Get matched performers (exclude unmatched)
+            matched_performers = [
+                r for r in results if not r.metadata.get("unmatched", False)
+            ]
+
+            # Check we found at least the minimum expected
+            assert len(matched_performers) >= min_count, (
+                f"Expected at least {min_count} performers for {path}, "
+                f"but found {len(matched_performers)}"
+            )
+
+            # Check that we found some of the expected performers
+            found_names = set(r.value for r in matched_performers)
+            expected_set = set(expected)
+            overlap = found_names.intersection(expected_set)
+            assert len(overlap) >= min(
+                2, len(expected)
+            ), f"Expected to find at least 2 of {expected} in {found_names} for {path}"
+
+    @pytest.mark.asyncio
+    async def test_batch_detection_performance(self):
+        """Test batch detection with large number of known performers."""
+        detector = PerformerDetector()
+
+        # Create a large list of known performers
+        known_performers = []
+        for i in range(100):
+            known_performers.append(
+                {"name": f"Performer {i:03d}", "aliases": [f"P{i:03d}", f"Perf{i:03d}"]}
+            )
+
+        # Add some specific ones we'll look for
+        known_performers.extend(
+            [
+                {"name": "Special Star", "aliases": ["SS", "Star"]},
+                {"name": "Featured Actor", "aliases": ["FA", "Featured"]},
+            ]
+        )
+
+        # Test with a path containing multiple performers
+        results = await detector.detect_from_path(
+            "/videos/Special Star and Featured Actor scene.mp4", known_performers
+        )
+
+        # Should efficiently find the correct performers
+        matched_performers = [
+            r for r in results if not r.metadata.get("unmatched", False)
+        ]
+
+        found_names = set(r.value for r in matched_performers)
+        assert "Special Star" in found_names
+        assert "Featured Actor" in found_names
+
+        # Test that it can handle many performers efficiently
+        assert len(matched_performers) >= 2
+
+        # Should not have excessive duplicates or false matches
+        assert len(matched_performers) <= 10  # Reasonable upper bound
+
+    @pytest.mark.asyncio
+    async def test_batch_detection_with_confidence_filtering(self):
+        """Test batch detection with confidence score filtering."""
+        detector = PerformerDetector()
+        known_performers = [
+            {"name": "Michael Anderson", "aliases": ["Mike A"]},
+            {"name": "Michelle Anderson", "aliases": []},
+            {"name": "Mitchell Anderson", "aliases": []},
+        ]
+
+        results = await detector.detect_from_path(
+            "/videos/Mich Anderson scene.mp4",  # Ambiguous partial name
+            known_performers,
+        )
+
+        # Should have results at different confidence levels
+        assert len(results) > 0
+        # The ambiguous "Mich" could match multiple Andersons with varying confidence
+
+    @pytest.mark.asyncio
+    async def test_batch_detection_preserves_source_info(self):
+        """Test that batch detection preserves source information."""
+        detector = PerformerDetector()
+        known_performers = [
+            {"name": "Path Performer", "aliases": []},
+            {"name": "Title Performer", "aliases": []},
+            {"name": "Both Performer", "aliases": []},
+        ]
+
+        results = await detector.detect_from_path(
+            "/videos/Path Performer and Both Performer.mp4",
+            known_performers,
+            title="Title Performer and Both Performer scene",
+        )
+
+        # Check source attribution
+        for result in results:
+            if result.value == "Path Performer":
+                assert result.source == "path"
+            elif result.value == "Title Performer":
+                assert result.source == "title"
+            elif result.value == "Both Performer":
+                # Could be from either source
+                assert result.source in ["path", "title"]
+
+
+class TestFuzzyMatching:
+    """Test cases for fuzzy matching algorithms."""
+
+    def test_calculate_similarity_various_cases(self):
+        """Test similarity calculation with various string pairs."""
+        detector = PerformerDetector()
+
+        # Exact match
+        assert detector._calculate_similarity("john doe", "john doe") == 1.0
+
+        # Case differences
+        assert detector._calculate_similarity("John Doe", "john doe") == 1.0
+
+        # Minor typos
+        similarity = detector._calculate_similarity("john", "jon")
+        assert 0.7 < similarity < 0.9
+
+        # Additional characters
+        similarity = detector._calculate_similarity("john", "johnny")
+        assert 0.5 < similarity <= 0.8
+
+        # Completely different
+        similarity = detector._calculate_similarity("john", "mary")
+        assert similarity < 0.3
+
+        # Transposed characters
+        similarity = detector._calculate_similarity("michael", "micheal")
+        assert similarity > 0.85
+
+    def test_score_name_match_comprehensive(self):
+        """Test comprehensive name matching scoring."""
+        detector = PerformerDetector()
+
+        # Test subset matching
+        score = detector._score_name_match("John", "john", "John Doe")
+        assert score >= 0.8  # Partial is in full name
+
+        # Test first name match
+        score = detector._score_name_match("John Smith", "john smith", "John Doe")
+        assert score >= 0.7  # First names match
+
+        # Test last name match
+        score = detector._score_name_match("Jane Doe", "jane doe", "John Doe")
+        assert score >= 0.75  # Last names match
+
+        # Test both first and last name different
+        score = detector._score_name_match("Mary Jane", "mary jane", "John Doe")
+        assert score < 0.6  # Should not match
+
+    def test_find_partial_match_threshold(self):
+        """Test partial matching with similarity threshold."""
+        detector = PerformerDetector()
+        known_performers = [
+            {"name": "Christopher Williams", "aliases": []},
+            {"name": "Chris Anderson", "aliases": []},
+            {"name": "William Christopher", "aliases": []},
+        ]
+
+        # Should match "Christopher Williams" due to high similarity
+        result = detector.find_full_name("Chris Williams", known_performers)
+        assert result is not None
+        assert result[0] == "Christopher Williams"
+        assert result[1] >= 0.7
+
+        # Should not match anyone - too different
+        result = detector.find_full_name("Bob Jones", known_performers)
+        assert result is None
+
+        # Should match based on last name similarity
+        result = detector.find_full_name("John Williams", known_performers)
+        assert result is not None
+        assert "Williams" in result[0]
+
+    def test_normalize_name_suffix_removal(self):
+        """Test removal of common suffixes during normalization."""
+        detector = PerformerDetector()
+
+        # Test suffix removal
+        assert detector.normalize_name("John Doe XXX") == "John Doe"
+        assert detector.normalize_name("Jane Model") == "Jane"
+        assert (
+            detector.normalize_name("Actor Mike") == "Actor Mike"
+        )  # "Actor" at beginning
+        assert detector.normalize_name("Sarah Official") == "Sarah"
+
+        # Case insensitive suffix removal
+        assert detector.normalize_name("John OFFICIAL") == "John"
+        assert (
+            detector.normalize_name("jane xxx") == "Jane"
+        )  # Also tests title case conversion
+
+    def test_normalize_name_camelcase_splitting(self):
+        """Test CamelCase splitting in normalization."""
+        detector = PerformerDetector()
+
+        # Test CamelCase splitting
+        assert detector.normalize_name("JohnDoe", split_names=True) == "John Doe"
+        assert (
+            detector.normalize_name("MaryJaneSmith", split_names=True)
+            == "Mary Jane Smith"
+        )
+        assert (
+            detector.normalize_name("ABC", split_names=True) == "Abc"
+        )  # Converts to title case
+
+        # Should not split when not requested
+        assert detector.normalize_name("JohnDoe", split_names=False) == "JohnDoe"
+
+        # Should not split if already has spaces
+        assert detector.normalize_name("John Doe", split_names=True) == "John Doe"
+
+    @pytest.mark.asyncio
+    async def test_fuzzy_matching_in_path_detection(self):
+        """Test fuzzy matching integration in path detection."""
+        detector = PerformerDetector()
+        known_performers = [
+            {"name": "Michael Johnson", "aliases": ["Mike J", "M Johnson"]},
+            {"name": "Christopher Lee", "aliases": ["Chris Lee", "C Lee"]},
+        ]
+
+        # Test various fuzzy matches
+        test_cases = [
+            ("/videos/Mike Johnson scene.mp4", "Michael Johnson"),  # Nickname variation
+            ("/videos/M Johnson solo.mp4", "Michael Johnson"),  # Alias match
+            ("/videos/Chris Lee performance.mp4", "Christopher Lee"),  # Alias match
+            ("/videos/Michael J clips.mp4", "Michael Johnson"),  # Partial match
+        ]
+
+        for path, expected_performer in test_cases:
+            results = await detector.detect_from_path(path, known_performers)
+            matched = [r for r in results if r.value == expected_performer]
+            assert len(matched) > 0, f"Expected to find {expected_performer} for {path}"
+            assert matched[0].confidence >= 0.7  # Should have good confidence
+
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
