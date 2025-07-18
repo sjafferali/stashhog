@@ -12,7 +12,7 @@ This document tracks the progress of increasing backend test coverage, focusing 
 
 ## Current Coverage Status
 
-- **Current Coverage**: 58% (4100+/7109 lines) - Up from 57%
+- **Current Coverage**: ~60% (estimated)
 - **Target Coverage**: 80%+
 - **Last Updated**: 2025-07-18
 - **Major Improvements**: 
@@ -20,7 +20,11 @@ This document tracks the progress of increasing backend test coverage, focusing 
   - app/jobs/sync_jobs.py: 21% → 100% coverage ✅
   - app/core/migrations.py: 18% → 97% coverage ✅
   - app/repositories/sync_repository.py: 28% → 85% coverage ✅
-  - app/services/analysis/plan_manager.py: 14% → 21% coverage (in progress)
+  - app/services/analysis/plan_manager.py: 14% → 95% coverage ✅
+  - app/services/analysis/studio_detector.py: 19% → 90% coverage ✅
+  - app/services/analysis/performer_detector.py: 14% → 95% coverage ✅
+  - app/services/analysis/ai_client.py: 18% → 93% coverage ✅
+  - app/services/analysis/details_generator.py: 22% → 100% coverage ✅
 
 ## Test Execution Command
 ```bash
@@ -101,20 +105,20 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 #### Performer Detector Tests (95% coverage - app/services/analysis/performer_detector.py) ✅
 - [x] Task 39: Create test_performer_detector.py - Test performer detection logic (2025-07-18)
 - [x] Task 40: Run all backend tests and ensure they pass (2025-07-18)
-- [ ] Task 41: Add tests for performer matching algorithms and fuzzy matching
-- [ ] Task 42: Run all backend tests and ensure they pass
-- [ ] Task 43: Add tests for batch performer detection
-- [ ] Task 44: Run all backend tests and ensure they pass
+- [x] Task 41: Add tests for performer matching algorithms and fuzzy matching (2025-07-18)
+- [x] Task 42: Run all backend tests and ensure they pass (2025-07-18)
+- [x] Task 43: Add tests for batch performer detection (2025-07-18)
+- [x] Task 44: Run all backend tests and ensure they pass (2025-07-18)
 
-#### AI Client Tests (40% coverage - app/services/analysis/ai_client.py)
-- [ ] Task 45: Create test_ai_client.py - Test OpenAI client wrapper with mocks
-- [ ] Task 46: Run all backend tests and ensure they pass
-- [ ] Task 47: Add tests for retry logic and error handling in test_ai_client.py
-- [ ] Task 48: Run all backend tests and ensure they pass
+#### AI Client Tests (93% coverage - app/services/analysis/ai_client.py) ✅
+- [x] Task 45: Create test_ai_client.py - Test OpenAI client wrapper with mocks (2025-07-18)
+- [x] Task 46: Run all backend tests and ensure they pass (2025-07-18)
+- [x] Task 47: Add tests for retry logic and error handling in test_ai_client.py (2025-07-18)
+- [x] Task 48: Run all backend tests and ensure they pass (2025-07-18)
 
-#### Details Generator Tests (43% coverage - app/services/analysis/details_generator.py)
-- [ ] Task 49: Create test_details_generator.py - Test scene details generation
-- [ ] Task 50: Run all backend tests and ensure they pass
+#### Details Generator Tests (100% coverage - app/services/analysis/details_generator.py) ✅
+- [x] Task 49: Create test_details_generator.py - Test scene details generation (2025-07-18)
+- [x] Task 50: Run all backend tests and ensure they pass (2025-07-18)
 - [ ] Task 51: Add tests for prompt formatting and response parsing
 - [ ] Task 52: Run all backend tests and ensure they pass
 
@@ -208,7 +212,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 40 of 100 tasks completed (40%)
+- [x] 50 of 100 tasks completed (50%)
 - [ ] Coverage target of 80% achieved (currently at ~60%)
 - [x] All completed tests passing consistently
 - [ ] CI/CD pipeline updated with new tests
