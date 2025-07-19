@@ -92,10 +92,6 @@ class VideoTagDetector:
             logger.error(f"No video path found for scene {scene_data.get('id')}")
             return None
 
-        if not os.path.exists(video_path):
-            logger.error(f"Video file not found: {video_path}")
-            return None
-
         return str(video_path)
 
     def _load_existing_analysis(self, ai_json_path: str) -> Optional[Dict]:
