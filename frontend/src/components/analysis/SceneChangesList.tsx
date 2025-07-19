@@ -22,8 +22,10 @@ import {
   DownOutlined,
   UpOutlined,
 } from '@ant-design/icons';
+import { useQuery } from 'react-query';
+import apiClient from '@/services/apiClient';
 import { ProposedChange } from './ChangePreview';
-import { Scene } from '@/types/models';
+import { Scene, Tag as TagType } from '@/types/models';
 import styles from './SceneChangesList.module.scss';
 
 const { Panel } = Collapse;
@@ -85,6 +87,22 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   );
   const [expandedArrays, setExpandedArrays] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(expandedByDefault);
+
+  // Fetch all tags to map IDs to names
+  const { data: tagsData } = useQuery('all-tags', () =>
+    apiClient.getTags({ per_page: 1000 })
+  );
+
+  // Create a map of tag IDs to names
+  const tagIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (tagsData?.items) {
+      tagsData.items.forEach((tag: TagType) => {
+        map.set(tag.id.toString(), tag.name);
+      });
+    }
+    return map;
+  }, [tagsData]);
 
   const handleExpandAll = () => {
     if (expandAll) {
@@ -250,7 +268,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       | null
       | undefined,
     type: string,
-    fieldKey: string
+    fieldKey: string,
+    fieldName?: string
   ) => {
     if (value === null || value === undefined) {
       return 'None';
@@ -262,9 +281,18 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       const isExpanded = expandedArrays.has(fieldKey);
       const displayItems = isExpanded ? value : value.slice(0, 3);
 
+      // If this is a tags field, map IDs to names
+      let mappedItems = displayItems;
+      if (fieldName === 'tags' && tagIdToName.size > 0) {
+        mappedItems = displayItems.map((item) => {
+          const name = tagIdToName.get(item.toString());
+          return name || item; // Fall back to ID if name not found
+        });
+      }
+
       return (
         <div>
-          <span>{displayItems.join(', ')}</span>
+          <span>{mappedItems.join(', ')}</span>
           {value.length > 3 && (
             <Button
               type="link"
@@ -371,7 +399,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                         {renderValue(
                           change.currentValue,
                           change.type,
-                          `${change.id}-current`
+                          `${change.id}-current`,
+                          change.field
                         )}
                       </div>
                     </div>
@@ -387,7 +416,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                         {renderValue(
                           change.proposedValue,
                           change.type,
-                          `${change.id}-proposed`
+                          `${change.id}-proposed`,
+                          change.field
                         )}
                       </div>
                     </div>
@@ -402,7 +432,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                         {renderValue(
                           change.currentValue,
                           change.type,
-                          `${change.id}-current`
+                          `${change.id}-current`,
+                          change.field
                         )}
                       </div>
                     </div>
@@ -415,7 +446,8 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                         {renderValue(
                           change.proposedValue,
                           change.type,
-                          `${change.id}-proposed`
+                          `${change.id}-proposed`,
+                          change.field
                         )}
                       </div>
                     </div>

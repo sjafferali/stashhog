@@ -226,3 +226,23 @@
     }
   }
 }
+
+// Actions dropdown styling
+.desktopTable {
+  :global {
+    // Ensure dropdown button doesn't get cut off
+    .ant-dropdown-trigger {
+      &.ant-btn-sm {
+        padding: 4px 8px;
+        min-width: auto;
+      }
+    }
+    
+    // Style the action column to prevent overflow
+    .ant-table-cell-fix-right {
+      &:last-child {
+        text-align: center;
+      }
+    }
+  }
+}

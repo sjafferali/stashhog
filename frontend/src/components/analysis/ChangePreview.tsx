@@ -19,6 +19,9 @@ import {
   DiffOutlined,
   LinkOutlined,
 } from '@ant-design/icons';
+import { useQuery } from 'react-query';
+import apiClient from '@/services/apiClient';
+import { Tag as TagType } from '@/types/models';
 import { DiffViewer } from './DiffViewer';
 import styles from './ChangePreview.module.scss';
 import dayjs from 'dayjs';
@@ -82,6 +85,22 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
   const [editValue, setEditValue] = useState(change.proposedValue);
   const [showDiffModal, setShowDiffModal] = useState(false);
 
+  // Fetch all tags to map IDs to names
+  const { data: tagsData } = useQuery('all-tags', () =>
+    apiClient.getTags({ per_page: 1000 })
+  );
+
+  // Create a map of tag IDs to names
+  const tagIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (tagsData?.items) {
+      tagsData.items.forEach((tag: TagType) => {
+        map.set(tag.id.toString(), tag.name);
+      });
+    }
+    return map;
+  }, [tagsData]);
+
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.8) return 'green';
     if (confidence >= 0.6) return 'orange';
@@ -122,9 +141,14 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
       case 'array':
         return (
           <Space size={4} wrap>
-            {(value as string[]).map((item: string, index: number) => (
-              <Tag key={index}>{item}</Tag>
-            ))}
+            {(value as string[]).map((item: string, index: number) => {
+              // If this is a tags field and we have the mapping, use tag names
+              let displayValue = item;
+              if (change.field === 'tags' && tagIdToName.size > 0) {
+                displayValue = tagIdToName.get(item.toString()) || item;
+              }
+              return <Tag key={index}>{displayValue}</Tag>;
+            })}
           </Space>
         );
 
@@ -153,6 +177,31 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
         );
 
       case 'array':
+        // If this is a tags field, create options with tag names
+        if (change.field === 'tags' && tagIdToName.size > 0) {
+          const tagOptions = Array.from(tagIdToName.entries()).map(
+            ([id, name]) => ({
+              value: id,
+              label: name,
+            })
+          );
+          return (
+            <Select
+              mode="multiple"
+              value={editValue}
+              onChange={setEditValue}
+              style={{ width: '100%' }}
+              options={tagOptions}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            />
+          );
+        }
+        // For other array fields, use the default tags mode
         return (
           <Select
             mode="tags"

@@ -9,6 +9,8 @@ import {
   Tooltip,
   Modal,
   message,
+  Dropdown,
+  Menu,
 } from 'antd';
 import type { CheckboxChangeEvent } from '@/types/antd-proper';
 import {
@@ -18,6 +20,7 @@ import {
   InfoCircleOutlined,
   ClockCircleOutlined,
   CalendarOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import type {
@@ -317,33 +320,45 @@ export const ListView: React.FC<ListViewProps> = ({
       {
         title: 'Actions',
         key: 'actions',
-        width: 120,
+        width: 80,
         fixed: 'right',
-        render: (_: unknown, record: Scene) => (
-          <Space>
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={(e: MouseEvent<HTMLElement>) => {
-                e.stopPropagation();
-                onSceneSelect(record);
+        render: (_: unknown, record: Scene) => {
+          const menu = (
+            <Menu
+              onClick={(e: { domEvent: MouseEvent }) => {
+                e.domEvent.stopPropagation();
               }}
             >
-              View
-            </Button>
-            <Button
-              size="small"
-              icon={<ExperimentOutlined />}
-              onClick={(e: MouseEvent<HTMLElement>) => {
-                e.stopPropagation();
-                handleAnalyze(record);
-              }}
-              loading={analyzeMutation.isLoading}
-            >
-              Analyze
-            </Button>
-          </Space>
-        ),
+              <Menu.Item
+                key="view"
+                icon={<EyeOutlined />}
+                onClick={() => onSceneSelect(record)}
+              >
+                View Details
+              </Menu.Item>
+              <Menu.Item
+                key="analyze"
+                icon={<ExperimentOutlined />}
+                onClick={() => handleAnalyze(record)}
+                disabled={analyzeMutation.isLoading}
+              >
+                Analyze Scene
+              </Menu.Item>
+            </Menu>
+          );
+
+          return (
+            <Dropdown overlay={menu} trigger={['click']}>
+              <Button
+                size="small"
+                icon={<MoreOutlined />}
+                onClick={(e: MouseEvent<HTMLElement>) => {
+                  e.stopPropagation();
+                }}
+              />
+            </Dropdown>
+          );
+        },
       },
     ],
     [
@@ -478,17 +493,33 @@ export const ListView: React.FC<ListViewProps> = ({
               >
                 View
               </Button>
-              <Button
-                size="small"
-                icon={<ExperimentOutlined />}
-                onClick={(e: MouseEvent<HTMLElement>) => {
-                  e.stopPropagation();
-                  handleAnalyze(scene);
-                }}
-                loading={analyzeMutation.isLoading}
+              <Dropdown
+                overlay={
+                  <Menu
+                    onClick={(e: { domEvent: MouseEvent }) => {
+                      e.domEvent.stopPropagation();
+                    }}
+                  >
+                    <Menu.Item
+                      key="analyze"
+                      icon={<ExperimentOutlined />}
+                      onClick={() => handleAnalyze(scene)}
+                      disabled={analyzeMutation.isLoading}
+                    >
+                      Analyze Scene
+                    </Menu.Item>
+                  </Menu>
+                }
+                trigger={['click']}
               >
-                Analyze
-              </Button>
+                <Button
+                  size="small"
+                  icon={<MoreOutlined />}
+                  onClick={(e: MouseEvent<HTMLElement>) => {
+                    e.stopPropagation();
+                  }}
+                />
+              </Dropdown>
             </div>
           </div>
         </div>
@@ -505,7 +536,7 @@ export const ListView: React.FC<ListViewProps> = ({
           rowKey="id"
           pagination={false}
           onChange={handleTableChange}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1300 }}
           onRow={(record: Scene) => ({
             onClick: () => onSceneSelect(record),
             style: { cursor: 'pointer' },

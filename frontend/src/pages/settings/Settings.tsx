@@ -121,6 +121,7 @@ const Settings: React.FC = () => {
         }
       });
 
+      console.log('Saving settings with values:', updates);
       const response = await api.put('/settings', updates);
 
       if (response.data.requires_restart) {
@@ -133,6 +134,25 @@ const Settings: React.FC = () => {
 
       // Reload settings in the store
       await loadSettings();
+
+      // Refetch settings to ensure form is updated
+      const updatedResponse = await api.get('/settings');
+      const updatedSettingsArray = updatedResponse.data;
+      const updatedSettingsMap: Record<string, string | number | boolean> = {};
+
+      updatedSettingsArray.forEach((setting: SettingItem) => {
+        const key = setting.key.replace(/\./g, '_');
+        if (setting.source === 'database' && setting.value !== '********') {
+          updatedSettingsMap[key] = setting.value;
+        } else if (
+          setting.key === 'openai_model' &&
+          setting.source === 'environment'
+        ) {
+          updatedSettingsMap[key] = setting.value;
+        }
+      });
+
+      form.setFieldsValue(updatedSettingsMap);
     } catch (error) {
       console.error('Failed to save settings:', error);
       void message.error('Failed to save settings');
@@ -402,28 +422,25 @@ const Settings: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="video_ai_create_markers"
-            valuePropName="checked"
+            label="Create Scene Markers"
             tooltip="Create scene markers from video AI detections"
           >
-            <Space>
-              <span>Create Scene Markers</span>
+            <Form.Item
+              name="video_ai_create_markers"
+              noStyle
+              getValueFromEvent={(value: string) => value === 'Yes'}
+              getValueProps={(value: boolean) => ({
+                value: value ? 'Yes' : 'No',
+              })}
+            >
               <Select
                 style={{ width: 120 }}
-                value={
-                  form.getFieldValue('video_ai_create_markers') ? 'Yes' : 'No'
-                }
-                onChange={(value) =>
-                  form.setFieldsValue({
-                    video_ai_create_markers: value === 'Yes',
-                  })
-                }
                 options={[
                   { value: 'Yes', label: 'Yes' },
                   { value: 'No', label: 'No' },
                 ]}
               />
-            </Space>
+            </Form.Item>
           </Form.Item>
 
           <Form.Item>

@@ -8,6 +8,9 @@ import React, {
 } from 'react';
 import { Input, Select, DatePicker, Tag, Space, Button } from 'antd';
 import { CheckOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { useQuery } from 'react-query';
+import apiClient from '@/services/apiClient';
+import { Tag as TagType } from '@/types/models';
 import moment from 'moment';
 import './InlineEditor.scss';
 
@@ -20,6 +23,7 @@ export interface InlineEditorProps {
   onCancel: () => void;
   placeholder?: string;
   options?: Array<{ label: string; value: string | number }>;
+  fieldName?: string;
   validator?: (
     value: string | number | boolean | string[] | Date | null
   ) => boolean | string;
@@ -32,8 +36,28 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
   onCancel,
   placeholder,
   options,
+  fieldName,
   validator,
 }) => {
+  // Fetch all tags to map IDs to names if needed
+  const { data: tagsData } = useQuery(
+    'all-tags',
+    () => apiClient.getTags({ per_page: 1000 }),
+    {
+      enabled: fieldName === 'tags' && type === 'array',
+    }
+  );
+
+  // Create a map of tag IDs to names
+  const tagIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (tagsData?.items) {
+      tagsData.items.forEach((tag: TagType) => {
+        map.set(tag.id.toString(), tag.name);
+      });
+    }
+    return map;
+  }, [tagsData]);
   const [editValue, setEditValue] = useState<
     string | number | boolean | string[] | Date | null
   >(value);
@@ -83,19 +107,26 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
       <div className="inline-editor array-editor">
         <Space direction="vertical" style={{ width: '100%' }}>
           <div className="array-items">
-            {items.map((item, index) => (
-              <Tag
-                key={index}
-                closable
-                onClose={(_e?: MouseEvent<HTMLElement>) => {
-                  const newItems = [...items];
-                  newItems.splice(index, 1);
-                  setEditValue(newItems);
-                }}
-              >
-                {item}
-              </Tag>
-            ))}
+            {items.map((item, index) => {
+              // If this is a tags field and we have the mapping, use tag names
+              let displayValue = item;
+              if (fieldName === 'tags' && tagIdToName.size > 0) {
+                displayValue = tagIdToName.get(item.toString()) || item;
+              }
+              return (
+                <Tag
+                  key={index}
+                  closable
+                  onClose={(_e?: MouseEvent<HTMLElement>) => {
+                    const newItems = [...items];
+                    newItems.splice(index, 1);
+                    setEditValue(newItems);
+                  }}
+                >
+                  {displayValue}
+                </Tag>
+              );
+            })}
           </div>
 
           <Space.Compact style={{ width: '100%' }}>
