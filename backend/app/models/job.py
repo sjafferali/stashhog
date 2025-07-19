@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import JSON, Column, DateTime, Enum, Index, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import ENUM as PostgreSQLEnum
 
 from app.models.base import BaseModel
 
@@ -53,9 +54,47 @@ class Job(BaseModel):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
 
     # Job information
-    type: Column = Column(Enum(JobType), nullable=False, index=True)
+    # Create PostgreSQL enum that includes all existing database values
+    # This ensures SQLAlchemy recognizes all values in the database
+    type: Column = Column(
+        PostgreSQLEnum(
+            # Include all lowercase values from Python enum
+            *[e.value for e in JobType],
+            # Also include uppercase values that exist in database
+            "SYNC",
+            "SYNC_ALL",
+            "SYNC_SCENES",
+            "SYNC_PERFORMERS",
+            "SYNC_TAGS",
+            "SYNC_STUDIOS",
+            "ANALYSIS",
+            "APPLY_PLAN",
+            "GENERATE_DETAILS",
+            "EXPORT",
+            "IMPORT",
+            "CLEANUP",
+            name="jobtype",
+            create_type=False,  # Don't try to create the type, it already exists
+        ),
+        nullable=False,
+        index=True,
+    )
     status: Column = Column(
-        Enum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True
+        PostgreSQLEnum(
+            # Include all values from Python enum
+            *[e.value for e in JobStatus],
+            # Also include uppercase values if they exist
+            "PENDING",
+            "RUNNING",
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED",
+            name="jobstatus",
+            create_type=False,  # Don't try to create the type, it already exists
+        ),
+        nullable=False,
+        default=JobStatus.PENDING,
+        index=True,
     )
 
     # Progress tracking
