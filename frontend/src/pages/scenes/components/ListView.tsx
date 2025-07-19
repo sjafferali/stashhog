@@ -70,7 +70,6 @@ export const ListView: React.FC<ListViewProps> = ({
     detectTags: true,
     detectDetails: false,
     detectVideoTags: false,
-    useAi: true,
   });
   const {
     selectedScenes,
@@ -100,7 +99,6 @@ export const ListView: React.FC<ListViewProps> = ({
           detect_studios: options.detectStudios,
           detect_tags: options.detectTags,
           detect_details: options.detectDetails,
-          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });

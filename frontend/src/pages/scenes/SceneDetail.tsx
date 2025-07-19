@@ -50,7 +50,6 @@ const SceneDetail: React.FC = () => {
     detectTags: true,
     detectDetails: false,
     detectVideoTags: false,
-    useAi: true,
   });
 
   // Fetch scene data
@@ -111,7 +110,6 @@ const SceneDetail: React.FC = () => {
           detect_studios: options.detectStudios,
           detect_tags: options.detectTags,
           detect_details: options.detectDetails,
-          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });

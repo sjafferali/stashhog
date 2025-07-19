@@ -16,7 +16,6 @@ class AnalysisOptions:
     detect_tags: bool = False
     detect_details: bool = False
     detect_video_tags: bool = False
-    use_ai: bool = True
     confidence_threshold: float = 0.7
     batch_size: int = 15
 

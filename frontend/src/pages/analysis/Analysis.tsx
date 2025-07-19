@@ -23,7 +23,6 @@ const Analysis: React.FC = () => {
     detectTags: true,
     detectDetails: false,
     detectVideoTags: false,
-    useAi: true,
   });
 
   // Fetch analysis statistics
@@ -44,7 +43,6 @@ const Analysis: React.FC = () => {
           detect_studios: options.detectStudios,
           detect_tags: options.detectTags,
           detect_details: options.detectDetails,
-          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });

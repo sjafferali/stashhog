@@ -164,7 +164,7 @@ async def generate_analysis(
             detect_studios=request.options.detect_studios,
             detect_tags=request.options.detect_tags,
             detect_details=request.options.detect_details,
-            use_ai=request.options.use_ai,
+            detect_video_tags=request.options.detect_video_tags,
             confidence_threshold=request.options.confidence_threshold,
         )
         plan = await analysis_service.analyze_scenes(

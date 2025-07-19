@@ -90,7 +90,7 @@ def _get_base_settings_dict(base_settings: Settings) -> dict[str, dict[str, Any]
 
 
 def _apply_setting_override(
-    settings_dict: dict[str, dict[str, Any]], key: str, value: Optional[str]
+    settings_dict: dict[str, dict[str, Any]], key: str, value: Any
 ) -> None:
     """Apply a single setting override to the settings dictionary."""
     if value is None:
@@ -114,7 +114,20 @@ def _apply_setting_override(
     if key in mapping:
         section, field, transform = mapping[key]
         try:
-            settings_dict[section][field] = transform(value)
+            # Handle boolean conversion specially
+            if transform == bool:
+                if isinstance(value, bool):
+                    settings_dict[section][field] = value
+                elif isinstance(value, str):
+                    settings_dict[section][field] = value.lower() in (
+                        "true",
+                        "1",
+                        "yes",
+                    )
+                else:
+                    settings_dict[section][field] = bool(value)
+            else:
+                settings_dict[section][field] = transform(value)
         except (ValueError, TypeError):
             pass  # Ignore conversion errors
 
@@ -145,7 +158,11 @@ async def get_settings_with_overrides(
 
     # Apply database overrides
     for setting in db_settings:
-        _apply_setting_override(settings_dict, setting.key, setting.value)  # type: ignore[arg-type]
+        # Type assertion: setting.value is the actual JSON value, not the Column descriptor
+        value: Any = setting.value
+        # Type assertion: setting.key is the actual string value, not the Column descriptor
+        key: str = setting.key  # type: ignore[assignment]
+        _apply_setting_override(settings_dict, key, value)
 
     # Create new settings instance with overrides
     from app.core.config import AnalysisSettings, OpenAISettings, StashSettings

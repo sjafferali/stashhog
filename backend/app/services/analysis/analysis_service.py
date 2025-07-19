@@ -29,7 +29,6 @@ from .performer_detector import PerformerDetector
 from .plan_manager import PlanManager
 from .studio_detector import StudioDetector
 from .tag_detector import TagDetector
-from .title_generator import TitleGenerator
 from .video_tag_detector import VideoTagDetector
 
 logger = logging.getLogger(__name__)
@@ -63,7 +62,6 @@ class AnalysisService:
         self.performer_detector = PerformerDetector()
         self.tag_detector = TagDetector()
         self.details_generator = DetailsGenerator()
-        self.title_generator = TitleGenerator(ai_client=self.ai_client)
         self.video_tag_detector = VideoTagDetector(settings=settings)
 
         # Initialize managers
@@ -314,7 +312,7 @@ class AnalysisService:
         if current_studio:
             return changes
 
-        # Detect studio
+        # First try local detection
         result = await self.studio_detector.detect(
             scene_data=scene_data,
             known_studios=(
@@ -322,9 +320,22 @@ class AnalysisService:
                 if isinstance(self._cache["studios"], list)
                 else []
             ),
-            ai_client=self.ai_client if options.use_ai else None,
-            use_ai=options.use_ai,
+            ai_client=None,
+            use_ai=False,
         )
+
+        # If no local detection, try AI
+        if not result or result.confidence < options.confidence_threshold:
+            result = await self.studio_detector.detect(
+                scene_data=scene_data,
+                known_studios=(
+                    self._cache["studios"]
+                    if isinstance(self._cache["studios"], list)
+                    else []
+                ),
+                ai_client=self.ai_client,
+                use_ai=True,
+            )
 
         if result and result.confidence >= options.confidence_threshold:
             changes.append(
@@ -369,32 +380,31 @@ class AnalysisService:
             title=scene_data.get("title", ""),
         )
 
-        # Detect with AI if enabled
+        # Always detect with AI for performers
         ai_results: List[Any] = []
-        if options.use_ai:
-            # Use tracked version if cost tracker is available
-            if hasattr(self, "cost_tracker"):
-                ai_results, cost_info = (
-                    await self.performer_detector.detect_with_ai_tracked(
-                        scene_data=scene_data,
-                        ai_client=self.ai_client,
-                        known_performers=self._cache["performers"],
-                    )
-                )
-                if cost_info:
-                    self.cost_tracker.track_operation(
-                        "performer_detection",
-                        cost_info["cost"],
-                        cost_info["usage"]["prompt_tokens"],
-                        cost_info["usage"]["completion_tokens"],
-                        cost_info["model"],
-                    )
-            else:
-                ai_results = await self.performer_detector.detect_with_ai(
+        # Use tracked version if cost tracker is available
+        if hasattr(self, "cost_tracker"):
+            ai_results, cost_info = (
+                await self.performer_detector.detect_with_ai_tracked(
                     scene_data=scene_data,
                     ai_client=self.ai_client,
                     known_performers=self._cache["performers"],
                 )
+            )
+            if cost_info:
+                self.cost_tracker.track_operation(
+                    "performer_detection",
+                    cost_info["cost"],
+                    cost_info["usage"]["prompt_tokens"],
+                    cost_info["usage"]["completion_tokens"],
+                    cost_info["model"],
+                )
+        else:
+            ai_results = await self.performer_detector.detect_with_ai(
+                scene_data=scene_data,
+                ai_client=self.ai_client,
+                known_performers=self._cache["performers"],
+            )
 
         # Combine and deduplicate results
         all_results: dict[str, Any] = {}
@@ -446,32 +456,31 @@ class AnalysisService:
             scene_data=scene_data, existing_tags=current_names
         )
 
-        # Detect with AI if enabled
+        # Always detect with AI for tags
         ai_results: List[Any] = []
-        if options.use_ai:
-            # Use tracked version if cost tracker is available
-            if hasattr(self, "cost_tracker"):
-                ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
-                    scene_data=scene_data,
-                    ai_client=self.ai_client,
-                    existing_tags=current_names,
-                    available_tags=self._cache["tags"],
+        # Use tracked version if cost tracker is available
+        if hasattr(self, "cost_tracker"):
+            ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
+                scene_data=scene_data,
+                ai_client=self.ai_client,
+                existing_tags=current_names,
+                available_tags=self._cache["tags"],
+            )
+            if cost_info:
+                self.cost_tracker.track_operation(
+                    "tag_detection",
+                    cost_info["cost"],
+                    cost_info["usage"]["prompt_tokens"],
+                    cost_info["usage"]["completion_tokens"],
+                    cost_info["model"],
                 )
-                if cost_info:
-                    self.cost_tracker.track_operation(
-                        "tag_detection",
-                        cost_info["cost"],
-                        cost_info["usage"]["prompt_tokens"],
-                        cost_info["usage"]["completion_tokens"],
-                        cost_info["model"],
-                    )
-            else:
-                ai_results = await self.tag_detector.detect_with_ai(
-                    scene_data=scene_data,
-                    ai_client=self.ai_client,
-                    existing_tags=current_names,
-                    available_tags=self._cache["tags"],
-                )
+        else:
+            ai_results = await self.tag_detector.detect_with_ai(
+                scene_data=scene_data,
+                ai_client=self.ai_client,
+                existing_tags=current_names,
+                available_tags=self._cache["tags"],
+            )
 
         # Combine results and filter to only existing tags
         all_results: dict[str, Any] = {}
@@ -516,7 +525,7 @@ class AnalysisService:
     async def _detect_details(
         self, scene_data: dict, options: AnalysisOptions
     ) -> list[ProposedChange]:
-        """Generate improved title for scene.
+        """Clean HTML from scene details.
 
         Args:
             scene_data: Scene data
@@ -526,27 +535,26 @@ class AnalysisService:
             List of proposed changes
         """
         changes: list[ProposedChange] = []
+        current_details = scene_data.get("details", "")
 
-        # Create a Scene-like object for the title generator
-        class SceneLike:
-            def __init__(self, data: dict[str, Any]) -> None:
-                self.id = data.get("id", "")
-                self.title = data.get("title", "")
-                self.path = data.get("file_path", "")
-                self.details = data.get("details", "")
-                self.duration = data.get("duration", 0)
-                self.performers = data.get("performers", [])
-                self.tags = data.get("tags", [])
-                self.studio = data.get("studio")
+        if not current_details:
+            return changes
 
-        scene = SceneLike(scene_data)
+        # Clean HTML from details
+        cleaned_details = self.details_generator.clean_html(current_details)
 
-        # Generate title improvements
-        title_changes = await self.title_generator.generate_title(
-            scene, use_ai=options.use_ai  # type: ignore[arg-type]
-        )
-
-        changes.extend(title_changes)
+        # Only propose change if the cleaned version is different
+        if cleaned_details != current_details:
+            changes.append(
+                ProposedChange(
+                    field="details",
+                    action="set",
+                    current_value=current_details,
+                    proposed_value=cleaned_details,
+                    confidence=1.0,
+                    reason="Removed HTML tags from details",
+                )
+            )
 
         return changes
 
@@ -1260,15 +1268,14 @@ class AnalysisService:
                 "detect_performers": options.detect_performers,
                 "detect_tags": options.detect_tags,
                 "detect_details": options.detect_details,
-                "use_ai": options.use_ai,
                 "confidence_threshold": options.confidence_threshold,
             },
             "statistics": self._calculate_statistics(all_changes),
-            "ai_model": self.ai_client.model if options.use_ai else None,
+            "ai_model": self.ai_client.model,
         }
 
-        # Add cost information if AI was used
-        if options.use_ai and hasattr(self, "cost_tracker"):
+        # Add cost information if cost tracker is available
+        if hasattr(self, "cost_tracker"):
             metadata["api_usage"] = self.cost_tracker.get_summary()
 
         return metadata

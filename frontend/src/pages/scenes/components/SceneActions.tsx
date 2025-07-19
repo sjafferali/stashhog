@@ -49,7 +49,6 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     detectTags: true,
     detectDetails: false,
     detectVideoTags: false,
-    useAi: true,
   });
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [tempAnalysisOptions, setTempAnalysisOptions] =
@@ -59,7 +58,6 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       detectTags: true,
       detectDetails: false,
       detectVideoTags: false,
-      useAi: true,
     });
 
   // Fetch tags for the modal
@@ -115,7 +113,6 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
           detect_studios: options.detectStudios,
           detect_tags: options.detectTags,
           detect_details: options.detectDetails,
-          use_ai: options.useAi,
           confidence_threshold: 0.7,
         },
       });
@@ -194,25 +191,26 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const handleAnalysisModalOk = () => {
     setAnalysisOptions(tempAnalysisOptions);
 
-    // Check if only video tags is selected
-    const isVideoTagsOnly =
-      tempAnalysisOptions.detectVideoTags &&
-      !tempAnalysisOptions.detectPerformers &&
-      !tempAnalysisOptions.detectStudios &&
-      !tempAnalysisOptions.detectTags &&
-      !tempAnalysisOptions.detectDetails;
-
-    if (isVideoTagsOnly) {
+    // If video tags is selected, handle it separately
+    if (tempAnalysisOptions.detectVideoTags) {
       // Use video tags endpoint for immediate application
       videoTagsMutation.mutate({
         sceneIds: Array.from(selectedScenes),
-        options: tempAnalysisOptions,
+        options: { ...tempAnalysisOptions, detectVideoTags: true },
       });
-    } else {
+    }
+
+    // If other options are selected, use regular analysis
+    if (
+      tempAnalysisOptions.detectPerformers ||
+      tempAnalysisOptions.detectStudios ||
+      tempAnalysisOptions.detectTags ||
+      tempAnalysisOptions.detectDetails
+    ) {
       // Use regular analysis endpoint
       analyzeMutation.mutate({
         sceneIds: Array.from(selectedScenes),
-        options: tempAnalysisOptions,
+        options: { ...tempAnalysisOptions, detectVideoTags: false },
       });
     }
 

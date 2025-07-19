@@ -16,13 +16,11 @@ export interface AnalysisTypeOptions {
   detectTags: boolean;
   detectDetails: boolean;
   detectVideoTags: boolean;
-  useAi: boolean;
 }
 
 interface AnalysisTypeSelectorProps {
   value?: AnalysisTypeOptions;
   onChange?: (value: AnalysisTypeOptions) => void;
-  showAiOption?: boolean;
 }
 
 const defaultOptions: AnalysisTypeOptions = {
@@ -31,13 +29,11 @@ const defaultOptions: AnalysisTypeOptions = {
   detectTags: true,
   detectDetails: false,
   detectVideoTags: false,
-  useAi: true,
 };
 
 export const AnalysisTypeSelector: React.FC<AnalysisTypeSelectorProps> = ({
   value = defaultOptions,
   onChange,
-  showAiOption = true,
 }) => {
   const handleChange = (field: keyof AnalysisTypeOptions, checked: boolean) => {
     const newValue = { ...value, [field]: checked };
@@ -84,7 +80,7 @@ export const AnalysisTypeSelector: React.FC<AnalysisTypeSelectorProps> = ({
       >
         <Space>
           <FileTextOutlined />
-          <span>Title</span>
+          <span>Details</span>
         </Space>
       </Checkbox>
 
@@ -97,25 +93,6 @@ export const AnalysisTypeSelector: React.FC<AnalysisTypeSelectorProps> = ({
           <span>AI Tags/Markers from Video</span>
         </Space>
       </Checkbox>
-
-      {showAiOption && (
-        <>
-          <div
-            style={{
-              marginTop: 12,
-              paddingTop: 12,
-              borderTop: '1px solid #f0f0f0',
-            }}
-          >
-            <Checkbox
-              checked={value.useAi}
-              onChange={(e) => handleChange('useAi', e.target.checked)}
-            >
-              <Text type="secondary">Use AI for detection</Text>
-            </Checkbox>
-          </div>
-        </>
-      )}
     </Space>
   );
 };

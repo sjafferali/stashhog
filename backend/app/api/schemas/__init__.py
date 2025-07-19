@@ -293,7 +293,7 @@ class AnalysisOptions(BaseSchema):
     detect_video_tags: bool = Field(
         False, description="Detect tags/markers from video content"
     )
-    use_ai: bool = Field(True, description="Use AI for detection")
+    use_ai: bool = Field(True, description="Use AI for analysis")
     confidence_threshold: float = Field(
         0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"
     )
@@ -358,7 +358,6 @@ class AnalysisPlanCreate(BaseSchema):
     detect_studios: bool = Field(True, description="Detect studios")
     detect_tags: bool = Field(True, description="Detect tags")
     detect_details: bool = Field(True, description="Generate/enhance details")
-    use_ai: bool = Field(True, description="Use AI for detection")
     confidence_threshold: float = Field(0.7, description="Minimum confidence threshold")
 
 
