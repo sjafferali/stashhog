@@ -141,7 +141,7 @@ class JobService:
                 )
                 await status_db.commit()
 
-            # Merge job metadata with kwargs
+            # Merge job metadata with kwargs for handlers that expect direct parameters
             handler_kwargs = kwargs.copy()
             if metadata:
                 handler_kwargs.update(metadata)
@@ -161,11 +161,19 @@ class JobService:
                     await progress_db.commit()
 
             # Execute handler with job context
-            result = await handler(
-                job_id=job_id,
-                progress_callback=async_progress_callback,
-                **handler_kwargs,
-            )
+            # VIDEO_TAG_ANALYSIS expects metadata as a parameter, others expect direct parameters
+            if job_type == JobType.VIDEO_TAG_ANALYSIS:
+                result = await handler(
+                    job_id=job_id,
+                    metadata=metadata,
+                    progress_callback=async_progress_callback,
+                )
+            else:
+                result = await handler(
+                    job_id=job_id,
+                    progress_callback=async_progress_callback,
+                    **handler_kwargs,
+                )
 
             # Update job status to completed in a new session
             async with AsyncSessionLocal() as final_db:
