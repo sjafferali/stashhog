@@ -25,6 +25,11 @@ interface SettingItem {
   env_value?: string;
 }
 
+interface ModelInfo {
+  name: string;
+  input_cost: number;
+}
+
 interface SettingsFormValues {
   stash_url?: string;
   stash_api_key?: string;
@@ -55,7 +60,41 @@ const Settings: React.FC = () => {
   const [fieldPlaceholders, setFieldPlaceholders] = useState<
     Record<string, string>
   >({});
+  const [availableModels, setAvailableModels] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
   const { loadSettings } = useAppStore();
+
+  // Fetch available models
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await api.get('/analysis/models');
+        const { models } = response.data as {
+          models: Record<string, ModelInfo>;
+        };
+
+        // Transform models into options for Select component
+        const modelOptions = Object.entries(models).map(([key, model]) => ({
+          value: key,
+          label: `${model.name} - $${model.input_cost}/1M tokens`,
+        }));
+
+        setAvailableModels(modelOptions);
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+        // Fallback to basic models if API fails
+        setAvailableModels([
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+          { value: 'gpt-4', label: 'GPT-4' },
+          { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+        ]);
+      }
+    };
+
+    void fetchModels();
+  }, []);
 
   // Fetch current settings
   useEffect(() => {
@@ -288,10 +327,14 @@ const Settings: React.FC = () => {
 
           <Form.Item label="Model" name="openai_model">
             <Select
-              options={[
-                { value: 'gpt-4', label: 'GPT-4' },
-                { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-              ]}
+              placeholder={fieldPlaceholders.openai_model || 'Select a model'}
+              options={availableModels}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
             />
           </Form.Item>
 
