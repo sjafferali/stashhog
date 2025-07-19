@@ -81,7 +81,7 @@ class TestAnalysisJobs:
     @patch("app.jobs.analysis_jobs.StashService")
     @patch("app.jobs.analysis_jobs.OpenAIClient")
     @patch("app.jobs.analysis_jobs.AnalysisService")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     @patch("app.jobs.analysis_jobs.select")
     async def test_analyze_scenes_job_success(
         self,
@@ -102,6 +102,7 @@ class TestAnalysisJobs:
         scene_ids = ["scene1", "scene2", "scene3"]
         options = {"detect_performers": True, "detect_tags": True}
 
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock service instances
@@ -181,7 +182,7 @@ class TestAnalysisJobs:
 
     @pytest.mark.asyncio
     @patch("app.jobs.analysis_jobs.AsyncSessionLocal")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_analyze_scenes_job_no_openai_key(
         self,
         mock_get_settings,
@@ -194,6 +195,7 @@ class TestAnalysisJobs:
         job_id = str(uuid4())
         scene_ids = ["scene1"]
         mock_settings.openai.api_key = None
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock database session
@@ -220,7 +222,7 @@ class TestAnalysisJobs:
     @patch("app.jobs.analysis_jobs.StashService")
     @patch("app.jobs.analysis_jobs.OpenAIClient")
     @patch("app.jobs.analysis_jobs.AnalysisService")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_apply_analysis_plan_job_success(
         self,
         mock_get_settings,
@@ -235,6 +237,7 @@ class TestAnalysisJobs:
         # Setup
         job_id = str(uuid4())
         plan_id = str(uuid4())
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock apply result
@@ -283,7 +286,7 @@ class TestAnalysisJobs:
     @patch("app.jobs.analysis_jobs.StashService")
     @patch("app.jobs.analysis_jobs.OpenAIClient")
     @patch("app.jobs.analysis_jobs.AnalysisService")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_generate_scene_details_job_success(
         self,
         mock_get_settings,
@@ -297,6 +300,7 @@ class TestAnalysisJobs:
         # Setup
         job_id = str(uuid4())
         scene_ids = ["scene1", "scene2"]
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock stash service
@@ -348,7 +352,7 @@ class TestAnalysisJobs:
         assert mock_progress_callback.call_count >= 3  # Progress updates + completion
 
     @pytest.mark.asyncio
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_generate_scene_details_job_no_openai(
         self,
         mock_get_settings,
@@ -360,6 +364,7 @@ class TestAnalysisJobs:
         job_id = str(uuid4())
         scene_ids = ["scene1"]
         mock_settings.openai.api_key = None
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Execute and expect error
@@ -521,7 +526,9 @@ class TestAnalysisJobsExtended:
 
         # Setup all the mocks
         with (
-            patch("app.jobs.analysis_jobs.get_settings") as mock_get_settings,
+            patch(
+                "app.jobs.analysis_jobs.load_settings_with_db_overrides"
+            ) as mock_get_settings,
             patch("app.jobs.analysis_jobs.AsyncSessionLocal") as mock_async_session,
             patch("app.jobs.analysis_jobs.StashService"),
             patch("app.jobs.analysis_jobs.OpenAIClient"),
@@ -533,7 +540,7 @@ class TestAnalysisJobsExtended:
                 "app.repositories.scene_repository.scene_repository"
             ) as mock_scene_repo,
         ):
-
+            # Mock async function to return settings
             mock_get_settings.return_value = mock_settings
             mock_scene_repo.get_unanalyzed_scenes = AsyncMock(return_value=mock_scenes)
 
@@ -597,7 +604,7 @@ class TestAnalysisJobsExtended:
     @patch("app.jobs.analysis_jobs.StashService")
     @patch("app.jobs.analysis_jobs.OpenAIClient")
     @patch("app.jobs.analysis_jobs.AnalysisService")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_analyze_scenes_job_with_exception_in_summary(
         self,
         mock_get_settings,
@@ -613,6 +620,7 @@ class TestAnalysisJobsExtended:
         # Setup
         job_id = str(uuid4())
         scene_ids = ["scene1"]
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock services
@@ -648,7 +656,7 @@ class TestAnalysisJobsExtended:
     @patch("app.jobs.analysis_jobs.StashService")
     @patch("app.jobs.analysis_jobs.OpenAIClient")
     @patch("app.jobs.analysis_jobs.AnalysisService")
-    @patch("app.jobs.analysis_jobs.get_settings")
+    @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
     async def test_generate_scene_details_job_partial_failure(
         self,
         mock_get_settings,
@@ -662,6 +670,7 @@ class TestAnalysisJobsExtended:
         # Setup
         job_id = str(uuid4())
         scene_ids = ["scene1", "scene2", "scene3"]
+        # Mock async function to return settings
         mock_get_settings.return_value = mock_settings
 
         # Mock stash service - first succeeds, second fails, third succeeds

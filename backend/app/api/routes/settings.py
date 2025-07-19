@@ -284,11 +284,12 @@ async def update_settings(
         "analysis_confidence_threshold",
         "sync_incremental",
         "sync_batch_size",
-        "video_ai_server_url",
-        "video_ai_frame_interval",
-        "video_ai_threshold",
-        "video_ai_timeout",
-        "video_ai_create_markers",
+        # Video AI settings - using actual key names from backend
+        "analysis_ai_video_server_url",
+        "analysis_frame_interval",
+        "analysis_ai_video_threshold",
+        "analysis_server_timeout",
+        "analysis_create_markers",
     }
 
     for key, value in settings_update.items():

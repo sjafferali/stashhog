@@ -61,7 +61,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService") as mock_stash_service_class:
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -105,7 +108,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.side_effect = Exception("Sync failed")
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -132,7 +138,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_scenes.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -171,7 +180,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_scenes.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -206,7 +218,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_performers.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -238,7 +253,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_tags.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -270,7 +288,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_studios.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -314,7 +335,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = partial_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -382,7 +406,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = custom_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -409,7 +436,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = mock_sync_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -461,7 +491,10 @@ class TestSyncJobs:
 
         mock_sync_service.sync_all.side_effect = simulate_sync_all
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -489,7 +522,10 @@ class TestSyncJobs:
     async def test_sync_job_database_error(self, mock_settings, mock_progress_callback):
         """Test sync job handling database connection errors."""
         # Arrange
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
                     # Simulate database connection error
@@ -531,7 +567,10 @@ class TestSyncJobs:
 
         mock_sync_service.sync_scenes.return_value = partial_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -558,7 +597,10 @@ class TestSyncJobs:
     ):
         """Test sync job handling Stash service initialization errors."""
         # Arrange
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService") as mock_stash_service_class:
                 # Simulate Stash service initialization error
                 mock_stash_service_class.side_effect = Exception(
@@ -594,7 +636,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = failed_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -638,7 +683,10 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
         mock_sync_service.sync_all.return_value = timed_result
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
@@ -671,7 +719,10 @@ class TestSyncJobs:
         mock_sync_service.sync_tags.side_effect = RuntimeError("Tag sync failed")
         mock_sync_service.sync_studios.side_effect = ConnectionError("Network error")
 
-        with patch("app.jobs.sync_jobs.get_settings", return_value=mock_settings):
+        with patch(
+            "app.jobs.sync_jobs.load_settings_with_db_overrides",
+            return_value=mock_settings,
+        ):
             with patch("app.jobs.sync_jobs.StashService"):
                 with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
                     with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:

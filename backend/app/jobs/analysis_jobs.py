@@ -3,8 +3,8 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 from sqlalchemy import select
 
-from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.core.settings_loader import load_settings_with_db_overrides
 from app.models import AnalysisPlan, PlanChange
 from app.models.job import JobType
 from app.services.analysis.analysis_service import AnalysisService
@@ -33,7 +33,7 @@ async def analyze_scenes_job(
         logger.debug(f"Scene IDs received in job: {scene_ids}")
 
         # Create service instances
-        settings = get_settings()
+        settings = await load_settings_with_db_overrides()
         stash_service = StashService(
             stash_url=settings.stash.url,
             api_key=settings.stash.api_key,
@@ -154,7 +154,7 @@ async def apply_analysis_plan_job(
     logger.info(f"Starting apply_analysis_plan job {job_id} for plan {plan_id}")
 
     # Create service instances
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url,
         api_key=settings.stash.api_key,
@@ -241,7 +241,7 @@ async def analyze_all_unanalyzed_job(
             )
 
             # Create service instances for this batch
-            settings = get_settings()
+            settings = await load_settings_with_db_overrides()
             stash_service = StashService(
                 stash_url=settings.stash.url, api_key=settings.stash.api_key
             )
@@ -303,7 +303,7 @@ async def generate_scene_details_job(
     )
 
     # Create service instances
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url,
         api_key=settings.stash.api_key,
@@ -411,7 +411,7 @@ async def analyze_video_tags_job(
     Returns:
         Job result dictionary
     """
-    from app.core.dependencies import get_settings
+    from app.core.settings_loader import load_settings_with_db_overrides
 
     if not metadata:
         raise ValueError("No metadata provided for video tag analysis job")
@@ -421,8 +421,8 @@ async def analyze_video_tags_job(
     scene_ids = job_params.get("scene_ids", [])
     filters = job_params.get("filters")
 
-    # Get services
-    settings = get_settings()
+    # Get services with database overrides
+    settings = await load_settings_with_db_overrides()
 
     # Create OpenAI client if configured
     openai_client = None

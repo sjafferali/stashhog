@@ -36,11 +36,13 @@ interface SettingsFormValues {
   analysis_detect_studios?: boolean;
   analysis_detect_tags?: boolean;
   analysis_detect_details?: boolean;
-  video_ai_server_url?: string;
-  video_ai_frame_interval?: number;
-  video_ai_threshold?: number;
-  video_ai_timeout?: number;
-  video_ai_create_markers?: boolean;
+  analysis_ai_video_server_url?: string;
+  analysis_frame_interval?: number;
+  analysis_ai_video_threshold?: number;
+  analysis_server_timeout?: number;
+  analysis_create_markers?: boolean;
+  sync_incremental?: boolean;
+  sync_batch_size?: number;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -356,12 +358,13 @@ const Settings: React.FC = () => {
 
           <Form.Item
             label="Video AI Server URL"
-            name="video_ai_server_url"
+            name="analysis_ai_video_server_url"
             tooltip="External AI server URL for video processing"
           >
             <Input
               placeholder={
-                fieldPlaceholders.video_ai_server_url || 'http://localhost:8084'
+                fieldPlaceholders.analysis_ai_video_server_url ||
+                'http://localhost:8084'
               }
               allowClear
             />
@@ -369,7 +372,7 @@ const Settings: React.FC = () => {
 
           <Form.Item
             label="Frame Extraction Interval (seconds)"
-            name="video_ai_frame_interval"
+            name="analysis_frame_interval"
             tooltip="How often to extract frames from video for analysis"
           >
             <InputNumber
@@ -377,13 +380,13 @@ const Settings: React.FC = () => {
               max={60}
               step={1}
               style={{ width: '100%' }}
-              placeholder={fieldPlaceholders.video_ai_frame_interval || '2'}
+              placeholder={fieldPlaceholders.analysis_frame_interval || '2'}
             />
           </Form.Item>
 
           <Form.Item
             label="Video AI Confidence Threshold"
-            name="video_ai_threshold"
+            name="analysis_ai_video_threshold"
             tooltip="Minimum confidence score for video AI detections"
           >
             <InputNumber
@@ -395,13 +398,15 @@ const Settings: React.FC = () => {
                 `${((value || 0) * 100).toFixed(0)}%`
               }
               parser={(value?: string) => Number(value?.replace('%', '')) / 100}
-              placeholder={fieldPlaceholders.video_ai_threshold || '0.3'}
+              placeholder={
+                fieldPlaceholders.analysis_ai_video_threshold || '0.3'
+              }
             />
           </Form.Item>
 
           <Form.Item
             label="Video Processing Timeout (seconds)"
-            name="video_ai_timeout"
+            name="analysis_server_timeout"
             tooltip="Maximum time to wait for video processing"
           >
             <InputNumber
@@ -409,13 +414,13 @@ const Settings: React.FC = () => {
               max={7200}
               step={60}
               style={{ width: '100%' }}
-              placeholder={fieldPlaceholders.video_ai_timeout || '3700'}
+              placeholder={fieldPlaceholders.analysis_server_timeout || '3700'}
             />
           </Form.Item>
 
           <Form.Item
             label="Create Scene Markers"
-            name="video_ai_create_markers"
+            name="analysis_create_markers"
             tooltip="Create scene markers from video AI detections"
             valuePropName="checked"
           >

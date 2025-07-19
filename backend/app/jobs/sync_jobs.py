@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
+from app.core.settings_loader import load_settings_with_db_overrides
 from app.models.job import JobType
 from app.services.job_service import JobService
 from app.services.stash_service import StashService
@@ -22,7 +22,7 @@ async def sync_all_job(
     logger.debug(f"sync_all_job called with kwargs: {kwargs}")
 
     # Create services for this job
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
@@ -77,7 +77,7 @@ async def sync_scenes_job(
     logger.info(f"Starting sync_scenes job {job_id} for {len(scene_ids or [])} scenes")
 
     # Create services for this job
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
@@ -118,7 +118,7 @@ async def sync_performers_job(
     logger.info(f"Starting sync_performers job {job_id}")
 
     # Create services for this job
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
@@ -156,7 +156,7 @@ async def sync_tags_job(
     logger.info(f"Starting sync_tags job {job_id}")
 
     # Create services for this job
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
@@ -194,7 +194,7 @@ async def sync_studios_job(
     logger.info(f"Starting sync_studios job {job_id}")
 
     # Create services for this job
-    settings = get_settings()
+    settings = await load_settings_with_db_overrides()
     stash_service = StashService(
         stash_url=settings.stash.url, api_key=settings.stash.api_key
     )
