@@ -36,7 +36,6 @@ interface SettingsFormValues {
   analysis_detect_studios?: boolean;
   analysis_detect_tags?: boolean;
   analysis_detect_details?: boolean;
-  analysis_use_ai?: boolean;
   video_ai_server_url?: string;
   video_ai_frame_interval?: number;
   video_ai_threshold?: number;

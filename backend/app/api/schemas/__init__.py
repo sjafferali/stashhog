@@ -293,7 +293,6 @@ class AnalysisOptions(BaseSchema):
     detect_video_tags: bool = Field(
         False, description="Detect tags/markers from video content"
     )
-    use_ai: bool = Field(True, description="Use AI for analysis")
     confidence_threshold: float = Field(
         0.7, ge=0.0, le=1.0, description="Minimum confidence threshold"
     )

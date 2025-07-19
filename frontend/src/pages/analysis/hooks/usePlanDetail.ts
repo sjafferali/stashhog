@@ -54,7 +54,6 @@ export interface PlanDetailData {
       detect_studios?: boolean;
       detect_tags?: boolean;
       detect_details?: boolean;
-      use_ai?: boolean;
     };
   };
   scenes: SceneChanges[];
