@@ -53,28 +53,9 @@ class Job(BaseModel):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
 
     # Job information
-    # Use create_constraint=False and native_enum=True to use existing database enum
-    # The key is to pass the enum values explicitly
-    type: Column = Column(
-        Enum(
-            *[e.value for e in JobType],
-            name="jobtype",
-            create_constraint=False,
-            native_enum=True,
-        ),
-        nullable=False,
-        index=True,
-    )
+    type: Column = Column(Enum(JobType), nullable=False, index=True)
     status: Column = Column(
-        Enum(
-            *[e.value for e in JobStatus],
-            name="jobstatus",
-            create_constraint=False,
-            native_enum=True,
-        ),
-        nullable=False,
-        default=JobStatus.PENDING.value,
-        index=True,
+        Enum(JobStatus), nullable=False, default=JobStatus.PENDING, index=True
     )
 
     # Progress tracking
