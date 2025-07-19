@@ -139,7 +139,7 @@ async def list_settings(
             False,
         ),
         (
-            "video_ai_create_markers",
+            "analysis_create_markers",
             "analysis.create_markers",
             base_settings.analysis.create_markers,
             overridden_settings.analysis.create_markers,

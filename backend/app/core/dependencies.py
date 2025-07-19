@@ -109,6 +109,7 @@ def _apply_setting_override(
         "video_ai_threshold": ("analysis", "ai_video_threshold", float),
         "video_ai_timeout": ("analysis", "server_timeout", int),
         "video_ai_create_markers": ("analysis", "create_markers", bool),
+        "analysis_create_markers": ("analysis", "create_markers", bool),
     }
 
     if key in mapping:
