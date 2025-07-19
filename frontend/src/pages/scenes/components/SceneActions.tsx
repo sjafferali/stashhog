@@ -62,10 +62,9 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
 
   // Fetch tags for the modal
   const { data: tags } = useQuery<TagType[]>('tags', async () => {
-    const response = await api.get('/entities/tags', {
-      params: { size: 1000 },
-    });
-    return response.data.items;
+    const response = await api.get('/entities/tags');
+    // The backend returns a direct array, not a paginated response
+    return response.data;
   });
 
   // Video tags mutation

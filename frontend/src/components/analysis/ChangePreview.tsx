@@ -21,7 +21,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from 'react-query';
 import apiClient from '@/services/apiClient';
-import { Tag as TagType } from '@/types/models';
+import { Tag as TagType, Performer, Studio } from '@/types/models';
 import { DiffViewer } from './DiffViewer';
 import styles from './ChangePreview.module.scss';
 import dayjs from 'dayjs';
@@ -90,6 +90,16 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
     apiClient.getTags({ per_page: 1000 })
   );
 
+  // Fetch all performers to map IDs to names
+  const { data: performersData } = useQuery('all-performers', () =>
+    apiClient.getPerformers({ per_page: 1000 })
+  );
+
+  // Fetch all studios to map IDs to names
+  const { data: studiosData } = useQuery('all-studios', () =>
+    apiClient.getStudios({ per_page: 1000 })
+  );
+
   // Create a map of tag IDs to names
   const tagIdToName = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -100,6 +110,28 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
     }
     return map;
   }, [tagsData]);
+
+  // Create a map of performer IDs to names
+  const performerIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (performersData?.items) {
+      performersData.items.forEach((performer: Performer) => {
+        map.set(performer.id.toString(), performer.name);
+      });
+    }
+    return map;
+  }, [performersData]);
+
+  // Create a map of studio IDs to names
+  const studioIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (studiosData?.items) {
+      studiosData.items.forEach((studio: Studio) => {
+        map.set(studio.id.toString(), studio.name);
+      });
+    }
+    return map;
+  }, [studiosData]);
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.8) return 'green';
@@ -142,10 +174,15 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
         return (
           <Space size={4} wrap>
             {(value as string[]).map((item: string, index: number) => {
-              // If this is a tags field and we have the mapping, use tag names
+              // Map IDs to names based on field type
               let displayValue = item;
               if (change.field === 'tags' && tagIdToName.size > 0) {
                 displayValue = tagIdToName.get(item.toString()) || item;
+              } else if (
+                change.field === 'performers' &&
+                performerIdToName.size > 0
+              ) {
+                displayValue = performerIdToName.get(item.toString()) || item;
               }
               return <Tag key={index}>{displayValue}</Tag>;
             })}
@@ -159,6 +196,13 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
         return <code>{JSON.stringify(value, null, 2)}</code>;
 
       default:
+        // Handle studio field
+        if (change.field === 'studio' && studioIdToName.size > 0 && value) {
+          const studioName = studioIdToName.get(value.toString());
+          if (studioName) {
+            return studioName;
+          }
+        }
         return value.toString();
     }
   };
@@ -166,6 +210,29 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
   const renderEditInput = () => {
     switch (change.type) {
       case 'text':
+        // Handle studio field with select dropdown
+        if (change.field === 'studio' && studioIdToName.size > 0) {
+          const studioOptions = Array.from(studioIdToName.entries()).map(
+            ([id, name]) => ({
+              value: id,
+              label: name,
+            })
+          );
+          return (
+            <Select
+              value={editValue}
+              onChange={setEditValue}
+              style={{ width: '100%' }}
+              options={studioOptions}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            />
+          );
+        }
         return (
           <Input.TextArea
             value={editValue as string | number | readonly string[] | undefined}
@@ -177,7 +244,7 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
         );
 
       case 'array':
-        // If this is a tags field, create options with tag names
+        // Create options based on field type
         if (change.field === 'tags' && tagIdToName.size > 0) {
           const tagOptions = Array.from(tagIdToName.entries()).map(
             ([id, name]) => ({
@@ -192,6 +259,31 @@ export const ChangePreview: React.FC<ChangePreviewProps> = ({
               onChange={setEditValue}
               style={{ width: '100%' }}
               options={tagOptions}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+            />
+          );
+        } else if (
+          change.field === 'performers' &&
+          performerIdToName.size > 0
+        ) {
+          const performerOptions = Array.from(performerIdToName.entries()).map(
+            ([id, name]) => ({
+              value: id,
+              label: name,
+            })
+          );
+          return (
+            <Select
+              mode="multiple"
+              value={editValue}
+              onChange={setEditValue}
+              style={{ width: '100%' }}
+              options={performerOptions}
               showSearch
               filterOption={(input, option) =>
                 String(option?.label ?? '')

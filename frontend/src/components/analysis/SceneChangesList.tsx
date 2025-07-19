@@ -25,7 +25,7 @@ import {
 import { useQuery } from 'react-query';
 import apiClient from '@/services/apiClient';
 import { ProposedChange } from './ChangePreview';
-import { Scene, Tag as TagType } from '@/types/models';
+import { Scene, Tag as TagType, Performer, Studio } from '@/types/models';
 import styles from './SceneChangesList.module.scss';
 
 const { Panel } = Collapse;
@@ -93,6 +93,16 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     apiClient.getTags({ per_page: 1000 })
   );
 
+  // Fetch all performers to map IDs to names
+  const { data: performersData } = useQuery('all-performers', () =>
+    apiClient.getPerformers({ per_page: 1000 })
+  );
+
+  // Fetch all studios to map IDs to names
+  const { data: studiosData } = useQuery('all-studios', () =>
+    apiClient.getStudios({ per_page: 1000 })
+  );
+
   // Create a map of tag IDs to names
   const tagIdToName = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -103,6 +113,28 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     }
     return map;
   }, [tagsData]);
+
+  // Create a map of performer IDs to names
+  const performerIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (performersData?.items) {
+      performersData.items.forEach((performer: Performer) => {
+        map.set(performer.id.toString(), performer.name);
+      });
+    }
+    return map;
+  }, [performersData]);
+
+  // Create a map of studio IDs to names
+  const studioIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    if (studiosData?.items) {
+      studiosData.items.forEach((studio: Studio) => {
+        map.set(studio.id.toString(), studio.name);
+      });
+    }
+    return map;
+  }, [studiosData]);
 
   const handleExpandAll = () => {
     if (expandAll) {
@@ -281,11 +313,16 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
       const isExpanded = expandedArrays.has(fieldKey);
       const displayItems = isExpanded ? value : value.slice(0, 3);
 
-      // If this is a tags field, map IDs to names
+      // Map IDs to names based on field type
       let mappedItems = displayItems;
       if (fieldName === 'tags' && tagIdToName.size > 0) {
         mappedItems = displayItems.map((item) => {
           const name = tagIdToName.get(item.toString());
+          return name || item; // Fall back to ID if name not found
+        });
+      } else if (fieldName === 'performers' && performerIdToName.size > 0) {
+        mappedItems = displayItems.map((item) => {
+          const name = performerIdToName.get(item.toString());
           return name || item; // Fall back to ID if name not found
         });
       }
@@ -326,6 +363,14 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
           <span>{jsonStr}</span>
         </Tooltip>
       );
+    }
+
+    // Handle studio field
+    if (fieldName === 'studio' && studioIdToName.size > 0) {
+      const studioName = studioIdToName.get(value.toString());
+      if (studioName) {
+        return studioName;
+      }
     }
 
     const stringValue = String(value);

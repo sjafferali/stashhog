@@ -39,34 +39,35 @@ export const AdvancedFilters: React.FC = () => {
   ]);
 
   // Fetch filter options
-  const { data: performers, isLoading: loadingPerformers } = useQuery<
-    Performer[]
-  >('performers', async () => {
-    const response = await api.get('/entities/performers', {
-      params: { size: 1000 },
-    });
-    return response.data.items;
+  const {
+    data: performers = [],
+    isLoading: loadingPerformers,
+    error: performersError,
+  } = useQuery<Performer[]>(['performers'], async () => {
+    const response = await api.get('/entities/performers');
+    // The backend returns a direct array, not a paginated response
+    return response.data;
   });
 
-  const { data: tags, isLoading: loadingTags } = useQuery<TagType[]>(
-    'tags',
-    async () => {
-      const response = await api.get('/entities/tags', {
-        params: { size: 1000 },
-      });
-      return response.data.items;
-    }
-  );
+  const {
+    data: tags = [],
+    isLoading: loadingTags,
+    error: tagsError,
+  } = useQuery<TagType[]>(['tags'], async () => {
+    const response = await api.get('/entities/tags');
+    // The backend returns a direct array, not a paginated response
+    return response.data;
+  });
 
-  const { data: studios, isLoading: loadingStudios } = useQuery<Studio[]>(
-    'studios',
-    async () => {
-      const response = await api.get('/entities/studios', {
-        params: { size: 1000 },
-      });
-      return response.data.items;
-    }
-  );
+  const {
+    data: studios = [],
+    isLoading: loadingStudios,
+    error: studiosError,
+  } = useQuery<Studio[]>(['studios'], async () => {
+    const response = await api.get('/entities/studios');
+    // The backend returns a direct array, not a paginated response
+    return response.data;
+  });
 
   const handleDateRangeChange = (
     dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null
@@ -145,6 +146,11 @@ export const AdvancedFilters: React.FC = () => {
             key="performers"
           >
             <Spin spinning={loadingPerformers}>
+              {performersError ? (
+                <div style={{ color: 'red', marginBottom: 8 }}>
+                  Error loading performers: {(performersError as Error).message}
+                </div>
+              ) : null}
               <Select
                 mode="multiple"
                 placeholder="Select performers..."
@@ -158,21 +164,27 @@ export const AdvancedFilters: React.FC = () => {
                 }
                 style={{ width: '100%' }}
                 showSearch
-                filterOption={(
-                  input: string,
-                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
-                ) =>
-                  (typeof option?.label === 'string' &&
-                    option.label.toLowerCase().includes(input.toLowerCase())) ||
-                  false
-                }
+                filterOption={(input, option) => {
+                  if (!option || !option.label) return false;
+                  return option.label
+                    .toString()
+                    .toLowerCase()
+                    .includes(input.toLowerCase());
+                }}
                 options={
-                  performers?.map((p) => ({
+                  performers.map((p) => ({
                     label: p.name,
                     value: p.id.toString(),
                   })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                 }
                 maxTagCount="responsive"
+                notFoundContent={
+                  loadingPerformers
+                    ? 'Loading...'
+                    : performers.length === 0
+                      ? 'No performers found'
+                      : 'No matching performers'
+                }
               />
             </Spin>
           </Panel>
@@ -191,6 +203,11 @@ export const AdvancedFilters: React.FC = () => {
             key="tags"
           >
             <Spin spinning={loadingTags}>
+              {tagsError ? (
+                <div style={{ color: 'red', marginBottom: 8 }}>
+                  Error loading tags: {(tagsError as Error).message}
+                </div>
+              ) : null}
               <Select
                 mode="multiple"
                 placeholder="Select tags..."
@@ -198,21 +215,27 @@ export const AdvancedFilters: React.FC = () => {
                 onChange={(value: string[]) => updateFilter('tag_ids', value)}
                 style={{ width: '100%' }}
                 showSearch
-                filterOption={(
-                  input: string,
-                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
-                ) =>
-                  (typeof option?.label === 'string' &&
-                    option.label.toLowerCase().includes(input.toLowerCase())) ||
-                  false
-                }
+                filterOption={(input, option) => {
+                  if (!option || !option.label) return false;
+                  return option.label
+                    .toString()
+                    .toLowerCase()
+                    .includes(input.toLowerCase());
+                }}
                 options={
-                  tags?.map((t) => ({
+                  tags.map((t) => ({
                     label: t.name,
                     value: t.id.toString(),
                   })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                 }
                 maxTagCount="responsive"
+                notFoundContent={
+                  loadingTags
+                    ? 'Loading...'
+                    : tags.length === 0
+                      ? 'No tags found'
+                      : 'No matching tags'
+                }
               />
             </Spin>
           </Panel>
@@ -229,6 +252,11 @@ export const AdvancedFilters: React.FC = () => {
             key="studios"
           >
             <Spin spinning={loadingStudios}>
+              {studiosError ? (
+                <div style={{ color: 'red', marginBottom: 8 }}>
+                  Error loading studios: {(studiosError as Error).message}
+                </div>
+              ) : null}
               <Select
                 mode="multiple"
                 placeholder="Select studios..."
@@ -241,21 +269,27 @@ export const AdvancedFilters: React.FC = () => {
                 }
                 style={{ width: '100%' }}
                 showSearch
-                filterOption={(
-                  input: string,
-                  option?: any // eslint-disable-line @typescript-eslint/no-explicit-any
-                ) =>
-                  (typeof option?.label === 'string' &&
-                    option.label.toLowerCase().includes(input.toLowerCase())) ||
-                  false
-                }
+                filterOption={(input, option) => {
+                  if (!option || !option.label) return false;
+                  return option.label
+                    .toString()
+                    .toLowerCase()
+                    .includes(input.toLowerCase());
+                }}
                 options={
-                  studios?.map((s) => ({
+                  studios.map((s) => ({
                     label: s.name,
                     value: s.id.toString(),
                   })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                 }
                 maxTagCount="responsive"
+                notFoundContent={
+                  loadingStudios
+                    ? 'Loading...'
+                    : studios.length === 0
+                      ? 'No studios found'
+                      : 'No matching studios'
+                }
               />
             </Spin>
           </Panel>
