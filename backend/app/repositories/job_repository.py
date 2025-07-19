@@ -21,8 +21,8 @@ class JobRepository:
         """Create job record in database."""
         job = Job(
             id=job_id,
-            type=job_type,  # Pass the enum object, not the string value
-            status=JobStatus.PENDING,  # Pass the enum object, not the string value
+            type=job_type.value,  # Pass the string value since we're using explicit enum values
+            status=JobStatus.PENDING.value,  # Pass the string value
             progress=0,
             job_metadata=metadata or {},
         )
