@@ -162,6 +162,8 @@ async def list_settings(
         if key in db_settings_map:
             source = "database"
             db_value = db_settings_map[key]
+            # Use the database value as the current value when it exists
+            current_value = db_value
         else:
             source = "environment"
             db_value = None

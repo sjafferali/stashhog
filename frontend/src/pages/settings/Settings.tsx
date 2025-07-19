@@ -74,17 +74,8 @@ const Settings: React.FC = () => {
           // Always use the actual value, regardless of source
           // This ensures video AI settings and other settings are properly displayed
           if (setting.value !== '********') {
-            // Parse boolean values
-            if (setting.value === 'true' || setting.value === 'True') {
-              settingsMap[key] = true;
-            } else if (setting.value === 'false' || setting.value === 'False') {
-              settingsMap[key] = false;
-            } else if (!isNaN(Number(setting.value)) && setting.value !== '') {
-              // Parse numeric values
-              settingsMap[key] = Number(setting.value);
-            } else {
-              settingsMap[key] = setting.value;
-            }
+            // The backend now returns properly typed values from JSON storage
+            settingsMap[key] = setting.value;
           }
 
           // Set placeholder to show environment default
@@ -149,17 +140,8 @@ const Settings: React.FC = () => {
         const key = setting.key.replace(/\./g, '_');
         // Always use the actual value, regardless of source
         if (setting.value !== '********') {
-          // Parse boolean values
-          if (setting.value === 'true' || setting.value === 'True') {
-            updatedSettingsMap[key] = true;
-          } else if (setting.value === 'false' || setting.value === 'False') {
-            updatedSettingsMap[key] = false;
-          } else if (!isNaN(Number(setting.value)) && setting.value !== '') {
-            // Parse numeric values
-            updatedSettingsMap[key] = Number(setting.value);
-          } else {
-            updatedSettingsMap[key] = setting.value;
-          }
+          // The backend now returns properly typed values from JSON storage
+          updatedSettingsMap[key] = setting.value;
         }
       });
 
@@ -434,24 +416,17 @@ const Settings: React.FC = () => {
 
           <Form.Item
             label="Create Scene Markers"
+            name="video_ai_create_markers"
             tooltip="Create scene markers from video AI detections"
+            valuePropName="checked"
           >
-            <Form.Item
-              name="video_ai_create_markers"
-              noStyle
-              getValueFromEvent={(value: string) => value === 'Yes'}
-              getValueProps={(value: boolean) => ({
-                value: value ? 'Yes' : 'No',
-              })}
-            >
-              <Select
-                style={{ width: 120 }}
-                options={[
-                  { value: 'Yes', label: 'Yes' },
-                  { value: 'No', label: 'No' },
-                ]}
-              />
-            </Form.Item>
+            <Select
+              style={{ width: 120 }}
+              options={[
+                { value: true, label: 'Yes' },
+                { value: false, label: 'No' },
+              ]}
+            />
           </Form.Item>
 
           <Form.Item>

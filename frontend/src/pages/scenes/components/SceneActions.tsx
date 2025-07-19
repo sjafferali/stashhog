@@ -79,7 +79,14 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     }) => {
       const response = await api.post('/analysis/video-tags', {
         scene_ids: sceneIds,
-        options,
+        options: {
+          detect_performers: options.detectPerformers,
+          detect_studios: options.detectStudios,
+          detect_tags: options.detectTags,
+          detect_details: options.detectDetails,
+          detect_video_tags: options.detectVideoTags,
+          confidence_threshold: 0.7,
+        },
         background: true,
       });
       return response.data;
