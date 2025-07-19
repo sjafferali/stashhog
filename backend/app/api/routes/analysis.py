@@ -142,7 +142,8 @@ async def generate_analysis(
             metadata={
                 "scene_ids": scene_ids,
                 "options": request.options.model_dump(),
-                "plan_name": request.plan_name,
+                "plan_name": request.plan_name
+                or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
             },
         )
         # Refresh the job object to ensure all attributes are loaded
@@ -168,7 +169,10 @@ async def generate_analysis(
             confidence_threshold=request.options.confidence_threshold,
         )
         plan = await analysis_service.analyze_scenes(
-            scene_ids=scene_ids, options=service_options, plan_name=request.plan_name
+            scene_ids=scene_ids,
+            options=service_options,
+            plan_name=request.plan_name
+            or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
         )
         return {
             "plan_id": plan.id,

@@ -71,15 +71,20 @@ const Settings: React.FC = () => {
         settingsArray.forEach((setting: SettingItem) => {
           const key = setting.key.replace(/\./g, '_');
 
-          // Use actual value if from database, otherwise leave empty
-          if (setting.source === 'database' && setting.value !== '********') {
-            settingsMap[key] = setting.value;
-          } else if (
-            setting.key === 'openai_model' &&
-            setting.source === 'environment'
-          ) {
-            // Special case: always show model value
-            settingsMap[key] = setting.value;
+          // Always use the actual value, regardless of source
+          // This ensures video AI settings and other settings are properly displayed
+          if (setting.value !== '********') {
+            // Parse boolean values
+            if (setting.value === 'true' || setting.value === 'True') {
+              settingsMap[key] = true;
+            } else if (setting.value === 'false' || setting.value === 'False') {
+              settingsMap[key] = false;
+            } else if (!isNaN(Number(setting.value)) && setting.value !== '') {
+              // Parse numeric values
+              settingsMap[key] = Number(setting.value);
+            } else {
+              settingsMap[key] = setting.value;
+            }
           }
 
           // Set placeholder to show environment default
@@ -142,13 +147,19 @@ const Settings: React.FC = () => {
 
       updatedSettingsArray.forEach((setting: SettingItem) => {
         const key = setting.key.replace(/\./g, '_');
-        if (setting.source === 'database' && setting.value !== '********') {
-          updatedSettingsMap[key] = setting.value;
-        } else if (
-          setting.key === 'openai_model' &&
-          setting.source === 'environment'
-        ) {
-          updatedSettingsMap[key] = setting.value;
+        // Always use the actual value, regardless of source
+        if (setting.value !== '********') {
+          // Parse boolean values
+          if (setting.value === 'true' || setting.value === 'True') {
+            updatedSettingsMap[key] = true;
+          } else if (setting.value === 'false' || setting.value === 'False') {
+            updatedSettingsMap[key] = false;
+          } else if (!isNaN(Number(setting.value)) && setting.value !== '') {
+            // Parse numeric values
+            updatedSettingsMap[key] = Number(setting.value);
+          } else {
+            updatedSettingsMap[key] = setting.value;
+          }
         }
       });
 

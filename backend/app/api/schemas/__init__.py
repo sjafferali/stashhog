@@ -317,7 +317,7 @@ class AnalysisRequest(BaseSchema):
         ),
         description="Analysis options",
     )
-    plan_name: str = Field(..., description="Name for the analysis plan")
+    plan_name: Optional[str] = Field(None, description="Name for the analysis plan")
 
 
 class ChangePreview(BaseSchema):
