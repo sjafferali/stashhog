@@ -62,6 +62,9 @@ def _build_scene_filter_conditions(
     if filters.analyzed is not None:
         conditions.append(Scene.analyzed == filters.analyzed)
 
+    if filters.video_analyzed is not None:
+        conditions.append(Scene.video_analyzed == filters.video_analyzed)
+
     if filters.date_from:
         conditions.append(Scene.stash_date >= filters.date_from)
 

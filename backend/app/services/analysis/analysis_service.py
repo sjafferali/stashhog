@@ -88,6 +88,7 @@ class AnalysisService:
         db: Optional[AsyncSession] = None,
         progress_callback: Optional[Any] = None,
         plan_name: Optional[str] = None,
+        cancellation_token: Optional[Any] = None,
     ) -> AnalysisPlan:
         """Analyze scenes and generate a plan with proposed changes.
 
@@ -147,6 +148,7 @@ class AnalysisService:
                 if job_id or progress_callback
                 else None
             ),
+            cancellation_token=cancellation_token,
         )
 
         # Calculate processing time
@@ -785,42 +787,34 @@ class AnalysisService:
 
         try:
             # Report progress
-            if progress_callback:
-                progress = int((scene_index / total_scenes) * 90)
-                await progress_callback(
-                    progress,
-                    f"Processing scene {scene_index + 1}/{total_scenes}: {scene_data.get('title', 'Untitled')}",
-                )
+            await self._report_scene_progress(
+                scene_index, total_scenes, scene_data, progress_callback, "processing"
+            )
 
-            # Get current markers
+            # Get current markers and detect video tags
             current_markers = scene_data.get("markers", [])
+            await self._report_scene_progress(
+                scene_index, total_scenes, scene_data, progress_callback, "analyzing"
+            )
 
-            # Detect video tags
             video_changes, _ = await self.video_tag_detector.detect(
                 scene_data=scene_data,
                 existing_tags=current_tag_names,
                 existing_markers=current_markers,
             )
 
+            # Apply changes if any
             if video_changes:
-                # Extract and apply changes
-                tags_to_add, markers_to_add = (
-                    await self._extract_changes_from_video_detection(video_changes)
+                result = await self._apply_video_changes(
+                    scene_id,
+                    scene_data,
+                    video_changes,
+                    has_tagme,
+                    scene_index,
+                    total_scenes,
+                    progress_callback,
+                    result,
                 )
-
-                # Apply tag changes
-                if tags_to_add:
-                    result["tags_added"] = await self._apply_tags_to_scene(
-                        scene_id, scene_data, tags_to_add, has_tagme
-                    )
-                    result["scene_modified"] = True
-
-                # Apply marker changes
-                if markers_to_add:
-                    result["markers_added"] = await self._apply_markers_to_scene(
-                        scene_id, markers_to_add
-                    )
-                    result["scene_modified"] = True
             else:
                 # No changes detected, just update status tags
                 if has_tagme:
@@ -829,20 +823,101 @@ class AnalysisService:
                     )
 
         except Exception as e:
-            logger.error(f"Error processing scene {scene_id}: {e}")
-            result["error"] = {
-                "scene_id": scene_id,
-                "title": scene_data.get("title", "Untitled"),
-                "error": str(e),
-            }
+            result = await self._handle_scene_processing_error(
+                scene_id, scene_data, current_tags, has_tagme, e, result
+            )
 
-            # Try to add error tag
-            try:
-                await self._update_scene_status_tags(
-                    scene_id, current_tags, has_tagme, is_error=True
-                )
-            except Exception as tag_error:
-                logger.error(f"Failed to add error tag: {tag_error}")
+        return result
+
+    async def _report_scene_progress(
+        self,
+        scene_index: int,
+        total_scenes: int,
+        scene_data: dict,
+        progress_callback: Optional[Any],
+        stage: str,
+    ) -> None:
+        """Report progress for scene processing."""
+        if not progress_callback:
+            return
+
+        if stage == "processing":
+            progress = int((scene_index / total_scenes) * 85)
+            message = f"Processing scene {scene_index + 1}/{total_scenes}: {scene_data.get('title', 'Untitled')}"
+        elif stage == "analyzing":
+            progress = int(((scene_index + 0.5) / total_scenes) * 85)
+            message = f"Analyzing video for scene {scene_index + 1}/{total_scenes}..."
+        elif stage == "applying":
+            progress = int(((scene_index + 0.7) / total_scenes) * 85)
+            message = f"Applying changes to scene {scene_index + 1}/{total_scenes}..."
+        else:
+            return
+
+        await progress_callback(progress, message)
+
+    async def _apply_video_changes(
+        self,
+        scene_id: str,
+        scene_data: dict,
+        video_changes: Any,
+        has_tagme: bool,
+        scene_index: int,
+        total_scenes: int,
+        progress_callback: Optional[Any],
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Apply video detection changes to a scene."""
+        # Extract changes
+        tags_to_add, markers_to_add = await self._extract_changes_from_video_detection(
+            video_changes
+        )
+
+        # Report applying changes
+        if progress_callback and (tags_to_add or markers_to_add):
+            await self._report_scene_progress(
+                scene_index, total_scenes, scene_data, progress_callback, "applying"
+            )
+
+        # Apply tag changes
+        if tags_to_add:
+            result["tags_added"] = await self._apply_tags_to_scene(
+                scene_id, scene_data, tags_to_add, has_tagme
+            )
+            result["scene_modified"] = True
+
+        # Apply marker changes
+        if markers_to_add:
+            result["markers_added"] = await self._apply_markers_to_scene(
+                scene_id, markers_to_add
+            )
+            result["scene_modified"] = True
+
+        return result
+
+    async def _handle_scene_processing_error(
+        self,
+        scene_id: str,
+        scene_data: dict,
+        current_tags: list,
+        has_tagme: bool,
+        error: Exception,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Handle errors during scene processing."""
+        logger.error(f"Error processing scene {scene_id}: {error}")
+        result["error"] = {
+            "scene_id": scene_id,
+            "title": scene_data.get("title", "Untitled"),
+            "error": str(error),
+        }
+
+        # Try to add error tag
+        try:
+            await self._update_scene_status_tags(
+                scene_id, current_tags, has_tagme, is_error=True
+            )
+        except Exception as tag_error:
+            logger.error(f"Failed to add error tag: {tag_error}")
 
         return result
 
@@ -852,6 +927,7 @@ class AnalysisService:
         filters: Optional[dict] = None,
         job_id: Optional[str] = None,
         progress_callback: Optional[Any] = None,
+        cancellation_token: Optional[Any] = None,
     ) -> dict[str, Any]:
         """Analyze scenes for video tags and apply changes immediately.
 
@@ -871,56 +947,31 @@ class AnalysisService:
         db = await self._get_database_session()
 
         try:
-            # Report initial progress
-            if progress_callback:
-                await progress_callback(0, "Starting video tag analysis")
+            # Initialize analysis
+            scenes_data = await self._initialize_video_tag_analysis(
+                scene_ids, filters, progress_callback
+            )
 
-            # Get scenes to analyze
-            scenes_data = await self._get_scenes_for_analysis(scene_ids, filters)
-
-            total_scenes = len(scenes_data)
-            if total_scenes == 0:
+            if not scenes_data:
                 return self._build_empty_result()
 
-            # Initialize counters
-            scenes_processed = 0
-            scenes_updated = 0
-            tags_added = 0
-            markers_added = 0
-            errors = []
+            # Process scenes
+            counters = await self._process_scenes_for_video_tags(
+                scenes_data, progress_callback, cancellation_token
+            )
 
-            # Process each scene
-            for i, scene_data in enumerate(scenes_data):
-                result = await self._process_scene_for_video_tags(
-                    scene_data, i, total_scenes, progress_callback
-                )
-
-                # Update counters
-                if result["scene_modified"]:
-                    scenes_updated += 1
-
-                tags_added += result["tags_added"]
-                markers_added += result["markers_added"]
-
-                if result["error"]:
-                    errors.append(result["error"])
-
-                scenes_processed += 1
-
-            # Final progress
-            if progress_callback:
-                await progress_callback(
-                    100,
-                    f"Completed: {scenes_updated}/{scenes_processed} scenes updated",
-                )
+            # Finalize analysis
+            await self._finalize_video_tag_analysis(
+                counters["processed_scene_ids"], db, counters, progress_callback
+            )
 
             return {
                 "status": "completed",
-                "scenes_processed": scenes_processed,
-                "scenes_updated": scenes_updated,
-                "tags_added": tags_added,
-                "markers_added": markers_added,
-                "errors": errors,
+                "scenes_processed": counters["scenes_processed"],
+                "scenes_updated": counters["scenes_updated"],
+                "tags_added": counters["tags_added"],
+                "markers_added": counters["markers_added"],
+                "errors": counters["errors"],
             }
 
         except Exception as e:
@@ -930,6 +981,120 @@ class AnalysisService:
             raise
         finally:
             await db.close()
+
+    async def _initialize_video_tag_analysis(
+        self,
+        scene_ids: Optional[list[str]],
+        filters: Optional[dict],
+        progress_callback: Optional[Any],
+    ) -> list[dict[str, Any]]:
+        """Initialize video tag analysis and load scenes."""
+        # Report initial progress
+        if progress_callback:
+            await progress_callback(0, "Starting video tag analysis...")
+
+        # Get scenes to analyze
+        if progress_callback:
+            await progress_callback(2, "Loading scenes to analyze...")
+
+        scenes_data = await self._get_scenes_for_analysis(scene_ids, filters)
+
+        if scenes_data and progress_callback:
+            await progress_callback(5, f"Found {len(scenes_data)} scene(s) to analyze")
+        elif not scenes_data and progress_callback:
+            await progress_callback(100, "No scenes to analyze")
+
+        return scenes_data
+
+    async def _process_scenes_for_video_tags(
+        self,
+        scenes_data: list[dict[str, Any]],
+        progress_callback: Optional[Any],
+        cancellation_token: Optional[Any],
+    ) -> dict[str, Any]:
+        """Process all scenes for video tags."""
+        # Initialize counters
+        counters = {
+            "scenes_processed": 0,
+            "scenes_updated": 0,
+            "tags_added": 0,
+            "markers_added": 0,
+            "errors": [],
+            "processed_scene_ids": [],
+        }
+
+        total_scenes = len(scenes_data)
+
+        # Process each scene
+        for i, scene_data in enumerate(scenes_data):
+            # Check for cancellation
+            if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+                await cancellation_token.check_cancellation()
+
+            result = await self._process_scene_for_video_tags(
+                scene_data, i, total_scenes, progress_callback
+            )
+
+            # Update counters
+            self._update_counters(counters, result, scene_data)
+
+            # Report completion of this scene
+            if progress_callback:
+                completed_progress = int(((i + 1) / total_scenes) * 85)
+                await progress_callback(
+                    completed_progress,
+                    f"Completed scene {i + 1}/{total_scenes}",
+                )
+
+        return counters
+
+    def _update_counters(
+        self,
+        counters: dict[str, Any],
+        result: dict[str, Any],
+        scene_data: dict[str, Any],
+    ) -> None:
+        """Update processing counters from scene result."""
+        if result["scene_modified"]:
+            counters["scenes_updated"] += 1
+
+        counters["tags_added"] += result["tags_added"]
+        counters["markers_added"] += result["markers_added"]
+
+        if result["error"]:
+            counters["errors"].append(result["error"])
+
+        counters["scenes_processed"] += 1
+        counters["processed_scene_ids"].append(scene_data.get("id"))
+
+    async def _finalize_video_tag_analysis(
+        self,
+        processed_scene_ids: list[str],
+        db: Any,
+        counters: dict[str, Any],
+        progress_callback: Optional[Any],
+    ) -> None:
+        """Finalize video tag analysis by marking scenes as analyzed."""
+        # Report marking scenes as analyzed (10% of progress)
+        if progress_callback:
+            await progress_callback(
+                90,
+                f"Marking {len(processed_scene_ids)} scenes as video analyzed...",
+            )
+
+        # Mark all processed scenes as video_analyzed
+        await self._mark_scenes_as_video_analyzed(processed_scene_ids, db)
+
+        # Report finalizing (5% of progress)
+        if progress_callback:
+            await progress_callback(95, "Finalizing results...")
+
+        # Final progress
+        if progress_callback:
+            await progress_callback(
+                100,
+                f"Completed: {counters['scenes_updated']}/{counters['scenes_processed']} scenes updated",
+            )
 
     async def _refresh_cache(self) -> None:
         """Refresh cached entities from Stash."""
@@ -1314,6 +1479,45 @@ class AnalysisService:
             logger.error(f"Failed to mark scenes as analyzed: {str(e)}", exc_info=True)
             # Don't fail the entire operation if marking scenes fails
             # The analysis plan is already created
+
+    async def _mark_scenes_as_video_analyzed(
+        self, scene_ids: list[str], db: AsyncSession
+    ) -> None:
+        """Mark scenes as video analyzed in the database.
+
+        Args:
+            scene_ids: List of scene IDs to mark
+            db: Database session
+        """
+        try:
+            from sqlalchemy import select
+
+            from app.models.scene import Scene as DBScene
+
+            logger.debug(f"Marking {len(scene_ids)} scenes as video analyzed")
+
+            # Get scenes from database
+            stmt = select(DBScene).where(DBScene.id.in_(scene_ids))
+            result = await db.execute(stmt)
+            db_scenes = result.scalars().all()
+
+            logger.debug(
+                f"Found {len(db_scenes)} scenes in database to mark as video analyzed"
+            )
+
+            for scene in db_scenes:
+                scene.video_analyzed = True  # type: ignore[assignment]
+
+            await db.flush()
+            logger.info(
+                f"Successfully marked {len(db_scenes)} scenes as video analyzed"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to mark scenes as video analyzed: {str(e)}", exc_info=True
+            )
+            # Don't fail the entire operation if marking scenes fails
 
     async def _report_initial_progress(
         self, job_id: Optional[str], scene_count: int, progress_callback: Optional[Any]

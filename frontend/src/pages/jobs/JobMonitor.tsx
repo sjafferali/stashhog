@@ -232,9 +232,7 @@ const JobMonitor: React.FC = () => {
               </Button>
             }
           >
-            {record.type === 'scene_analysis' ||
-            record.type === 'batch_analysis' ||
-            record.type === 'analysis' ? (
+            {record.type === 'scene_analysis' || record.type === 'analysis' ? (
               <AnalysisJobResult
                 result={record.result as unknown as AnalysisJobResultData}
               />
@@ -296,7 +294,6 @@ const JobMonitor: React.FC = () => {
           sync_all: 'Full Sync',
           scene_sync: 'Scene Sync',
           scene_analysis: 'Scene Analysis',
-          batch_analysis: 'Batch Analysis',
           sync_scenes: 'Sync Scenes',
           sync_performers: 'Sync Performers',
           sync_tags: 'Sync Tags',
@@ -602,7 +599,6 @@ const JobMonitor: React.FC = () => {
                 <>
                   <Divider orientation="left">Result</Divider>
                   {selectedJob.type === 'scene_analysis' ||
-                  selectedJob.type === 'batch_analysis' ||
                   selectedJob.type === 'analysis' ? (
                     <AnalysisJobResult
                       result={

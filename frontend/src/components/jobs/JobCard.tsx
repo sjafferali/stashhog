@@ -87,8 +87,6 @@ export const JobCard: React.FC<JobCardProps> = ({
         return 'Synchronization';
       case 'scene_analysis':
         return 'Scene Analysis';
-      case 'batch_analysis':
-        return 'Batch Analysis';
       default:
         return job.type;
     }

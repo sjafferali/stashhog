@@ -32,6 +32,7 @@ class BatchProcessor:
         analyzer: Callable,
         progress_callback: Optional[Callable] = None,
         error_callback: Optional[Callable] = None,
+        cancellation_token: Optional[Any] = None,
     ) -> List[SceneChanges]:
         """Process scenes in batches with progress tracking.
 
@@ -60,6 +61,10 @@ class BatchProcessor:
         # Create tasks for all batches
         tasks = []
         for batch_idx, batch in enumerate(batches):
+            # Check for cancellation before creating each batch task
+            if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+                await cancellation_token.check_cancellation()
+
             task = self._process_batch_with_progress(
                 batch, batch_idx, analyzer, progress_callback, error_callback
             )

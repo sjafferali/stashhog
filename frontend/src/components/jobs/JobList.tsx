@@ -152,7 +152,6 @@ export const JobList: React.FC<JobListProps> = ({
   const typeOptions = [
     { label: 'Synchronization', value: 'sync' },
     { label: 'Scene Analysis', value: 'analysis' },
-    { label: 'Batch Analysis', value: 'batch_analysis' },
   ];
 
   if (loading && jobs.length === 0) {

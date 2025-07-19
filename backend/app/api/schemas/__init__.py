@@ -120,7 +120,6 @@ class JobType(str, Enum):
 
     SCENE_SYNC = "scene_sync"
     SCENE_ANALYSIS = "scene_analysis"
-    BATCH_ANALYSIS = "batch_analysis"
     SETTINGS_TEST = "settings_test"
     SYNC_ALL = "sync_all"
     SYNC = "sync"  # Legacy, mapped to SYNC_ALL
@@ -217,6 +216,7 @@ class SceneBase(BaseSchema):
     file_path: Optional[str] = Field(None, description="Actual file path")
     organized: bool = Field(..., description="Is scene organized")
     analyzed: bool = Field(..., description="Is scene analyzed")
+    video_analyzed: bool = Field(False, description="Has video tag analysis been run")
     details: Optional[str] = Field(None, description="Scene details/description")
     stash_created_at: datetime = Field(
         ..., description="When scene was created in Stash"
@@ -274,6 +274,9 @@ class SceneFilter(BaseSchema):
     tag_ids: Optional[list[str]] = Field(None, description="Filter by tag IDs")
     organized: Optional[bool] = Field(None, description="Filter by organized status")
     analyzed: Optional[bool] = Field(None, description="Filter by analyzed status")
+    video_analyzed: Optional[bool] = Field(
+        None, description="Filter by video analyzed status"
+    )
     date_from: Optional[datetime] = Field(None, description="Filter by date from")
     date_to: Optional[datetime] = Field(None, description="Filter by date to")
 

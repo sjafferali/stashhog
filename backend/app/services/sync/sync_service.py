@@ -120,6 +120,7 @@ class SyncService:
         force: bool = False,
         batch_size: int = 100,
         progress_callback: Optional[Any] = None,
+        cancellation_token: Optional[Any] = None,
     ) -> SyncResult:
         """Full sync of all entities from Stash"""
         job_id = job_id or str(uuid4())
@@ -200,6 +201,7 @@ class SyncService:
                 job_id=job_id,
                 batch_size=batch_size,
                 progress_callback=progress_callback,
+                cancellation_token=cancellation_token,
             )
             logger.info(
                 f"📊 Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
@@ -269,6 +271,7 @@ class SyncService:
         db: Optional[AsyncSession] = None,
         filters: Optional[Dict[str, Any]] = None,
         full_sync: bool = False,
+        cancellation_token: Optional[Any] = None,
     ) -> SyncResult:
         """Sync scenes with optional incremental mode"""
         job_id = job_id or str(uuid4())
@@ -286,7 +289,7 @@ class SyncService:
         if scene_ids:
             logger.debug(f"Using scene_ids sync mode for {len(scene_ids)} scenes")
             return await self._sync_specific_scenes(
-                scene_ids, job_id, progress_callback, result
+                scene_ids, job_id, progress_callback, result, cancellation_token
             )
 
         if filters:
@@ -300,7 +303,7 @@ class SyncService:
         # Standard batch sync
         logger.debug("Using standard batch sync mode")
         return await self._batch_sync_scenes(
-            since, job_id, batch_size, progress_callback, result
+            since, job_id, batch_size, progress_callback, result, cancellation_token
         )
 
     async def _sync_with_filters(
@@ -335,52 +338,23 @@ class SyncService:
         job_id: str,
         progress_callback: Optional[Any],
         result: SyncResult,
+        cancellation_token: Optional[Any] = None,
     ) -> SyncResult:
         """Sync specific scenes by their IDs"""
         logger.debug(f"_sync_specific_scenes started for {len(scene_ids)} scenes")
         try:
-            # Set total items to the number of scene IDs
-            result.total_items = len(scene_ids)
-            self._progress = SyncProgress(job_id, len(scene_ids))
+            # Initialize sync
+            self._initialize_sync_result(result, scene_ids, job_id)
 
             # Process each scene ID
             for idx, scene_id in enumerate(scene_ids):
-                logger.debug(f"Syncing scene {idx+1}/{len(scene_ids)} - id: {scene_id}")
-
-                try:
-                    # Fetch scene data from Stash
-                    scene_data = await self.stash_service.get_scene(scene_id)
-                    if scene_data:
-                        # Process the scene
-                        await self._process_single_scene(
-                            scene_data, result, progress_callback
-                        )
-                    else:
-                        logger.warning(f"Scene {scene_id} not found in Stash")
-                        result.failed_items += 1
-                        result.add_error("sync", scene_id, "Scene not found in Stash")
-                except Exception as e:
-                    logger.error(f"Failed to sync scene {scene_id}: {str(e)}")
-                    result.failed_items += 1
-                    result.add_error("sync", scene_id, str(e))
-
-                # Update progress
-                progress = int((idx + 1) / len(scene_ids) * 100)
-                if progress_callback:
-                    await progress_callback(
-                        progress, f"Synced {idx + 1}/{len(scene_ids)} scenes"
-                    )
-
-            # Report 100% progress before completing
-            if progress_callback:
-                await progress_callback(
-                    100,
-                    f"Scene sync completed. Processed {result.processed_items} scenes.",
+                await self._check_cancellation(cancellation_token)
+                await self._sync_single_scene_by_id(
+                    scene_id, idx, len(scene_ids), result, progress_callback
                 )
 
-            result.complete()
-            if self._progress:
-                await self._progress.complete(result)
+            # Finalize sync
+            await self._finalize_sync(result, progress_callback)
 
         except Exception as e:
             logger.error(f"Specific scene sync failed: {str(e)}")
@@ -390,6 +364,70 @@ class SyncService:
 
         return result
 
+    def _initialize_sync_result(
+        self, result: SyncResult, scene_ids: List[str], job_id: str
+    ) -> None:
+        """Initialize sync result and progress tracking."""
+        result.total_items = len(scene_ids)
+        self._progress = SyncProgress(job_id, len(scene_ids))
+
+    async def _check_cancellation(self, cancellation_token: Optional[Any]) -> None:
+        """Check for cancellation request."""
+        if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+            await cancellation_token.check_cancellation()
+
+    async def _sync_single_scene_by_id(
+        self,
+        scene_id: str,
+        idx: int,
+        total_scenes: int,
+        result: SyncResult,
+        progress_callback: Optional[Any],
+    ) -> None:
+        """Sync a single scene by its ID."""
+        logger.debug(f"Syncing scene {idx+1}/{total_scenes} - id: {scene_id}")
+
+        try:
+            # Fetch scene data from Stash
+            scene_data = await self.stash_service.get_scene(scene_id)
+            if scene_data:
+                # Process the scene
+                await self._process_single_scene(scene_data, result, progress_callback)
+            else:
+                logger.warning(f"Scene {scene_id} not found in Stash")
+                result.failed_items += 1
+                result.add_error("sync", scene_id, "Scene not found in Stash")
+        except Exception as e:
+            logger.error(f"Failed to sync scene {scene_id}: {str(e)}")
+            result.failed_items += 1
+            result.add_error("sync", scene_id, str(e))
+
+        # Update progress
+        await self._report_sync_progress(idx, total_scenes, progress_callback)
+
+    async def _report_sync_progress(
+        self, idx: int, total_scenes: int, progress_callback: Optional[Any]
+    ) -> None:
+        """Report sync progress."""
+        if progress_callback:
+            progress = int((idx + 1) / total_scenes * 100)
+            await progress_callback(progress, f"Synced {idx + 1}/{total_scenes} scenes")
+
+    async def _finalize_sync(
+        self, result: SyncResult, progress_callback: Optional[Any]
+    ) -> None:
+        """Finalize sync and report completion."""
+        # Report 100% progress before completing
+        if progress_callback:
+            await progress_callback(
+                100,
+                f"Scene sync completed. Processed {result.processed_items} scenes.",
+            )
+
+        result.complete()
+        if self._progress:
+            await self._progress.complete(result)
+
     async def _batch_sync_scenes(
         self,
         since: Optional[datetime],
@@ -397,6 +435,7 @@ class SyncService:
         batch_size: int,
         progress_callback: Optional[Any],
         result: SyncResult,
+        cancellation_token: Optional[Any] = None,
     ) -> SyncResult:
         """Sync scenes in batches"""
         logger.debug(
@@ -457,7 +496,12 @@ class SyncService:
                     f"Processing batch {batch_num} - offset: {offset}, batch_size: {batch_size}"
                 )
                 batch_complete = await self._process_scene_batch(
-                    since, batch_size, offset, result, progress_callback
+                    since,
+                    batch_size,
+                    offset,
+                    result,
+                    progress_callback,
+                    cancellation_token,
                 )
                 logger.debug(f"Batch {batch_num} complete: {batch_complete}")
                 if batch_complete:
@@ -501,6 +545,7 @@ class SyncService:
         offset: int,
         result: SyncResult,
         progress_callback: Optional[Any],
+        cancellation_token: Optional[Any] = None,
     ) -> bool:
         """Process a single batch of scenes. Returns True if done."""
         # Fetch batch
@@ -527,6 +572,10 @@ class SyncService:
 
         # Process each scene
         for idx, scene_data in enumerate(batch_scenes):
+            # Check for cancellation
+            if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+                await cancellation_token.check_cancellation()
+
             scene_id = scene_data.get("id", "unknown")
             logger.debug(
                 f"Processing scene {idx+1}/{len(batch_scenes)} - id: {scene_id}"

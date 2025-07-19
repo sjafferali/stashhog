@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.core.cancellation import cancellation_manager
 from app.core.tasks import TaskStatus, get_task_queue
 from app.models.job import Job, JobStatus, JobType
 from app.repositories.job_repository import job_repository
@@ -47,6 +48,9 @@ class JobService:
         """Create a new job and queue it for execution."""
         # Generate job ID
         job_id = str(uuid.uuid4())
+
+        # Create cancellation token for this job
+        cancellation_manager.create_token(job_id)
 
         # Create job in database
         job = await job_repository.create_job(
@@ -146,6 +150,9 @@ class JobService:
             if metadata:
                 handler_kwargs.update(metadata)
 
+            # Get cancellation token
+            cancellation_token = cancellation_manager.get_token(job_id)
+
             # Create an async progress callback that uses its own session
             async def async_progress_callback(
                 progress: int, message: Optional[str] = None
@@ -167,11 +174,13 @@ class JobService:
                     job_id=job_id,
                     metadata=metadata,
                     progress_callback=async_progress_callback,
+                    cancellation_token=cancellation_token,
                 )
             else:
                 result = await handler(
                     job_id=job_id,
                     progress_callback=async_progress_callback,
+                    cancellation_token=cancellation_token,
                     **handler_kwargs,
                 )
 
@@ -189,6 +198,19 @@ class JobService:
 
             return str(result) if result is not None else ""
 
+        except asyncio.CancelledError:
+            logger.info(f"Job {job_id} was cancelled")
+            # Update status in a new session for cancellation
+            async with AsyncSessionLocal() as cancel_db:
+                await self._update_job_status_with_session(
+                    job_id=job_id,
+                    status=JobStatus.CANCELLED,
+                    error="Job was cancelled by user",
+                    message="Job cancelled",
+                    db=cancel_db,
+                )
+                await cancel_db.commit()
+            raise
         except Exception as e:
             logger.error(f"Job {job_id} failed: {str(e)}")
             # Update status in a new session for error case
@@ -202,6 +224,9 @@ class JobService:
                 )
                 await error_db.commit()
             raise
+        finally:
+            # Clean up cancellation token
+            cancellation_manager.remove_token(job_id)
 
     async def get_job(
         self, job_id: str, db: Union[Session, AsyncSession]
@@ -227,6 +252,9 @@ class JobService:
         job = await job_repository.get_job(job_id, db)
         if not job:
             return False
+
+        # Cancel using cancellation token
+        cancellation_manager.cancel_job(job_id)
 
         # Cancel task if running
         if job.job_metadata is not None and "task_id" in job.job_metadata:

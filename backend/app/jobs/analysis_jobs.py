@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 async def analyze_scenes_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    cancellation_token: Optional[Any] = None,
     scene_ids: Optional[list[str]] = None,
     options: Optional[dict[str, Any]] = None,
     **kwargs: Any,
@@ -80,6 +81,7 @@ async def analyze_scenes_job(
                 db=db,
                 progress_callback=progress_callback,
                 plan_name=plan_name,
+                cancellation_token=cancellation_token,
             )
 
             logger.info(f"Analysis completed for job {job_id}, plan ID: {plan.id}")
@@ -147,6 +149,7 @@ async def apply_analysis_plan_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
     plan_id: str,
+    cancellation_token: Optional[Any] = None,
     auto_approve: bool = False,
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -400,6 +403,7 @@ async def analyze_video_tags_job(
     job_id: str,
     metadata: Optional[Dict[str, Any]] = None,
     progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None,
+    cancellation_token: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Job handler for analyzing video tags on scenes.
 
@@ -466,6 +470,7 @@ async def analyze_video_tags_job(
         filters=filters,
         job_id=job_id,
         progress_callback=progress_callback,
+        cancellation_token=cancellation_token,
     )
 
     return result

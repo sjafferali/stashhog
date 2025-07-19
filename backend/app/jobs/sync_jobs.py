@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 async def sync_all_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
+    cancellation_token: Optional[Any] = None,
     force: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:
@@ -35,7 +36,10 @@ async def sync_all_job(
         try:
             logger.debug("About to call sync_service.sync_all")
             result = await sync_service.sync_all(
-                job_id=job_id, force=force, progress_callback=progress_callback
+                job_id=job_id,
+                force=force,
+                progress_callback=progress_callback,
+                cancellation_token=cancellation_token,
             )
             logger.debug(f"sync_all completed with status: {result.status}")
         except Exception as e:
@@ -69,6 +73,7 @@ async def sync_all_job(
 async def sync_scenes_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
+    cancellation_token: Optional[Any] = None,
     scene_ids: Optional[List[str]] = None,
     force: bool = False,
     **kwargs: Any,
@@ -90,6 +95,7 @@ async def sync_scenes_job(
             job_id=job_id,
             force=force,
             progress_callback=progress_callback,
+            cancellation_token=cancellation_token,
         )
 
     # Convert SyncResult dataclass to dict manually
@@ -111,6 +117,7 @@ async def sync_scenes_job(
 async def sync_performers_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
+    cancellation_token: Optional[Any] = None,
     force: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:
@@ -149,6 +156,7 @@ async def sync_performers_job(
 async def sync_tags_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
+    cancellation_token: Optional[Any] = None,
     force: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:
@@ -187,6 +195,7 @@ async def sync_tags_job(
 async def sync_studios_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], None],
+    cancellation_token: Optional[Any] = None,
     force: bool = False,
     **kwargs: Any,
 ) -> Dict[str, Any]:

@@ -65,9 +65,9 @@ export const SceneEditModal: React.FC<SceneEditModalProps> = ({
     }
   );
 
-  // Set initial form values when scene changes
+  // Set initial form values when scene changes and options are loaded
   useEffect(() => {
-    if (scene && visible) {
+    if (scene && visible && performers && tags && studios) {
       form.setFieldsValue({
         title: scene.title || '',
         details: scene.details || '',
@@ -79,7 +79,7 @@ export const SceneEditModal: React.FC<SceneEditModalProps> = ({
         tag_ids: scene.tags?.map((t) => t.id) || [],
       });
     }
-  }, [scene, visible, form]);
+  }, [scene, visible, form, performers, tags, studios]);
 
   const handleSubmit = async () => {
     try {

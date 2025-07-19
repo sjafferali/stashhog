@@ -141,7 +141,7 @@ class TestSyncService:
         sync_service.strategy.should_sync = AsyncMock(return_value=True)
 
         # Run sync
-        result = await sync_service.sync_all(job_id="test_job")
+        result = await sync_service.sync_all(job_id="test_job", cancellation_token=None)
 
         # Verify result
         assert isinstance(result, SyncResult)

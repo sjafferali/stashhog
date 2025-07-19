@@ -6,6 +6,7 @@ export interface Scene {
   file_path?: string; // Actual file path from Stash
   organized: boolean;
   analyzed: boolean;
+  video_analyzed: boolean;
   details?: string;
   stash_created_at: string;
   stash_updated_at?: string;
@@ -172,7 +173,6 @@ export interface Job {
   type:
     | 'scene_sync'
     | 'scene_analysis'
-    | 'batch_analysis'
     | 'settings_test'
     | 'sync_all'
     | 'sync'

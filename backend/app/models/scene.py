@@ -42,6 +42,7 @@ class Scene(BaseModel):
     file_path = Column(String, nullable=True)  # Actual file path from Stash
     organized = Column(Boolean, default=False, nullable=False, index=True)
     analyzed = Column(Boolean, default=False, nullable=False, index=True)
+    video_analyzed = Column(Boolean, default=False, nullable=False, index=True)
     details = Column(Text, nullable=True)
     url = Column(String, nullable=True)
     rating = Column(Integer, nullable=True)

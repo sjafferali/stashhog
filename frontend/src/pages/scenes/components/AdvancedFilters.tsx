@@ -322,10 +322,12 @@ export const AdvancedFilters: React.FC = () => {
                 <CheckCircleOutlined />
                 Status
                 {(filters.organized !== undefined ||
-                  filters.analyzed !== undefined) &&
+                  filters.analyzed !== undefined ||
+                  filters.video_analyzed !== undefined) &&
                   renderFilterCount(
                     (filters.organized !== undefined ? 1 : 0) +
-                      (filters.analyzed !== undefined ? 1 : 0)
+                      (filters.analyzed !== undefined ? 1 : 0) +
+                      (filters.video_analyzed !== undefined ? 1 : 0)
                   )}
               </Space>
             }
@@ -365,6 +367,30 @@ export const AdvancedFilters: React.FC = () => {
                     }
                     onChange={(value: boolean | undefined) =>
                       updateFilter('analyzed', value)
+                    }
+                    style={{ width: 120 }}
+                    placeholder="Any"
+                    allowClear
+                    options={[
+                      { value: true, label: 'Yes' },
+                      { value: false, label: 'No' },
+                    ]}
+                  />
+                </Space>
+              </Col>
+            </Row>
+            <Row gutter={16} style={{ marginTop: 16 }}>
+              <Col span={12}>
+                <Space>
+                  <span>Video Analyzed:</span>
+                  <Select
+                    value={
+                      typeof filters.video_analyzed === 'boolean'
+                        ? filters.video_analyzed
+                        : undefined
+                    }
+                    onChange={(value: boolean | undefined) =>
+                      updateFilter('video_analyzed', value)
                     }
                     style={{ width: 120 }}
                     placeholder="Any"

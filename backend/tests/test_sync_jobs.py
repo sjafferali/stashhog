@@ -97,7 +97,10 @@ class TestSyncJobs:
             mock_stash_service_class.return_value, mock_db
         )
         mock_sync_service.sync_all.assert_called_once_with(
-            job_id="test-job-123", force=True, progress_callback=mock_progress_callback
+            job_id="test-job-123",
+            force=True,
+            progress_callback=mock_progress_callback,
+            cancellation_token=None,
         )
 
     @pytest.mark.asyncio
@@ -168,6 +171,7 @@ class TestSyncJobs:
             job_id="test-job-123",
             force=True,
             progress_callback=mock_progress_callback,
+            cancellation_token=None,
         )
 
     @pytest.mark.asyncio
@@ -206,6 +210,7 @@ class TestSyncJobs:
             job_id="test-job-123",
             force=False,
             progress_callback=mock_progress_callback,
+            cancellation_token=None,
         )
 
     @pytest.mark.asyncio
@@ -470,7 +475,9 @@ class TestSyncJobs:
         mock_sync_service = AsyncMock()
 
         # Simulate progressive sync updates
-        async def simulate_sync_all(job_id, force, progress_callback):
+        async def simulate_sync_all(
+            job_id, force, progress_callback, cancellation_token
+        ):
             # Simulate progress updates
             progress_callback(10, "Starting sync...")
             progress_callback(50, "Processing items...")

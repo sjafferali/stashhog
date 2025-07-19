@@ -21,6 +21,7 @@ import {
   ClockCircleOutlined,
   CalendarOutlined,
   MoreOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import type {
@@ -302,6 +303,13 @@ export const ListView: React.FC<ListViewProps> = ({
               <Tooltip title="Analyzed">
                 <CheckCircleOutlined
                   style={{ color: '#52c41a', fontSize: 16 }}
+                />
+              </Tooltip>
+            )}
+            {record.video_analyzed && (
+              <Tooltip title="Video Analyzed">
+                <VideoCameraOutlined
+                  style={{ color: '#722ed1', fontSize: 16 }}
                 />
               </Tooltip>
             )}
