@@ -56,15 +56,25 @@ class Job(BaseModel):
     # Use create_constraint=False and native_enum=True to use existing database enum
     # The key is to pass the enum values explicitly
     type: Column = Column(
-        Enum(*[e.value for e in JobType], name='jobtype', create_constraint=False, native_enum=True), 
-        nullable=False, 
-        index=True
+        Enum(
+            *[e.value for e in JobType],
+            name="jobtype",
+            create_constraint=False,
+            native_enum=True,
+        ),
+        nullable=False,
+        index=True,
     )
     status: Column = Column(
-        Enum(*[e.value for e in JobStatus], name='jobstatus', create_constraint=False, native_enum=True), 
-        nullable=False, 
-        default=JobStatus.PENDING.value, 
-        index=True
+        Enum(
+            *[e.value for e in JobStatus],
+            name="jobstatus",
+            create_constraint=False,
+            native_enum=True,
+        ),
+        nullable=False,
+        default=JobStatus.PENDING.value,
+        index=True,
     )
 
     # Progress tracking
