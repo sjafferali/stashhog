@@ -130,6 +130,11 @@ class JobType(str, Enum):
     SYNC_STUDIOS = "sync_studios"
     ANALYSIS = "analysis"
     APPLY_PLAN = "apply_plan"
+    VIDEO_TAG_ANALYSIS = "video_tag_analysis"
+    GENERATE_DETAILS = "generate_details"
+    EXPORT = "export"
+    IMPORT = "import"
+    CLEANUP = "cleanup"
 
 
 class JobCreate(BaseSchema):
