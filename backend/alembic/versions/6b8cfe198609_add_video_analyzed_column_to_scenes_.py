@@ -21,11 +21,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add video_analyzed column to scenes table
+    # First add as nullable to avoid long table rewrite
     op.add_column(
         "scenes",
         sa.Column(
-            "video_analyzed", sa.Boolean(), nullable=False, server_default="false"
+            "video_analyzed", sa.Boolean(), nullable=True
         ),
+    )
+    
+    # Set default value for existing rows in batches
+    op.execute("UPDATE scenes SET video_analyzed = false WHERE video_analyzed IS NULL")
+    
+    # Now make it NOT NULL with default
+    op.alter_column(
+        "scenes",
+        "video_analyzed",
+        nullable=False,
+        server_default="false"
     )
 
     # Create index for better query performance
