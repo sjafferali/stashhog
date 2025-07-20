@@ -9,19 +9,16 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 import { AnalysisPlan, Job } from '@/types/models';
-import { FilterPanel, FilterConfig } from '@/components/common/FilterPanel';
+import { StatusFilter } from '@/components/analysis/StatusFilter';
+import { StatusSummary } from '@/components/analysis/StatusSummary';
+import styles from './PlanList.module.scss';
 
 const PlanList: React.FC = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<AnalysisPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Job[]>([]);
-  const [filterValues, setFilterValues] = useState<
-    Record<
-      string,
-      string | number | boolean | string[] | [string, string] | null | undefined
-    >
-  >({});
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchPlans();
@@ -67,6 +64,7 @@ const PlanList: React.FC = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      width: 120,
       render: (status: unknown) => {
         const statusStr = String(status);
         const colorMap: Record<string, string> = {
@@ -76,7 +74,10 @@ const PlanList: React.FC = () => {
           cancelled: 'red',
         };
         return (
-          <Tag color={colorMap[statusStr] || 'default'}>
+          <Tag
+            color={colorMap[statusStr] || 'default'}
+            style={{ fontWeight: 500 }}
+          >
             {statusStr.charAt(0).toUpperCase() + statusStr.slice(1)}
           </Tag>
         );
@@ -138,49 +139,66 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const filterConfig: FilterConfig[] = [
-    {
-      name: 'status',
-      label: 'Status',
-      type: 'multiselect',
-      options: [
-        { label: 'Draft', value: 'draft' },
-        { label: 'Reviewing', value: 'reviewing' },
-        { label: 'Applied', value: 'applied' },
-        { label: 'Cancelled', value: 'cancelled' },
-      ],
-      placeholder: 'Filter by status',
-    },
-  ];
+  const statusCounts = useMemo(() => {
+    const counts = {
+      draft: 0,
+      reviewing: 0,
+      applied: 0,
+      cancelled: 0,
+    };
 
-  const filteredPlans = useMemo(() => {
+    plans.forEach((plan) => {
+      counts[plan.status as keyof typeof counts]++;
+    });
+
+    return counts;
+  }, [plans]);
+
+  const totalChangesReviewing = useMemo(() => {
+    return plans
+      .filter((plan) => plan.status === 'reviewing')
+      .reduce((sum, plan) => sum + (plan.total_changes || 0), 0);
+  }, [plans]);
+
+  const filteredAndSortedPlans = useMemo(() => {
     let filtered = [...plans];
 
     // Filter by status
-    const statusFilter = filterValues.status as string[] | undefined;
-    if (statusFilter && statusFilter.length > 0) {
-      filtered = filtered.filter((plan) => statusFilter.includes(plan.status));
+    if (statusFilter) {
+      filtered = filtered.filter((plan) => plan.status === statusFilter);
     }
 
+    // Sort by status priority and then by creation date
+    const statusPriority: Record<string, number> = {
+      reviewing: 1,
+      draft: 2,
+      applied: 3,
+      cancelled: 4,
+    };
+
+    filtered.sort((a, b) => {
+      // First sort by status priority
+      const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      // Then sort by creation date (most recent first)
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+
     return filtered;
-  }, [plans, filterValues]);
+  }, [plans, statusFilter]);
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ margin: 0, flex: 1 }}>Analysis Plans</h1>
+      <div className={styles.pageHeader}>
+        <h1>Analysis Plans</h1>
         {runningJobs.length > 0 && (
-          <Badge count={runningJobs.length} style={{ marginRight: 20 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '8px 16px',
-                background: '#f0f2f5',
-                borderRadius: 4,
-                gap: 8,
-              }}
-            >
+          <Badge count={runningJobs.length} className={styles.runningJobsBadge}>
+            <div className={styles.runningJobsIndicator}>
               <Spin
                 indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />}
               />
@@ -193,29 +211,66 @@ const PlanList: React.FC = () => {
         )}
       </div>
 
-      <FilterPanel
-        filters={filterConfig}
-        values={filterValues}
-        onChange={setFilterValues}
-        onReset={() => setFilterValues({})}
-        collapsible={false}
+      <StatusSummary
+        draft={statusCounts.draft}
+        reviewing={statusCounts.reviewing}
+        applied={statusCounts.applied}
+        cancelled={statusCounts.cancelled}
+        totalChangesReviewing={totalChangesReviewing}
       />
 
-      <Card
-        style={{ marginTop: 16 }}
-        extra={
-          <Button type="primary" icon={<PlusOutlined />}>
-            Create Plan
-          </Button>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={filteredPlans}
-          loading={loading}
-          rowKey="id"
-          pagination={false}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <StatusFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          counts={statusCounts}
         />
+        <div style={{ flex: 1 }} />
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            void message.info('Create Plan functionality not implemented yet');
+          }}
+        >
+          Create Plan
+        </Button>
+      </div>
+
+      <Card>
+        <div
+          style={
+            {
+              '--reviewing-bg': '#fff7e6',
+              '--draft-bg': '#e6f7ff',
+              '--applied-bg': '#f6ffed',
+              '--cancelled-bg': '#fff1f0',
+            } as React.CSSProperties
+          }
+        >
+          <Table
+            columns={columns}
+            dataSource={filteredAndSortedPlans}
+            loading={loading}
+            rowKey="id"
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} of ${total} plans`,
+            }}
+            rowClassName={(record) => `plan-row plan-${record.status}`}
+            onRow={(record) => ({
+              onClick: (e) => {
+                // Don't navigate if clicking on action buttons
+                const target = e.target as HTMLElement;
+                if (!target.closest('button') && !target.closest('a')) {
+                  void navigate(`/analysis/plans/${record.id}`);
+                }
+              },
+            })}
+          />
+        </div>
       </Card>
     </div>
   );

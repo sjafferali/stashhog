@@ -1,0 +1,79 @@
+.pageHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  
+  h1 {
+    margin: 0;
+    flex: 1;
+  }
+}
+
+.runningJobsBadge {
+  margin-right: 20px;
+}
+
+.runningJobsIndicator {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f0f2f5;
+  border-radius: 4px;
+  gap: 8px;
+  font-weight: 500;
+}
+
+:global {
+  // Row styling based on status
+  .plan-row {
+    transition: background-color 0.2s ease;
+    
+    &.plan-reviewing {
+      background-color: var(--reviewing-bg);
+      
+      &:hover td {
+        background-color: #ffedd1 !important;
+      }
+    }
+    
+    &.plan-draft {
+      background-color: var(--draft-bg);
+      
+      &:hover td {
+        background-color: #d1e7ff !important;
+      }
+    }
+    
+    &.plan-applied {
+      background-color: var(--applied-bg);
+      
+      &:hover td {
+        background-color: #e6ffdb !important;
+      }
+    }
+    
+    &.plan-cancelled {
+      background-color: var(--cancelled-bg);
+      
+      &:hover td {
+        background-color: #ffe1e0 !important;
+      }
+    }
+  }
+  
+  // Enhance table appearance
+  .ant-table {
+    .ant-table-thead > tr > th {
+      background: #fafafa;
+      font-weight: 600;
+    }
+    
+    .ant-table-tbody > tr {
+      cursor: pointer;
+      
+      &:hover {
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+    }
+  }
+}

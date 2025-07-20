@@ -6,9 +6,11 @@ import {
   BellOutlined,
   SyncOutlined,
   SettingOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import useAppStore from '@/store';
+import { useRunningJobs } from '@/hooks/useRunningJobs';
 
 const { Header: AntHeader } = Layout;
 
@@ -21,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isLoading } = useAppStore();
+  const { runningCount } = useRunningJobs();
 
   return (
     <AntHeader
@@ -55,13 +58,24 @@ const Header: React.FC<HeaderProps> = ({ collapsed, onToggle }) => {
           />
         </Tooltip>
 
-        <Tooltip title="Jobs">
-          <Badge count={0} showZero={false}>
+        <Tooltip
+          title={
+            runningCount > 0
+              ? `${runningCount} running job${runningCount > 1 ? 's' : ''}`
+              : 'Jobs'
+          }
+        >
+          <Badge count={runningCount} showZero={false}>
             <Button
               type="text"
-              icon={<BellOutlined />}
+              icon={
+                runningCount > 0 ? <LoadingOutlined spin /> : <BellOutlined />
+              }
               onClick={() => {
                 void navigate('/jobs');
+              }}
+              style={{
+                color: runningCount > 0 ? token.colorPrimary : undefined,
               }}
             />
           </Badge>

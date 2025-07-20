@@ -7,6 +7,10 @@ jest.mock('dayjs');
 // Mock apiClient
 jest.mock('@/services/apiClient');
 
+// Mock hooks
+jest.mock('@/hooks/useRunningJobs');
+jest.mock('@/hooks/useWebSocket');
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
