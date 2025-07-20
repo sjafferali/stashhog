@@ -1,5 +1,6 @@
 """Alembic environment configuration."""
 
+import logging
 import os
 import sys
 from logging.config import fileConfig
@@ -7,6 +8,10 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+
+# Set up detailed logging for migrations
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("alembic.env")
 
 # Add parent directory to path to import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -92,6 +97,9 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    logger.info("Running migrations in online mode")
+    logger.info(f"Database URL: {config.get_main_option('sqlalchemy.url')}")
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -99,10 +107,20 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        logger.info("Connected to database")
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
-            context.run_migrations()
+            logger.info("Starting migration transaction")
+            try:
+                context.run_migrations()
+                logger.info("Migration transaction completed successfully")
+            except Exception as e:
+                logger.error(f"Migration failed during execution: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                if hasattr(e, "orig"):
+                    logger.error(f"Original error: {e.orig}")
+                raise
 
 
 if context.is_offline_mode():

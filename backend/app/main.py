@@ -42,6 +42,59 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+async def _run_migrations_with_retry(max_attempts: int = 3) -> None:
+    """Run database migrations with retry logic."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            logger.info(
+                f"Running database migrations... (attempt {attempt}/{max_attempts})"
+            )
+            await run_migrations_async()
+            return  # Success
+        except Exception as e:
+            logger.error(f"Migration attempt {attempt} failed: {e}")
+            if attempt >= max_attempts:
+                logger.error(
+                    f"Failed to apply migrations after {max_attempts} attempts"
+                )
+                logger.error("Application cannot start due to migration failures")
+                logger.error(
+                    "Please check the logs above for detailed error information"
+                )
+                raise RuntimeError(
+                    f"Database migrations failed after {max_attempts} attempts: {e}"
+                )
+            else:
+                logger.info("Waiting 5 seconds before retry...")
+                import asyncio
+
+                await asyncio.sleep(5)
+
+
+async def _startup_tasks() -> None:
+    """Run all startup tasks."""
+    # Skip migrations in test environment
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        logger.info("Skipping migrations in test environment")
+    else:
+        await _run_migrations_with_retry()
+
+    # Initialize background task queue
+    logger.info("Starting background workers...")
+    task_queue = get_task_queue()
+    await task_queue.start()
+
+    # Register job handlers
+    logger.info("Registering job handlers...")
+    register_all_jobs(job_service)
+
+    # TODO: Test external connections
+    # logger.info("Testing external connections...")
+    # await test_connections()
+
+    logger.info("Application startup complete")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -53,31 +106,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Starting {settings.app.name} v{settings.app.version}")
 
     try:
-        # Skip migrations in test environment
-        if os.getenv("PYTEST_CURRENT_TEST"):
-            logger.info("Skipping migrations in test environment")
-        else:
-            # Run database migrations (this handles all schema management)
-            logger.info("Running database migrations...")
-            await run_migrations_async()
-
-        # Initialize background task queue
-        logger.info("Starting background workers...")
-        task_queue = get_task_queue()
-        await task_queue.start()
-
-        # Register job handlers
-        logger.info("Registering job handlers...")
-        register_all_jobs(job_service)
-
-        # TODO: Test external connections
-        # logger.info("Testing external connections...")
-        # await test_connections()
-
-        logger.info("Application startup complete")
+        await _startup_tasks()
 
     except Exception as e:
+        logger.error("=" * 80)
+        logger.error("APPLICATION STARTUP FAILURE")
+        logger.error("=" * 80)
         logger.error(f"Failed to start application: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        if hasattr(e, "__cause__") and e.__cause__:
+            logger.error(f"Caused by: {e.__cause__}")
+        logger.error("=" * 80)
         raise
 
     yield

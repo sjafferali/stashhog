@@ -441,8 +441,11 @@ class TestRunMigrations:
         mock_command.upgrade.side_effect = Exception("Migration failed")
 
         # Run function and expect exception
-        with pytest.raises(Exception, match="Migration failed"):
+        with pytest.raises(Exception) as exc_info:
             run_migrations()
+
+        # Check that the exception message contains our original error
+        assert "Migration failed" in str(exc_info.value)
 
         # Verify cleanup still happens
         mock_engine.dispose.assert_called_once()

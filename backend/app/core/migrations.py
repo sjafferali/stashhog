@@ -112,6 +112,89 @@ def _check_migrations_needed(engine: Engine, alembic_cfg: Config) -> bool:
     return True
 
 
+def _log_migration_error_details(migration_error: Exception) -> None:
+    """Log migration error details."""
+    if hasattr(migration_error, "orig"):
+        logger.error(f"Original database error: {migration_error.orig}")
+
+    if hasattr(migration_error, "statement"):
+        logger.error(f"Failed SQL statement: {migration_error.statement}")
+
+    if hasattr(migration_error, "params"):
+        logger.error(f"SQL parameters: {migration_error.params}")
+
+
+def _log_migration_context(engine: Engine, alembic_cfg: Config) -> None:
+    """Log current migration context and pending migrations."""
+    current_rev = None
+    try:
+        with engine.begin() as conn:
+            context = MigrationContext.configure(conn)
+            current_rev = context.get_current_revision()
+            logger.error(
+                f"Current database revision: {current_rev or 'None (fresh database)'}"
+            )
+    except Exception as context_error:
+        logger.error(f"Could not determine current revision: {context_error}")
+
+    # Try to show which migration was being attempted
+    try:
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+        head_rev = script_dir.get_current_head()
+        logger.error(f"Attempted to migrate to: {head_rev}")
+
+        # Show pending migrations
+        if current_rev is not None:
+            pending_revisions = []
+            for revision in script_dir.walk_revisions():
+                if revision.revision == current_rev:
+                    break
+                pending_revisions.append(f"{revision.revision} - {revision.doc}")
+
+            if pending_revisions:
+                logger.error("Failed while applying one of these migrations:")
+                for rev in reversed(pending_revisions):
+                    logger.error(f"  - {rev}")
+    except Exception as script_error:
+        logger.error(f"Could not determine migration details: {script_error}")
+
+
+def _log_migration_error(
+    migration_error: Exception, engine: Engine, alembic_cfg: Config
+) -> None:
+    """Log detailed migration error information."""
+    logger.error("=" * 80)
+    logger.error("MIGRATION FAILURE DETECTED")
+    logger.error("=" * 80)
+    logger.error(f"Migration failed with error: {migration_error}")
+    logger.error(f"Error type: {type(migration_error).__name__}")
+
+    _log_migration_error_details(migration_error)
+    _log_migration_context(engine, alembic_cfg)
+
+    import traceback
+
+    logger.error("Full traceback:")
+    logger.error(traceback.format_exc())
+    logger.error("=" * 80)
+    logger.error("MIGRATION FAILURE - Application cannot start")
+    logger.error("Please fix the migration issue and restart the application")
+    logger.error("=" * 80)
+
+
+def _apply_migrations(engine: Engine, alembic_cfg: Config, settings) -> None:
+    """Apply database migrations."""
+    logger.info("Applying pending migrations...")
+    # Set a statement timeout for PostgreSQL to prevent hanging
+    if settings.database.url.startswith("postgresql"):
+        with engine.begin() as conn:
+            conn.execute(text("SET statement_timeout = '300000'"))  # 5 minutes
+            logger.info("Set PostgreSQL statement timeout to 5 minutes")
+
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Database migrations completed successfully")
+
+
 def run_migrations() -> None:
     """
     Run all pending database migrations.
@@ -149,22 +232,10 @@ def run_migrations() -> None:
             return
 
         # Run migrations
-        logger.info("Applying pending migrations...")
         try:
-            # Set a statement timeout for PostgreSQL to prevent hanging
-            if settings.database.url.startswith("postgresql"):
-                with engine.begin() as conn:
-                    conn.execute(text("SET statement_timeout = '300000'"))  # 5 minutes
-                    logger.info("Set PostgreSQL statement timeout to 5 minutes")
-
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Database migrations completed successfully")
+            _apply_migrations(engine, alembic_cfg, settings)
         except Exception as migration_error:
-            logger.error(f"Migration failed with error: {migration_error}")
-            logger.error(f"Error type: {type(migration_error).__name__}")
-            import traceback
-
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            _log_migration_error(migration_error, engine, alembic_cfg)
             raise
         finally:
             # Always dispose of the migration engine
