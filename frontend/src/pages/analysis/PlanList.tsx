@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Table, Button, Space, Tag, message, Badge, Spin } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, LoadingOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  LoadingOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 import { AnalysisPlan, Job } from '@/types/models';
@@ -11,17 +16,22 @@ const PlanList: React.FC = () => {
   const [plans, setPlans] = useState<AnalysisPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Job[]>([]);
-  const [filterValues, setFilterValues] = useState<Record<string, string | string[]>>({});
+  const [filterValues, setFilterValues] = useState<
+    Record<
+      string,
+      string | number | boolean | string[] | [string, string] | null | undefined
+    >
+  >({});
 
   useEffect(() => {
     void fetchPlans();
     void fetchRunningJobs();
-    
+
     // Poll for running jobs every 5 seconds
     const interval = setInterval(() => {
       void fetchRunningJobs();
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -41,7 +51,7 @@ const PlanList: React.FC = () => {
   const fetchRunningJobs = async () => {
     try {
       const jobs = await apiClient.getJobs({ status: 'running' });
-      setRunningJobs(jobs.filter(job => job.status === 'running'));
+      setRunningJobs(jobs.filter((job) => job.status === 'running'));
     } catch (error) {
       console.error('Failed to fetch running jobs:', error);
     }
@@ -145,20 +155,54 @@ const PlanList: React.FC = () => {
 
   const filteredPlans = useMemo(() => {
     let filtered = [...plans];
-    
+
     // Filter by status
     const statusFilter = filterValues.status as string[] | undefined;
     if (statusFilter && statusFilter.length > 0) {
-      filtered = filtered.filter(plan => statusFilter.includes(plan.status));
+      filtered = filtered.filter((plan) => statusFilter.includes(plan.status));
     }
-    
+
     return filtered;
   }, [plans, filterValues]);
 
   return (
     <div>
-      <h1>Analysis Plans</h1>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <h1 style={{ margin: 0, flex: 1 }}>Analysis Plans</h1>
+        {runningJobs.length > 0 && (
+          <Badge count={runningJobs.length} style={{ marginRight: 20 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 16px',
+                background: '#f0f2f5',
+                borderRadius: 4,
+                gap: 8,
+              }}
+            >
+              <Spin
+                indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />}
+              />
+              <span>
+                {runningJobs.length} job{runningJobs.length > 1 ? 's' : ''}{' '}
+                running
+              </span>
+            </div>
+          </Badge>
+        )}
+      </div>
+
+      <FilterPanel
+        filters={filterConfig}
+        values={filterValues}
+        onChange={setFilterValues}
+        onReset={() => setFilterValues({})}
+        collapsible={false}
+      />
+
       <Card
+        style={{ marginTop: 16 }}
         extra={
           <Button type="primary" icon={<PlusOutlined />}>
             Create Plan
@@ -167,7 +211,7 @@ const PlanList: React.FC = () => {
       >
         <Table
           columns={columns}
-          dataSource={plans}
+          dataSource={filteredPlans}
           loading={loading}
           rowKey="id"
           pagination={false}
