@@ -1,17 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Space, Tag, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Card, Table, Button, Space, Tag, message, Badge, Spin } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
-import { AnalysisPlan } from '@/types/models';
+import { AnalysisPlan, Job } from '@/types/models';
+import { FilterPanel, FilterConfig } from '@/components/common/FilterPanel';
 
 const PlanList: React.FC = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<AnalysisPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [runningJobs, setRunningJobs] = useState<Job[]>([]);
+  const [filterValues, setFilterValues] = useState<Record<string, string | string[]>>({});
 
   useEffect(() => {
     void fetchPlans();
+    void fetchRunningJobs();
+    
+    // Poll for running jobs every 5 seconds
+    const interval = setInterval(() => {
+      void fetchRunningJobs();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchPlans = async () => {
@@ -24,6 +35,15 @@ const PlanList: React.FC = () => {
       void message.error('Failed to load analysis plans');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRunningJobs = async () => {
+    try {
+      const jobs = await apiClient.getJobs({ status: 'running' });
+      setRunningJobs(jobs.filter(job => job.status === 'running'));
+    } catch (error) {
+      console.error('Failed to fetch running jobs:', error);
     }
   };
 
@@ -40,9 +60,10 @@ const PlanList: React.FC = () => {
       render: (status: unknown) => {
         const statusStr = String(status);
         const colorMap: Record<string, string> = {
-          pending: 'orange',
+          draft: 'blue',
+          reviewing: 'orange',
           applied: 'green',
-          failed: 'red',
+          cancelled: 'red',
         };
         return (
           <Tag color={colorMap[statusStr] || 'default'}>
@@ -106,6 +127,33 @@ const PlanList: React.FC = () => {
       void message.error('Failed to delete plan');
     }
   };
+
+  const filterConfig: FilterConfig[] = [
+    {
+      name: 'status',
+      label: 'Status',
+      type: 'multiselect',
+      options: [
+        { label: 'Draft', value: 'draft' },
+        { label: 'Reviewing', value: 'reviewing' },
+        { label: 'Applied', value: 'applied' },
+        { label: 'Cancelled', value: 'cancelled' },
+      ],
+      placeholder: 'Filter by status',
+    },
+  ];
+
+  const filteredPlans = useMemo(() => {
+    let filtered = [...plans];
+    
+    // Filter by status
+    const statusFilter = filterValues.status as string[] | undefined;
+    if (statusFilter && statusFilter.length > 0) {
+      filtered = filtered.filter(plan => statusFilter.includes(plan.status));
+    }
+    
+    return filtered;
+  }, [plans, filterValues]);
 
   return (
     <div>
