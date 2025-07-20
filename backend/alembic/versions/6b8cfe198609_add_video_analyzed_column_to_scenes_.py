@@ -27,8 +27,34 @@ def upgrade() -> None:
         sa.Column("video_analyzed", sa.Boolean(), nullable=True),
     )
 
-    # Set default value for existing rows in batches
-    op.execute("UPDATE scenes SET video_analyzed = false WHERE video_analyzed IS NULL")
+    # Set default value for existing rows in smaller batches to avoid timeout
+    connection = op.get_bind()
+    batch_size = 10000
+    offset = 0
+
+    while True:
+        result = connection.execute(
+            sa.text(
+                f"""
+                UPDATE scenes
+                SET video_analyzed = false
+                WHERE video_analyzed IS NULL
+                AND id IN (
+                    SELECT id FROM scenes
+                    WHERE video_analyzed IS NULL
+                    ORDER BY id
+                    LIMIT {batch_size}
+                )
+            """
+            )
+        )
+
+        if result.rowcount == 0:
+            break
+
+        offset += batch_size
+        # Small delay to prevent overwhelming the database
+        connection.execute(sa.text("SELECT pg_sleep(0.1)"))
 
     # Now make it NOT NULL with default
     op.alter_column("scenes", "video_analyzed", nullable=False, server_default="false")
