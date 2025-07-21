@@ -42,11 +42,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["primary_tag_id"],
-            ["tags.id"],
+            ["tag.id"],
         ),
         sa.ForeignKeyConstraint(
             ["scene_id"],
-            ["scenes.id"],
+            ["scene.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -65,7 +65,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(
             ["tag_id"],
-            ["tags.id"],
+            ["tag.id"],
         ),
         sa.PrimaryKeyConstraint("scene_marker_id", "tag_id"),
     )
