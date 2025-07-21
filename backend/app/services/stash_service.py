@@ -67,8 +67,14 @@ class StashService:
     def _get_headers(self) -> Dict[str, str]:
         """Get request headers."""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        # Only add API key if it's not None and not empty string
-        if self.api_key and self.api_key.strip():
+        # Only add API key if it's a valid value
+        # Exclude: None, empty strings, and common placeholder values like '0', 'null', 'none'
+        # These can come from database defaults or uninitialized settings
+        if (
+            self.api_key
+            and self.api_key.strip()
+            and self.api_key.strip() not in ["0", "null", "none"]
+        ):
             headers["ApiKey"] = self.api_key
         return headers
 

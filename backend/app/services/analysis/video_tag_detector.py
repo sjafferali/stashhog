@@ -1,9 +1,7 @@
 """Video tag detection module for scene analysis using external AI server."""
 
 import asyncio
-import json
 import logging
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
@@ -36,14 +34,12 @@ class VideoTagDetector:
         self,
         video_path: str,
         vr_video: bool = False,
-        existing_json: Optional[Dict] = None,
     ) -> Optional[Dict[str, Any]]:
         """Process video file through external AI server.
 
         Args:
             video_path: Path to the video file
             vr_video: Whether this is a VR video
-            existing_json: Existing analysis data if any
 
         Returns:
             Analysis results from AI server or None if failed
@@ -54,7 +50,6 @@ class VideoTagDetector:
             "threshold": self.video_threshold,
             "return_confidence": True,
             "vr_video": vr_video,
-            "existing_json_data": existing_json,
         }
 
         url = f"{self.api_base_url}/process_video/"
@@ -93,33 +88,6 @@ class VideoTagDetector:
             return None
 
         return str(video_path)
-
-    def _load_existing_analysis(self, ai_json_path: str) -> Optional[Dict]:
-        """Load existing AI analysis from file if available."""
-        if not os.path.exists(ai_json_path):
-            return None
-
-        try:
-            with open(ai_json_path, "r") as f:
-                data: Dict[Any, Any] = json.load(f)
-                return data
-        except Exception as e:
-            logger.warning(f"Failed to read existing AI analysis: {e}")
-            return None
-
-    def _save_analysis_result(self, ai_json_path: str, result: Dict) -> None:
-        """Save AI analysis result to file."""
-        try:
-            with open(ai_json_path, "w") as f:
-                json.dump(result, f, indent=2)
-            # Set appropriate permissions if needed
-            if hasattr(os, "chown"):
-                try:
-                    os.chown(ai_json_path, 1050, 1050)
-                except Exception:
-                    pass  # Ignore permission errors
-        except Exception as e:
-            logger.warning(f"Failed to save AI analysis to file: {e}")
 
     def _extract_tags_from_result(
         self,
@@ -224,10 +192,6 @@ class VideoTagDetector:
             return changes, None
 
         try:
-            # Check if we have existing AI analysis
-            ai_json_path = f"{video_path}.AI.json"
-            existing_analysis = self._load_existing_analysis(ai_json_path)
-
             # Process video through AI server
             logger.info(
                 f"Processing video for scene {scene_data.get('id')}: {video_path}"
@@ -235,7 +199,6 @@ class VideoTagDetector:
             result = await self.process_video_async(
                 video_path=video_path,
                 vr_video=scene_data.get("is_vr", False),
-                existing_json=existing_analysis,
             )
 
             if not result:
@@ -243,9 +206,6 @@ class VideoTagDetector:
                     f"No result from AI server for scene {scene_data.get('id')}"
                 )
                 return changes, None
-
-            # Save result to file
-            self._save_analysis_result(ai_json_path, result)
 
             # Extract tags from result
             tag_changes = self._extract_tags_from_result(result, existing_tags)
