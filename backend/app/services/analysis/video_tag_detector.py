@@ -30,6 +30,92 @@ class VideoTagDetector:
         self.server_timeout = settings.analysis.server_timeout
         self.create_markers = settings.analysis.create_markers
 
+    def _parse_nested_json_result(self, json_result: Any) -> Dict[str, Any]:
+        """Parse nested JSON result if it's a string.
+
+        Args:
+            json_result: The json_result value which may be a string or dict
+
+        Returns:
+            Parsed dictionary or empty dict if parsing fails
+        """
+        import json
+
+        if isinstance(json_result, str):
+            logger.debug("json_result is a string, parsing as JSON...")
+            try:
+                parsed_json_result = json.loads(json_result)
+                logger.debug(
+                    f"Successfully parsed nested JSON, type: {type(parsed_json_result)}"
+                )
+                if isinstance(parsed_json_result, dict):
+                    logger.debug(f"Nested JSON keys: {list(parsed_json_result.keys())}")
+                    return parsed_json_result
+                else:
+                    logger.error(
+                        f"Parsed nested JSON is not a dict: {type(parsed_json_result).__name__}"
+                    )
+                    return {}
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse nested json_result: {e}")
+                logger.error(f"json_result string preview: {json_result[:500]}...")
+                return {}
+        elif isinstance(json_result, dict):
+            logger.debug(f"json_result keys: {list(json_result.keys())}")
+            return json_result
+        else:
+            logger.error(
+                f"json_result is neither string nor dict: {type(json_result).__name__}"
+            )
+            return {}
+
+    def _parse_response_json(self, response_text: str) -> Optional[Dict[str, Any]]:
+        """Parse the response text as JSON and extract the result.
+
+        Args:
+            response_text: Raw response text from the server
+
+        Returns:
+            Parsed result dictionary or None if parsing fails
+        """
+        import json
+
+        try:
+            result = json.loads(response_text)
+            logger.debug(f"Successfully parsed JSON, type: {type(result)}")
+            logger.debug(
+                f"JSON keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
+            )
+
+            if not isinstance(result, dict):
+                logger.error(
+                    f"Parsed result is not a dict, it's: {type(result).__name__}"
+                )
+                logger.error(f"Result value: {result}")
+                return {}
+
+            result_data = result.get("result", {})
+            logger.debug(f"result.get('result') type: {type(result_data)}")
+
+            if not isinstance(result_data, dict):
+                logger.error(
+                    f"result['result'] is not a dict, it's: {type(result_data).__name__}"
+                )
+                logger.error(f"result['result'] value: {result_data}")
+                return {}
+
+            json_result = result_data.get("json_result", {})
+            logger.debug(
+                f"result['result'].get('json_result') type: {type(json_result)}"
+            )
+
+            return self._parse_nested_json_result(json_result)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse response as JSON: {e}")
+            logger.error(f"Response text that failed to parse: {response_text}")
+            return None
+
     async def process_video_async(
         self,
         video_path: str,
@@ -76,57 +162,7 @@ class VideoTagDetector:
                             else f"Raw response: {response_text}"
                         )
 
-                        try:
-                            # Try to parse as JSON
-                            import json
-
-                            result = json.loads(response_text)
-                            logger.debug(
-                                f"Successfully parsed JSON, type: {type(result)}"
-                            )
-                            logger.debug(
-                                f"JSON keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
-                            )
-
-                            # Check if result is a dict before trying to access it
-                            if isinstance(result, dict):
-                                result_data = result.get("result", {})
-                                logger.debug(
-                                    f"result.get('result') type: {type(result_data)}"
-                                )
-
-                                if isinstance(result_data, dict):
-                                    json_result: Dict[str, Any] = result_data.get(
-                                        "json_result", {}
-                                    )
-                                    logger.debug(
-                                        f"result['result'].get('json_result') type: {type(json_result)}"
-                                    )
-                                    logger.debug(
-                                        f"json_result keys: {list(json_result.keys()) if isinstance(json_result, dict) else 'Not a dict'}"
-                                    )
-                                    return json_result
-                                else:
-                                    logger.error(
-                                        f"result['result'] is not a dict, it's: {type(result_data).__name__}"
-                                    )
-                                    logger.error(
-                                        f"result['result'] value: {result_data}"
-                                    )
-                                    return {}
-                            else:
-                                logger.error(
-                                    f"Parsed result is not a dict, it's: {type(result).__name__}"
-                                )
-                                logger.error(f"Result value: {result}")
-                                return {}
-
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse response as JSON: {e}")
-                            logger.error(
-                                f"Response text that failed to parse: {response_text}"
-                            )
-                            return None
+                        return self._parse_response_json(response_text)
 
                     else:
                         error_text = await response.text()

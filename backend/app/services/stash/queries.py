@@ -216,7 +216,8 @@ query Version {
 # Find performer by name
 FIND_PERFORMER = """
 query FindPerformers($filter: PerformerFilterType!) {
-    findPerformers(filter: $filter, limit: 10) {
+    findPerformers(performer_filter: $filter) {
+        count
         performers {
             id
             name
@@ -233,7 +234,8 @@ query FindPerformers($filter: PerformerFilterType!) {
 # Find tag by name
 FIND_TAG = """
 query FindTags($filter: TagFilterType!) {
-    findTags(filter: $filter, limit: 10) {
+    findTags(tag_filter: $filter) {
+        count
         tags {
             id
             name
@@ -248,7 +250,8 @@ query FindTags($filter: TagFilterType!) {
 # Find studio by name
 FIND_STUDIO = """
 query FindStudios($filter: StudioFilterType!) {
-    findStudios(filter: $filter, limit: 10) {
+    findStudios(studio_filter: $filter) {
+        count
         studios {
             id
             name
