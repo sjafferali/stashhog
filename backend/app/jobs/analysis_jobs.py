@@ -201,19 +201,18 @@ async def apply_analysis_plan_job(
     )
 
     # Execute plan application with progress callback
-    async with AsyncSessionLocal():
-        if openai_client is None:
-            raise ValueError("OpenAI client is required for analysis")
-        analysis_service = AnalysisService(
-            openai_client=openai_client, stash_service=stash_service, settings=settings
-        )
+    if openai_client is None:
+        raise ValueError("OpenAI client is required for analysis")
+    analysis_service = AnalysisService(
+        openai_client=openai_client, stash_service=stash_service, settings=settings
+    )
 
-        result = await analysis_service.apply_plan(
-            plan_id=plan_id,
-            auto_approve=auto_approve,
-            job_id=job_id,
-            progress_callback=progress_callback,
-        )
+    result = await analysis_service.apply_plan(
+        plan_id=plan_id,
+        auto_approve=auto_approve,
+        job_id=job_id,
+        progress_callback=progress_callback,
+    )
 
     return {
         "plan_id": plan_id,

@@ -1847,63 +1847,54 @@ class AnalysisService:
             Result of applying the plan
         """
         # Get database session
-        from app.core.database import get_async_db
+        from app.core.database import AsyncSessionLocal
 
-        db: Optional[AsyncSession] = None
-        async for session in get_async_db():
-            db = session
-            break
+        async with AsyncSessionLocal() as db:
+            try:
+                # Convert plan_id to int
+                plan_id_int = int(plan_id)
 
-        if not db:
-            raise RuntimeError("Failed to get database session")
+                # Report initial progress
+                if progress_callback:
+                    await progress_callback(0, f"Loading plan {plan_id}")
 
-        try:
-            # Convert plan_id to int
-            plan_id_int = int(plan_id)
+                # Get the plan
+                plan = await self.plan_manager.get_plan(plan_id_int, db)
+                if not plan:
+                    raise ValueError(f"Plan {plan_id} not found")
 
-            # Report initial progress
-            if progress_callback:
-                await progress_callback(0, f"Loading plan {plan_id}")
+                total_changes = plan.get_change_count()
 
-            # Get the plan
-            plan = await self.plan_manager.get_plan(plan_id_int, db)
-            if not plan:
-                raise ValueError(f"Plan {plan_id} not found")
+                if progress_callback:
+                    await progress_callback(5, f"Applying {total_changes} changes")
 
-            total_changes = plan.get_change_count()
+                # Apply the plan
+                result = await self.plan_manager.apply_plan(
+                    plan_id=plan_id_int,
+                    db=db,
+                    stash_service=self.stash_service,
+                    apply_filters=None,  # Apply all changes
+                )
 
-            if progress_callback:
-                await progress_callback(5, f"Applying {total_changes} changes")
+                # Calculate progress
+                progress = 100
+                success_rate = (
+                    (result.applied_changes / result.total_changes * 100)
+                    if result.total_changes > 0
+                    else 0
+                )
+                message = f"Applied {result.applied_changes}/{result.total_changes} changes ({success_rate:.1f}% success)"
 
-            # Apply the plan
-            result = await self.plan_manager.apply_plan(
-                plan_id=plan_id_int,
-                db=db,
-                stash_service=self.stash_service,
-                apply_filters=None,  # Apply all changes
-            )
+                if progress_callback:
+                    await progress_callback(progress, message)
 
-            # Calculate progress
-            progress = 100
-            success_rate = (
-                (result.applied_changes / result.total_changes * 100)
-                if result.total_changes > 0
-                else 0
-            )
-            message = f"Applied {result.applied_changes}/{result.total_changes} changes ({success_rate:.1f}% success)"
+                # Add scene information to result
+                result.scenes_analyzed = plan.metadata.get("scene_count", 0)
 
-            if progress_callback:
-                await progress_callback(progress, message)
+                return result
 
-            # Add scene information to result
-            result.scenes_analyzed = plan.metadata.get("scene_count", 0)
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Failed to apply plan {plan_id}: {str(e)}")
-            if progress_callback:
-                await progress_callback(100, f"Failed: {str(e)}")
-            raise
-        finally:
-            await db.close()
+            except Exception as e:
+                logger.error(f"Failed to apply plan {plan_id}: {str(e)}")
+                if progress_callback:
+                    await progress_callback(100, f"Failed: {str(e)}")
+                raise
