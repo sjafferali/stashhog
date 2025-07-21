@@ -8,6 +8,7 @@ export interface SceneQueryParams extends FilterParams {
   studio_id?: string;
   organized?: boolean;
   analyzed?: boolean;
+  video_analyzed?: boolean;
   date_from?: string;
   date_to?: string;
 }

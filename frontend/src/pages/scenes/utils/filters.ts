@@ -32,6 +32,8 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
     tag_ids: [],
     studio_id: undefined,
     organized: undefined,
+    analyzed: undefined,
+    video_analyzed: undefined,
     date_from: params.get('date_from') || '',
     date_to: params.get('date_to') || '',
   };
@@ -59,6 +61,16 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
     filters.organized = organized === 'true';
   }
 
+  const analyzed = params.get('analyzed');
+  if (analyzed !== null) {
+    filters.analyzed = analyzed === 'true';
+  }
+
+  const videoAnalyzed = params.get('video_analyzed');
+  if (videoAnalyzed !== null) {
+    filters.video_analyzed = videoAnalyzed === 'true';
+  }
+
   return filters;
 }
 
@@ -80,6 +92,8 @@ export function getActiveFilterCount(filters: SceneFilters): number {
     count++;
   if (filters.studio_id) count++;
   if (filters.organized !== undefined) count++;
+  if (filters.analyzed !== undefined) count++;
+  if (filters.video_analyzed !== undefined) count++;
   if (filters.date_from) count++;
   if (filters.date_to) count++;
 
@@ -93,6 +107,8 @@ export function getDefaultFilters(): SceneFilters {
     tag_ids: [],
     studio_id: undefined,
     organized: undefined,
+    analyzed: undefined,
+    video_analyzed: undefined,
     date_from: '',
     date_to: '',
   };
@@ -121,6 +137,8 @@ export function getFilterDisplayName(key: string | number): string {
     tag_ids: 'Tags',
     studio_id: 'Studio',
     organized: 'Organized',
+    analyzed: 'Analyzed',
+    video_analyzed: 'Video Analyzed',
     date_from: 'Date From',
     date_to: 'Date To',
   };

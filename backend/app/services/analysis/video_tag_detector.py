@@ -211,7 +211,24 @@ class VideoTagDetector:
         )
 
         changes: List[ProposedChange] = []
-        ai_tags = result.get("tags", [])
+
+        # Check for timespans format (new AI server response format)
+        if "timespans" in result:
+            logger.debug("Found timespans format, extracting tags from timespans")
+            timespans = result.get("timespans", {})
+            logger.debug(
+                f"timespans keys: {list(timespans.keys()) if isinstance(timespans, dict) else 'Not a dict'}"
+            )
+
+            # Convert timespans to tags
+            tags_from_timespans = self._convert_timespans_to_tags(timespans)
+            ai_tags = tags_from_timespans
+            logger.debug(f"Converted timespans to {len(ai_tags)} tags")
+        else:
+            # Original format with direct tags
+            ai_tags = result.get("tags", [])
+            logger.debug(f"Using direct tags format: {len(ai_tags)} tags")
+
         logger.debug(
             f"ai_tags type: {type(ai_tags)}, count: {len(ai_tags) if isinstance(ai_tags, list) else 'Not a list'}"
         )
@@ -219,7 +236,9 @@ class VideoTagDetector:
         existing_tag_names = [t.lower() for t in existing_tags]
         logger.debug(f"existing_tag_names: {existing_tag_names}")
 
-        for tag_info in ai_tags:
+        logger.debug(f"Processing {len(ai_tags)} tags")
+        for idx, tag_info in enumerate(ai_tags):
+            logger.debug(f"Processing tag {idx}: {tag_info}")
             if isinstance(tag_info, dict):
                 tag_name = tag_info.get("name", "").strip()
                 confidence = tag_info.get("confidence", 0.5)
@@ -227,9 +246,13 @@ class VideoTagDetector:
                 tag_name = tag_info.strip()
                 confidence = 0.7
             else:
+                logger.debug(f"Skipping tag {idx}: not dict or string")
                 continue
 
+            logger.debug(f"Tag {idx}: name='{tag_name}', confidence={confidence}")
+
             if tag_name and tag_name.lower() not in existing_tag_names:
+                logger.debug(f"Adding tag change for '{tag_name}'")
                 changes.append(
                     ProposedChange(
                         field="tags",
@@ -240,8 +263,82 @@ class VideoTagDetector:
                         reason="Detected from video content analysis",
                     )
                 )
+            else:
+                logger.debug(f"Skipping tag '{tag_name}': empty or already exists")
 
         return changes
+
+    def _convert_timespans_to_tags(
+        self, timespans: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Convert timespans format to tags list."""
+        tags = []
+
+        for category, actions in timespans.items():
+            if not isinstance(actions, dict):
+                continue
+
+            logger.debug(
+                f"Processing category '{category}' with actions: {list(actions.keys())}"
+            )
+
+            for action_name, occurrences in actions.items():
+                if isinstance(occurrences, list) and occurrences:
+                    # Calculate average confidence from all occurrences
+                    confidences = [
+                        occ.get("confidence", 0.5)
+                        for occ in occurrences
+                        if isinstance(occ, dict)
+                    ]
+                    avg_confidence = (
+                        sum(confidences) / len(confidences) if confidences else 0.5
+                    )
+
+                    # Create tag entry
+                    tag_entry = {
+                        "name": action_name,
+                        "confidence": avg_confidence,
+                        "category": category,
+                    }
+                    tags.append(tag_entry)
+                    logger.debug(
+                        f"Added tag: {action_name} with confidence {avg_confidence:.2f}"
+                    )
+
+        return tags
+
+    def _convert_timespans_to_markers(
+        self, timespans: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Convert timespans format to markers list."""
+        markers = []
+
+        for category, actions in timespans.items():
+            if not isinstance(actions, dict):
+                continue
+
+            for action_name, occurrences in actions.items():
+                if isinstance(occurrences, list):
+                    # Create markers for significant occurrences
+                    for occurrence in occurrences:
+                        if isinstance(occurrence, dict):
+                            start_time = occurrence.get("start", 0)
+                            confidence = occurrence.get("confidence", 0.5)
+
+                            # Only create markers for high confidence occurrences
+                            if confidence >= 0.7:
+                                marker = {
+                                    "time": start_time,
+                                    "title": action_name,
+                                    "tags": [action_name],
+                                    "confidence": confidence,
+                                }
+                                markers.append(marker)
+                                logger.debug(
+                                    f"Added marker for {action_name} at {start_time}s with confidence {confidence:.2f}"
+                                )
+
+        return markers
 
     def _extract_markers_from_result(
         self,
@@ -254,14 +351,29 @@ class VideoTagDetector:
         if not self.create_markers:
             return changes
 
-        ai_markers = result.get("markers", [])
+        # Check for timespans format
+        if "timespans" in result:
+            logger.debug("Found timespans format, extracting markers from timespans")
+            timespans = result.get("timespans", {})
+            ai_markers = self._convert_timespans_to_markers(timespans)
+            logger.debug(f"Converted timespans to {len(ai_markers)} markers")
+        else:
+            # Original format with direct markers
+            ai_markers = result.get("markers", [])
+            logger.debug(f"Using direct markers format: {len(ai_markers)} markers")
 
-        for marker_info in ai_markers:
+        logger.debug(f"Processing {len(ai_markers)} markers")
+        for idx, marker_info in enumerate(ai_markers):
+            logger.debug(f"Processing marker {idx}: {marker_info}")
             if isinstance(marker_info, dict):
                 marker_time = marker_info.get("time", 0)
                 marker_title = marker_info.get("title", "")
                 marker_tags = marker_info.get("tags", [])
                 confidence = marker_info.get("confidence", 0.7)
+
+                logger.debug(
+                    f"Marker {idx}: time={marker_time}, title='{marker_title}', tags={marker_tags}, confidence={confidence}"
+                )
 
                 if marker_time > 0 and (marker_title or marker_tags):
                     # Check if marker already exists at this time
@@ -271,6 +383,9 @@ class VideoTagDetector:
                     )
 
                     if not existing_at_time:
+                        logger.debug(
+                            f"Adding marker change for '{marker_title}' at {marker_time}s"
+                        )
                         changes.append(
                             ProposedChange(
                                 field="markers",
@@ -284,6 +399,10 @@ class VideoTagDetector:
                                 confidence=confidence,
                                 reason="Detected from video content",
                             )
+                        )
+                    else:
+                        logger.debug(
+                            f"Marker already exists at time {marker_time}s, skipping"
                         )
 
         return changes

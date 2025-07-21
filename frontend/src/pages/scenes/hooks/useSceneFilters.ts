@@ -14,6 +14,7 @@ const DEFAULT_FILTERS: SceneFilters = {
   studio_id: undefined,
   organized: undefined,
   analyzed: undefined,
+  video_analyzed: undefined,
   date_from: '',
   date_to: '',
 };
@@ -39,6 +40,11 @@ export function useSceneFilters() {
     const analyzed = searchParams.get('analyzed');
     if (analyzed !== null) {
       params.analyzed = analyzed === 'true';
+    }
+
+    const videoAnalyzed = searchParams.get('video_analyzed');
+    if (videoAnalyzed !== null) {
+      params.video_analyzed = videoAnalyzed === 'true';
     }
 
     // Array filters (comma-separated IDs)
@@ -146,6 +152,7 @@ export function useSceneFilters() {
     if (filters.studio_id) count++;
     if (filters.organized !== undefined) count++;
     if (filters.analyzed !== undefined) count++;
+    if (filters.video_analyzed !== undefined) count++;
     if (filters.date_from) count++;
     if (filters.date_to) count++;
     return count;
