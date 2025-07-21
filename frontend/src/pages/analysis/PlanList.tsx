@@ -9,7 +9,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 import { AnalysisPlan, Job } from '@/types/models';
-import { StatusFilter } from '@/components/analysis/StatusFilter';
 import { StatusSummary } from '@/components/analysis/StatusSummary';
 import styles from './PlanList.module.scss';
 
@@ -217,15 +216,17 @@ const PlanList: React.FC = () => {
         applied={statusCounts.applied}
         cancelled={statusCounts.cancelled}
         totalChangesReviewing={totalChangesReviewing}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <StatusFilter
-          value={statusFilter}
-          onChange={setStatusFilter}
-          counts={statusCounts}
-        />
-        <div style={{ flex: 1 }} />
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: 16,
+        }}
+      >
         <Button
           type="primary"
           icon={<PlusOutlined />}

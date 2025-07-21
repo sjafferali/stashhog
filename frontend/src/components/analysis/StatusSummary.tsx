@@ -14,6 +14,8 @@ interface StatusSummaryProps {
   applied: number;
   cancelled: number;
   totalChangesReviewing: number;
+  activeFilter: string | null;
+  onFilterChange: (status: string | null) => void;
 }
 
 export const StatusSummary: React.FC<StatusSummaryProps> = ({
@@ -22,14 +24,27 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
   applied,
   cancelled,
   totalChangesReviewing,
+  activeFilter,
+  onFilterChange,
 }) => {
+  const totalPlans = draft + reviewing + applied + cancelled;
+
   const summaryCards = [
+    {
+      title: 'All',
+      value: totalPlans,
+      icon: <FileTextOutlined />,
+      color: '#8c8c8c',
+      description: 'Total plans',
+      status: null,
+    },
     {
       title: 'Draft',
       value: draft,
       icon: <FileTextOutlined />,
       color: '#1890ff',
       description: 'Plans in draft',
+      status: 'draft',
     },
     {
       title: 'Reviewing',
@@ -38,6 +53,7 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
       color: '#fa8c16',
       description: `${totalChangesReviewing} changes to review`,
       highlight: true,
+      status: 'reviewing',
     },
     {
       title: 'Applied',
@@ -45,6 +61,7 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
       icon: <CheckCircleOutlined />,
       color: '#52c41a',
       description: 'Successfully applied',
+      status: 'applied',
     },
     {
       title: 'Cancelled',
@@ -52,16 +69,19 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
       icon: <CloseCircleOutlined />,
       color: '#f5222d',
       description: 'Plans cancelled',
+      status: 'cancelled',
     },
   ];
 
   return (
     <Row gutter={16} className={styles.statusSummary}>
       {summaryCards.map((card) => (
-        <Col xs={24} sm={12} md={6} key={card.title}>
+        <Col xs={24} sm={12} md={6} lg={4} key={card.title}>
           <Card
-            className={`${styles.summaryCard} ${card.highlight ? styles.highlight : ''}`}
+            className={`${styles.summaryCard} ${card.highlight ? styles.highlight : ''} ${activeFilter === card.status ? styles.active : ''}`}
             bordered={false}
+            onClick={() => onFilterChange(card.status)}
+            style={{ cursor: 'pointer' }}
           >
             <Statistic
               title={
