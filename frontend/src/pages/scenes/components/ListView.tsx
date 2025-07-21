@@ -111,6 +111,7 @@ export const ListView: React.FC<ListViewProps> = ({
           detect_studios: options.detectStudios,
           detect_tags: options.detectTags,
           detect_details: options.detectDetails,
+          detect_video_tags: options.detectVideoTags,
           confidence_threshold: 0.7,
         },
       });

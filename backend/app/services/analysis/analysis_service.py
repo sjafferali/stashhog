@@ -106,6 +106,11 @@ class AnalysisService:
         if options is None:
             options = AnalysisOptions()
 
+        # Log analysis options
+        logger.info(
+            f"Analysis options: detect_video_tags={options.detect_video_tags}, detect_performers={options.detect_performers}, detect_studios={options.detect_studios}, detect_tags={options.detect_tags}, detect_details={options.detect_details}"
+        )
+
         # Refresh cache
         await self._refresh_cache()
 
@@ -234,8 +239,17 @@ class AnalysisService:
 
         # Detect tags/markers from video content
         if options.detect_video_tags:
+            logger.debug(f"Video tag detection enabled for scene {scene.id}")
+            logger.debug(f"Scene data keys: {list(scene_data.keys())}")
+            logger.debug(f"Scene file_path: {scene_data.get('file_path')}")
+            logger.debug(f"Scene path: {scene_data.get('path')}")
             video_tag_changes = await self._detect_video_tags(scene_data, options)
             changes.extend(video_tag_changes)
+        else:
+            logger.debug(f"Video tag detection NOT enabled for scene {scene.id}")
+            logger.debug(
+                f"Options: detect_video_tags={options.detect_video_tags}, detect_performers={options.detect_performers}, detect_studios={options.detect_studios}, detect_tags={options.detect_tags}, detect_details={options.detect_details}"
+            )
 
         return changes
 
@@ -580,6 +594,12 @@ class AnalysisService:
         Returns:
             List of proposed changes
         """
+        logger.info(f"_detect_video_tags called for scene {scene_data.get('id')}")
+        logger.debug(f"Scene data keys: {list(scene_data.keys())}")
+        logger.debug(
+            f"File path: {scene_data.get('file_path')}, Path: {scene_data.get('path')}"
+        )
+
         changes: list[ProposedChange] = []
 
         # Get current tags and markers
