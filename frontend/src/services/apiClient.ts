@@ -130,7 +130,7 @@ class ApiClient {
   // Jobs
   async getJobs(params?: FilterParams): Promise<Job[]> {
     const response = await api.get('/jobs', { params });
-    return response.data;
+    return response.data.items || [];
   }
 
   async getJob(id: string): Promise<Job> {
