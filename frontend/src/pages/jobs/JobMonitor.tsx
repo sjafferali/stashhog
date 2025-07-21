@@ -58,11 +58,14 @@ const JobMonitor: React.FC = () => {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const jobs = await apiClient.getJobs({ limit: 50 });
-      setJobs(jobs);
+      const response = await apiClient.getJobs({ limit: 50 });
+      // Ensure we always have an array
+      const jobsArray = Array.isArray(response) ? response : [];
+      setJobs(jobsArray);
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       void message.error('Failed to fetch jobs');
+      setJobs([]); // Ensure state is always an array
     } finally {
       setLoading(false);
     }
@@ -418,7 +421,8 @@ const JobMonitor: React.FC = () => {
 
   // Add keys to jobs for table
   const jobsWithKeys = useMemo(
-    () => jobs.map((job) => ({ ...job, key: job.id })),
+    () =>
+      (Array.isArray(jobs) ? jobs : []).map((job) => ({ ...job, key: job.id })),
     [jobs]
   );
 
