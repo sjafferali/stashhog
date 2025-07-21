@@ -740,12 +740,18 @@ class AnalysisService:
             scenes_data = []
             for scene_id in scene_ids:
                 scene = await self.stash_service.get_scene(scene_id)
-                if scene:
+                # Only add valid scene dictionaries
+                if scene and isinstance(scene, dict):
                     scenes_data.append(scene)
+                elif scene and not isinstance(scene, dict):
+                    logger.warning(
+                        f"Invalid scene data for ID {scene_id}: expected dict, got {type(scene).__name__}"
+                    )
             return scenes_data
         else:
             scenes, _ = await self.stash_service.get_scenes(filter=filters)
-            return scenes
+            # Filter out any non-dict items
+            return [s for s in scenes if isinstance(s, dict)]
 
     async def _get_database_session(self) -> AsyncSession:
         """Get database session for analysis."""
@@ -778,6 +784,18 @@ class AnalysisService:
 
         Returns dict with: scene_modified, tags_added, markers_added, error
         """
+        # Validate scene_data
+        if not isinstance(scene_data, dict):
+            logger.error(
+                f"Invalid scene_data at index {scene_index}: expected dict, got {type(scene_data).__name__}"
+            )
+            return {
+                "scene_modified": False,
+                "tags_added": 0,
+                "markers_added": 0,
+                "error": f"Invalid scene data type: {type(scene_data).__name__}",
+            }
+
         scene_id = scene_data.get("id", "")
         result: dict[str, Any] = {
             "scene_modified": False,

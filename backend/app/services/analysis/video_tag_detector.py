@@ -186,6 +186,13 @@ class VideoTagDetector:
         """
         changes: List[ProposedChange] = []
 
+        # Validate scene_data is a dictionary
+        if not isinstance(scene_data, dict):
+            logger.error(
+                f"Invalid scene_data type: expected dict, got {type(scene_data).__name__}"
+            )
+            return changes, None
+
         # Get and validate video path
         video_path = self._get_video_path(scene_data)
         if not video_path:
