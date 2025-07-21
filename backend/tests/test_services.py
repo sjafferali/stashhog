@@ -87,10 +87,12 @@ class TestJobService:
 
             mock_repo.get_job = AsyncMock(return_value=mock_job)
             mock_repo.cancel_job = AsyncMock(return_value=mock_job)
+            mock_repo._fetch_job = AsyncMock(return_value=mock_job)
             mock_queue = Mock()
             mock_queue.cancel_task = AsyncMock()
             mock_get_queue.return_value = mock_queue
             mock_ws.broadcast_json = AsyncMock()
+            mock_ws.broadcast_job_update = AsyncMock()
 
             result = await job_service.cancel_job("job123", mock_db)
 

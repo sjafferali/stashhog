@@ -134,8 +134,9 @@ class TestJobRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == str(mock_job.id)
+        assert "jobs" in data
+        assert len(data["jobs"]) == 1
+        assert data["jobs"][0]["id"] == str(mock_job.id)
 
     def test_list_jobs_filter_by_type(
         self, client, mock_db, mock_job, mock_job_service
@@ -155,7 +156,8 @@ class TestJobRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert "jobs" in data
+        assert len(data["jobs"]) == 1
 
     def test_list_jobs_filter_by_status(
         self, client, mock_db, mock_job, mock_job_service
@@ -175,7 +177,8 @@ class TestJobRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert "jobs" in data
+        assert len(data["jobs"]) == 1
 
     def test_get_job(self, client, mock_db, mock_job, mock_job_service):
         """Test getting a single job."""

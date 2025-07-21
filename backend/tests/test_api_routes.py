@@ -259,8 +259,9 @@ class TestJobRoutes:
             response = client.get("/api/jobs")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["id"] == "job1"
+            assert "jobs" in data
+            assert len(data["jobs"]) == 1
+            assert data["jobs"][0]["id"] == "job1"
         finally:
             # Clean up override
             app.dependency_overrides.pop(get_job_service, None)

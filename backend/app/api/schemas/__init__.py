@@ -181,6 +181,12 @@ class JobDetailResponse(JobResponse):
     metadata: Optional[dict[str, Any]] = Field(None, description="Job metadata")
 
 
+class JobsListResponse(BaseSchema):
+    """Response wrapper for jobs list endpoint."""
+
+    jobs: list[JobResponse] = Field(..., description="List of jobs")
+
+
 # Entity schemas
 class PerformerResponse(BaseSchema):
     """Performer response schema."""
@@ -504,6 +510,7 @@ __all__ = [
     "JobUpdate",
     "JobResponse",
     "JobDetailResponse",
+    "JobsListResponse",
     "SceneBase",
     "SceneCreate",
     "SceneUpdate",

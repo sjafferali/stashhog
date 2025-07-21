@@ -365,7 +365,8 @@ class TestJobRoutes:
             response = client.get("/api/jobs")
             assert response.status_code == 200
             data = response.json()
-            assert len(data) == 2
+            assert "jobs" in data
+            assert len(data["jobs"]) == 2
 
     def test_get_job(self, client, mock_db):
         """Test getting a single job."""

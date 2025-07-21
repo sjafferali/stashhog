@@ -17,7 +17,7 @@ from fastapi import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import JobDetailResponse, JobResponse, JobStatus
+from app.api.schemas import JobDetailResponse, JobResponse, JobsListResponse, JobStatus
 from app.api.schemas import JobType as SchemaJobType
 from app.core.dependencies import get_db, get_job_service, get_websocket_manager
 from app.models import Job
@@ -41,14 +41,14 @@ def map_job_type_to_schema(model_type: str) -> str:
     return mapping.get(model_type, model_type)
 
 
-@router.get("", response_model=List[JobResponse])
+@router.get("", response_model=JobsListResponse)
 async def list_jobs(
-    status: Optional[str] = Query(None, description="Filter by job status"),
+    status: Optional[List[str]] = Query(None, description="Filter by job status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
     limit: int = Query(50, le=100, description="Maximum number of jobs to return"),
     db: AsyncSession = Depends(get_db),
     job_service: JobService = Depends(get_job_service),
-) -> List[JobResponse]:
+) -> JobsListResponse:
     """
     List recent jobs.
 
@@ -57,11 +57,13 @@ async def list_jobs(
     # Get active jobs from queue
     active_jobs = await job_service.get_active_jobs(db)
 
-    # Build database query for completed jobs (exclude active jobs to avoid duplicates)
-    query = select(Job).where(~Job.status.in_(["pending", "running"]))
-
+    # Build database query
     if status:
-        query = query.where(Job.status == status)
+        # If status filter is provided, only get jobs with those statuses
+        query = select(Job).where(Job.status.in_(status))
+    else:
+        # Otherwise, exclude active jobs to avoid duplicates with queue
+        query = select(Job).where(~Job.status.in_(["pending", "running"]))
 
     if job_type:
         query = query.where(Job.type == job_type)
@@ -110,7 +112,7 @@ async def list_jobs(
             )
         )
 
-    return job_responses
+    return JobsListResponse(jobs=job_responses)
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)

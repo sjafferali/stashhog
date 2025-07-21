@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
 from typing import Any, Callable, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -340,14 +339,25 @@ class JobService:
 
     async def _send_job_update(self, job_id: str, data: dict[str, Any]) -> None:
         """Send job update via WebSocket."""
-        await websocket_manager.broadcast_json(
-            {
-                "type": "job_update",
-                "job_id": job_id,
-                "timestamp": datetime.utcnow().isoformat(),
-                **data,
-            }
-        )
+        # Get the full job object to send complete data
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            job = await job_repository._fetch_job(job_id, db)
+            if job:
+                job_data = {
+                    "id": job.id,
+                    "job_type": job.type,
+                    "status": job.status,
+                    "progress": job.progress,
+                    "created_at": (
+                        job.created_at.isoformat() if job.created_at else None
+                    ),
+                    "updated_at": (
+                        job.updated_at.isoformat() if job.updated_at else None
+                    ),
+                }
+                await websocket_manager.broadcast_job_update(job_data)
 
     def _task_callback(
         self,

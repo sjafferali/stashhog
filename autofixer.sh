@@ -77,7 +77,7 @@ $failure_output"
 # Main check runner function
 run_all_checks() {
     local all_passed=true
-    
+
     # Check if we're in the right directory
     if [ ! -f "backend/requirements.txt" ] || [ ! -f "frontend/package.json" ]; then
         print_error "Please run this script from the root of the stashhog repository"
@@ -120,7 +120,7 @@ run_all_checks() {
             deactivate
             return 1
         fi
-        
+
         if [ -f "requirements-dev.txt" ]; then
             if output=$(pip install -r requirements-dev.txt 2>&1); then
                 print_passed "Backend dev dependencies installed"
@@ -169,22 +169,31 @@ run_all_checks() {
         if output=$(python -m pytest -v 2>&1); then
             print_passed "Backend tests"
         else
-            # Extract only the short test summary section
-            short_summary=$(echo "$output" | awk '/=+ FAILURES =+|=+ short test summary info =+/{flag=1} flag; /=+ [0-9]+ failed,.*=+/{print; flag=0}')
+            # Extract the short test summary section more precisely
+            short_summary=""
             
-            # If no short summary found, try to extract just the failed lines
-            if [ -z "$short_summary" ]; then
-                short_summary=$(echo "$output" | grep -E "^FAILED " || true)
-                
-                # If still no FAILED lines found, exit with error
-                if [ -z "$short_summary" ]; then
-                    cd ..
-                    print_error "Backend tests failed but no test summary could be extracted. The pytest output may be too large or in an unexpected format."
-                    deactivate
-                    return 1
+            # Method 1: Extract from "short test summary info" to the end summary line
+            if echo "$output" | grep -q "short test summary info"; then
+                short_summary=$(echo "$output" | awk '/short test summary info/{flag=1} flag; /^=+ .* in .* =+$/{if(flag) exit}')
+            fi
+            
+            # Method 2: If method 1 didn't work, try to extract FAILED lines
+            if [ -z "$short_summary" ] || [ "$(echo "$short_summary" | wc -l)" -lt 2 ]; then
+                failed_lines=$(echo "$output" | grep "^FAILED " || true)
+                if [ -n "$failed_lines" ]; then
+                    short_summary="=========================== short test summary info ============================
+$failed_lines"
                 fi
             fi
             
+            # Method 3: If still no summary, extract last 20 lines which usually contain the summary
+            if [ -z "$short_summary" ]; then
+                short_summary=$(echo "$output" | tail -n 20)
+                # Prepend a note that this is a fallback
+                short_summary="[Note: Full short summary not found, showing last 20 lines of output]
+$short_summary"
+            fi
+
             cd ..
             send_to_claude "$short_summary" "backend tests"
             all_passed=false
@@ -406,7 +415,7 @@ attempt=1
 
 while [ $attempt -le $MAX_ATTEMPTS ]; do
     echo -e "\n${YELLOW}=== CI Check Attempt #$attempt of $MAX_ATTEMPTS ===${NC}"
-    
+
     if run_all_checks; then
         break
     else

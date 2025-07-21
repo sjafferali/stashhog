@@ -177,6 +177,26 @@ class WebSocketManager:
         """
         await self.send_job_update(job_id, {"status": "failed", "error": error})
 
+    async def broadcast_job_update(self, job: dict) -> None:
+        """
+        Broadcast job update to all connected clients (for the general jobs WebSocket).
+        """
+        update_data = {"type": "job_update", "job": job}
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.send_json(update_data)
+                else:
+                    disconnected.append(connection)
+            except Exception as e:
+                logger.error(f"Error broadcasting job update: {e}")
+                disconnected.append(connection)
+
+        # Clean up disconnected clients
+        for connection in disconnected:
+            await self.disconnect(connection)
+
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketManager()
