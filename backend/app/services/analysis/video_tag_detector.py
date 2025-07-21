@@ -251,22 +251,28 @@ class VideoTagDetector:
 
             logger.debug(f"Tag {idx}: name='{tag_name}', confidence={confidence}")
 
-            if tag_name and tag_name.lower() not in existing_tag_names:
-                # Add _AI suffix to tag name
-                ai_tag_name = f"{tag_name}_AI"
-                logger.debug(
-                    f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
-                )
-                changes.append(
-                    ProposedChange(
-                        field="tags",
-                        action="add",
-                        current_value=existing_tags,
-                        proposed_value=ai_tag_name,
-                        confidence=confidence,
-                        reason="Detected from video content analysis",
+            if tag_name:
+                # Add _AI suffix only if not already present
+                if not tag_name.endswith("_AI"):
+                    ai_tag_name = f"{tag_name}_AI"
+                else:
+                    ai_tag_name = tag_name
+
+                # Check if this tag (with _AI suffix) already exists
+                if ai_tag_name.lower() not in existing_tag_names:
+                    logger.debug(
+                        f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
                     )
-                )
+                    changes.append(
+                        ProposedChange(
+                            field="tags",
+                            action="add",
+                            current_value=existing_tags,
+                            proposed_value=ai_tag_name,
+                            confidence=confidence,
+                            reason="Detected from video content analysis",
+                        )
+                    )
             else:
                 logger.debug(f"Skipping tag '{tag_name}': empty or already exists")
 
@@ -298,15 +304,20 @@ class VideoTagDetector:
                         sum(confidences) / len(confidences) if confidences else 0.5
                     )
 
-                    # Create tag entry with _AI suffix
+                    # Create tag entry with _AI suffix only if not already present
+                    tag_name = (
+                        action_name
+                        if action_name.endswith("_AI")
+                        else f"{action_name}_AI"
+                    )
                     tag_entry = {
-                        "name": f"{action_name}_AI",
+                        "name": tag_name,
                         "confidence": avg_confidence,
                         "category": category,
                     }
                     tags.append(tag_entry)
                     logger.debug(
-                        f"Added tag: {action_name}_AI with confidence {avg_confidence:.2f}"
+                        f"Added tag: {tag_name} with confidence {avg_confidence:.2f}"
                     )
 
         return tags
@@ -332,11 +343,16 @@ class VideoTagDetector:
 
                             # Only create markers for high confidence occurrences
                             if confidence >= 0.7:
-                                # Add _AI suffix to marker title and tags
+                                # Add _AI suffix only if not already present
+                                marker_name = (
+                                    action_name
+                                    if action_name.endswith("_AI")
+                                    else f"{action_name}_AI"
+                                )
                                 marker = {
                                     "time": start_time,
-                                    "title": f"{action_name}_AI",
-                                    "tags": [f"{action_name}_AI"],
+                                    "title": marker_name,
+                                    "tags": [marker_name],
                                     "confidence": confidence,
                                 }
                                 # Add end_time if provided
@@ -344,7 +360,7 @@ class VideoTagDetector:
                                     marker["end_time"] = end_time
                                 markers.append(marker)
                                 logger.debug(
-                                    f"Added marker for {action_name}_AI at {start_time}s"
+                                    f"Added marker for {marker_name} at {start_time}s"
                                     f"{f' to {end_time}s' if end_time is not None else ''}"
                                     f" with confidence {confidence:.2f}"
                                 )
@@ -395,7 +411,7 @@ class VideoTagDetector:
                     )
 
                     if not existing_at_time:
-                        # Add _AI suffix to marker title and tags if not already present
+                        # Add _AI suffix to marker title and tags only if not already present
                         ai_marker_title = (
                             marker_title
                             if marker_title.endswith("_AI")
