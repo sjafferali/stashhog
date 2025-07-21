@@ -89,7 +89,6 @@ def mock_scene():
     scene = Mock(spec=Scene)
     scene.id = str(uuid4())
     scene.title = "Test Scene"
-    scene.path = "/path/to/scene.mp4"
     scene.paths = ["/path/to/scene.mp4"]  # Changed from path to paths
     scene.file_path = "/actual/path/to/scene.mp4"
     scene.details = "Scene details"
@@ -107,6 +106,7 @@ def mock_scene():
     scene.performers = []
     scene.tags = []
     scene.studio = None
+    scene.markers = []
     # Metadata fields
     scene.size = 1024000000
     scene.width = 1920
@@ -114,12 +114,11 @@ def mock_scene():
     scene.framerate = 30.0
     scene.bitrate = 5000
     scene.codec = "h264"
-    scene.video_codec = "h264"
+    scene.video_analyzed = False
     scene.to_dict = Mock(
         return_value={
             "id": scene.id,
             "title": scene.title,
-            "path": scene.path,
             "paths": scene.paths,
             "file_path": scene.file_path,
             "details": scene.details,
@@ -134,6 +133,7 @@ def mock_scene():
             "performers": [],
             "tags": [],
             "studio": None,
+            "markers": [],
             # Metadata fields
             "size": scene.size,
             "width": scene.width,
@@ -141,6 +141,7 @@ def mock_scene():
             "framerate": scene.framerate,
             "bitrate": scene.bitrate,
             "video_codec": scene.codec,
+            "video_analyzed": scene.video_analyzed,
         }
     )
     return scene
@@ -244,7 +245,6 @@ class TestSceneRoutes:
             spec=Scene,
             id="123",
             title="Test Scene",
-            path="/path/to/scene.mp4",
             paths=["/path/to/scene.mp4"],
             file_path="/actual/path/to/scene.mp4",
             organized=True,
@@ -265,12 +265,19 @@ class TestSceneRoutes:
             framerate=30.0,
             bitrate=5000,
             codec="h264",
-            video_codec="h264",
+            video_analyzed=False,
+            markers=[],
         )
 
         # Mock scene query
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = mock_scene
+
+        # Mock the unique() method for selectinload queries
+        mock_unique = Mock()
+        mock_unique.all.return_value = []
+        mock_result.scalars.return_value.unique.return_value = mock_unique
+
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         response = client.get(f"/api/scenes/{mock_scene.id}")
@@ -285,6 +292,12 @@ class TestSceneRoutes:
         # Mock scene query
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = None
+
+        # Mock the unique() method for selectinload queries
+        mock_unique = Mock()
+        mock_unique.all.return_value = []
+        mock_result.scalars.return_value.unique.return_value = mock_unique
+
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         response = client.get("/api/scenes/nonexistent-id")
@@ -324,17 +337,24 @@ class TestSceneRoutes:
             framerate=30.0,
             bitrate=5000,
             codec="h264",
-            video_codec="h264",
+            video_analyzed=False,
+            markers=[],
         )
 
         # Mock initial scene query for verification
         mock_result1 = Mock()
         mock_result1.scalar_one_or_none.return_value = mock_scene
 
-        # Mock get_scene query with relationships
+        # Mock get_scene query with relationships (called after update)
         mock_result2 = Mock()
         mock_result2.scalar_one_or_none.return_value = mock_scene
 
+        # Mock the unique() method for selectinload queries
+        mock_unique = Mock()
+        mock_unique.all.return_value = []
+        mock_result2.scalars.return_value.unique.return_value = mock_unique
+
+        # The update endpoint calls execute twice: once for verification, once for get_scene
         mock_db.execute = AsyncMock(side_effect=[mock_result1, mock_result2])
 
         # Mock sync service with stash_service

@@ -165,7 +165,6 @@ class TestSceneRoutes:
                 spec=Scene,
                 id="1",
                 title="Scene 1",
-                path="/path/1.mp4",
                 paths=["path1"],
                 file_path="/actual/path/1.mp4",
                 organized=True,
@@ -186,13 +185,13 @@ class TestSceneRoutes:
                 framerate=30.0,
                 bitrate=5000,
                 codec="h264",
-                video_codec="h264",
+                video_analyzed=False,
+                markers=[],
             ),
             Mock(
                 spec=Scene,
                 id="2",
                 title="Scene 2",
-                path="/path/2.mp4",
                 paths=["path2"],
                 file_path="/actual/path/2.mp4",
                 organized=False,
@@ -204,6 +203,7 @@ class TestSceneRoutes:
                 studio=None,
                 performers=[],
                 tags=[],
+                markers=[],
                 last_synced=datetime.utcnow(),
                 # Metadata fields
                 duration=2400.0,
@@ -213,7 +213,7 @@ class TestSceneRoutes:
                 framerate=60.0,
                 bitrate=10000,
                 codec="h265",
-                video_codec="h265",
+                video_analyzed=False,
             ),
         ]
 
@@ -254,7 +254,6 @@ class TestSceneRoutes:
             spec=Scene,
             id="1",
             title="Test Scene",
-            path="/path/test.mp4",
             paths=["path1"],
             file_path="/actual/path/test.mp4",
             organized=True,
@@ -266,6 +265,7 @@ class TestSceneRoutes:
             studio=mock_studio,
             performers=[mock_performer],
             tags=[mock_tag],
+            markers=[],
             last_synced=datetime.utcnow(),
             # Metadata fields
             duration=1800.5,
@@ -275,11 +275,17 @@ class TestSceneRoutes:
             framerate=30.0,
             bitrate=5000,
             codec="h264",
-            video_codec="h264",
+            video_analyzed=False,
         )
 
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=scene)
+
+        # Mock the unique() method for selectinload queries
+        mock_unique = Mock()
+        mock_unique.all.return_value = []
+        mock_result.scalars.return_value.unique.return_value = mock_unique
+
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         response = client.get("/api/scenes/1")

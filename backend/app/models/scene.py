@@ -22,6 +22,7 @@ from app.models.base import BaseModel
 if TYPE_CHECKING:
     from app.models.performer import Performer  # noqa: F401
     from app.models.plan_change import PlanChange  # noqa: F401
+    from app.models.scene_marker import SceneMarker  # noqa: F401
     from app.models.studio import Studio  # noqa: F401
     from app.models.tag import Tag  # noqa: F401
 
@@ -87,6 +88,12 @@ class Scene(BaseModel):
         back_populates="scene",
         cascade="all, delete-orphan",
         lazy="dynamic",
+    )
+    markers = relationship(
+        "SceneMarker",
+        back_populates="scene",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     # Composite indexes for common queries

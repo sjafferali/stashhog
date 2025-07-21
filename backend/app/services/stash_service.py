@@ -802,6 +802,7 @@ class StashService:
                 - seconds: Time position in seconds
                 - title: Marker title (optional)
                 - tag_ids: List of tag IDs (at least one required)
+                - end_seconds: End time position in seconds (optional)
 
         Returns:
             Created marker data
@@ -812,6 +813,10 @@ class StashService:
             "seconds": marker_data["seconds"],
             "title": marker_data.get("title", ""),
         }
+
+        # Add end_seconds if provided
+        if "end_seconds" in marker_data:
+            input_data["end_seconds"] = marker_data["end_seconds"]
 
         # Stash requires at least one tag for markers
         tag_ids = marker_data.get("tag_ids", [])

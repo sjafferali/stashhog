@@ -139,6 +139,7 @@ mutation SceneMarkerCreate($input: SceneMarkerCreateInput!) {
         id
         title
         seconds
+        end_seconds
         primary_tag {
             id
             name

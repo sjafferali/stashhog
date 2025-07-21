@@ -13,6 +13,7 @@ class BaseModel(Base):
     """Base model with common fields for all database models."""
 
     __abstract__ = True
+    __allow_unmapped__ = True
 
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True

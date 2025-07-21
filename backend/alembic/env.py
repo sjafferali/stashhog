@@ -32,11 +32,13 @@ from app.models import (  # noqa: E402, F401
     PlanChange,
     PlanStatus,
     Scene,
+    SceneMarker,
     ScheduledTask,
     Setting,
     Studio,
     SyncHistory,
     Tag,
+    scene_marker_tags,
     scene_performer,
     scene_tag,
 )

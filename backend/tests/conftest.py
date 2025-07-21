@@ -6,11 +6,13 @@ from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+# Import all models to ensure they're registered with SQLAlchemy
+import app.models  # noqa: F401
 from app.core.database import Base
 from app.core.dependencies import get_db
 from app.main import app
@@ -34,25 +36,10 @@ def test_engine():
         poolclass=StaticPool,
     )
 
-    # Run migrations on the test database
-    from alembic import command
-    from alembic.config import Config
-
-    # Create alembic config
-    alembic_cfg = Config()
-    alembic_cfg.set_main_option("script_location", "alembic")
-    alembic_cfg.set_main_option("sqlalchemy.url", test_db_url)
-
-    try:
-        # Run migrations
-        command.upgrade(alembic_cfg, "head")
-    except Exception as e:
-        # If migrations fail, use create_all as fallback
-        import logging
-
-        logging.warning(f"Migration failed in test: {e}. Using create_all fallback.")
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+    # Skip migrations for tests and directly create tables
+    # This avoids the alembic env.py loading production configuration
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
     yield engine
     engine.dispose()
@@ -108,8 +95,25 @@ def test_session(test_engine):
 
     # Clean up all data after each test
     with test_engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
+        # For SQLite, we need to handle foreign keys specially
+        if "sqlite" in str(test_engine.url):
+            # Disable foreign key constraints temporarily
+            conn.execute(text("PRAGMA foreign_keys = OFF"))
+
+            # Delete from all tables
+            for table in reversed(Base.metadata.sorted_tables):
+                try:
+                    conn.execute(table.delete())
+                except Exception as e:
+                    # Log but continue - some tables might not exist in test
+                    print(f"Warning: Could not delete from {table.name}: {e}")
+
+            # Re-enable foreign key constraints
+            conn.execute(text("PRAGMA foreign_keys = ON"))
+        else:
+            # For other databases, use CASCADE or proper ordering
+            for table in reversed(Base.metadata.sorted_tables):
+                conn.execute(table.delete())
 
 
 @pytest.fixture

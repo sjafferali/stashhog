@@ -89,7 +89,6 @@ class TestSceneRoutes:
                 spec=Scene,
                 id="1",
                 title="Scene 1",
-                path="/path/1.mp4",
                 paths=["/path/1.mp4"],
                 file_path="/actual/path/1.mp4",
                 stash_created_at=datetime.now(),
@@ -112,13 +111,13 @@ class TestSceneRoutes:
                 framerate=30.0,
                 bitrate=5000,
                 codec="h264",
-                video_codec="h264",
+                video_analyzed=False,
+                markers=[],
             ),
             Mock(
                 spec=Scene,
                 id="2",
                 title="Scene 2",
-                path="/path/2.mp4",
                 paths=["/path/2.mp4"],
                 file_path="/actual/path/2.mp4",
                 stash_created_at=datetime.now(),
@@ -141,7 +140,8 @@ class TestSceneRoutes:
                 framerate=60.0,
                 bitrate=10000,
                 codec="h265",
-                video_codec="h265",
+                video_analyzed=False,
+                markers=[],
             ),
         ]
 
@@ -167,7 +167,6 @@ class TestSceneRoutes:
         mock_scene = Mock(spec=Scene)
         mock_scene.id = "123"
         mock_scene.title = "Test Scene"
-        mock_scene.path = "/path/test.mp4"
         mock_scene.paths = ["/path/test.mp4"]
         mock_scene.file_path = "/actual/path/test.mp4"
         mock_scene.stash_created_at = datetime.now()
@@ -189,11 +188,34 @@ class TestSceneRoutes:
         mock_scene.framerate = 30.0
         mock_scene.bitrate = 5000
         mock_scene.codec = "h264"
-        mock_scene.video_codec = "h264"
+        mock_scene.video_analyzed = False
 
-        # Mock the query result
+        # Mock scene markers with proper structure
+        mock_tag = Mock()
+        mock_tag.id = "tag1"
+        mock_tag.name = "Test Tag"
+
+        mock_marker = Mock()
+        mock_marker.id = "marker1"
+        mock_marker.title = "Test Marker"
+        mock_marker.seconds = 120.5
+        mock_marker.end_seconds = 180.5
+        mock_marker.primary_tag = mock_tag
+        mock_marker.tags = [mock_tag]
+        mock_marker.stash_created_at = datetime.now()
+        mock_marker.stash_updated_at = datetime.now()
+
+        mock_scene.markers = [mock_marker]
+
+        # Mock the query result with proper selectinload handling
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = mock_scene
+
+        # Mock the unique() method that's called after scalars() for selectinload queries
+        mock_unique = Mock()
+        mock_unique.all.return_value = []
+        mock_result.scalars.return_value.unique.return_value = mock_unique
+
         mock_db.execute.return_value = mock_result
 
         response = client.get("/api/scenes/123")
@@ -576,28 +598,48 @@ class TestSyncRoutes:
 class TestEntityRoutes:
     """Test entity (performers, tags, studios) routes."""
 
-    def test_list_performers(self, test_client):
+    def test_list_performers(self, client, mock_db):
         """Test listing performers."""
-        # Use test_client fixture instead of client
-        response = test_client.get("/api/entities/performers")
+        # Mock the database query
+        mock_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/entities/performers")
         assert response.status_code == 200
         data = response.json()
         # With empty test database, should return empty list
         assert isinstance(data, list)
         assert len(data) == 0
 
-    def test_list_tags(self, test_client):
+    def test_list_tags(self, client, mock_db):
         """Test listing tags."""
-        response = test_client.get("/api/entities/tags")
+        # Mock the database query
+        mock_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/entities/tags")
         assert response.status_code == 200
         data = response.json()
         # With empty test database, should return empty list
         assert isinstance(data, list)
         assert len(data) == 0
 
-    def test_list_studios(self, test_client):
+    def test_list_studios(self, client, mock_db):
         """Test listing studios."""
-        response = test_client.get("/api/entities/studios")
+        # Mock the database query
+        mock_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/entities/studios")
         assert response.status_code == 200
         data = response.json()
         # With empty test database, should return empty list

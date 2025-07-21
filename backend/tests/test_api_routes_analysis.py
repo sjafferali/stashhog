@@ -139,9 +139,22 @@ def mock_change():
 class TestAnalysisRoutes:
     """Test analysis API routes."""
 
-    def test_list_plans(self, test_client):
+    def test_list_plans(self, client, mock_db):
         """Test listing analysis plans."""
-        response = test_client.get("/api/analysis/plans")
+        # Mock the count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock the plans query
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_plans_result = Mock()
+        mock_plans_result.scalars.return_value = mock_scalars
+
+        # Set up execute to return different results for count and list queries
+        mock_db.execute.side_effect = [mock_count_result, mock_plans_result]
+
+        response = client.get("/api/analysis/plans")
 
         assert response.status_code == 200
         data = response.json()
@@ -153,9 +166,14 @@ class TestAnalysisRoutes:
         assert data["total"] == 0
         assert len(data["items"]) == 0
 
-    def test_get_plan_not_found(self, test_client):
+    def test_get_plan_not_found(self, client, mock_db):
         """Test getting a plan that doesn't exist."""
-        response = test_client.get("/api/analysis/plans/999999")
+        # Mock the database query to return None
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        response = client.get("/api/analysis/plans/999999")
 
         assert response.status_code == 404
 

@@ -37,6 +37,22 @@ fragment SceneData on Scene {
         id
         name
     }
+    scene_markers {
+        id
+        title
+        seconds
+        end_seconds
+        primary_tag {
+            id
+            name
+        }
+        tags {
+            id
+            name
+        }
+        created_at
+        updated_at
+    }
     movies {
         movie {
             id

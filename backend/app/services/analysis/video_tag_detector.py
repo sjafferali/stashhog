@@ -327,6 +327,7 @@ class VideoTagDetector:
                     for occurrence in occurrences:
                         if isinstance(occurrence, dict):
                             start_time = occurrence.get("start", 0)
+                            end_time = occurrence.get("end", None)
                             confidence = occurrence.get("confidence", 0.5)
 
                             # Only create markers for high confidence occurrences
@@ -338,9 +339,14 @@ class VideoTagDetector:
                                     "tags": [f"{action_name}_AI"],
                                     "confidence": confidence,
                                 }
+                                # Add end_time if provided
+                                if end_time is not None:
+                                    marker["end_time"] = end_time
                                 markers.append(marker)
                                 logger.debug(
-                                    f"Added marker for {action_name}_AI at {start_time}s with confidence {confidence:.2f}"
+                                    f"Added marker for {action_name}_AI at {start_time}s"
+                                    f"{f' to {end_time}s' if end_time is not None else ''}"
+                                    f" with confidence {confidence:.2f}"
                                 )
 
         return markers
@@ -372,6 +378,7 @@ class VideoTagDetector:
             logger.debug(f"Processing marker {idx}: {marker_info}")
             if isinstance(marker_info, dict):
                 marker_time = marker_info.get("time", 0)
+                marker_end_time = marker_info.get("end_time", None)
                 marker_title = marker_info.get("title", "")
                 marker_tags = marker_info.get("tags", [])
                 confidence = marker_info.get("confidence", 0.7)
@@ -401,17 +408,23 @@ class VideoTagDetector:
 
                         logger.debug(
                             f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
+                            f"{f' to {marker_end_time}s' if marker_end_time is not None else ''}"
                         )
+                        marker_value = {
+                            "seconds": marker_time,
+                            "title": ai_marker_title,
+                            "tags": ai_marker_tags,
+                        }
+                        # Add end_seconds if provided
+                        if marker_end_time is not None:
+                            marker_value["end_seconds"] = marker_end_time
+
                         changes.append(
                             ProposedChange(
                                 field="markers",
                                 action="add",
                                 current_value=existing_markers,
-                                proposed_value={
-                                    "seconds": marker_time,
-                                    "title": ai_marker_title,
-                                    "tags": ai_marker_tags,
-                                },
+                                proposed_value=marker_value,
                                 confidence=confidence,
                                 reason="Detected from video content",
                             )

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Performer, Scene, Studio, Tag
+from app.models import Performer, Scene, SceneMarker, Studio, Tag
 from app.services.stash_service import StashService
 
 from .strategies import SyncStrategy
@@ -20,6 +20,20 @@ class SceneSyncHandler:
     def __init__(self, stash_service: StashService, strategy: SyncStrategy):
         self.stash_service = stash_service
         self.strategy = strategy
+
+    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
+        """Parse datetime string from Stash API"""
+        if not dt_str:
+            return None
+        try:
+            # Handle ISO format with timezone
+            if "T" in dt_str:
+                if "+" in dt_str or dt_str.endswith("Z"):
+                    return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                return datetime.fromisoformat(dt_str)
+            return datetime.strptime(dt_str, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            return None
 
     async def sync_scene(
         self, stash_scene: Dict[str, Any], db: Union[Session, AsyncSession]
@@ -270,6 +284,9 @@ class SceneSyncHandler:
         # Sync tags
         await self._sync_scene_tags(scene, stash_scene.get("tags", []), db)
 
+        # Sync scene markers
+        await self._sync_scene_markers(scene, stash_scene.get("scene_markers", []), db)
+
     async def _sync_scene_relationships_batch(
         self,
         scene: Scene,
@@ -301,6 +318,9 @@ class SceneSyncHandler:
             tag_id = tag_data.get("id")
             if tag_id and tag_id in tags_map:
                 scene.tags.append(tags_map[tag_id])
+
+        # Sync scene markers (batch sync doesn't pre-fetch markers due to complexity)
+        await self._sync_scene_markers(scene, stash_scene.get("scene_markers", []), db)
 
     async def _sync_scene_studio(
         self,
@@ -414,6 +434,136 @@ class SceneSyncHandler:
                     db.flush()
 
             scene.tags.append(tag)
+
+    async def _sync_scene_markers(
+        self,
+        scene: Scene,
+        markers_data: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Sync scene's marker relationships"""
+        # Get existing markers
+        existing_marker_ids = {marker.id for marker in scene.markers}
+        new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
+
+        # Remove markers that no longer exist
+        markers_to_remove = existing_marker_ids - new_marker_ids
+        if markers_to_remove:
+            scene.markers = [m for m in scene.markers if m.id not in markers_to_remove]
+
+        # Add or update markers
+        for marker_data in markers_data:
+            marker_id = marker_data.get("id")
+            if not marker_id:
+                continue
+
+            # Check if marker already exists
+            existing_marker = next(
+                (m for m in scene.markers if m.id == marker_id), None
+            )
+
+            if existing_marker:
+                await self._update_existing_marker(existing_marker, marker_data, db)
+            else:
+                await self._create_new_marker(scene, marker_data, db)
+
+    async def _update_existing_marker(
+        self,
+        existing_marker: SceneMarker,
+        marker_data: Dict[str, Any],
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Update an existing marker with new data"""
+        # Update marker fields
+        existing_marker.title = marker_data.get("title", "")
+        existing_marker.seconds = marker_data.get("seconds", 0)
+        existing_marker.end_seconds = marker_data.get("end_seconds")  # type: ignore[assignment]
+        existing_marker.stash_created_at = self._parse_datetime(  # type: ignore[assignment]
+            marker_data.get("created_at")
+        )
+        existing_marker.stash_updated_at = self._parse_datetime(  # type: ignore[assignment]
+            marker_data.get("updated_at")
+        )
+        existing_marker.last_synced = datetime.utcnow()  # type: ignore[assignment]
+
+        # Update primary tag
+        primary_tag_data = marker_data.get("primary_tag")
+        if primary_tag_data and primary_tag_data.get("id"):
+            existing_marker.primary_tag_id = primary_tag_data["id"]
+
+        # Update additional tags
+        existing_marker.tags.clear()
+        for tag_data in marker_data.get("tags", []):
+            tag_id = tag_data.get("id")
+            if tag_id:
+                tag = await self._ensure_tag_exists(tag_id, tag_data, db)
+                existing_marker.tags.append(tag)
+
+    async def _create_new_marker(
+        self,
+        scene: Scene,
+        marker_data: Dict[str, Any],
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Create a new marker for the scene"""
+        primary_tag_data = marker_data.get("primary_tag")
+        if not primary_tag_data or not primary_tag_data.get("id"):
+            return  # Skip markers without primary tag
+
+        marker = SceneMarker(
+            id=marker_data["id"],
+            scene_id=scene.id,
+            title=marker_data.get("title", ""),
+            seconds=marker_data.get("seconds", 0),
+            end_seconds=marker_data.get("end_seconds"),
+            primary_tag_id=primary_tag_data["id"],
+            stash_created_at=self._parse_datetime(marker_data.get("created_at")),
+            stash_updated_at=self._parse_datetime(marker_data.get("updated_at")),
+            last_synced=datetime.utcnow(),
+        )
+
+        # Ensure primary tag exists
+        await self._ensure_tag_exists(primary_tag_data["id"], primary_tag_data, db)
+
+        # Add additional tags
+        for tag_data in marker_data.get("tags", []):
+            tag_id = tag_data.get("id")
+            if tag_id:
+                tag = await self._ensure_tag_exists(tag_id, tag_data, db)
+                marker.tags.append(tag)
+
+        db.add(marker)
+        scene.markers.append(marker)
+
+    async def _ensure_tag_exists(
+        self,
+        tag_id: str,
+        tag_data: Dict[str, Any],
+        db: Union[Session, AsyncSession],
+    ) -> Tag:
+        """Ensure a tag exists in the database, creating if necessary"""
+        stmt = select(Tag).where(Tag.id == tag_id)
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            tag = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            tag = result.scalar_one_or_none()
+
+        if not tag:
+            # Create minimal tag
+            tag = Tag(
+                id=tag_id,
+                name=tag_data.get("name", "Unknown Tag"),
+                last_synced=datetime.utcnow(),
+            )
+            db.add(tag)
+            if isinstance(db, AsyncSession):
+                await db.flush()
+            else:
+                db.flush()
+
+        return tag
 
     async def _fetch_entities_map(
         self, db: Union[Session, AsyncSession], model_class: type, entity_ids: Set[str]

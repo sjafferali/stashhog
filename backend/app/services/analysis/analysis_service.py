@@ -672,6 +672,9 @@ class AnalysisService:
                     "title": marker_data.get("title", ""),
                     "tag_ids": marker_tags,
                 }
+                # Add end_seconds if provided
+                if "end_seconds" in marker_data:
+                    marker["end_seconds"] = marker_data["end_seconds"]
 
                 await self.stash_service.create_marker(marker)
                 markers_added += 1

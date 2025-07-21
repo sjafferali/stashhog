@@ -15,6 +15,7 @@ from app.api.schemas import (
     PaginationParams,
     PerformerResponse,
     SceneFilter,
+    SceneMarkerResponse,
     SceneResponse,
     StudioResponse,
     TagResponse,
@@ -22,6 +23,7 @@ from app.api.schemas import (
 from app.core.dependencies import get_db, get_job_service, get_sync_service
 from app.models import Performer, Scene, Studio, Tag
 from app.models.job import JobType as ModelJobType
+from app.models.scene_marker import SceneMarker
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
@@ -119,6 +121,21 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
             for p in scene.performers
         ],
         tags=[TagResponse(id=t.id, name=t.name, scene_count=0) for t in scene.tags],
+        markers=[
+            SceneMarkerResponse(
+                id=m.id,
+                title=m.title,
+                seconds=m.seconds,
+                end_seconds=m.end_seconds,
+                primary_tag=TagResponse(
+                    id=m.primary_tag.id, name=m.primary_tag.name, scene_count=0
+                ),
+                tags=[TagResponse(id=t.id, name=t.name, scene_count=0) for t in m.tags],
+                created_at=m.stash_created_at,
+                updated_at=m.stash_updated_at,
+            )
+            for m in scene.markers
+        ],
         last_synced=scene.last_synced,  # type: ignore[arg-type]
         # Metadata fields
         duration=scene.duration,  # type: ignore[arg-type]
@@ -192,6 +209,8 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)) -> SceneR
             selectinload(Scene.performers),
             selectinload(Scene.tags),
             selectinload(Scene.studio),
+            selectinload(Scene.markers).selectinload(SceneMarker.primary_tag),
+            selectinload(Scene.markers).selectinload(SceneMarker.tags),
         )
         .where(Scene.id == scene_id)
     )

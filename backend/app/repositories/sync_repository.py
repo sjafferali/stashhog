@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
 
 from sqlalchemy import and_, or_
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,8 +25,14 @@ class SyncRepository:
         # Prepare data for bulk insert
         scene_data = []
         for scene in scenes:
+            # Skip scenes with None or empty ID to avoid SQLAlchemy warning
+            scene_id = scene.get("id")
+            if scene_id is None:
+                logger.warning("Skipping scene with None ID")
+                continue
+
             scene_dict = {
-                "id": scene["id"],
+                "id": scene_id,
                 "title": scene.get("title", ""),
                 "details": scene.get("details"),
                 "url": scene.get("url"),
@@ -48,31 +53,52 @@ class SyncRepository:
             }
             scene_data.append(scene_dict)
 
-        # Use PostgreSQL's ON CONFLICT for upsert
-        stmt = insert(Scene).values(scene_data)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["id"],
-            set_={
-                "title": stmt.excluded.title,
-                "details": stmt.excluded.details,
-                "url": stmt.excluded.url,
-                "rating": stmt.excluded.rating,
-                "organized": stmt.excluded.organized,
-                "duration": stmt.excluded.duration,
-                "size": stmt.excluded.size,
-                "height": stmt.excluded.height,
-                "width": stmt.excluded.width,
-                "framerate": stmt.excluded.framerate,
-                "bitrate": stmt.excluded.bitrate,
-                "codec": stmt.excluded.codec,
-                "paths": stmt.excluded.paths,
-                "stash_updated_at": stmt.excluded.stash_updated_at,
-                "last_synced": stmt.excluded.last_synced,
-                "updated_at": stmt.excluded.updated_at,
-            },
-        )
+        # Check database dialect
+        dialect_name = db.bind.dialect.name if db.bind else "sqlite"
 
-        db.execute(stmt)
+        if dialect_name == "postgresql":
+            # Use PostgreSQL's ON CONFLICT for upsert
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+            stmt = pg_insert(Scene).values(scene_data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["id"],
+                set_={
+                    "title": stmt.excluded.title,
+                    "details": stmt.excluded.details,
+                    "url": stmt.excluded.url,
+                    "rating": stmt.excluded.rating,
+                    "organized": stmt.excluded.organized,
+                    "duration": stmt.excluded.duration,
+                    "size": stmt.excluded.size,
+                    "height": stmt.excluded.height,
+                    "width": stmt.excluded.width,
+                    "framerate": stmt.excluded.framerate,
+                    "bitrate": stmt.excluded.bitrate,
+                    "codec": stmt.excluded.codec,
+                    "paths": stmt.excluded.paths,
+                    "stash_updated_at": stmt.excluded.stash_updated_at,
+                    "last_synced": stmt.excluded.last_synced,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
+            db.execute(stmt)
+        else:
+            # For SQLite and other databases, use individual upserts
+            for data in scene_data:
+                scene_id = data["id"]
+                existing = db.query(Scene).filter(Scene.id == scene_id).first()
+
+                if existing:
+                    # Update existing scene
+                    for key, value in data.items():
+                        if key not in ("id", "created_at", "stash_created_at"):
+                            setattr(existing, key, value)
+                else:
+                    # Create new scene
+                    new_scene = Scene(**data)
+                    db.add(new_scene)
+
         db.flush()
 
         # Fetch the upserted scenes

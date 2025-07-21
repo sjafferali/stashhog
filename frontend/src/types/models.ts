@@ -1,3 +1,14 @@
+export interface SceneMarker {
+  id: string;
+  title: string;
+  seconds: number;
+  end_seconds?: number;
+  primary_tag: Tag;
+  tags: Tag[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Scene {
   id: string;
   title: string;
@@ -30,6 +41,7 @@ export interface Scene {
   studio?: Studio;
   performers: Performer[];
   tags: Tag[];
+  markers: SceneMarker[];
 
   // Analysis
   analysis_results?: AnalysisResult[];

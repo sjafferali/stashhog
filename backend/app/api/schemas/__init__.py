@@ -213,6 +213,21 @@ class StudioResponse(BaseSchema):
 
 
 # Scene-related schemas
+# Scene Marker schemas
+class SceneMarkerResponse(BaseSchema):
+    """Scene marker response schema."""
+
+    id: str = Field(..., description="Marker ID")
+    title: str = Field(..., description="Marker title")
+    seconds: float = Field(..., description="Start time in seconds")
+    end_seconds: Optional[float] = Field(None, description="End time in seconds")
+    primary_tag: TagResponse = Field(..., description="Primary tag")
+    tags: list[TagResponse] = Field(default_factory=list, description="Additional tags")
+    created_at: Optional[datetime] = Field(None, description="Created timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Updated timestamp")
+
+
+# Scene-related schemas
 class SceneBase(BaseSchema):
     """Base scene schema."""
 
@@ -257,6 +272,9 @@ class SceneResponse(SceneBase):
         default_factory=list, description="Scene performers"
     )
     tags: list[TagResponse] = Field(default_factory=list, description="Scene tags")
+    markers: list[SceneMarkerResponse] = Field(
+        default_factory=list, description="Scene markers"
+    )
     last_synced: datetime = Field(..., description="Last sync timestamp")
 
     # Metadata fields
