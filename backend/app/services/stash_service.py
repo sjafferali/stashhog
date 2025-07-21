@@ -590,24 +590,62 @@ class StashService:
 
         return None
 
-    async def find_or_create_tag(self, name: str) -> Optional[str]:
+    async def find_or_create_tag(
+        self, name: str, db_session: Optional[Any] = None
+    ) -> Optional[str]:
         """Find or create a tag by name and return its ID.
+
+        This method first checks the stashhog database, then falls back to Stash API.
+        If the tag doesn't exist, it creates it in both systems.
 
         Args:
             name: Tag name
+            db_session: Optional database session for stashhog queries
 
         Returns:
             Tag ID if found or created, None otherwise
         """
-        # First try to find existing tag
+        # If db_session is provided, check stashhog database first
+        if db_session:
+            from app.repositories.tag_repository import TagRepository
+
+            tag_repo = TagRepository()
+
+            # Check stashhog database first
+            local_tag = await tag_repo.find_tag_by_name(db_session, name)
+            if local_tag:
+                logger.debug(f"Found tag '{name}' in stashhog database")
+                return str(local_tag.id)
+
+        # If not found locally, check Stash
         existing_tag = await self.find_tag(name)
         if existing_tag:
-            return existing_tag.get("id")
+            tag_id = existing_tag.get("id")
 
-        # Create new tag if not found
+            # If we have a db_session, sync this tag to stashhog
+            if db_session and tag_id:
+                from app.repositories.tag_repository import TagRepository
+
+                tag_repo = TagRepository()
+                await tag_repo.create_or_update_tag(db_session, existing_tag)
+                await db_session.flush()
+
+            return str(tag_id) if tag_id else None
+
+        # Create new tag if not found anywhere
         new_tag = await self.create_tag(name)
         if new_tag:
-            return new_tag.get("id")
+            tag_id = new_tag.get("id")
+
+            # If we have a db_session, add to stashhog as well
+            if db_session and tag_id:
+                from app.repositories.tag_repository import TagRepository
+
+                tag_repo = TagRepository()
+                await tag_repo.create_or_update_tag(db_session, new_tag)
+                await db_session.flush()
+
+            return str(tag_id) if tag_id else None
 
         return None
 

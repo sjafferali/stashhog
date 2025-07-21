@@ -252,13 +252,17 @@ class VideoTagDetector:
             logger.debug(f"Tag {idx}: name='{tag_name}', confidence={confidence}")
 
             if tag_name and tag_name.lower() not in existing_tag_names:
-                logger.debug(f"Adding tag change for '{tag_name}'")
+                # Add _AI suffix to tag name
+                ai_tag_name = f"{tag_name}_AI"
+                logger.debug(
+                    f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
+                )
                 changes.append(
                     ProposedChange(
                         field="tags",
                         action="add",
                         current_value=existing_tags,
-                        proposed_value=tag_name,
+                        proposed_value=ai_tag_name,
                         confidence=confidence,
                         reason="Detected from video content analysis",
                     )
@@ -294,15 +298,15 @@ class VideoTagDetector:
                         sum(confidences) / len(confidences) if confidences else 0.5
                     )
 
-                    # Create tag entry
+                    # Create tag entry with _AI suffix
                     tag_entry = {
-                        "name": action_name,
+                        "name": f"{action_name}_AI",
                         "confidence": avg_confidence,
                         "category": category,
                     }
                     tags.append(tag_entry)
                     logger.debug(
-                        f"Added tag: {action_name} with confidence {avg_confidence:.2f}"
+                        f"Added tag: {action_name}_AI with confidence {avg_confidence:.2f}"
                     )
 
         return tags
@@ -327,15 +331,16 @@ class VideoTagDetector:
 
                             # Only create markers for high confidence occurrences
                             if confidence >= 0.7:
+                                # Add _AI suffix to marker title and tags
                                 marker = {
                                     "time": start_time,
-                                    "title": action_name,
-                                    "tags": [action_name],
+                                    "title": f"{action_name}_AI",
+                                    "tags": [f"{action_name}_AI"],
                                     "confidence": confidence,
                                 }
                                 markers.append(marker)
                                 logger.debug(
-                                    f"Added marker for {action_name} at {start_time}s with confidence {confidence:.2f}"
+                                    f"Added marker for {action_name}_AI at {start_time}s with confidence {confidence:.2f}"
                                 )
 
         return markers
@@ -383,8 +388,19 @@ class VideoTagDetector:
                     )
 
                     if not existing_at_time:
+                        # Add _AI suffix to marker title and tags if not already present
+                        ai_marker_title = (
+                            marker_title
+                            if marker_title.endswith("_AI")
+                            else f"{marker_title}_AI" if marker_title else ""
+                        )
+                        ai_marker_tags = [
+                            tag if tag.endswith("_AI") else f"{tag}_AI"
+                            for tag in marker_tags
+                        ]
+
                         logger.debug(
-                            f"Adding marker change for '{marker_title}' at {marker_time}s"
+                            f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
                         )
                         changes.append(
                             ProposedChange(
@@ -393,8 +409,8 @@ class VideoTagDetector:
                                 current_value=existing_markers,
                                 proposed_value={
                                     "seconds": marker_time,
-                                    "title": marker_title,
-                                    "tags": marker_tags,
+                                    "title": ai_marker_title,
+                                    "tags": ai_marker_tags,
                                 },
                                 confidence=confidence,
                                 reason="Detected from video content",

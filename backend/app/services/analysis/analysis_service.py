@@ -626,38 +626,25 @@ class AnalysisService:
         has_tagme: bool,
     ) -> int:
         """Apply tags to a scene and return count of tags added."""
-        # Get existing tag IDs
-        current_tags = scene_data.get("tags", [])
-        existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+        from app.services.scene_service import SceneService
 
-        # Get IDs for new tags (create if needed)
-        new_tag_ids = []
-        for tag_name in tags_to_add:
-            tag_id = await self.stash_service.find_or_create_tag(tag_name)
-            if tag_id and tag_id not in existing_tag_ids:
-                new_tag_ids.append(tag_id)
+        # Get database session
+        db = await self._get_database_session()
 
-        if not new_tag_ids:
-            return 0
+        try:
+            # Create scene service instance
+            scene_service = SceneService(self.stash_service)
 
-        # Update scene with all tags
-        all_tag_ids = existing_tag_ids + new_tag_ids
-
-        # Remove AI_TagMe if present, add AI_Tagged
-        if has_tagme:
-            tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe")
-            if tagme_id in all_tag_ids:
-                all_tag_ids.remove(tagme_id)
-
-        # Add AI_Tagged
-        tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged")
-        if tagged_id not in all_tag_ids:
-            all_tag_ids.append(tagged_id)
-
-        # Update scene
-        await self.stash_service.update_scene(scene_id, {"tag_ids": all_tag_ids})
-
-        return len(new_tag_ids)
+            # Use the scene service to apply tags
+            return await scene_service.apply_tags_to_scene(
+                scene_id=scene_id,
+                scene_data=scene_data,
+                tags_to_add=tags_to_add,
+                has_tagme=has_tagme,
+                db=db,
+            )
+        finally:
+            await db.close()
 
     async def _apply_markers_to_scene(
         self,
@@ -665,26 +652,33 @@ class AnalysisService:
         markers_to_add: list[dict],
     ) -> int:
         """Apply markers to a scene and return count of markers added."""
-        markers_added = 0
+        # Get database session
+        db = await self._get_database_session()
 
-        for marker_data in markers_to_add:
-            marker_tags = []
-            for tag_name in marker_data.get("tags", []):
-                tag_id = await self.stash_service.find_or_create_tag(tag_name)
-                if tag_id:
-                    marker_tags.append(tag_id)
+        try:
+            markers_added = 0
 
-            marker = {
-                "scene_id": scene_id,
-                "seconds": marker_data["seconds"],
-                "title": marker_data.get("title", ""),
-                "tag_ids": marker_tags,
-            }
+            for marker_data in markers_to_add:
+                marker_tags = []
+                for tag_name in marker_data.get("tags", []):
+                    # Pass db session to find_or_create_tag to check stashhog first
+                    tag_id = await self.stash_service.find_or_create_tag(tag_name, db)
+                    if tag_id:
+                        marker_tags.append(tag_id)
 
-            await self.stash_service.create_marker(marker)
-            markers_added += 1
+                marker = {
+                    "scene_id": scene_id,
+                    "seconds": marker_data["seconds"],
+                    "title": marker_data.get("title", ""),
+                    "tag_ids": marker_tags,
+                }
 
-        return markers_added
+                await self.stash_service.create_marker(marker)
+                markers_added += 1
+
+            return markers_added
+        finally:
+            await db.close()
 
     async def _update_scene_status_tags(
         self,
@@ -694,26 +688,40 @@ class AnalysisService:
         is_error: bool = False,
     ) -> None:
         """Update scene status tags (AI_TagMe, AI_Tagged, AI_Errored)."""
-        existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+        from app.services.scene_service import SceneService
 
-        if is_error:
-            # Add AI_Errored tag
-            error_tag_id = await self.stash_service.find_or_create_tag("AI_Errored")
-            if error_tag_id not in existing_tag_ids:
-                existing_tag_ids.append(error_tag_id)
-        else:
-            # Add AI_Tagged tag
-            tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged")
-            if tagged_id not in existing_tag_ids:
-                existing_tag_ids.append(tagged_id)
+        # Get database session
+        db = await self._get_database_session()
 
-        # Remove AI_TagMe if present
-        if has_tagme:
-            tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe")
-            if tagme_id in existing_tag_ids:
-                existing_tag_ids.remove(tagme_id)
+        try:
+            existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
 
-        await self.stash_service.update_scene(scene_id, {"tag_ids": existing_tag_ids})
+            if is_error:
+                # Add AI_Errored tag
+                error_tag_id = await self.stash_service.find_or_create_tag(
+                    "AI_Errored", db
+                )
+                if error_tag_id not in existing_tag_ids:
+                    existing_tag_ids.append(error_tag_id)
+            else:
+                # Add AI_Tagged tag
+                tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged", db)
+                if tagged_id not in existing_tag_ids:
+                    existing_tag_ids.append(tagged_id)
+
+            # Remove AI_TagMe if present
+            if has_tagme:
+                tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe", db)
+                if tagme_id in existing_tag_ids:
+                    existing_tag_ids.remove(tagme_id)
+
+            # Update scene using scene service
+            scene_service = SceneService(self.stash_service)
+            await scene_service.update_scene_with_sync(
+                scene_id, {"tag_ids": existing_tag_ids}, db
+            )
+        finally:
+            await db.close()
 
     async def _extract_changes_from_video_detection(
         self, video_changes: list
@@ -1662,34 +1670,42 @@ class AnalysisService:
     async def _mark_scenes_as_video_analyzed(
         self, scene_ids: list[str], db: AsyncSession
     ) -> None:
-        """Mark scenes as video analyzed in the database.
+        """Mark scenes as video analyzed in both database and Stash.
 
         Args:
             scene_ids: List of scene IDs to mark
             db: Database session
         """
         try:
-            from sqlalchemy import select
-
-            from app.models.scene import Scene as DBScene
+            from app.services.scene_service import SceneService
 
             logger.debug(f"Marking {len(scene_ids)} scenes as video analyzed")
 
-            # Get scenes from database
-            stmt = select(DBScene).where(DBScene.id.in_(scene_ids))
-            result = await db.execute(stmt)
-            db_scenes = result.scalars().all()
+            # Create scene service instance
+            scene_service = SceneService(self.stash_service)
 
-            logger.debug(
-                f"Found {len(db_scenes)} scenes in database to mark as video analyzed"
-            )
+            # Mark each scene as video analyzed in both systems
+            success_count = 0
+            for scene_id in scene_ids:
+                try:
+                    success = await scene_service.mark_scene_as_video_analyzed(
+                        scene_id, db
+                    )
+                    if success:
+                        success_count += 1
+                    else:
+                        logger.warning(
+                            f"Failed to mark scene {scene_id} as video analyzed"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error marking scene {scene_id} as video analyzed: {e}"
+                    )
+                    # Continue with other scenes
 
-            for scene in db_scenes:
-                scene.video_analyzed = True  # type: ignore[assignment]
-
-            await db.flush()
+            await db.commit()  # Commit all changes
             logger.info(
-                f"Successfully marked {len(db_scenes)} scenes as video analyzed"
+                f"Successfully marked {success_count}/{len(scene_ids)} scenes as video analyzed"
             )
 
         except Exception as e:
