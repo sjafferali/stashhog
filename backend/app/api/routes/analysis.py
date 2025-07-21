@@ -19,6 +19,7 @@ from sqlalchemy.sql import Select
 
 from app.api.schemas import (
     AnalysisRequest,
+    ApplyPlanRequest,
     ChangePreview,
     PaginatedResponse,
     PaginationParams,
@@ -322,6 +323,7 @@ async def get_plan(
             scenes_dict[scene.id] = {
                 "scene_id": scene.id,
                 "scene_title": scene.title,
+                "scene_path": scene.file_path,
                 "changes": [],
             }
 
@@ -333,8 +335,9 @@ async def get_plan(
                 current_value=change.current_value,
                 proposed_value=change.proposed_value,
                 confidence=change.confidence,
-                applied=change.applied,
+                accepted=change.accepted,
                 rejected=change.rejected,
+                applied=change.applied,
             )
         )
 
@@ -359,10 +362,10 @@ async def get_plan(
 @router.post("/plans/{plan_id}/apply")
 async def apply_plan(
     plan_id: int,
+    request: ApplyPlanRequest,
     scene_ids: Optional[list[str]] = Query(
         None, description="Apply to specific scenes only"
     ),
-    background: bool = Query(True, description="Run as background job"),
     job_service: JobService = Depends(get_job_service),
     analysis_service: AnalysisService = Depends(get_analysis_service),
     db: AsyncSession = Depends(get_db),
@@ -390,12 +393,16 @@ async def apply_plan(
             detail="Plan has already been applied",
         )
 
-    if background:
+    if request.background:
         # Queue as background job
         job = await job_service.create_job(
             job_type=ModelJobType.APPLY_PLAN,
             db=db,
-            metadata={"plan_id": plan_id, "scene_ids": scene_ids},
+            metadata={
+                "plan_id": plan_id,
+                "scene_ids": scene_ids,
+                "change_ids": request.change_ids,
+            },
         )
         # Refresh the job object to ensure all attributes are loaded
         await db.refresh(job)
@@ -406,7 +413,9 @@ async def apply_plan(
         }
     else:
         # Apply synchronously
-        apply_result = await analysis_service.apply_plan(plan_id=str(plan_id))
+        apply_result = await analysis_service.apply_plan(
+            plan_id=str(plan_id), change_ids=request.change_ids
+        )
         return {
             "status": "completed",
             "scenes_updated": apply_result.scenes_analyzed,
@@ -663,8 +672,12 @@ def _apply_bulk_action(changes: Sequence[PlanChange], action: str) -> int:
 
     for change in changes:
         # Type ignore needed because MyPy doesn't understand SQLAlchemy attribute assignment
-        change.applied = False  # type: ignore[assignment]
-        change.rejected = not is_accept_action  # type: ignore[assignment]
+        if is_accept_action:
+            change.accepted = True  # type: ignore[assignment]
+            change.rejected = False  # type: ignore[assignment]
+        else:
+            change.accepted = False  # type: ignore[assignment]
+            change.rejected = True  # type: ignore[assignment]
         updated_count += 1
 
     return updated_count
@@ -817,14 +830,14 @@ async def update_change_status(
 
     # Update status
     if accepted is not None:
-        change.applied = accepted  # type: ignore[assignment]
+        change.accepted = accepted  # type: ignore[assignment]
         if accepted:
             change.rejected = False  # type: ignore[assignment]
 
     if rejected is not None:
         change.rejected = rejected  # type: ignore[assignment]
         if rejected:
-            change.applied = False  # type: ignore[assignment]
+            change.accepted = False  # type: ignore[assignment]
 
     # Update plan status - commit the change first
     await db.commit()

@@ -35,6 +35,7 @@ export interface SceneChanges {
   scene?: Scene;
   scene_id?: string;
   scene_title?: string;
+  scene_path?: string;
   changes: ProposedChange[];
   allAccepted?: boolean;
   allRejected?: boolean;
@@ -204,10 +205,22 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
     );
   }
 
+  // Helper function to extract filename from path
+  const getFilenameFromPath = (path: string): string => {
+    if (!path) return '';
+    // Handle both forward and backward slashes
+    const parts = path.split(/[/\\]/);
+    return parts[parts.length - 1] || path;
+  };
+
   const renderSceneHeader = (sceneChange: SceneChanges) => {
     const { scene } = sceneChange;
     const sceneId = scene?.id || sceneChange.scene_id || '';
-    const sceneTitle = scene?.title || sceneChange.scene_title || 'Untitled';
+    const sceneTitle = scene?.title || sceneChange.scene_title || '';
+    const scenePath =
+      scene?.file_path || scene?.path || sceneChange.scene_path || '';
+    const displayTitle =
+      sceneTitle || (scenePath ? getFilenameFromPath(scenePath) : 'Untitled');
     const stats = getChangeStats(sceneChange.changes);
     const status = getSceneStatus(sceneChange);
     const isSelected = selectedSceneId === sceneId;
@@ -226,13 +239,23 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
         )}
 
         <Avatar size="large" shape="square" className={styles.thumbnail}>
-          {sceneTitle.charAt(0)}
+          {displayTitle.charAt(0)}
         </Avatar>
 
         <div className={styles.sceneInfo}>
           <Title level={5} className={styles.sceneTitle}>
-            {sceneTitle}
+            {displayTitle}
           </Title>
+          {!sceneTitle && scenePath && (
+            <Text
+              type="secondary"
+              ellipsis
+              style={{ fontSize: 12 }}
+              title={scenePath}
+            >
+              {scenePath}
+            </Text>
+          )}
           <Space size="small">
             <Tag color={status.color}>{status.text}</Tag>
             <Text type="secondary">
@@ -255,7 +278,7 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
                 icon={<PlayCircleOutlined />}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  onPreviewScene(scene || { id: sceneId, title: sceneTitle });
+                  onPreviewScene(scene || { id: sceneId, title: displayTitle });
                 }}
               />
             </Tooltip>

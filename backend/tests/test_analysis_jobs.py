@@ -279,6 +279,7 @@ class TestAnalysisJobs:
             auto_approve=True,
             job_id=job_id,
             progress_callback=mock_progress_callback,
+            change_ids=None,
         )
 
     @pytest.mark.asyncio

@@ -296,7 +296,7 @@ class TestAnalysisRoutes:
         mock_analysis_service = app.dependency_overrides[get_analysis_service]()
         mock_analysis_service.apply_plan = AsyncMock()
 
-        response = client.post("/api/analysis/plans/1/apply")
+        response = client.post("/api/analysis/plans/1/apply", json={"background": True})
 
         assert response.status_code == 200
         data = response.json()

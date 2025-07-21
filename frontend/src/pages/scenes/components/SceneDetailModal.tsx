@@ -34,6 +34,7 @@ import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 import {
   AnalysisTypeSelector,
   AnalysisTypeOptions,
+  hasAtLeastOneAnalysisTypeSelected,
 } from '@/components/forms/AnalysisTypeSelector';
 
 const { TabPane } = Tabs;
@@ -138,6 +139,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   );
 
   const handleAnalyze = () => {
+    let currentOptions = analysisOptions;
     Modal.confirm({
       title: 'Analyze Scene',
       content: (
@@ -145,12 +147,28 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <p>Analyze this scene with the following options:</p>
           <AnalysisTypeSelector
             value={analysisOptions}
-            onChange={setAnalysisOptions}
+            onChange={(newOptions) => {
+              currentOptions = newOptions;
+              setAnalysisOptions(newOptions);
+              // Update the modal's OK button state
+              const okButton = document.querySelector(
+                '.ant-modal-confirm-btns .ant-btn-primary'
+              ) as HTMLButtonElement;
+              if (okButton) {
+                okButton.disabled =
+                  !hasAtLeastOneAnalysisTypeSelected(newOptions);
+              }
+            }}
           />
         </Space>
       ),
       onOk: () => {
-        analyzeMutation.mutate(analysisOptions);
+        if (hasAtLeastOneAnalysisTypeSelected(currentOptions)) {
+          analyzeMutation.mutate(currentOptions);
+        }
+      },
+      okButtonProps: {
+        disabled: !hasAtLeastOneAnalysisTypeSelected(analysisOptions),
       },
       width: 500,
     });

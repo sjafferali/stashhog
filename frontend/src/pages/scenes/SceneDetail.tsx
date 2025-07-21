@@ -33,9 +33,9 @@ import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 import {
   AnalysisTypeSelector,
   AnalysisTypeOptions,
+  hasAtLeastOneAnalysisTypeSelected,
 } from '@/components/forms/AnalysisTypeSelector';
 
-const { TabPane } = Tabs;
 const { Text } = Typography;
 
 const SceneDetail: React.FC = () => {
@@ -490,40 +490,39 @@ const SceneDetail: React.FC = () => {
           </Space>
         }
       >
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane
-            tab={
-              <span>
-                <InfoCircleOutlined /> Overview
-              </span>
-            }
-            key="overview"
-          >
-            {renderOverviewTab()}
-          </TabPane>
-
-          <TabPane
-            tab={
-              <span>
-                <ClockCircleOutlined /> Markers
-              </span>
-            }
-            key="markers"
-          >
-            {renderMarkersTab()}
-          </TabPane>
-
-          <TabPane
-            tab={
-              <span>
-                <ExperimentOutlined /> Analysis
-              </span>
-            }
-            key="analysis"
-          >
-            {renderAnalysisTab()}
-          </TabPane>
-        </Tabs>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              label: (
+                <span>
+                  <InfoCircleOutlined /> Overview
+                </span>
+              ),
+              key: 'overview',
+              children: renderOverviewTab(),
+            },
+            {
+              label: (
+                <span>
+                  <ClockCircleOutlined /> Markers
+                </span>
+              ),
+              key: 'markers',
+              children: renderMarkersTab(),
+            },
+            {
+              label: (
+                <span>
+                  <ExperimentOutlined /> Analysis
+                </span>
+              ),
+              key: 'analysis',
+              children: renderAnalysisTab(),
+            },
+          ]}
+        />
       </Card>
 
       {scene && (
@@ -543,6 +542,9 @@ const SceneDetail: React.FC = () => {
         onOk={handleAnalysisModalOk}
         onCancel={handleAnalysisModalCancel}
         confirmLoading={analyzeMutation.isLoading}
+        okButtonProps={{
+          disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
+        }}
         width={500}
       >
         <Space direction="vertical" style={{ width: '100%' }}>

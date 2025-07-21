@@ -17,7 +17,9 @@ import {
   DownOutlined,
   UpOutlined,
   ClockCircleOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
 // import { useWebSocketStore } from '@/store/websocket';
 import styles from './JobProgress.module.scss';
@@ -287,19 +289,35 @@ export const JobProgress: React.FC<JobProgressProps> = ({
       )}
 
       {job.result && job.status === 'completed' && (
-        <Alert
-          message="Job Completed"
-          description={
-            <div>
-              <Text>Result:</Text>
-              <pre className={styles.result}>
-                {JSON.stringify(job.result, null, 2)}
-              </pre>
-            </div>
-          }
-          type="success"
-          showIcon
-        />
+        <>
+          <Alert
+            message="Job Completed"
+            description={
+              <div>
+                <Text>Result:</Text>
+                <pre className={styles.result}>
+                  {JSON.stringify(job.result, null, 2)}
+                </pre>
+              </div>
+            }
+            type="success"
+            showIcon
+          />
+          {(job.type === 'scene_analysis' || job.type === 'analysis') &&
+            job.result.plan_id && (
+              <div className={styles.planLink}>
+                <Link to={`/analysis/plans/${job.result.plan_id}`}>
+                  <Button
+                    type="primary"
+                    icon={<FileTextOutlined />}
+                    size="large"
+                  >
+                    View Created Analysis Plan
+                  </Button>
+                </Link>
+              </div>
+            )}
+        </>
       )}
     </Card>
   );

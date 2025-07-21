@@ -64,9 +64,10 @@ class PlanChange(BaseModel):
     confidence = Column(Float(), nullable=True)  # AI confidence score (0-1)
 
     # Application tracking
+    accepted: Column = Column(Boolean(), default=False, nullable=False, index=True)
+    rejected: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied_at = Column(DateTime(timezone=True), nullable=True, index=True)
-    rejected: Column = Column(Boolean(), default=False, nullable=False, index=True)
 
     # Relationships
     plan = relationship("AnalysisPlan", back_populates="changes")

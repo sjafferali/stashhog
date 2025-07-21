@@ -17,7 +17,9 @@ import {
   PauseCircleOutlined,
   RedoOutlined,
   DeleteOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
 import styles from './JobCard.module.scss';
 
@@ -280,6 +282,20 @@ export const JobCard: React.FC<JobCardProps> = ({
             </Descriptions>
           </div>
         )}
+
+        {job.result &&
+        job.status === 'completed' &&
+        (job.type === 'scene_analysis' || job.type === 'analysis') &&
+        'plan_id' in job.result &&
+        job.result.plan_id ? (
+          <div className={styles.planLink}>
+            <Link to={`/analysis/plans/${job.result.plan_id as string}`}>
+              <Button type="primary" icon={<FileTextOutlined />}>
+                View Created Analysis Plan
+              </Button>
+            </Link>
+          </div>
+        ) : null}
       </div>
     </Card>
   );

@@ -26,6 +26,7 @@ import { exportToCSV, exportToJSON } from '../utils/export';
 import {
   AnalysisTypeSelector,
   AnalysisTypeOptions,
+  hasAtLeastOneAnalysisTypeSelected,
 } from '@/components/forms/AnalysisTypeSelector';
 import type { MenuProps } from 'antd';
 
@@ -372,6 +373,9 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
           setTempAnalysisOptions(analysisOptions);
         }}
         confirmLoading={analyzeMutation.isLoading}
+        okButtonProps={{
+          disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
+        }}
         width={500}
       >
         <Space direction="vertical" style={{ width: '100%' }}>

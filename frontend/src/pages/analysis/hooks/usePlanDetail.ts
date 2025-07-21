@@ -31,6 +31,7 @@ interface RawChange {
 interface RawScene {
   scene_id: string;
   scene_title?: string;
+  scene_path?: string;
   changes: RawChange[];
 }
 

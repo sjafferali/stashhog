@@ -547,6 +547,7 @@ class TestAnalysisRoutes:
         scene = Mock()
         scene.id = "scene1"
         scene.title = "Test Scene"
+        scene.file_path = "/path/to/scene1.mp4"
 
         change = Mock()
         change.id = 1
@@ -556,8 +557,9 @@ class TestAnalysisRoutes:
         change.current_value = []  # Should be actual list, not string
         change.proposed_value = ["tag1"]  # Should be actual list, not string
         change.confidence = 0.9
-        change.applied = False
+        change.accepted = False
         change.rejected = False
+        change.applied = False
         mock_changes_result = Mock()
         mock_changes_result.all = Mock(return_value=[(change, scene)])
 
@@ -582,7 +584,7 @@ class TestAnalysisRoutes:
         mock_job.id = "test-job-id"
         mock_job_service.create_job = AsyncMock(return_value=mock_job)
 
-        response = client.post("/api/analysis/plans/1/apply")
+        response = client.post("/api/analysis/plans/1/apply", json={"background": True})
         assert response.status_code == 200
         data = response.json()
         assert data["job_id"] == "test-job-id"

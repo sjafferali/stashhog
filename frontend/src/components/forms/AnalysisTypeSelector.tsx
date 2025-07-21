@@ -31,6 +31,18 @@ const defaultOptions: AnalysisTypeOptions = {
   detectVideoTags: false,
 };
 
+export const hasAtLeastOneAnalysisTypeSelected = (
+  options: AnalysisTypeOptions
+): boolean => {
+  return (
+    options.detectPerformers ||
+    options.detectStudios ||
+    options.detectTags ||
+    options.detectDetails ||
+    options.detectVideoTags
+  );
+};
+
 export const AnalysisTypeSelector: React.FC<AnalysisTypeSelectorProps> = ({
   value = defaultOptions,
   onChange,

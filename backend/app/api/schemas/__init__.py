@@ -360,11 +360,14 @@ class ChangePreview(BaseSchema):
     current_value: Any = Field(..., description="Current value")
     proposed_value: Any = Field(..., description="Proposed value")
     confidence: float = Field(..., description="Confidence score")
-    applied: Optional[bool] = Field(
-        None, description="Whether the change has been applied"
+    accepted: Optional[bool] = Field(
+        None, description="Whether the change has been accepted for application"
     )
     rejected: Optional[bool] = Field(
         None, description="Whether the change has been rejected"
+    )
+    applied: Optional[bool] = Field(
+        None, description="Whether the change has been applied to Stash"
     )
 
 
@@ -373,6 +376,7 @@ class SceneChanges(BaseSchema):
 
     scene_id: str = Field(..., description="Scene ID")
     scene_title: str = Field(..., description="Scene title")
+    scene_path: Optional[str] = Field(None, description="Scene file path")
     changes: list[ChangePreview] = Field(..., description="List of changes")
 
 
@@ -419,6 +423,16 @@ class AnalysisApplyRequest(BaseSchema):
     custom_modifications: Optional[dict[str, Any]] = Field(
         None, description="Custom modifications"
     )
+
+
+class ApplyPlanRequest(BaseSchema):
+    """Request to apply plan changes."""
+
+    change_ids: Optional[list[int]] = Field(
+        None,
+        description="Specific change IDs to apply. If not provided, all non-rejected changes will be applied.",
+    )
+    background: bool = Field(True, description="Run as background job")
 
 
 # Settings-related schemas

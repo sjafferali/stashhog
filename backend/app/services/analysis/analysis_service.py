@@ -1616,6 +1616,7 @@ class AnalysisService:
         auto_approve: bool = False,
         job_id: Optional[str] = None,
         progress_callback: Optional[Any] = None,
+        change_ids: Optional[List[int]] = None,
     ) -> ApplyResult:
         """Apply an analysis plan to update scene metadata in Stash.
 
@@ -1624,6 +1625,7 @@ class AnalysisService:
             auto_approve: Whether to auto-approve all changes
             job_id: Associated job ID for progress tracking
             progress_callback: Optional callback for progress updates
+            change_ids: Optional list of specific change IDs to apply
 
         Returns:
             Result of applying the plan
@@ -1667,6 +1669,7 @@ class AnalysisService:
                     db=db,
                     stash_service=self.stash_service,
                     apply_filters=None,  # Apply all changes
+                    change_ids=change_ids,
                 )
 
                 # Commit the transaction after plan is applied

@@ -177,6 +177,7 @@ async def apply_analysis_plan_job(
     plan_id: str,
     cancellation_token: Optional[Any] = None,
     auto_approve: bool = False,
+    change_ids: Optional[list[int]] = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Apply an analysis plan as a background job."""
@@ -215,6 +216,7 @@ async def apply_analysis_plan_job(
         auto_approve=auto_approve,
         job_id=job_id,
         progress_callback=progress_callback,
+        change_ids=change_ids,
     )
 
     return {

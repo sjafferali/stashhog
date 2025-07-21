@@ -149,6 +149,7 @@ class PlanManager:
         db: AsyncSession,
         stash_service: StashService,
         apply_filters: Optional[Dict[str, bool]] = None,
+        change_ids: Optional[List[int]] = None,
     ) -> ApplyResult:
         """Apply changes from a plan to Stash.
 
@@ -157,6 +158,7 @@ class PlanManager:
             db: Database session
             stash_service: Stash service for applying changes
             apply_filters: Optional filters for what to apply
+            change_ids: Optional list of specific change IDs to apply
 
         Returns:
             Result of applying the plan
@@ -174,7 +176,7 @@ class PlanManager:
         # Get changes and apply them
         changes = await self._get_plan_changes(plan_id, db)
         result_data = await self._process_plan_changes(
-            changes, apply_filters, db, stash_service
+            changes, apply_filters, db, stash_service, change_ids
         )
 
         # Finalize plan application
@@ -233,6 +235,7 @@ class PlanManager:
         apply_filters: Dict[str, bool],
         db: AsyncSession,
         stash_service: StashService,
+        change_ids: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         """Process all changes in a plan."""
         total_changes = 0
@@ -242,7 +245,7 @@ class PlanManager:
 
         for change in changes:
             # Skip filtered, rejected, or already applied changes
-            if not self._should_apply_change(change, apply_filters):
+            if not self._should_apply_change(change, apply_filters, change_ids):
                 continue
 
             total_changes += 1
@@ -266,9 +269,21 @@ class PlanManager:
         }
 
     def _should_apply_change(
-        self, change: PlanChange, apply_filters: Dict[str, bool]
+        self,
+        change: PlanChange,
+        apply_filters: Dict[str, bool],
+        change_ids: Optional[List[int]] = None,
     ) -> bool:
         """Check if a change should be applied."""
+        # If specific change_ids are provided, only apply those
+        if change_ids is not None:
+            if change.id not in change_ids:
+                return False
+        else:
+            # If no change_ids provided, only apply explicitly accepted changes
+            if not change.accepted:
+                return False
+
         if not apply_filters.get(str(change.field), True):
             return False
         if change.rejected:
@@ -526,8 +541,39 @@ class PlanManager:
             for marker_data in markers_to_create:
                 # Ensure scene_id is set correctly
                 marker_data["scene_id"] = scene["id"]
+
+                # Convert tag names to tag IDs
+                marker_tags = []
+                for tag_name in marker_data.get("tags", []):
+                    # Get database session
+                    from app.core.database import AsyncSessionLocal
+
+                    async with AsyncSessionLocal() as db:
+                        tag_id = await stash_service.find_or_create_tag(tag_name, db)
+                        if tag_id:
+                            marker_tags.append(tag_id)
+
+                # Only create marker if we have at least one tag
+                if not marker_tags:
+                    logger.warning(
+                        f"Skipping marker creation - no tags found for marker at {marker_data.get('seconds', 0)}s"
+                    )
+                    continue
+
+                # Create marker with proper format
+                marker_to_create = {
+                    "scene_id": scene["id"],
+                    "seconds": marker_data.get("seconds", 0),
+                    "title": marker_data.get("title", ""),
+                    "tag_ids": marker_tags,
+                }
+
+                # Add end_seconds if provided
+                if "end_seconds" in marker_data:
+                    marker_to_create["end_seconds"] = marker_data["end_seconds"]
+
                 try:
-                    await stash_service.create_marker(marker_data)  # type: ignore[arg-type]
+                    await stash_service.create_marker(marker_to_create)  # type: ignore[arg-type]
                     logger.info(
                         f"Created marker for scene {scene['id']} at {marker_data.get('seconds', 0)}s"
                     )

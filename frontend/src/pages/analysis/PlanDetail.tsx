@@ -386,11 +386,11 @@ const PlanDetail: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span>Review Progress:</span>
           <Progress
-            percent={
+            percent={Math.round(
               ((stats.acceptedChanges + stats.rejectedChanges) /
                 stats.totalChanges) *
-              100
-            }
+                100
+            )}
             strokeColor={{
               '0%': '#108ee9',
               '100%': '#87d068',
