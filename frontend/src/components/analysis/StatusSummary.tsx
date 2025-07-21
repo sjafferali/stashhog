@@ -76,7 +76,15 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
   return (
     <Row gutter={16} className={styles.statusSummary}>
       {summaryCards.map((card) => (
-        <Col xs={24} sm={12} md={6} lg={4} key={card.title}>
+        <Col
+          xs={24}
+          sm={12}
+          md={8}
+          lg={8}
+          xl={4}
+          key={card.title}
+          className={styles.statusCol}
+        >
           <Card
             className={`${styles.summaryCard} ${card.highlight ? styles.highlight : ''} ${activeFilter === card.status ? styles.active : ''}`}
             bordered={false}
@@ -93,11 +101,9 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
                 </span>
               }
               value={card.value}
-              valueStyle={{ color: card.color }}
-              suffix={
-                <span className={styles.description}>{card.description}</span>
-              }
+              valueStyle={{ color: card.color, fontSize: '28px' }}
             />
+            <div className={styles.description}>{card.description}</div>
           </Card>
         </Col>
       ))}

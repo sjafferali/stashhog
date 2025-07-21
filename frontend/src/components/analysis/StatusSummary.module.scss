@@ -1,11 +1,22 @@
 .statusSummary {
   margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.statusCol {
+  flex: 1 1 0 !important;
+  min-width: 200px !important;
+  max-width: 250px !important;
+  padding: 0 8px !important;
 }
 
 .summaryCard {
   background: #fafafa;
   transition: all 0.3s ease;
-  min-height: 120px;
+  height: 140px;
+  width: 100%;
   
   &:hover {
     transform: translateY(-2px);
@@ -31,7 +42,11 @@
 
   :global {
     .ant-card-body {
-      padding: 20px;
+      padding: 16px !important;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
     }
 
     .ant-statistic-title {
@@ -43,19 +58,22 @@
     .ant-statistic-content {
       display: flex;
       align-items: baseline;
-      gap: 12px;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .ant-statistic-content-value {
-      font-size: 32px;
+      font-size: 28px !important;
       font-weight: 600;
       line-height: 1.2;
     }
 
     .ant-statistic-content-suffix {
-      font-size: 14px;
-      color: rgba(0, 0, 0, 0.65);
-      font-weight: normal;
+      display: none; // Hide the suffix since we're handling it separately
+    }
+    
+    .ant-statistic {
+      margin-bottom: 8px;
     }
   }
 }
@@ -76,4 +94,8 @@
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
   margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
 }
