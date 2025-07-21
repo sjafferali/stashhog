@@ -498,10 +498,11 @@ class VideoTagDetector:
                 )
 
             if not result:
-                logger.error(
-                    f"No result from AI server for scene {scene_data.get('id')}"
-                )
-                return changes, None
+                error_msg = f"No result from AI server for scene {scene_data.get('id')}"
+                logger.error(error_msg)
+                # Raise exception instead of returning empty changes
+                # This will ensure the error is properly propagated
+                raise RuntimeError(error_msg)
 
             # Extract tags from result
             logger.debug("Extracting tags from result...")
