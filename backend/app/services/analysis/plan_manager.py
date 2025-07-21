@@ -86,7 +86,7 @@ class PlanManager:
         plan.add_metadata("scene_count", len(changes))
         plan.add_metadata("created_at", datetime.utcnow().isoformat())
 
-        await db.commit()
+        await db.flush()
 
         # Refresh the plan
         query = select(AnalysisPlan).where(AnalysisPlan.id == plan.id)
@@ -235,7 +235,7 @@ class PlanManager:
             },
         )
 
-        await db.commit()
+        await db.flush()
 
         return ApplyResult(
             plan_id=plan_id,
@@ -466,7 +466,7 @@ class PlanManager:
             raise ValueError("Cannot delete an applied plan")
 
         await db.delete(plan)
-        await db.commit()
+        await db.flush()
 
         logger.info(f"Deleted plan {plan_id}")
         return True
@@ -520,7 +520,7 @@ class PlanManager:
         plan = await self.get_plan(plan_id, db)
         if plan:
             plan.status = status  # type: ignore[assignment]
-            await db.commit()
+            await db.flush()
 
     async def get_plan_statistics(
         self, plan_id: int, db: AsyncSession

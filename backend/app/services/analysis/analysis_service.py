@@ -1863,7 +1863,18 @@ class AnalysisService:
                 if not plan:
                     raise ValueError(f"Plan {plan_id} not found")
 
-                total_changes = plan.get_change_count()
+                # Query changes count directly to avoid dynamic relationship issues
+                from sqlalchemy import func, select
+
+                from app.models import PlanChange
+
+                count_query = (
+                    select(func.count())
+                    .select_from(PlanChange)
+                    .where(PlanChange.plan_id == plan_id_int)
+                )
+                count_result = await db.execute(count_query)
+                total_changes = count_result.scalar() or 0
 
                 if progress_callback:
                     await progress_callback(5, f"Applying {total_changes} changes")
@@ -1875,6 +1886,9 @@ class AnalysisService:
                     stash_service=self.stash_service,
                     apply_filters=None,  # Apply all changes
                 )
+
+                # Commit the transaction after plan is applied
+                await db.commit()
 
                 # Calculate progress
                 progress = 100
@@ -1889,7 +1903,7 @@ class AnalysisService:
                     await progress_callback(progress, message)
 
                 # Add scene information to result
-                result.scenes_analyzed = plan.metadata.get("scene_count", 0)
+                result.scenes_analyzed = plan.get_metadata("scene_count", 0)
 
                 return result
 
