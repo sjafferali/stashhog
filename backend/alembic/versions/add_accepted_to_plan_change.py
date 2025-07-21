@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "add_accepted_column"
-down_revision = None
+down_revision = "148f694b2bdd"
 branch_labels = None
 depends_on = None
 
