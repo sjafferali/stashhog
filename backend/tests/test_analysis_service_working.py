@@ -103,6 +103,7 @@ class TestAnalysisService:
         db.add = Mock()
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
+        db.flush = AsyncMock()
         db.execute = AsyncMock()
         return db
 
@@ -346,8 +347,33 @@ class TestAnalysisService:
         # Mock Stash update
         mock_stash_service.update_scene.return_value = True
 
-        # Run apply
-        result = await analysis_service.apply_plan(plan_id="1")
+        # Mock the count query for plan changes
+        from unittest.mock import MagicMock, patch
+
+        # Create a mock async context manager for AsyncSessionLocal
+        mock_db_context = AsyncMock()
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 1
+        mock_db_context.execute.return_value = mock_count_result
+        mock_db_context.commit = AsyncMock()
+        mock_db_context.flush = AsyncMock()
+
+        # Create a proper async context manager mock
+        class MockAsyncContextManager:
+            async def __aenter__(self):
+                return mock_db_context
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return None
+
+        mock_session_local = MagicMock(return_value=MockAsyncContextManager())
+
+        # Mock plan.get_metadata
+        plan.get_metadata = Mock(return_value=3)
+
+        # Run apply with patched AsyncSessionLocal
+        with patch("app.core.database.AsyncSessionLocal", mock_session_local):
+            result = await analysis_service.apply_plan(plan_id="1")
 
         # Verify
         assert isinstance(result, ApplyResult)
