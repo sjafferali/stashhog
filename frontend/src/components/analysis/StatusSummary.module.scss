@@ -5,6 +5,7 @@
 .summaryCard {
   background: #fafafa;
   transition: all 0.3s ease;
+  min-height: 120px;
   
   &:hover {
     transform: translateY(-2px);

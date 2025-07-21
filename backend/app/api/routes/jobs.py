@@ -226,6 +226,42 @@ async def cancel_job(
     return {"success": True, "message": f"Job {job_id} cancelled successfully"}
 
 
+@router.websocket("/ws")
+async def jobs_updates_ws(  # type: ignore[no-untyped-def]
+    websocket: WebSocket,
+    manager: WebSocketManager = Depends(get_websocket_manager),
+):
+    """
+    WebSocket for real-time updates of all jobs.
+    """
+    await manager.connect(websocket)
+    logger.info("Client connected to jobs WebSocket")
+
+    try:
+        # Keep connection alive and handle messages
+        while True:
+            try:
+                # Wait for client messages (ping/pong)
+                data = await websocket.receive_json()
+
+                # Handle ping/pong
+                if data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+
+            except WebSocketDisconnect:
+                logger.info("Client disconnected from jobs WebSocket")
+                break
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                break
+
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+        await websocket.send_json({"type": "error", "message": str(e)})
+    finally:
+        await manager.disconnect(websocket)
+
+
 @router.websocket("/{job_id}/ws")
 async def job_progress_ws(  # type: ignore[no-untyped-def]
     websocket: WebSocket,
