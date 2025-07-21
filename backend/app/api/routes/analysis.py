@@ -80,6 +80,102 @@ async def get_analysis_stats(
     }
 
 
+async def _get_scene_ids_from_filters(
+    filters: SceneFilter, db: AsyncSession
+) -> list[str]:
+    """Extract scene IDs based on filters."""
+    query = select(Scene.id)
+    conditions = []
+
+    if filters.search:
+        search_term = f"%{filters.search}%"
+        conditions.append(
+            or_(Scene.title.ilike(search_term), Scene.details.ilike(search_term))
+        )
+
+    if filters.studio_id:
+        conditions.append(Scene.studio_id == filters.studio_id)
+
+    if filters.organized is not None:
+        conditions.append(Scene.organized == filters.organized)
+
+    if filters.analyzed is not None:
+        conditions.append(Scene.analyzed == filters.analyzed)
+
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    result = await db.execute(query)
+    return [str(row[0]) for row in result]
+
+
+async def _run_background_analysis(
+    scene_ids: list[str],
+    request: AnalysisRequest,
+    job_service: JobService,
+    db: AsyncSession,
+) -> dict[str, Any]:
+    """Queue analysis as a background job."""
+    job = await job_service.create_job(
+        job_type=ModelJobType.ANALYSIS,
+        db=db,
+        metadata={
+            "scene_ids": scene_ids,
+            "options": request.options.model_dump(),
+            "plan_name": request.plan_name
+            or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
+        },
+    )
+    await db.refresh(job)
+    return {
+        "job_id": job.id,
+        "status": "queued",
+        "message": f"Analysis job queued for {len(scene_ids)} scenes",
+    }
+
+
+async def _run_synchronous_analysis(
+    scene_ids: list[str],
+    request: AnalysisRequest,
+    analysis_service: AnalysisService,
+) -> dict[str, Any]:
+    """Run analysis synchronously."""
+    from app.services.analysis.models import AnalysisOptions as ServiceAnalysisOptions
+
+    service_options = ServiceAnalysisOptions(
+        detect_performers=request.options.detect_performers,
+        detect_studios=request.options.detect_studios,
+        detect_tags=request.options.detect_tags,
+        detect_details=request.options.detect_details,
+        detect_video_tags=request.options.detect_video_tags,
+        confidence_threshold=request.options.confidence_threshold,
+    )
+
+    plan = await analysis_service.analyze_scenes(
+        scene_ids=scene_ids,
+        options=service_options,
+        plan_name=request.plan_name
+        or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
+    )
+
+    # Check if plan has an ID (was saved to database)
+    if not hasattr(plan, "id") or plan.id is None:
+        return {
+            "plan_id": None,
+            "status": "completed",
+            "total_scenes": len(scene_ids),
+            "total_changes": 0,
+            "message": "Analysis completed - no changes found",
+        }
+
+    return {
+        "plan_id": plan.id,
+        "status": "completed",
+        "total_scenes": len(scene_ids),
+        "total_changes": getattr(plan, "total_changes", 0),
+    }
+
+
 @router.post("/generate")
 async def generate_analysis(
     request: AnalysisRequest,
@@ -100,33 +196,10 @@ async def generate_analysis(
             detail="Either scene_ids or filters must be provided",
         )
 
-    # If using filters, get scene IDs
+    # Get scene IDs
     scene_ids = request.scene_ids
     if not scene_ids and request.filters:
-        # Build query from filters
-        query = select(Scene.id)
-        conditions = []
-
-        if request.filters.search:
-            search_term = f"%{request.filters.search}%"
-            conditions.append(
-                or_(Scene.title.ilike(search_term), Scene.details.ilike(search_term))
-            )
-
-        if request.filters.studio_id:
-            conditions.append(Scene.studio_id == request.filters.studio_id)
-
-        if request.filters.organized is not None:
-            conditions.append(Scene.organized == request.filters.organized)
-
-        if request.filters.analyzed is not None:
-            conditions.append(Scene.analyzed == request.filters.analyzed)
-
-        if conditions:
-            query = query.where(and_(*conditions))
-
-        result = await db.execute(query)
-        scene_ids = [str(row[0]) for row in result]
+        scene_ids = await _get_scene_ids_from_filters(request.filters, db)
 
     if not scene_ids:
         raise HTTPException(
@@ -134,52 +207,11 @@ async def generate_analysis(
             detail="No scenes found matching the criteria",
         )
 
+    # Run analysis
     if background:
-        # Queue as background job
-        job = await job_service.create_job(
-            job_type=ModelJobType.ANALYSIS,
-            db=db,
-            metadata={
-                "scene_ids": scene_ids,
-                "options": request.options.model_dump(),
-                "plan_name": request.plan_name
-                or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
-            },
-        )
-        # Refresh the job object to ensure all attributes are loaded
-        await db.refresh(job)
-        return {
-            "job_id": job.id,
-            "status": "queued",
-            "message": f"Analysis job queued for {len(scene_ids)} scenes",
-        }
+        return await _run_background_analysis(scene_ids, request, job_service, db)
     else:
-        # Run synchronously (not recommended for large batches)
-        # Convert API AnalysisOptions to service AnalysisOptions
-        from app.services.analysis.models import (
-            AnalysisOptions as ServiceAnalysisOptions,
-        )
-
-        service_options = ServiceAnalysisOptions(
-            detect_performers=request.options.detect_performers,
-            detect_studios=request.options.detect_studios,
-            detect_tags=request.options.detect_tags,
-            detect_details=request.options.detect_details,
-            detect_video_tags=request.options.detect_video_tags,
-            confidence_threshold=request.options.confidence_threshold,
-        )
-        plan = await analysis_service.analyze_scenes(
-            scene_ids=scene_ids,
-            options=service_options,
-            plan_name=request.plan_name
-            or f"Analysis - {datetime.now(timezone.utc).isoformat()}",
-        )
-        return {
-            "plan_id": plan.id,
-            "status": "completed",
-            "total_scenes": len(scene_ids),
-            "total_changes": plan.total_changes,
-        }
+        return await _run_synchronous_analysis(scene_ids, request, analysis_service)
 
 
 @router.get("/plans", response_model=PaginatedResponse[PlanResponse])
@@ -901,47 +933,6 @@ async def get_available_models() -> dict[str, Any]:
     }
 
 
-async def _get_scene_ids_from_filters(
-    filters: Optional[SceneFilter],
-    db: AsyncSession,
-) -> list[str]:
-    """Extract scene IDs from filters.
-
-    Args:
-        filters: Scene filters
-        db: Database session
-
-    Returns:
-        List of scene IDs
-    """
-    if not filters:
-        return []
-
-    query = select(Scene.id)
-    conditions = []
-
-    if filters.search:
-        search_term = f"%{filters.search}%"
-        conditions.append(
-            or_(Scene.title.ilike(search_term), Scene.details.ilike(search_term))
-        )
-
-    if filters.studio_id:
-        conditions.append(Scene.studio_id == filters.studio_id)
-
-    if filters.organized is not None:
-        conditions.append(Scene.organized == filters.organized)
-
-    if filters.analyzed is not None:
-        conditions.append(Scene.analyzed == filters.analyzed)
-
-    if conditions:
-        query = query.where(and_(*conditions))
-
-    result = await db.execute(query)
-    return [str(row[0]) for row in result]
-
-
 @router.post("/video-tags")
 async def analyze_video_tags(
     request: AnalysisRequest,
@@ -1025,11 +1016,21 @@ async def analyze_video_tags(
                 or f"Video Tag Analysis - {datetime.now().isoformat()}",
             )
 
+            # Check if plan has an ID (was saved to database)
+            if not hasattr(plan, "id") or plan.id is None:
+                # Mock plan - no changes were found
+                return {
+                    "plan_id": None,
+                    "status": "completed",
+                    "total_scenes": len(scene_ids),
+                    "total_changes": 0,
+                    "message": "Video tag analysis completed - no changes found",
+                }
             return {
                 "plan_id": plan.id,
                 "status": "completed",
                 "total_scenes": plan.get_metadata("scene_count", len(scene_ids)),
-                "total_changes": plan.total_changes,
+                "total_changes": getattr(plan, "total_changes", 0),
                 "message": f"Created analysis plan {plan.id} for video tag detection",
             }
         except Exception as e:

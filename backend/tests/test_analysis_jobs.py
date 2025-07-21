@@ -56,7 +56,7 @@ class TestAnalysisJobs:
     def mock_analysis_plan(self):
         """Create mock analysis plan."""
         plan = Mock(spec=AnalysisPlan)
-        plan.id = str(uuid4())
+        plan.id = 12345  # Use integer ID instead of UUID string
         plan.status = PlanStatus.APPLIED
         plan.get_metadata = Mock(return_value=5)
         return plan
@@ -501,7 +501,7 @@ class TestAnalysisJobsExtended:
     def mock_analysis_plan(self):
         """Create mock analysis plan."""
         plan = Mock(spec=AnalysisPlan)
-        plan.id = str(uuid4())
+        plan.id = 12345  # Use integer ID instead of UUID string
         plan.status = PlanStatus.APPLIED
         plan.get_metadata = Mock(return_value=5)
         return plan
@@ -553,13 +553,13 @@ class TestAnalysisJobsExtended:
             mock_analysis_service = Mock()
             mock_plan1 = Mock()
             mock_plan1.get_change_count = Mock(return_value=10)
-            mock_plan1.id = str(uuid4())
+            mock_plan1.id = 10001  # Use integer ID
             mock_plan2 = Mock()
             mock_plan2.get_change_count = Mock(return_value=15)
-            mock_plan2.id = str(uuid4())
+            mock_plan2.id = 10002  # Use integer ID
             mock_plan3 = Mock()
             mock_plan3.get_change_count = Mock(return_value=5)
-            mock_plan3.id = str(uuid4())
+            mock_plan3.id = 10003  # Use integer ID
 
             mock_analysis_service.analyze_scenes = AsyncMock(
                 side_effect=[mock_plan1, mock_plan2, mock_plan3]

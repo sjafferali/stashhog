@@ -84,57 +84,80 @@ async def analyze_scenes_job(
                 cancellation_token=cancellation_token,
             )
 
-            logger.info(f"Analysis completed for job {job_id}, plan ID: {plan.id}")
+            logger.info(
+                f"Analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
+            )
 
-            # Calculate summary while still in session
-            try:
-                logger.debug(f"Plan object session: {plan in db}")
-                logger.debug(f"Current db session: {db}")
-
-                # The plan object is bound to a different session context
-                # We need to re-fetch it in our current session to access its relationships
-
-                # Store the plan ID before any potential session issues
-                plan_id = plan.id
-
-                # Re-fetch the plan in our current session to avoid cross-session issues
-                plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
-                plan_result = await db.execute(plan_query)
-                fresh_plan = plan_result.scalar_one()
-
-                # Now query changes directly (since it's a dynamic relationship)
-                logger.debug(f"Querying changes for plan {plan_id}")
-                changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
-                changes_result = await db.execute(changes_query)
-                changes_list = list(changes_result.scalars().all())
-
-                logger.debug(f"Loaded {len(changes_list)} changes for plan {plan_id}")
-
-                # Calculate summary with the loaded changes
-                summary = calculate_plan_summary(changes_list)
-
-                # Get total changes count and metadata while session is active
-                total_changes = len(changes_list)
-                # Use the fresh plan to access metadata safely
-                scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
-
+            # Check if plan has an ID (was saved to database)
+            if not hasattr(plan, "id") or plan.id is None:
+                # Mock plan - no changes were found
                 logger.info(
-                    f"Summary calculated for job {job_id}: {total_changes} total changes"
+                    f"No changes found for job {job_id}, returning minimal result"
                 )
+                result: dict[str, Any] = {
+                    "plan_id": None,
+                    "total_changes": 0,
+                    "scenes_analyzed": len(scene_ids or []),
+                    "summary": {
+                        "total": 0,
+                        "by_field": {},
+                        "by_action": {},
+                    },
+                }
+            else:
+                # Calculate summary while still in session
+                try:
+                    logger.debug(f"Plan object session: {plan in db}")
+                    logger.debug(f"Current db session: {db}")
 
-            except Exception as e:
-                logger.error(
-                    f"Error calculating summary for job {job_id}: {str(e)}",
-                    exc_info=True,
-                )
-                raise
+                    # The plan object is bound to a different session context
+                    # We need to re-fetch it in our current session to access its relationships
 
-            result = {
-                "plan_id": plan_id,
-                "total_changes": total_changes,
-                "scenes_analyzed": scenes_analyzed,
-                "summary": summary,
-            }
+                    # Store the plan ID before any potential session issues
+                    plan_id = plan.id
+
+                    # Re-fetch the plan in our current session to avoid cross-session issues
+                    plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
+                    plan_result = await db.execute(plan_query)
+                    fresh_plan = plan_result.scalar_one()
+
+                    # Now query changes directly (since it's a dynamic relationship)
+                    logger.debug(f"Querying changes for plan {plan_id}")
+                    changes_query = select(PlanChange).where(
+                        PlanChange.plan_id == plan_id
+                    )
+                    changes_result = await db.execute(changes_query)
+                    changes_list = list(changes_result.scalars().all())
+
+                    logger.debug(
+                        f"Loaded {len(changes_list)} changes for plan {plan_id}"
+                    )
+
+                    # Calculate summary with the loaded changes
+                    summary = calculate_plan_summary(changes_list)
+
+                    # Get total changes count and metadata while session is active
+                    total_changes = len(changes_list)
+                    # Use the fresh plan to access metadata safely
+                    scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
+
+                    logger.info(
+                        f"Summary calculated for job {job_id}: {total_changes} total changes"
+                    )
+
+                    result = {
+                        "plan_id": int(plan_id),
+                        "total_changes": total_changes,
+                        "scenes_analyzed": scenes_analyzed,
+                        "summary": summary,
+                    }
+
+                except Exception as e:
+                    logger.error(
+                        f"Error calculating summary for job {job_id}: {str(e)}",
+                        exc_info=True,
+                    )
+                    raise
 
             logger.info(f"Job {job_id} completed successfully with result: {result}")
             return result
@@ -477,6 +500,22 @@ async def analyze_video_tags_job(
             plan_name=plan_name,
             cancellation_token=cancellation_token,
         )
+
+        # Check if plan has an ID (was saved to database)
+        if not hasattr(plan, "id") or plan.id is None:
+            # Mock plan - no changes were found
+            logger.info(f"No video tag changes found for job {job_id}")
+            return {
+                "plan_id": None,
+                "total_changes": 0,
+                "scenes_analyzed": len(scene_ids),
+                "summary": {
+                    "total": 0,
+                    "by_field": {},
+                    "by_action": {},
+                },
+                "message": "Video tag analysis completed - no changes found",
+            }
 
         # Calculate summary
         from sqlalchemy import select
