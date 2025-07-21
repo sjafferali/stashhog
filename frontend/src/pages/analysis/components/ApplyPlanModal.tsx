@@ -79,7 +79,7 @@ const ApplyPlanModal: React.FC<ApplyPlanModalProps> = ({
 
   // WebSocket for progress updates
   const { message: wsMessage } = useWebSocket(
-    jobId ? `/ws/jobs/${jobId}` : null
+    jobId ? `/api/jobs/${jobId}/ws` : null
   );
 
   useEffect(() => {

@@ -1,15 +1,15 @@
 """Repository for Tag database operations."""
 
+import logging
 from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.core.base_logger import get_logger
 from app.models.tag import Tag
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TagRepository:

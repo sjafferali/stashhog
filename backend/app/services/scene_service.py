@@ -1,17 +1,17 @@
 """Service for managing scene updates in both stashhog and Stash."""
 
+import logging
 from typing import Any, Dict, List
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.base_logger import get_logger
 from app.models.scene import Scene
 from app.models.tag import Tag
 from app.repositories.tag_repository import TagRepository
 from app.services.stash_service import StashService
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SceneService:
