@@ -771,6 +771,7 @@ class AnalysisService:
             "tags_added": 0,
             "markers_added": 0,
             "errors": [],
+            "message": "No scenes found to analyze",
         }
 
     async def _process_scene_for_video_tags(
@@ -784,11 +785,17 @@ class AnalysisService:
 
         Returns dict with: scene_modified, tags_added, markers_added, error
         """
+        logger.debug(
+            f"_process_scene_for_video_tags called for scene index {scene_index}"
+        )
+        logger.debug(f"scene_data type: {type(scene_data)}")
+
         # Validate scene_data
         if not isinstance(scene_data, dict):
             logger.error(
                 f"Invalid scene_data at index {scene_index}: expected dict, got {type(scene_data).__name__}"
             )
+            logger.error(f"scene_data value: {scene_data}")
             return {
                 "scene_modified": False,
                 "tags_added": 0,
@@ -797,6 +804,11 @@ class AnalysisService:
             }
 
         scene_id = scene_data.get("id", "")
+        logger.debug(f"Processing scene_id: {scene_id}")
+        logger.debug(f"scene_data keys: {list(scene_data.keys())}")
+        logger.debug(f"scene_data file_path: {scene_data.get('file_path')}")
+        logger.debug(f"scene_data path: {scene_data.get('path')}")
+
         result: dict[str, Any] = {
             "scene_modified": False,
             "tags_added": 0,
@@ -806,10 +818,17 @@ class AnalysisService:
 
         # Get current tags early for error handling
         current_tags = scene_data.get("tags", [])
+        logger.debug(
+            f"current_tags type: {type(current_tags)}, count: {len(current_tags)}"
+        )
+
         current_tag_names = [
             t.get("name", "") for t in current_tags if isinstance(t, dict)
         ]
+        logger.debug(f"current_tag_names: {current_tag_names}")
+
         has_tagme = "AI_TagMe" in current_tag_names
+        logger.debug(f"has_tagme: {has_tagme}")
 
         try:
             # Report progress
@@ -819,15 +838,29 @@ class AnalysisService:
 
             # Get current markers and detect video tags
             current_markers = scene_data.get("markers", [])
+            logger.debug(
+                f"current_markers type: {type(current_markers)}, count: {len(current_markers)}"
+            )
+
             await self._report_scene_progress(
                 scene_index, total_scenes, scene_data, progress_callback, "analyzing"
             )
 
-            video_changes, _ = await self.video_tag_detector.detect(
-                scene_data=scene_data,
-                existing_tags=current_tag_names,
-                existing_markers=current_markers,
-            )
+            logger.debug(f"Calling video_tag_detector.detect for scene {scene_id}...")
+            try:
+                video_changes, _ = await self.video_tag_detector.detect(
+                    scene_data=scene_data,
+                    existing_tags=current_tag_names,
+                    existing_markers=current_markers,
+                )
+                logger.debug(
+                    f"video_tag_detector.detect returned {len(video_changes) if video_changes else 0} changes"
+                )
+            except Exception as detect_error:
+                logger.error(
+                    f"video_tag_detector.detect failed for scene {scene_id}: {detect_error}"
+                )
+                raise  # Re-raise to be caught by the outer exception handler
 
             # Apply changes if any
             if video_changes:
@@ -849,6 +882,10 @@ class AnalysisService:
                     )
 
         except Exception as e:
+            logger.error(
+                f"Exception in _process_scene_for_video_tags: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
             result = await self._handle_scene_processing_error(
                 scene_id, scene_data, current_tags, has_tagme, e, result
             )
@@ -931,10 +968,24 @@ class AnalysisService:
     ) -> dict[str, Any]:
         """Handle errors during scene processing."""
         logger.error(f"Error processing scene {scene_id}: {error}")
+        error_message = str(error)
+        # Add more context for common errors
+        if "'str' object has no attribute 'get'" in error_message:
+            error_message = (
+                f"AI server returned invalid response format: {error_message}"
+            )
+        elif "Failed to connect to AI server" in error_message:
+            error_message = (
+                f"Could not connect to video analysis AI server: {error_message}"
+            )
+        elif "Timeout processing video" in error_message:
+            error_message = f"Video analysis timed out: {error_message}"
+
         result["error"] = {
             "scene_id": scene_id,
             "title": scene_data.get("title", "Untitled"),
-            "error": str(error),
+            "error": error_message,
+            "error_type": type(error).__name__,
         }
 
         # Try to add error tag
@@ -991,13 +1042,32 @@ class AnalysisService:
                 counters["processed_scene_ids"], db, counters, progress_callback
             )
 
+            # Determine status and message based on errors
+            status = "completed"
+            message = "Video tag analysis completed successfully"
+
+            if counters["errors"]:
+                error_count = len(counters["errors"])
+                # If all scenes had errors, mark as failed
+                if error_count == counters["scenes_processed"]:
+                    status = "failed"
+                    message = (
+                        f"Video tag analysis failed for all {error_count} scene(s)"
+                    )
+                else:
+                    # If some scenes had errors, mark as completed_with_errors
+                    status = "completed_with_errors"
+                    successful = counters["scenes_processed"] - error_count
+                    message = f"Video tag analysis completed with errors: {successful} succeeded, {error_count} failed"
+
             return {
-                "status": "completed",
+                "status": status,
                 "scenes_processed": counters["scenes_processed"],
                 "scenes_updated": counters["scenes_updated"],
                 "tags_added": counters["tags_added"],
                 "markers_added": counters["markers_added"],
                 "errors": counters["errors"],
+                "message": message,
             }
 
         except Exception as e:
@@ -1024,6 +1094,16 @@ class AnalysisService:
             await progress_callback(2, "Loading scenes to analyze...")
 
         scenes_data = await self._get_scenes_for_analysis(scene_ids, filters)
+
+        logger.debug(
+            f"_get_scenes_for_analysis returned {len(scenes_data) if scenes_data else 0} scenes"
+        )
+        if scenes_data:
+            logger.debug(
+                f"First scene type: {type(scenes_data[0]) if scenes_data else 'N/A'}"
+            )
+            if scenes_data and isinstance(scenes_data[0], dict):
+                logger.debug(f"First scene keys: {list(scenes_data[0].keys())}")
 
         if scenes_data and progress_callback:
             await progress_callback(5, f"Found {len(scenes_data)} scene(s) to analyze")

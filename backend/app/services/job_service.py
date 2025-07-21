@@ -183,14 +183,29 @@ class JobService:
                     **handler_kwargs,
                 )
 
-            # Update job status to completed in a new session
+            # Update job status based on result
             async with AsyncSessionLocal() as final_db:
+                # Check if result indicates failure
+                job_status = JobStatus.COMPLETED
+                message = "Job completed successfully"
+
+                if isinstance(result, dict):
+                    result_status = result.get("status", "completed")
+                    if result_status == "failed":
+                        job_status = JobStatus.FAILED
+                        message = "Job failed with errors"
+                    elif result_status == "completed_with_errors":
+                        # Still mark as completed but note the errors in the message
+                        errors = result.get("errors", [])
+                        error_count = len(errors)
+                        message = f"Job completed with {error_count} error(s)"
+
                 await self._update_job_status_with_session(
                     job_id=job_id,
-                    status=JobStatus.COMPLETED,
+                    status=job_status,
                     progress=100,
                     result=result,
-                    message="Job completed successfully",
+                    message=message,
                     db=final_db,
                 )
                 await final_db.commit()
