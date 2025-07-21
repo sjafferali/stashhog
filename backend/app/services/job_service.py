@@ -167,21 +167,12 @@ class JobService:
                     await progress_db.commit()
 
             # Execute handler with job context
-            # VIDEO_TAG_ANALYSIS expects metadata as a parameter, others expect direct parameters
-            if job_type == JobType.VIDEO_TAG_ANALYSIS:
-                result = await handler(
-                    job_id=job_id,
-                    metadata=metadata,
-                    progress_callback=async_progress_callback,
-                    cancellation_token=cancellation_token,
-                )
-            else:
-                result = await handler(
-                    job_id=job_id,
-                    progress_callback=async_progress_callback,
-                    cancellation_token=cancellation_token,
-                    **handler_kwargs,
-                )
+            result = await handler(
+                job_id=job_id,
+                progress_callback=async_progress_callback,
+                cancellation_token=cancellation_token,
+                **handler_kwargs,
+            )
 
             # Update job status based on result
             async with AsyncSessionLocal() as final_db:
