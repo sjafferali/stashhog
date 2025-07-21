@@ -54,10 +54,10 @@ class StashService:
         self.max_retries = max_retries
 
         # Initialize HTTP client with connection pooling
+        # Don't set headers here - we'll set them per request
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-            headers=self._get_headers(),
         )
 
         # Initialize cache
@@ -117,8 +117,14 @@ class StashService:
         logger.debug(f"GraphQL Request Query: {query[:200]}...")  # First 200 chars
         logger.debug(f"GraphQL Request Variables: {variables}")
 
+        # Get headers and log them for debugging
+        headers = self._get_headers()
+        logger.debug(f"GraphQL Request Headers: {headers}")
+
         try:
-            response = await self._client.post(self.graphql_url, json=payload)
+            response = await self._client.post(
+                self.graphql_url, json=payload, headers=headers
+            )
 
             if response.status_code == 401:
                 raise StashAuthenticationError(
