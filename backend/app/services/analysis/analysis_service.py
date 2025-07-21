@@ -616,11 +616,13 @@ class AnalysisService:
             logger.error(f"Error detecting video tags: {e}")
             # If we're ONLY doing video tag detection, propagate the error
             # Otherwise, don't fail the entire analysis if video detection fails
-            if (options.detect_video_tags and 
-                not options.detect_performers and 
-                not options.detect_studios and 
-                not options.detect_tags and 
-                not options.detect_details):
+            if (
+                options.detect_video_tags
+                and not options.detect_performers
+                and not options.detect_studios
+                and not options.detect_tags
+                and not options.detect_details
+            ):
                 raise
             # For mixed analysis, just log and continue
             logger.warning("Continuing analysis without video tag detection")
