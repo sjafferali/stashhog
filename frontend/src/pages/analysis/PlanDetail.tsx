@@ -482,6 +482,8 @@ const PlanDetail: React.FC = () => {
                   details: allChanges.filter((c) => c.field === 'details')
                     .length,
                   date: allChanges.filter((c) => c.field === 'date').length,
+                  markers: allChanges.filter((c) => c.field === 'markers')
+                    .length,
                   custom: allChanges.filter((c) => c.field === 'custom').length,
                 },
               }}

@@ -24,6 +24,7 @@ import {
   UserOutlined,
   TagsOutlined,
   HomeOutlined,
+  PushpinOutlined,
 } from '@ant-design/icons';
 import { AnalysisPlan } from '@/types/models';
 import styles from './PlanSummary.module.scss';
@@ -46,6 +47,7 @@ export interface PlanStatistics {
     performers: number;
     tags: number;
     studio: number;
+    markers: number;
     custom: number;
   };
 }
@@ -96,6 +98,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
     performers: <UserOutlined />,
     tags: <TagsOutlined />,
     studio: <HomeOutlined />,
+    markers: <PushpinOutlined />,
     custom: <BarChartOutlined />,
   };
 

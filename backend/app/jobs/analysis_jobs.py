@@ -170,7 +170,7 @@ async def analyze_scenes_job(
 
 async def apply_analysis_plan_job(
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     plan_id: str,
     cancellation_token: Optional[Any] = None,
     auto_approve: bool = False,
@@ -231,7 +231,7 @@ async def apply_analysis_plan_job(
 
 async def analyze_all_unanalyzed_job(
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     options: Optional[dict[str, Any]] = None,
     batch_size: int = 100,
     **kwargs: Any,
@@ -261,7 +261,7 @@ async def analyze_all_unanalyzed_job(
             batch: list[str] = scene_ids[i : i + batch_size]
             batch_progress = int((i / total_scenes) * 100)
 
-            progress_callback(
+            await progress_callback(
                 batch_progress,
                 f"Analyzing batch {i // batch_size + 1} of {(total_scenes + batch_size - 1) // batch_size}",
             )
@@ -319,7 +319,7 @@ async def analyze_all_unanalyzed_job(
 
 async def generate_scene_details_job(
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     scene_ids: Optional[list[str]] = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
@@ -365,7 +365,7 @@ async def generate_scene_details_job(
 
     for idx, scene_id in enumerate(scene_ids or []):
         progress = int((idx / total_scenes) * 100)
-        progress_callback(
+        await progress_callback(
             progress, f"Generating details for scene {idx + 1} of {total_scenes}"
         )
 
@@ -411,7 +411,7 @@ async def generate_scene_details_job(
             logger.error(f"Failed to generate details for scene {scene_id}: {str(e)}")
             results.append({"scene_id": scene_id, "status": "failed", "error": str(e)})
 
-    progress_callback(100, "Scene details generation completed")
+    await progress_callback(100, "Scene details generation completed")
 
     success_count = sum(1 for r in results if r["status"] == "success")
     return {

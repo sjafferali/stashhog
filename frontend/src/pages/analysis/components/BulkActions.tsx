@@ -19,6 +19,7 @@ import {
   HomeOutlined,
   FileTextOutlined,
   CalendarOutlined,
+  PushpinOutlined,
 } from '@ant-design/icons';
 
 export interface BulkActionsProps {
@@ -38,6 +39,7 @@ export interface BulkActionsProps {
     studio: number;
     details: number;
     date: number;
+    markers: number;
   };
 }
 
@@ -62,6 +64,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
     studio: <HomeOutlined />,
     details: <FileTextOutlined />,
     date: <CalendarOutlined />,
+    markers: <PushpinOutlined />,
   };
 
   const fieldLabels = {
@@ -71,6 +74,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
     studio: 'Studio',
     details: 'Details',
     date: 'Date',
+    markers: 'Markers',
   };
 
   const handleAcceptByConfidence = () => {

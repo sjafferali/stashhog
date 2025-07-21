@@ -99,6 +99,7 @@ export interface UsePlanDetailReturn {
     studio: number;
     details: number;
     date: number;
+    markers: number;
   };
 }
 
@@ -469,6 +470,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
       studio: 0,
       details: 0,
       date: 0,
+      markers: 0,
     };
 
     if (!plan) return counts;
