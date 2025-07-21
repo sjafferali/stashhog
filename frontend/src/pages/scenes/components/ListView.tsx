@@ -72,6 +72,17 @@ export const ListView: React.FC<ListViewProps> = ({
     detectDetails: false,
     detectVideoTags: false,
   });
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [selectedSceneForAnalysis, setSelectedSceneForAnalysis] =
+    useState<Scene | null>(null);
+  const [tempAnalysisOptions, setTempAnalysisOptions] =
+    useState<AnalysisTypeOptions>({
+      detectPerformers: true,
+      detectStudios: true,
+      detectTags: true,
+      detectDetails: false,
+      detectVideoTags: false,
+    });
   const {
     selectedScenes,
     toggleSceneSelection,
@@ -119,31 +130,30 @@ export const ListView: React.FC<ListViewProps> = ({
 
   const handleAnalyze = useCallback(
     (scene: Scene) => {
-      Modal.confirm({
-        title: 'Analyze Scene',
-        content: (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <p>
-              Analyze scene &quot;{scene.title || `#${scene.id}`}&quot; with the
-              following options:
-            </p>
-            <AnalysisTypeSelector
-              value={analysisOptions}
-              onChange={setAnalysisOptions}
-            />
-          </Space>
-        ),
-        onOk: () => {
-          analyzeMutation.mutate({
-            sceneId: scene.id.toString(),
-            options: analysisOptions,
-          });
-        },
-        width: 500,
-      });
+      setSelectedSceneForAnalysis(scene);
+      setTempAnalysisOptions(analysisOptions);
+      setAnalysisModalVisible(true);
     },
-    [analyzeMutation, analysisOptions]
+    [analysisOptions]
   );
+
+  const handleAnalysisModalOk = useCallback(() => {
+    if (selectedSceneForAnalysis) {
+      setAnalysisOptions(tempAnalysisOptions);
+      analyzeMutation.mutate({
+        sceneId: selectedSceneForAnalysis.id.toString(),
+        options: tempAnalysisOptions,
+      });
+      setAnalysisModalVisible(false);
+      setSelectedSceneForAnalysis(null);
+    }
+  }, [selectedSceneForAnalysis, tempAnalysisOptions, analyzeMutation]);
+
+  const handleAnalysisModalCancel = useCallback(() => {
+    setAnalysisModalVisible(false);
+    setSelectedSceneForAnalysis(null);
+    setTempAnalysisOptions(analysisOptions);
+  }, [analysisOptions]);
 
   const handleSortChange = useCallback(
     (column: string) => {
@@ -534,27 +544,51 @@ export const ListView: React.FC<ListViewProps> = ({
   );
 
   return (
-    <div className={styles.listView}>
-      <div className={styles.desktopTable}>
-        <Table
-          columns={columns}
-          dataSource={scenes}
-          rowKey="id"
-          pagination={false}
-          onChange={handleTableChange}
-          scroll={{ x: 1300 }}
-          onRow={(record: Scene) => ({
-            onClick: () => onSceneSelect(record),
-            style: { cursor: 'pointer' },
-          })}
-          rowClassName={(record: Scene) =>
-            selectedScenes.has(record.id.toString())
-              ? 'ant-table-row-selected'
-              : ''
-          }
-        />
+    <>
+      <div className={styles.listView}>
+        <div className={styles.desktopTable}>
+          <Table
+            columns={columns}
+            dataSource={scenes}
+            rowKey="id"
+            pagination={false}
+            onChange={handleTableChange}
+            scroll={{ x: 1300 }}
+            onRow={(record: Scene) => ({
+              onClick: () => onSceneSelect(record),
+              style: { cursor: 'pointer' },
+            })}
+            rowClassName={(record: Scene) =>
+              selectedScenes.has(record.id.toString())
+                ? 'ant-table-row-selected'
+                : ''
+            }
+          />
+        </div>
+        <MobileCardView />
       </div>
-      <MobileCardView />
-    </div>
+
+      <Modal
+        title="Analyze Scene"
+        open={analysisModalVisible}
+        onOk={handleAnalysisModalOk}
+        onCancel={handleAnalysisModalCancel}
+        confirmLoading={analyzeMutation.isLoading}
+        width={500}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>
+            Analyze scene &quot;
+            {selectedSceneForAnalysis?.title ||
+              `#${selectedSceneForAnalysis?.id}`}
+            &quot; with the following options:
+          </p>
+          <AnalysisTypeSelector
+            value={tempAnalysisOptions}
+            onChange={setTempAnalysisOptions}
+          />
+        </Space>
+      </Modal>
+    </>
   );
 };

@@ -45,6 +45,7 @@ const SceneDetail: React.FC = () => {
   const { settings, loadSettings, isLoaded } = useAppStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
     detectPerformers: true,
     detectStudios: true,
@@ -52,6 +53,14 @@ const SceneDetail: React.FC = () => {
     detectDetails: false,
     detectVideoTags: false,
   });
+  const [tempAnalysisOptions, setTempAnalysisOptions] =
+    useState<AnalysisTypeOptions>({
+      detectPerformers: true,
+      detectStudios: true,
+      detectTags: true,
+      detectDetails: false,
+      detectVideoTags: false,
+    });
 
   // Fetch scene data
   const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>(
@@ -129,22 +138,19 @@ const SceneDetail: React.FC = () => {
   );
 
   const handleAnalyze = () => {
-    Modal.confirm({
-      title: 'Analyze Scene',
-      content: (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <p>Analyze this scene with the following options:</p>
-          <AnalysisTypeSelector
-            value={analysisOptions}
-            onChange={setAnalysisOptions}
-          />
-        </Space>
-      ),
-      onOk: () => {
-        analyzeMutation.mutate(analysisOptions);
-      },
-      width: 500,
-    });
+    setTempAnalysisOptions(analysisOptions);
+    setAnalysisModalVisible(true);
+  };
+
+  const handleAnalysisModalOk = () => {
+    setAnalysisOptions(tempAnalysisOptions);
+    analyzeMutation.mutate(tempAnalysisOptions);
+    setAnalysisModalVisible(false);
+  };
+
+  const handleAnalysisModalCancel = () => {
+    setAnalysisModalVisible(false);
+    setTempAnalysisOptions(analysisOptions);
   };
 
   // Helper functions
@@ -529,6 +535,23 @@ const SceneDetail: React.FC = () => {
           }}
         />
       )}
+
+      <Modal
+        title="Analyze Scene"
+        open={analysisModalVisible}
+        onOk={handleAnalysisModalOk}
+        onCancel={handleAnalysisModalCancel}
+        confirmLoading={analyzeMutation.isLoading}
+        width={500}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>Analyze this scene with the following options:</p>
+          <AnalysisTypeSelector
+            value={tempAnalysisOptions}
+            onChange={setTempAnalysisOptions}
+          />
+        </Space>
+      </Modal>
     </div>
   );
 };

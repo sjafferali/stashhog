@@ -1009,77 +1009,58 @@ class AnalysisService:
 
         return result
 
-    async def analyze_and_apply_video_tags(
+    async def analyze_video_tags_to_plan(
         self,
         scene_ids: Optional[list[str]] = None,
         filters: Optional[dict] = None,
         job_id: Optional[str] = None,
         progress_callback: Optional[Any] = None,
+        plan_name: Optional[str] = None,
         cancellation_token: Optional[Any] = None,
-    ) -> dict[str, Any]:
-        """Analyze scenes for video tags and apply changes immediately.
+    ) -> AnalysisPlan:
+        """Analyze scenes for video tags and create a plan with proposed changes.
 
-        This method is specifically for video tag analysis that applies changes
-        immediately rather than creating a plan.
+        This method creates a plan for video tag analysis rather than applying
+        changes immediately.
 
         Args:
             scene_ids: Specific scene IDs to analyze
             filters: Filters for scene selection
             job_id: Associated job ID for progress tracking
             progress_callback: Optional callback for progress updates
+            plan_name: Optional name for the plan
 
         Returns:
-            Dictionary with results including processed scenes and applied changes
+            Generated analysis plan
         """
         # Get database session
         db = await self._get_database_session()
 
         try:
-            # Initialize analysis
-            scenes_data = await self._initialize_video_tag_analysis(
-                scene_ids, filters, progress_callback
+            # Set analysis options for video tag detection only
+            options = AnalysisOptions(
+                detect_performers=False,
+                detect_studios=False,
+                detect_tags=False,
+                detect_details=False,
+                detect_video_tags=True,
+                confidence_threshold=self.settings.analysis.ai_video_threshold,
             )
 
-            if not scenes_data:
-                return self._build_empty_result()
-
-            # Process scenes
-            counters = await self._process_scenes_for_video_tags(
-                scenes_data, progress_callback, cancellation_token
+            # Use the existing analyze_scenes method which creates a plan
+            plan = await self.analyze_scenes(
+                scene_ids=scene_ids,
+                filters=filters,
+                options=options,
+                job_id=job_id,
+                db=db,
+                progress_callback=progress_callback,
+                plan_name=plan_name
+                or f"Video Tag Analysis - {datetime.now().isoformat()}",
+                cancellation_token=cancellation_token,
             )
 
-            # Finalize analysis
-            await self._finalize_video_tag_analysis(
-                counters["processed_scene_ids"], db, counters, progress_callback
-            )
-
-            # Determine status and message based on errors
-            status = "completed"
-            message = "Video tag analysis completed successfully"
-
-            if counters["errors"]:
-                error_count = len(counters["errors"])
-                # If all scenes had errors, mark as failed
-                if error_count == counters["scenes_processed"]:
-                    status = "failed"
-                    message = (
-                        f"Video tag analysis failed for all {error_count} scene(s)"
-                    )
-                else:
-                    # If some scenes had errors, mark as completed_with_errors
-                    status = "completed_with_errors"
-                    successful = counters["scenes_processed"] - error_count
-                    message = f"Video tag analysis completed with errors: {successful} succeeded, {error_count} failed"
-
-            return {
-                "status": status,
-                "scenes_processed": counters["scenes_processed"],
-                "scenes_updated": counters["scenes_updated"],
-                "tags_added": counters["tags_added"],
-                "markers_added": counters["markers_added"],
-                "errors": counters["errors"],
-                "message": message,
-            }
+            return plan
 
         except Exception as e:
             logger.error(f"Failed to analyze video tags: {str(e)}")
@@ -1088,6 +1069,39 @@ class AnalysisService:
             raise
         finally:
             await db.close()
+
+    async def analyze_and_apply_video_tags(
+        self,
+        scene_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
+        job_id: Optional[str] = None,
+        progress_callback: Optional[Any] = None,
+        cancellation_token: Optional[Any] = None,
+    ) -> dict[str, Any]:
+        """Legacy method - kept for backward compatibility.
+
+        This method now creates a plan and returns a compatibility response.
+        """
+        logger.warning(
+            "analyze_and_apply_video_tags is deprecated. Use analyze_video_tags_to_plan instead."
+        )
+
+        # Create a plan
+        plan = await self.analyze_video_tags_to_plan(
+            scene_ids=scene_ids,
+            filters=filters,
+            job_id=job_id,
+            progress_callback=progress_callback,
+            cancellation_token=cancellation_token,
+        )
+
+        # Return a compatibility response
+        return {
+            "status": "completed",
+            "plan_id": plan.id,
+            "scenes_processed": plan.get_metadata("scene_count", 0),
+            "message": f"Created analysis plan {plan.id} for video tag detection",
+        }
 
     async def _initialize_video_tag_analysis(
         self,

@@ -407,13 +407,15 @@ async def analyze_video_tags_job(
 ) -> Dict[str, Any]:
     """Job handler for analyzing video tags on scenes.
 
+    Creates an analysis plan for video tags rather than applying them immediately.
+
     Args:
         job_id: The job ID
-        metadata: Job metadata containing scene_ids and filters
+        metadata: Job metadata containing scene_ids, filters, and plan_name
         progress_callback: Callback for progress updates
 
     Returns:
-        Job result dictionary
+        Job result dictionary with plan information
     """
     from app.core.settings_loader import load_settings_with_db_overrides
 
@@ -424,6 +426,7 @@ async def analyze_video_tags_job(
     job_params = metadata.get("job_params", {})
     scene_ids = job_params.get("scene_ids", [])
     filters = job_params.get("filters")
+    plan_name = job_params.get("plan_name")
 
     # Get services with database overrides
     settings = await load_settings_with_db_overrides()
@@ -464,16 +467,47 @@ async def analyze_video_tags_job(
         openai_client=openai_client, stash_service=stash_service, settings=settings
     )
 
-    # Run analysis
-    result = await analysis_service.analyze_and_apply_video_tags(
-        scene_ids=scene_ids,
-        filters=filters,
-        job_id=job_id,
-        progress_callback=progress_callback,
-        cancellation_token=cancellation_token,
-    )
+    # Create analysis plan for video tags
+    try:
+        plan = await analysis_service.analyze_video_tags_to_plan(
+            scene_ids=scene_ids,
+            filters=filters,
+            job_id=job_id,
+            progress_callback=progress_callback,
+            plan_name=plan_name,
+            cancellation_token=cancellation_token,
+        )
 
-    return result
+        # Calculate summary
+        from sqlalchemy import select
+
+        from app.core.database import AsyncSessionLocal
+        from app.models import PlanChange
+
+        from .analysis_jobs_helpers import calculate_plan_summary
+
+        async with AsyncSessionLocal() as db:
+            # Query changes for the plan
+            changes_query = select(PlanChange).where(PlanChange.plan_id == plan.id)
+            changes_result = await db.execute(changes_query)
+            changes_list = list(changes_result.scalars().all())
+
+            # Calculate summary
+            summary = calculate_plan_summary(changes_list)
+
+            return {
+                "plan_id": plan.id,
+                "total_changes": len(changes_list),
+                "scenes_analyzed": plan.get_metadata("scene_count", 0),
+                "summary": summary,
+                "message": f"Created analysis plan {plan.id} for video tag detection",
+            }
+
+    except Exception as e:
+        logger.error(f"Video tag analysis job {job_id} failed: {str(e)}", exc_info=True)
+        if progress_callback:
+            await progress_callback(100, f"Analysis failed: {str(e)}")
+        raise
 
 
 def register_analysis_jobs(job_service: JobService) -> None:

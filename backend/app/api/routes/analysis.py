@@ -953,16 +953,16 @@ async def analyze_video_tags(
     """
     Analyze scenes for tags and markers from video content.
 
-    This endpoint immediately applies detected tags and markers to scenes
-    rather than creating a plan. It communicates with an external AI server
-    to process video files.
+    This endpoint creates an analysis plan for detected tags and markers
+    rather than applying them immediately. It communicates with an external
+    AI server to process video files.
 
     Args:
         request: Analysis request with scene_ids or filters
         background: Whether to run as background job
 
     Returns:
-        Job info if background, or results if synchronous
+        Job info if background, or plan info if synchronous
     """
     # Validate scene selection
     if not request.scene_ids and not request.filters:
@@ -996,12 +996,15 @@ async def analyze_video_tags(
             metadata={
                 "scene_ids": scene_ids,
                 "filters": request.filters.model_dump() if request.filters else None,
+                "plan_name": request.plan_name
+                or f"Video Tag Analysis - {datetime.now().isoformat()}",
                 "description": f"Analyzing video tags for {len(scene_ids)} scenes",
                 "job_params": {
                     "scene_ids": scene_ids,
                     "filters": (
                         request.filters.model_dump() if request.filters else None
                     ),
+                    "plan_name": request.plan_name,
                 },
             },
             db=db,
@@ -1009,20 +1012,25 @@ async def analyze_video_tags(
 
         return {
             "job_id": str(job.id),
-            "status": "running",
-            "message": f"Analyzing video tags for {len(scene_ids)} scenes",
+            "status": "queued",
+            "message": f"Video tag analysis job queued for {len(scene_ids)} scenes",
         }
     else:
         # Run synchronously
         try:
-            result = await analysis_service.analyze_and_apply_video_tags(
+            plan = await analysis_service.analyze_video_tags_to_plan(
                 scene_ids=scene_ids,
                 filters=request.filters.model_dump() if request.filters else None,
+                plan_name=request.plan_name
+                or f"Video Tag Analysis - {datetime.now().isoformat()}",
             )
 
             return {
+                "plan_id": plan.id,
                 "status": "completed",
-                "result": result,
+                "total_scenes": plan.get_metadata("scene_count", len(scene_ids)),
+                "total_changes": plan.total_changes,
+                "message": f"Created analysis plan {plan.id} for video tag detection",
             }
         except Exception as e:
             raise HTTPException(

@@ -67,40 +67,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     return response.data;
   });
 
-  // Video tags mutation
-  const videoTagsMutation = useMutation(
-    async ({
-      sceneIds,
-      options,
-    }: {
-      sceneIds: string[];
-      options: AnalysisTypeOptions;
-    }) => {
-      const response = await api.post('/analysis/video-tags', {
-        scene_ids: sceneIds,
-        options: {
-          detect_performers: options.detectPerformers,
-          detect_studios: options.detectStudios,
-          detect_tags: options.detectTags,
-          detect_details: options.detectDetails,
-          detect_video_tags: options.detectVideoTags,
-          confidence_threshold: 0.7,
-        },
-        background: true,
-      });
-      return response.data;
-    },
-    {
-      onSuccess: (_data) => {
-        void message.success('Video tag analysis started');
-        onClearSelection();
-        void queryClient.invalidateQueries('jobs');
-      },
-      onError: () => {
-        void message.error('Failed to start video tag analysis');
-      },
-    }
-  );
+  // Note: Video tags mutation removed - now handled through regular analysis endpoint
 
   // Analyze mutation
   const analyzeMutation = useMutation(
@@ -125,10 +92,17 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       return response.data;
     },
     {
-      onSuccess: () => {
-        void message.success(`Started analysis for ${selectedCount} scenes`);
+      onSuccess: (data) => {
+        if (data.plan_id) {
+          void message.success(
+            `Created analysis plan ${data.plan_id} for ${selectedCount} scenes`
+          );
+        } else {
+          void message.success(`Started analysis for ${selectedCount} scenes`);
+        }
         onClearSelection();
         void queryClient.invalidateQueries('jobs');
+        void queryClient.invalidateQueries('plans');
       },
       onError: () => {
         void message.error('Failed to start analysis');
@@ -197,26 +171,18 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const handleAnalysisModalOk = () => {
     setAnalysisOptions(tempAnalysisOptions);
 
-    // If video tags is selected, handle it separately
-    if (tempAnalysisOptions.detectVideoTags) {
-      // Use video tags endpoint for immediate application
-      videoTagsMutation.mutate({
-        sceneIds: Array.from(selectedScenes),
-        options: { ...tempAnalysisOptions, detectVideoTags: true },
-      });
-    }
-
-    // If other options are selected, use regular analysis
+    // Check if any analysis options are selected
     if (
       tempAnalysisOptions.detectPerformers ||
       tempAnalysisOptions.detectStudios ||
       tempAnalysisOptions.detectTags ||
-      tempAnalysisOptions.detectDetails
+      tempAnalysisOptions.detectDetails ||
+      tempAnalysisOptions.detectVideoTags
     ) {
-      // Use regular analysis endpoint
+      // Use regular analysis endpoint for all options including video tags
       analyzeMutation.mutate({
         sceneIds: Array.from(selectedScenes),
-        options: { ...tempAnalysisOptions, detectVideoTags: false },
+        options: tempAnalysisOptions,
       });
     }
 
