@@ -161,7 +161,37 @@ class PlanManager:
         Returns:
             Result of applying the plan
         """
-        # Get the plan
+        # Validate plan
+        plan = await self._validate_plan_for_apply(plan_id, db)
+
+        # Setup filters
+        if apply_filters is None:
+            apply_filters = self._get_default_apply_filters()
+
+        # Update plan status to reviewing
+        await self._update_plan_status_to_reviewing(plan, db)
+
+        # Get changes and apply them
+        changes = await self._get_plan_changes(plan_id, db)
+        result_data = await self._process_plan_changes(
+            changes, apply_filters, db, stash_service
+        )
+
+        # Finalize plan application
+        await self._finalize_plan_application(plan, result_data, db)
+
+        return ApplyResult(
+            plan_id=plan_id,
+            total_changes=result_data["total_changes"],
+            applied_changes=result_data["applied_changes"],
+            failed_changes=result_data["failed_changes"],
+            errors=result_data["errors"],
+        )
+
+    async def _validate_plan_for_apply(
+        self, plan_id: int, db: AsyncSession
+    ) -> AnalysisPlan:
+        """Validate that a plan exists and can be applied."""
         plan = await self.get_plan(plan_id, db)
         if not plan:
             raise ValueError(f"Plan {plan_id} not found")
@@ -171,79 +201,109 @@ class PlanManager:
                 f"Plan {plan_id} cannot be applied (status: {plan.status})"
             )
 
-        # Default filters
-        if apply_filters is None:
-            apply_filters = {
-                "performers": True,
-                "studios": True,
-                "tags": True,
-                "details": True,
-            }
+        return plan
 
-        # Track results
+    def _get_default_apply_filters(self) -> Dict[str, bool]:
+        """Get default apply filters."""
+        return {
+            "performers": True,
+            "studios": True,
+            "tags": True,
+            "details": True,
+        }
+
+    async def _update_plan_status_to_reviewing(
+        self, plan: AnalysisPlan, db: AsyncSession
+    ) -> None:
+        """Update plan status to reviewing."""
+        plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
+        await db.flush()
+
+    async def _get_plan_changes(
+        self, plan_id: int, db: AsyncSession
+    ) -> List[PlanChange]:
+        """Get all changes for a plan."""
+        changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
+        result = await db.execute(changes_query)
+        return list(result.scalars().all())
+
+    async def _process_plan_changes(
+        self,
+        changes: List[PlanChange],
+        apply_filters: Dict[str, bool],
+        db: AsyncSession,
+        stash_service: StashService,
+    ) -> Dict[str, Any]:
+        """Process all changes in a plan."""
         total_changes = 0
         applied_changes = 0
         failed_changes = 0
         errors = []
 
-        # Update plan status
-        plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
-        await db.flush()
-
-        # Process each change - handle dynamic relationship in async context
-        # Convert dynamic query to list
-        changes_query = select(PlanChange).where(PlanChange.plan_id == plan.id)
-        result = await db.execute(changes_query)
-        changes = result.scalars().all()
-
         for change in changes:
-            if not apply_filters.get(str(change.field), True):
+            # Skip filtered, rejected, or already applied changes
+            if not self._should_apply_change(change, apply_filters):
                 continue
 
             total_changes += 1
 
             try:
                 success = await self.apply_single_change(change, db, stash_service)
-
                 if success:
                     applied_changes += 1
                 else:
                     failed_changes += 1
-
             except Exception as e:
                 failed_changes += 1
-                errors.append(
-                    {
-                        "change_id": change.id,
-                        "scene_id": change.scene_id,
-                        "field": change.field,
-                        "error": str(e),
-                    }
-                )
+                errors.append(self._create_error_record(change, e))
                 logger.error(f"Failed to apply change {change.id}: {e}")
 
-        # Update plan status
+        return {
+            "total_changes": total_changes,
+            "applied_changes": applied_changes,
+            "failed_changes": failed_changes,
+            "errors": errors,
+        }
+
+    def _should_apply_change(
+        self, change: PlanChange, apply_filters: Dict[str, bool]
+    ) -> bool:
+        """Check if a change should be applied."""
+        if not apply_filters.get(str(change.field), True):
+            return False
+        if change.rejected:
+            return False
+        if change.applied:
+            return False
+        return True
+
+    def _create_error_record(
+        self, change: PlanChange, error: Exception
+    ) -> Dict[str, Any]:
+        """Create an error record for a failed change."""
+        return {
+            "change_id": change.id,
+            "scene_id": change.scene_id,
+            "field": change.field,
+            "error": str(error),
+        }
+
+    async def _finalize_plan_application(
+        self, plan: AnalysisPlan, result_data: Dict[str, Any], db: AsyncSession
+    ) -> None:
+        """Finalize plan application with status and metadata updates."""
         plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
         plan.applied_at = datetime.utcnow()  # type: ignore[assignment]
         plan.add_metadata(
             "apply_result",
             {
-                "total": total_changes,
-                "applied": applied_changes,
-                "failed": failed_changes,
-                "errors": len(errors),
+                "total": result_data["total_changes"],
+                "applied": result_data["applied_changes"],
+                "failed": result_data["failed_changes"],
+                "errors": len(result_data["errors"]),
             },
         )
-
         await db.flush()
-
-        return ApplyResult(
-            plan_id=plan_id,
-            total_changes=total_changes,
-            applied_changes=applied_changes,
-            failed_changes=failed_changes,
-            errors=errors,
-        )
 
     async def apply_single_change(
         self, change: PlanChange, db: AsyncSession, stash_service: StashService
@@ -304,6 +364,8 @@ class PlanManager:
             return {"title": change.proposed_value}
         elif change.field == "rating":
             return {"rating": change.proposed_value}
+        elif change.field == "markers":
+            return await self._prepare_markers_update(change, scene, stash_service)
         else:
             return {}
 
@@ -442,6 +504,41 @@ class PlanManager:
             if isinstance(details, dict):
                 details = details.get("text", "")
             return {"details": details}
+        return {}
+
+    async def _prepare_markers_update(
+        self, change: PlanChange, scene: Dict, stash_service: StashService
+    ) -> Dict[str, Any]:
+        """Prepare markers update data.
+
+        Note: Markers are handled differently - they need to be created individually
+        rather than updated on the scene.
+        """
+        if change.action == ChangeAction.ADD:
+            # Markers are added through separate create_marker calls
+            # They're not part of the scene update payload
+            markers_value = change.proposed_value
+            if not isinstance(markers_value, list):
+                markers_to_create = [markers_value]
+            else:
+                markers_to_create = markers_value
+
+            for marker_data in markers_to_create:
+                # Ensure scene_id is set correctly
+                marker_data["scene_id"] = scene["id"]
+                try:
+                    await stash_service.create_marker(marker_data)  # type: ignore[arg-type]
+                    logger.info(
+                        f"Created marker for scene {scene['id']} at {marker_data.get('seconds', 0)}s"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create marker: {e}")
+                    raise
+
+            # Return empty dict as markers are handled separately
+            return {}
+
+        # Other actions not supported for markers yet
         return {}
 
     async def delete_plan(self, plan_id: int, db: AsyncSession) -> bool:
