@@ -66,6 +66,7 @@ def transform_scene(stash_scene: Dict) -> Dict:
                 transform_performer(p) for p in stash_scene.get("performers", [])
             ],
             "tags": [transform_tag(t) for t in stash_scene.get("tags", [])],
+            "scene_markers": stash_scene.get("scene_markers", []),
             "file": transform_file_info(
                 stash_scene.get("files", [{}])[0] if stash_scene.get("files") else None
             ),

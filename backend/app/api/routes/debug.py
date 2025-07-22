@@ -121,6 +121,8 @@ async def get_stash_scene_debug(
         "findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids)",
         f"findScenes(scene_ids: [{scene_id_int}])",
     )
+    # Convert to single line by removing newlines and collapsing multiple spaces
+    query_for_display = " ".join(query_for_display.split())
 
     try:
         # Execute the GraphQL query with scene_ids filter

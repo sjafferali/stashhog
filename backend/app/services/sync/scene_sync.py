@@ -460,19 +460,30 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Sync scene's marker relationships"""
+        logger.debug(
+            f"_sync_scene_markers called for scene {scene.id} with {len(markers_data)} markers"
+        )
+        if markers_data:
+            logger.debug(f"First marker data: {markers_data[0]}")
+
         # Get existing markers
         existing_marker_ids = {marker.id for marker in scene.markers}
         new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
 
+        logger.debug(f"Existing marker IDs: {existing_marker_ids}")
+        logger.debug(f"New marker IDs: {new_marker_ids}")
+
         # Remove markers that no longer exist
         markers_to_remove = existing_marker_ids - new_marker_ids
         if markers_to_remove:
+            logger.debug(f"Removing {len(markers_to_remove)} obsolete markers")
             scene.markers = [m for m in scene.markers if m.id not in markers_to_remove]
 
         # Add or update markers
         for marker_data in markers_data:
             marker_id = marker_data.get("id")
             if not marker_id:
+                logger.warning(f"Skipping marker without ID: {marker_data}")
                 continue
 
             # Check if marker already exists
@@ -481,8 +492,10 @@ class SceneSyncHandler:
             )
 
             if existing_marker:
+                logger.debug(f"Updating existing marker {marker_id}")
                 await self._update_existing_marker(existing_marker, marker_data, db)
             else:
+                logger.debug(f"Creating new marker {marker_id}")
                 await self._create_new_marker(scene, marker_data, db)
 
     async def _update_existing_marker(
@@ -526,7 +539,14 @@ class SceneSyncHandler:
         """Create a new marker for the scene"""
         primary_tag_data = marker_data.get("primary_tag")
         if not primary_tag_data or not primary_tag_data.get("id"):
+            logger.warning(
+                f"Skipping marker {marker_data.get('id')} without primary tag"
+            )
             return  # Skip markers without primary tag
+
+        logger.debug(
+            f"Creating marker {marker_data['id']} with primary tag {primary_tag_data['id']}"
+        )
 
         marker = SceneMarker(
             id=marker_data["id"],
@@ -552,6 +572,9 @@ class SceneSyncHandler:
 
         db.add(marker)
         scene.markers.append(marker)
+        logger.debug(
+            f"Successfully created marker {marker_data['id']} for scene {scene.id}"
+        )
 
     async def _ensure_tag_exists(
         self,

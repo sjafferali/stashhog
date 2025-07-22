@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Performer, Studio, Tag
+from app.models import Performer, SceneFile, SceneMarker, Studio, Tag
 from app.services.stash_service import StashService
 from app.services.sync.scene_sync import SceneSyncHandler
 from app.services.sync.strategies import SyncStrategy
@@ -901,3 +901,735 @@ class TestUpdateConflictDetection:
         # Duration check removed as it's in SceneFile now
         # assert "duration" in changed_fields
         assert len(changed_fields) == 1
+
+
+class TestDateTimeParsing:
+    """Test cases for datetime parsing functionality."""
+
+    def test_parse_datetime_iso_with_timezone(self, sync_handler):
+        """Test parsing ISO datetime with timezone."""
+        # Test with Z suffix
+        dt_str = "2024-01-15T10:30:45Z"
+        result = sync_handler._parse_datetime(dt_str)
+        assert result is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+        assert result.hour == 10
+        assert result.minute == 30
+        assert result.second == 45
+
+        # Test with timezone offset
+        dt_str = "2024-01-15T10:30:45+05:00"
+        result = sync_handler._parse_datetime(dt_str)
+        assert result is not None
+        assert result.year == 2024
+
+    def test_parse_datetime_iso_without_timezone(self, sync_handler):
+        """Test parsing ISO datetime without timezone."""
+        dt_str = "2024-01-15T10:30:45"
+        result = sync_handler._parse_datetime(dt_str)
+        assert result is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_parse_datetime_date_only(self, sync_handler):
+        """Test parsing date-only string."""
+        dt_str = "2024-01-15"
+        result = sync_handler._parse_datetime(dt_str)
+        assert result is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+        assert result.hour == 0
+        assert result.minute == 0
+
+    def test_parse_datetime_invalid_formats(self, sync_handler):
+        """Test parsing invalid datetime formats."""
+        # Invalid format
+        assert sync_handler._parse_datetime("invalid-date") is None
+        # Empty string
+        assert sync_handler._parse_datetime("") is None
+        # None
+        assert sync_handler._parse_datetime(None) is None
+        # Wrong type
+        assert sync_handler._parse_datetime(12345) is None
+
+
+class TestSceneFileSync:
+    """Test cases for scene file synchronization."""
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_empty(self, sync_handler, mock_async_session):
+        """Test syncing scene with no files."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.files = []
+
+        await sync_handler._sync_scene_files(scene, [], mock_async_session)
+
+        assert len(scene.files) == 0
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_single_file(self, sync_handler, mock_async_session):
+        """Test syncing scene with single file."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.files = []
+
+        file_data = {
+            "id": "file1",
+            "path": "/path/to/file.mp4",
+            "basename": "file.mp4",
+            "size": 1000000,
+            "format": "mp4",
+            "duration": 1800.5,
+            "width": 1920,
+            "height": 1080,
+            "fingerprints": [
+                {"type": "oshash", "value": "abc123"},
+                {"type": "phash", "value": "def456"},
+            ],
+        }
+
+        # Mock has_primary check
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_files(scene, [file_data], mock_async_session)
+
+        # Verify file was added
+        mock_async_session.add.assert_called()
+        added_file = mock_async_session.add.call_args[0][0]
+        assert added_file.id == "file1"
+        assert added_file.path == "/path/to/file.mp4"
+        assert added_file.is_primary is True  # First file should be primary
+        assert added_file.oshash == "abc123"
+        assert added_file.phash == "def456"
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_multiple(self, sync_handler, mock_async_session):
+        """Test syncing scene with multiple files."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.files = []
+
+        files_data = [
+            {
+                "id": "file1",
+                "path": "/path/to/file1.mp4",
+                "size": 1000000,
+            },
+            {
+                "id": "file2",
+                "path": "/path/to/file2.mp4",
+                "size": 2000000,
+            },
+        ]
+
+        # Mock has_primary check - no existing primary
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_files(scene, files_data, mock_async_session)
+
+        # Verify both files were added
+        assert mock_async_session.add.call_count == 2
+        # First file should be primary
+        first_file = mock_async_session.add.call_args_list[0][0][0]
+        assert first_file.is_primary is True
+        # Second file should not be primary
+        second_file = mock_async_session.add.call_args_list[1][0][0]
+        assert second_file.is_primary is False
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_update_existing(
+        self, sync_handler, mock_async_session
+    ):
+        """Test updating existing scene files."""
+        # Create scene with existing file
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        existing_file = SceneFile(
+            id="file1",
+            scene_id="scene123",
+            path="/old/path.mp4",
+            size=500000,
+            is_primary=True,
+        )
+        scene.files = [existing_file]
+
+        # Mock has_primary check to return True (existing primary file)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_file
+        mock_async_session.execute.return_value = mock_result
+
+        # Updated file data
+        file_data = {
+            "id": "file1",
+            "path": "/new/path.mp4",
+            "size": 1000000,
+            "duration": 2000,
+        }
+
+        await sync_handler._sync_scene_files(scene, [file_data], mock_async_session)
+
+        # Verify file was updated
+        assert existing_file.path == "/new/path.mp4"
+        assert existing_file.size == 1000000
+        assert existing_file.duration == 2000
+        # Primary status may change based on sync logic - the method sets is_primary=False
+        # when the file is not the first file or a primary already exists
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_remove_obsolete(
+        self, sync_handler, mock_async_session
+    ):
+        """Test removing files that no longer exist in Stash."""
+        # Create scene with two existing files
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        file1 = SceneFile(id="file1", scene_id="scene123", path="/file1.mp4")
+        file2 = SceneFile(id="file2", scene_id="scene123", path="/file2.mp4")
+        scene.files = [file1, file2]
+
+        # Only file1 remains in stash data
+        files_data = [
+            {"id": "file1", "path": "/file1.mp4"},
+        ]
+
+        await sync_handler._sync_scene_files(scene, files_data, mock_async_session)
+
+        # Verify file2 was removed
+        assert len(scene.files) == 1
+        assert scene.files[0].id == "file1"
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_files_no_path(self, sync_handler, mock_async_session):
+        """Test handling files without path."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.files = []
+
+        file_data = {
+            "id": "file1",
+            # Missing path
+            "size": 1000000,
+        }
+
+        await sync_handler._sync_scene_files(scene, [file_data], mock_async_session)
+
+        # File should be skipped
+        assert mock_async_session.add.call_count == 0
+
+    def test_normalize_file_ids_numeric(self, sync_handler):
+        """Test normalizing numeric file IDs."""
+        files_data = [
+            {"id": 123, "path": "/file1.mp4"},
+            {"id": "456", "path": "/file2.mp4"},
+        ]
+
+        sync_handler._normalize_file_ids(files_data, "scene123")
+
+        # Numeric IDs should be converted to strings
+        assert files_data[0]["id"] == "123"
+        assert files_data[1]["id"] == "456"
+
+    def test_normalize_file_ids_generate_missing(self, sync_handler):
+        """Test generating IDs for files without IDs."""
+        files_data = [
+            {"path": "/file1.mp4"},  # No ID
+            {"id": "existing", "path": "/file2.mp4"},
+        ]
+
+        sync_handler._normalize_file_ids(files_data, "scene123")
+
+        # First file should have generated ID
+        assert "id" in files_data[0]
+        assert len(files_data[0]["id"]) == 16  # Hash truncated to 16 chars
+        # Second file ID unchanged
+        assert files_data[1]["id"] == "existing"
+
+
+class TestSceneMarkerSync:
+    """Test cases for scene marker synchronization."""
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_markers_empty(self, sync_handler, mock_async_session):
+        """Test syncing scene with no markers."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.markers = []
+
+        await sync_handler._sync_scene_markers(scene, [], mock_async_session)
+
+        assert len(scene.markers) == 0
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_markers_add_new(self, sync_handler, mock_async_session):
+        """Test adding new scene markers."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.markers = []
+
+        marker_data = {
+            "id": "marker1",
+            "title": "Test Marker",
+            "seconds": 120.5,
+            "end_seconds": 180.0,
+            "primary_tag": {"id": "tag1", "name": "Tag 1"},
+            "tags": [{"id": "tag2", "name": "Tag 2"}],
+            "created_at": "2024-01-01T10:00:00Z",
+            "updated_at": "2024-01-01T12:00:00Z",
+        }
+
+        # Mock tag exists check
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_markers(scene, [marker_data], mock_async_session)
+
+        # Verify marker and tags were added
+        assert mock_async_session.add.call_count >= 3  # marker + 2 tags
+        marker_calls = [
+            call
+            for call in mock_async_session.add.call_args_list
+            if hasattr(call[0][0], "scene_id")
+        ]
+        assert len(marker_calls) == 1
+        added_marker = marker_calls[0][0][0]
+        assert added_marker.id == "marker1"
+        assert added_marker.title == "Test Marker"
+        assert added_marker.seconds == 120.5
+        assert added_marker.primary_tag_id == "tag1"
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_markers_update_existing(
+        self, sync_handler, mock_async_session
+    ):
+        """Test updating existing scene markers."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        existing_marker = SceneMarker(
+            id="marker1",
+            scene_id="scene123",
+            title="Old Title",
+            seconds=100,
+            primary_tag_id="tag1",
+        )
+        existing_marker.tags = []
+        scene.markers = [existing_marker]
+
+        marker_data = {
+            "id": "marker1",
+            "title": "New Title",
+            "seconds": 150,
+            "end_seconds": 200,
+            "primary_tag": {"id": "tag1", "name": "Tag 1"},
+            "tags": [],
+        }
+
+        await sync_handler._sync_scene_markers(scene, [marker_data], mock_async_session)
+
+        # Verify marker was updated
+        assert existing_marker.title == "New Title"
+        assert existing_marker.seconds == 150
+        assert existing_marker.end_seconds == 200
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_markers_remove_obsolete(
+        self, sync_handler, mock_async_session
+    ):
+        """Test removing markers that no longer exist."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        marker1 = SceneMarker(id="marker1", scene_id="scene123", primary_tag_id="tag1")
+        marker2 = SceneMarker(id="marker2", scene_id="scene123", primary_tag_id="tag2")
+        scene.markers = [marker1, marker2]
+
+        # Only marker1 remains
+        markers_data = [
+            {
+                "id": "marker1",
+                "primary_tag": {"id": "tag1"},
+            }
+        ]
+
+        await sync_handler._sync_scene_markers(scene, markers_data, mock_async_session)
+
+        # Verify marker2 was removed
+        assert len(scene.markers) == 1
+        assert scene.markers[0].id == "marker1"
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_markers_skip_without_primary_tag(
+        self, sync_handler, mock_async_session
+    ):
+        """Test skipping markers without primary tag."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.markers = []
+
+        marker_data = {
+            "id": "marker1",
+            "title": "Test Marker",
+            "seconds": 120,
+            # Missing primary_tag
+        }
+
+        await sync_handler._sync_scene_markers(scene, [marker_data], mock_async_session)
+
+        # Marker should be skipped
+        assert len(scene.markers) == 0
+        assert mock_async_session.add.call_count == 0
+
+
+class TestRelationshipSyncDetailed:
+    """Detailed test cases for relationship synchronization."""
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_studio(self, sync_handler, mock_async_session):
+        """Test syncing scene studio relationship."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.studio = None
+
+        studio_data = {"id": "studio1", "name": "Test Studio"}
+
+        # Mock studio doesn't exist
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_studio(scene, studio_data, mock_async_session)
+
+        # Verify studio was created and assigned
+        assert mock_async_session.add.called
+        added_studio = mock_async_session.add.call_args[0][0]
+        assert added_studio.id == "studio1"
+        assert added_studio.name == "Test Studio"
+        assert scene.studio == added_studio
+        assert scene.studio_id == "studio1"
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_studio_remove(self, sync_handler, mock_async_session):
+        """Test removing scene studio relationship."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.studio = Studio(id="studio1", name="Old Studio")
+        scene.studio_id = "studio1"
+
+        # No studio in data
+        await sync_handler._sync_scene_studio(scene, None, mock_async_session)
+
+        # Verify studio was removed
+        assert scene.studio is None
+        assert scene.studio_id is None
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_performers(self, sync_handler, mock_async_session):
+        """Test syncing scene performers."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.performers = []
+
+        performers_data = [
+            {"id": "perf1", "name": "Performer 1"},
+            {"id": "perf2", "name": "Performer 2"},
+        ]
+
+        # Mock performers don't exist
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_performers(
+            scene, performers_data, mock_async_session
+        )
+
+        # Verify performers were created and added
+        assert mock_async_session.add.call_count == 2
+        assert len(scene.performers) == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_performers_clear_existing(
+        self, sync_handler, mock_async_session
+    ):
+        """Test clearing existing performers before sync."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        old_performer = Performer(id="old_perf", name="Old Performer")
+        scene.performers = [old_performer]
+
+        # New performer data
+        performers_data = [{"id": "new_perf", "name": "New Performer"}]
+
+        # Mock performer doesn't exist
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_performers(
+            scene, performers_data, mock_async_session
+        )
+
+        # Old performer should be removed
+        assert len(scene.performers) == 1
+        assert old_performer not in scene.performers
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_tags(self, sync_handler, mock_async_session):
+        """Test syncing scene tags."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.tags = []
+
+        tags_data = [
+            {"id": "tag1", "name": "Tag 1"},
+            {"id": "tag2", "name": "Tag 2"},
+        ]
+
+        # Mock tags don't exist
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_tags(scene, tags_data, mock_async_session)
+
+        # Verify tags were created and added
+        assert mock_async_session.add.call_count == 2
+        assert len(scene.tags) == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_relationships_batch_mode(
+        self, sync_handler, mock_async_session
+    ):
+        """Test syncing relationships in batch mode with pre-fetched entities."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        scene.performers = []
+        scene.tags = []
+        scene.studio = None
+
+        # Pre-fetched entities
+        performers_map = {
+            "perf1": Performer(id="perf1", name="Performer 1"),
+            "perf2": Performer(id="perf2", name="Performer 2"),
+        }
+        tags_map = {
+            "tag1": Tag(id="tag1", name="Tag 1"),
+        }
+        studios_map = {
+            "studio1": Studio(id="studio1", name="Studio 1"),
+        }
+
+        stash_scene = {
+            "id": "scene123",
+            "performers": [{"id": "perf1"}, {"id": "perf2"}],
+            "tags": [{"id": "tag1"}],
+            "studio": {"id": "studio1"},
+        }
+
+        # Mock for markers and files
+        with patch.object(sync_handler, "_sync_scene_markers", new_callable=AsyncMock):
+            with patch.object(
+                sync_handler, "_sync_scene_files", new_callable=AsyncMock
+            ):
+                await sync_handler._sync_scene_relationships_batch(
+                    scene,
+                    stash_scene,
+                    mock_async_session,
+                    performers_map,
+                    tags_map,
+                    studios_map,
+                )
+
+        # Verify relationships were set from pre-fetched maps
+        assert len(scene.performers) == 2
+        assert scene.performers[0] == performers_map["perf1"]
+        assert scene.performers[1] == performers_map["perf2"]
+        assert len(scene.tags) == 1
+        assert scene.tags[0] == tags_map["tag1"]
+        assert scene.studio == studios_map["studio1"]
+        assert scene.studio_id == "studio1"
+
+
+class TestBatchProcessing:
+    """Test cases for batch processing optimizations."""
+
+    @pytest.mark.asyncio
+    async def test_process_batch_scene_success(self, sync_handler, mock_async_session):
+        """Test processing a single scene in batch mode."""
+        scene_data = {
+            "id": "scene123",
+            "title": "Test Scene",
+        }
+
+        existing_scenes = {}
+        entity_maps = {"performers": {}, "tags": {}, "studios": {}}
+
+        # Mock relationship sync
+        with patch.object(
+            sync_handler, "_sync_scene_relationships_batch", new_callable=AsyncMock
+        ):
+            result = await sync_handler._process_batch_scene(
+                scene_data, mock_async_session, existing_scenes, entity_maps, []
+            )
+
+        assert result is not None
+        assert result.id == "scene123"
+        assert result.last_synced is not None
+        mock_async_session.add.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_batch_scene_no_id(self, sync_handler, mock_async_session):
+        """Test processing scene without ID in batch mode."""
+        scene_data = {"title": "No ID Scene"}
+
+        result = await sync_handler._process_batch_scene(
+            scene_data, mock_async_session, {}, {}, []
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_process_batch_scene_merge_failure(
+        self, sync_handler, mock_async_session, mock_strategy
+    ):
+        """Test handling merge failure in batch processing."""
+        scene_data = {"id": "scene123"}
+
+        # Mock strategy to return None (merge failure)
+        # When merge_data returns None, the original scene is used
+        mock_strategy.merge_data = AsyncMock(return_value=None)
+
+        # Mock relationship sync to avoid issues
+        with patch.object(
+            sync_handler, "_sync_scene_relationships_batch", new_callable=AsyncMock
+        ):
+            result = await sync_handler._process_batch_scene(
+                scene_data,
+                mock_async_session,
+                {},
+                {"performers": {}, "tags": {}, "studios": {}},
+                [],
+            )
+
+        # When strategy returns None, the original scene is still processed
+        assert result is not None
+        assert result.id == "scene123"
+
+    @pytest.mark.asyncio
+    async def test_fetch_entities_map_with_ids(self, sync_handler, mock_async_session):
+        """Test fetching entity map with IDs."""
+        entity_ids = {"perf1", "perf2", "perf3"}
+
+        # Mock performers
+        performers = [
+            Performer(id="perf1", name="Performer 1"),
+            Performer(id="perf2", name="Performer 2"),
+            Performer(id="perf3", name="Performer 3"),
+        ]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = performers
+        mock_async_session.execute.return_value = mock_result
+
+        result = await sync_handler._fetch_entities_map(
+            mock_async_session, Performer, entity_ids
+        )
+
+        assert len(result) == 3
+        assert "perf1" in result
+        assert result["perf1"].name == "Performer 1"
+
+
+class TestErrorHandlingAndEdgeCases:
+    """Test error handling and edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_strategy_exception_propagation(
+        self, sync_handler, mock_async_session, mock_strategy
+    ):
+        """Test that strategy exceptions are properly propagated."""
+        stash_scene = {"id": "scene123"}
+
+        # Mock scene lookup
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        # Mock strategy to raise exception
+        mock_strategy.merge_data.side_effect = ValueError("Strategy error")
+
+        with pytest.raises(ValueError, match="Strategy error"):
+            await sync_handler.sync_scene(stash_scene, mock_async_session)
+
+    @pytest.mark.asyncio
+    async def test_sync_scene_database_flush_error(
+        self, sync_handler, mock_async_session
+    ):
+        """Test handling database flush errors."""
+        stash_scene = {"id": "scene123"}
+
+        # Mock scene lookup
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_async_session.execute.return_value = mock_result
+
+        # Mock flush to raise error
+        mock_async_session.flush.side_effect = Exception("Database flush error")
+
+        # Mock relationship sync to avoid issues
+        with patch.object(
+            sync_handler, "_sync_scene_relationships", new_callable=AsyncMock
+        ):
+            with pytest.raises(Exception, match="Database flush error"):
+                await sync_handler.sync_scene(stash_scene, mock_async_session)
+
+    @pytest.mark.asyncio
+    async def test_batch_sync_with_mixed_sessions(
+        self, sync_handler, mock_sync_session
+    ):
+        """Test batch sync works with synchronous session."""
+        scenes_data = [{"id": "scene123"}]
+
+        # Mock for sync session
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_sync_session.execute.return_value = mock_result
+
+        # Mock entity fetching
+        with patch.object(
+            sync_handler, "_fetch_entities_map", new_callable=AsyncMock
+        ) as mock_fetch:
+            mock_fetch.return_value = {}
+
+            with patch.object(
+                sync_handler, "_process_batch_scene", new_callable=AsyncMock
+            ) as mock_process:
+                mock_process.return_value = create_test_scene(
+                    id="scene123", title="Test Scene"
+                )
+
+                result = await sync_handler.sync_scene_batch(
+                    scenes_data, mock_sync_session
+                )
+
+        assert len(result) == 1
+        mock_sync_session.flush.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sync_with_circular_relationships(
+        self, sync_handler, mock_async_session
+    ):
+        """Test handling potential circular relationships."""
+        scene = create_test_scene(id="scene123", title="Test Scene")
+        tag1 = Tag(id="tag1", name="Tag 1")
+        tag1.scenes = [scene]  # Circular reference
+        scene.tags = [tag1]
+
+        stash_scene = {
+            "id": "scene123",
+            "tags": [{"id": "tag1", "name": "Tag 1"}],
+        }
+
+        # Mock tag exists
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = tag1
+        mock_async_session.execute.return_value = mock_result
+
+        await sync_handler._sync_scene_tags(
+            scene, stash_scene["tags"], mock_async_session
+        )
+
+        # Should handle circular reference without issues
+        assert len(scene.tags) == 1
+        assert scene.tags[0] == tag1
