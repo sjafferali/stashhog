@@ -3,6 +3,9 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+# Set debug mode for tests before importing the app
+os.environ["APP_DEBUG"] = "true"
+
 import pytest
 from fastapi.testclient import TestClient
 
