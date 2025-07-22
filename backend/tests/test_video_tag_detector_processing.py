@@ -21,6 +21,7 @@ class TestVideoTagDetectorProcessing:
         settings.analysis.ai_video_threshold = 0.3
         settings.analysis.server_timeout = 30
         settings.analysis.create_markers = True
+        settings.analysis.disable_deduplication = False
         return settings
 
     @pytest.fixture
@@ -229,3 +230,130 @@ class TestVideoTagDetectorProcessing:
         assert marker_value["end_seconds"] == 21.5
         assert marker_value["title"] == "action1_AI"
         assert changes[0].confidence == 0.85
+
+    def test_convert_timespans_to_tags_deduplication_disabled(self, settings):
+        """Test that tags are not deduplicated when deduplication is disabled."""
+        settings.analysis.disable_deduplication = True
+        detector = VideoTagDetector(settings)
+
+        timespans = {
+            "category1": {
+                "action1": [
+                    {"start": 1, "end": 2, "confidence": 0.7},
+                ],
+            },
+            "category2": {
+                "action1": [  # Same action name, different category
+                    {"start": 15, "end": 16, "confidence": 0.9},
+                ]
+            },
+        }
+
+        tags = detector._convert_timespans_to_tags(timespans)
+
+        # With deduplication disabled, should have 2 tags with same name
+        assert len(tags) == 2
+
+        # Both action1_AI tags should be present
+        action1_tags = [tag for tag in tags if tag["name"] == "action1_AI"]
+        assert len(action1_tags) == 2
+
+        # Check both confidence values are present
+        confidences = sorted([tag["confidence"] for tag in action1_tags])
+        assert confidences == [0.7, 0.9]
+
+    def test_merge_consecutive_occurrences_deduplication_disabled(self, settings):
+        """Test that occurrences are not merged when deduplication is disabled."""
+        settings.analysis.disable_deduplication = True
+        detector = VideoTagDetector(settings)
+
+        occurrences = [
+            {"start": 1.0, "end": 2.0, "confidence": 0.8},
+            {"start": 2.0, "end": 3.0, "confidence": 0.8},  # Would normally merge
+            {"start": 3.0, "end": 4.0, "confidence": 0.8},  # Would normally merge
+        ]
+
+        # Test the _merge_consecutive_occurrences method directly
+        # When deduplication is disabled, this method should still be skipped
+        # in _convert_timespans_to_tags and _convert_timespans_to_markers
+
+        # When using _convert_timespans_to_tags with deduplication disabled
+        timespans = {"category1": {"action1": occurrences}}
+
+        tags = detector._convert_timespans_to_tags(timespans)
+
+        # With deduplication disabled, occurrences are not merged
+        # Tag confidence should be average of all occurrences (0.8)
+        assert len(tags) == 1
+        assert (
+            abs(tags[0]["confidence"] - 0.8) < 0.0001
+        )  # Use tolerance for float comparison
+        assert tags[0]["name"] == "action1_AI"
+
+        # Also test _convert_timespans_to_markers to ensure consistency
+        markers = detector._convert_timespans_to_markers(timespans)
+
+        # With deduplication disabled, all high-confidence occurrences become markers
+        assert len(markers) == 3  # All 3 occurrences have confidence 0.8 >= 0.7
+        assert all(m["title"] == "action1_AI" for m in markers)
+        assert [m["time"] for m in markers] == [1.0, 2.0, 3.0]
+
+    @pytest.mark.asyncio
+    async def test_extract_tags_with_existing_deduplication_disabled(self, settings):
+        """Test that existing tags are not checked when deduplication is disabled."""
+        settings.analysis.disable_deduplication = True
+        detector = VideoTagDetector(settings)
+
+        result = {
+            "timespans": {
+                "category1": {
+                    "tag1": [
+                        {"start": 1, "end": 2, "confidence": 0.8},
+                    ],
+                }
+            }
+        }
+
+        existing_tags = ["tag1_AI"]  # tag1_AI already exists
+
+        changes = detector._extract_tags_from_result(result, existing_tags)
+
+        # With deduplication disabled, should add tag1_AI even though it exists
+        assert len(changes) == 1
+        assert changes[0].field == "tags"
+        assert changes[0].action == "add"
+        assert changes[0].proposed_value == "tag1_AI"
+
+    @pytest.mark.asyncio
+    async def test_extract_markers_deduplication_disabled(self, settings):
+        """Test that markers are not deduplicated when deduplication is disabled."""
+        settings.analysis.disable_deduplication = True
+        detector = VideoTagDetector(settings)
+
+        result = {
+            "timespans": {
+                "category1": {
+                    "action1": [
+                        {"start": 10, "end": 11, "confidence": 0.8},
+                        {
+                            "start": 11,
+                            "end": 12,
+                            "confidence": 0.8,
+                        },  # Would normally merge
+                        {"start": 10.5, "end": 11.5, "confidence": 0.85},  # Overlaps
+                    ]
+                }
+            }
+        }
+
+        existing_markers = [
+            {"seconds": 10.5, "title": "existing_marker"}  # Exists at similar time
+        ]
+
+        changes = detector._extract_markers_from_result(result, existing_markers)
+
+        # With deduplication disabled:
+        # - Occurrences are not merged
+        # - Existing markers are not checked
+        # - All high-confidence (>=0.7) markers are added
+        assert len(changes) == 3  # All three markers should be added

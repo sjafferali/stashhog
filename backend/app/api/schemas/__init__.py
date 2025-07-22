@@ -343,7 +343,7 @@ class AnalysisRequest(BaseSchema):
             detect_studios=True,
             detect_tags=True,
             detect_details=True,
-            use_ai=True,
+            detect_video_tags=False,
             confidence_threshold=0.7,
         ),
         description="Analysis options",

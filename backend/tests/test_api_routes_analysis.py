@@ -208,7 +208,7 @@ class TestAnalysisRoutes:
                 "detect_tags": True,
                 "detect_details": True,  # Changed from generate_details
                 "detect_studios": True,
-                "use_ai": True,
+                "detect_video_tags": False,
                 "confidence_threshold": 0.7,
             },
             "plan_name": "New Analysis",

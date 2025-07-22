@@ -148,6 +148,9 @@ class AnalysisSettings(BaseSettings):
     create_markers: bool = Field(
         True, description="Create scene markers from video AI detection"
     )
+    disable_deduplication: bool = Field(
+        False, description="Disable deduplication of tags and markers from AI results"
+    )
 
     model_config = SettingsConfigDict(env_prefix="ANALYSIS_")
 
