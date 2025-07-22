@@ -347,6 +347,7 @@ class TestErrorHandling:
 
         # Check docs URLs based on debug setting
         from app.core.config import get_settings
+
         settings = get_settings()
 
         if settings.app.debug:
