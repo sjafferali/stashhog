@@ -3,14 +3,14 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Set debug mode for tests before importing the app
-os.environ["APP_DEBUG"] = "true"
-
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import Settings
-from app.main import (
+# Set debug mode for tests before importing the app
+os.environ["APP_DEBUG"] = "true"
+
+from app.core.config import Settings  # noqa: E402
+from app.main import (  # noqa: E402
     _run_migrations_with_retry,
     _startup_tasks,
     app,
