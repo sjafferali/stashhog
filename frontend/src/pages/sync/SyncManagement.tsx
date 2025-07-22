@@ -74,14 +74,14 @@ const SyncManagement: React.FC = () => {
 
   // Auto-refresh when syncing
   useEffect(() => {
-    if (stats?.is_syncing) {
+    if (stats?.sync.is_syncing) {
       const interval = setInterval(() => {
         void fetchStats();
         void fetchSyncHistory();
       }, 5000); // Refresh every 5 seconds
       return () => clearInterval(interval);
     }
-  }, [stats?.is_syncing]);
+  }, [stats?.sync.is_syncing]);
 
   const handleStartSync = async () => {
     try {
@@ -104,7 +104,7 @@ const SyncManagement: React.FC = () => {
     }
   };
 
-  const isSyncing = stats?.is_syncing || false;
+  const isSyncing = stats?.sync.is_syncing || false;
 
   return (
     <div>
@@ -124,27 +124,33 @@ const SyncManagement: React.FC = () => {
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="Total Scenes" value={stats?.scene_count || 0} />
+              <Statistic
+                title="Total Scenes"
+                value={stats?.summary.scene_count || 0}
+              />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
                 title="Total Performers"
-                value={stats?.performer_count || 0}
+                value={stats?.summary.performer_count || 0}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
-              <Statistic title="Total Tags" value={stats?.tag_count || 0} />
+              <Statistic
+                title="Total Tags"
+                value={stats?.summary.tag_count || 0}
+              />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
                 title="Total Studios"
-                value={stats?.studio_count || 0}
+                value={stats?.summary.studio_count || 0}
               />
             </Card>
           </Col>
@@ -175,11 +181,11 @@ const SyncManagement: React.FC = () => {
       >
         <p>
           Last scene sync:{' '}
-          {stats?.last_scene_sync
-            ? new Date(stats.last_scene_sync).toLocaleString()
+          {stats?.sync.last_scene_sync
+            ? new Date(stats.sync.last_scene_sync).toLocaleString()
             : 'Never'}
         </p>
-        <p>Pending scenes: {stats?.pending_scenes || 0}</p>
+        <p>Pending scenes: {stats?.sync.pending_scenes || 0}</p>
       </Card>
 
       <Card

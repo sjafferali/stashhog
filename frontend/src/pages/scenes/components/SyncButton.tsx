@@ -138,11 +138,11 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
     {
       key: 'last-sync',
-      label: syncStatus?.last_scene_sync ? (
+      label: syncStatus?.sync.last_scene_sync ? (
         <Space>
           <ClockCircleOutlined />
           <Text type="secondary">
-            Last sync: {dayjs(syncStatus.last_scene_sync).fromNow()}
+            Last sync: {dayjs(syncStatus.sync.last_scene_sync).fromNow()}
           </Text>
         </Space>
       ) : (

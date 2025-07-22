@@ -131,17 +131,17 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ### Phase 7: Service Components (<60% coverage)
 
-#### Stash Service Tests (70% coverage - app/services/stash_service.py)
+#### Stash Service Tests (85% coverage - app/services/stash_service.py)
 - [x] Task 57: Enhance test_stash_service.py - Add GraphQL operation tests (2025-07-22)
 - [x] Task 58: Run all backend tests and ensure they pass (2025-07-22)
-- [ ] Task 59: Add tests for error handling and retry logic
-- [ ] Task 60: Run all backend tests and ensure they pass
+- [x] Task 59: Add tests for error handling and retry logic (2025-07-22)
+- [x] Task 60: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Stash Cache Tests (53% coverage - app/services/stash/cache.py)
-- [ ] Task 61: Create test_stash_cache.py - Test caching mechanism
-- [ ] Task 62: Run all backend tests and ensure they pass
-- [ ] Task 63: Add tests for cache invalidation and TTL
-- [ ] Task 64: Run all backend tests and ensure they pass
+#### Stash Cache Tests (100% coverage - app/services/stash/cache.py)
+- [x] Task 61: Create test_stash_cache.py - Test caching mechanism (2025-07-22)
+- [x] Task 62: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 63: Add tests for cache invalidation and TTL (2025-07-22)
+- [x] Task 64: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Stash Transformers Tests (53% coverage - app/services/stash/transformers.py)
 - [ ] Task 65: Create test_stash_transformers.py - Test data transformation
@@ -243,9 +243,9 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 58 of 116 tasks completed (50%)
+- [x] 64 of 116 tasks completed (55%)
 - [x] Coverage target of 80% achieved (currently at 81%)
-- [x] All tests passing consistently (1248 passed, 3 skipped)
+- [x] All tests passing consistently (1278 passed, 3 skipped)
 - [ ] CI/CD pipeline updated with new tests
 - [ ] Test documentation updated
 

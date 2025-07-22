@@ -2,15 +2,17 @@
 Sync management endpoints.
 """
 
+from datetime import timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
 
 from app.api.schemas import JobResponse
 from app.api.schemas import JobStatus as APIJobStatus
 from app.api.schemas import JobType as APIJobType
-from app.api.schemas import SyncResultResponse, SyncStatsResponse
+from app.api.schemas import SyncResultResponse
 from app.core.dependencies import (
     get_db,
     get_job_service,
@@ -18,6 +20,7 @@ from app.core.dependencies import (
     get_sync_service,
 )
 from app.models import SyncHistory
+from app.models.job import Job, JobStatus
 from app.models.job import JobType as ModelJobType
 from app.services.job_service import JobService
 from app.services.stash_service import StashService
@@ -367,10 +370,6 @@ async def stop_sync(
         Status message
     """
     # Get all running sync jobs
-    from sqlalchemy import select
-
-    from app.models.job import Job, JobStatus
-
     query = select(Job).where(
         Job.type.in_(
             [
@@ -395,48 +394,23 @@ async def stop_sync(
     return {"message": f"Cancelled {cancelled_count} sync job(s)"}
 
 
-@router.get("/stats", response_model=SyncStatsResponse)
+@router.get("/stats", response_model=dict)
 async def get_sync_stats(
     db: AsyncDBSession = Depends(get_db),
     stash_service: StashService = Depends(get_stash_service),
-) -> SyncStatsResponse:
+) -> dict:
     """
-    Get sync statistics.
+    Get comprehensive dashboard metrics including actionable items.
 
-    Returns counts and last sync times for each entity type.
-
-    Args:
-        db: Database session
-        stash_service: Stash service instance
-
-    Returns:
-        Sync statistics
+    Returns metrics for:
+    - Pending sync items
+    - Analysis status
+    - Plan status
+    - Scene organization status
     """
-    # Get last sync times for each entity type
-    from sqlalchemy import func, select
-
-    from app.models.job import Job, JobStatus
-
-    last_syncs = {}
-    for entity_type in ["scene", "performer", "tag", "studio"]:
-        query = (
-            select(SyncHistory)
-            .where(
-                SyncHistory.entity_type == entity_type,
-                SyncHistory.status == "completed",
-            )
-            .order_by(SyncHistory.completed_at.desc())
-            .limit(1)
-        )
-
-        result = await db.execute(query)
-        last_sync = result.scalar_one_or_none()
-
-        if last_sync:
-            last_syncs[entity_type] = last_sync.completed_at.isoformat()
-
-    # Get counts from database
-    from app.models import Performer, Scene, Studio, Tag
+    # Get basic counts
+    from app.models import AnalysisPlan, Performer, Scene, Studio, Tag
+    from app.models.analysis_plan import PlanStatus
 
     scene_count_result = await db.execute(select(func.count(Scene.id)))
     scene_count = scene_count_result.scalar_one()
@@ -450,40 +424,46 @@ async def get_sync_stats(
     studio_count_result = await db.execute(select(func.count(Studio.id)))
     studio_count = studio_count_result.scalar_one()
 
-    # Calculate pending sync counts
-    # Check for scenes that have been updated in Stash since last sync
+    # Get sync status
+    last_syncs = {}
+    for entity_type in ["scene", "performer", "tag", "studio"]:
+        query = (
+            select(SyncHistory)
+            .where(
+                SyncHistory.entity_type == entity_type,
+                SyncHistory.status == "completed",
+            )
+            .order_by(SyncHistory.completed_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(query)
+        last_sync = result.scalar_one_or_none()
+        if last_sync:
+            last_syncs[entity_type] = last_sync.completed_at.isoformat()
+
+    # Get pending scenes count
     pending_scenes = 0
     if last_syncs.get("scene"):
         try:
-            # Get scenes from Stash that were updated after last sync
             from datetime import datetime
 
             last_sync_time = datetime.fromisoformat(
                 last_syncs["scene"].replace("Z", "+00:00")
             )
-
-            # Query Stash API to get count of scenes updated since last sync
             filter_dict = {
                 "updated_at": {
                     "value": last_sync_time.isoformat(),
                     "modifier": "GREATER_THAN",
                 }
             }
-
-            # Get only the count by fetching just 1 scene
             _, total_count = await stash_service.get_scenes(
                 page=1, per_page=1, filter=filter_dict
             )
             pending_scenes = total_count
         except Exception:
-            # If we can't get from Stash, fall back to local check
-            pending_query = select(func.count(Scene.id)).where(
-                Scene.updated_at > last_sync_time
-            )
-            result = await db.execute(pending_query)
-            pending_scenes = result.scalar_one() or 0
+            pending_scenes = 0
 
-    # Check if there's an active sync job
+    # Check if sync is running
     is_syncing = False
     sync_job_query = select(Job).where(
         Job.type.in_(
@@ -501,18 +481,291 @@ async def get_sync_stats(
     active_jobs = result.scalars().all()
     is_syncing = len(active_jobs) > 0
 
-    return SyncStatsResponse(
-        scene_count=scene_count,
-        performer_count=performer_count,
-        tag_count=tag_count,
-        studio_count=studio_count,
-        last_scene_sync=last_syncs.get("scene"),
-        last_performer_sync=last_syncs.get("performer"),
-        last_tag_sync=last_syncs.get("tag"),
-        last_studio_sync=last_syncs.get("studio"),
-        pending_scenes=pending_scenes,
-        pending_performers=0,  # Simplified for now
-        pending_tags=0,  # Simplified for now
-        pending_studios=0,  # Simplified for now
-        is_syncing=is_syncing,
+    # Get analysis metrics
+    # Scenes not analyzed
+    not_analyzed_query = select(func.count(Scene.id)).where(Scene.analyzed.is_(False))
+    not_analyzed_result = await db.execute(not_analyzed_query)
+    scenes_not_analyzed = not_analyzed_result.scalar_one()
+
+    # Scenes not video analyzed
+    not_video_analyzed_query = select(func.count(Scene.id)).where(
+        Scene.video_analyzed.is_(False)
     )
+    not_video_analyzed_result = await db.execute(not_video_analyzed_query)
+    scenes_not_video_analyzed = not_video_analyzed_result.scalar_one()
+
+    # Unorganized scenes
+    unorganized_query = select(func.count(Scene.id)).where(Scene.organized.is_(False))
+    unorganized_result = await db.execute(unorganized_query)
+    unorganized_scenes = unorganized_result.scalar_one()
+
+    # Analysis plans by status
+    draft_plans_query = select(func.count(AnalysisPlan.id)).where(
+        AnalysisPlan.status == PlanStatus.DRAFT
+    )
+    draft_plans_result = await db.execute(draft_plans_query)
+    draft_plans = draft_plans_result.scalar_one()
+
+    reviewing_plans_query = select(func.count(AnalysisPlan.id)).where(
+        AnalysisPlan.status == PlanStatus.REVIEWING
+    )
+    reviewing_plans_result = await db.execute(reviewing_plans_query)
+    reviewing_plans = reviewing_plans_result.scalar_one()
+
+    # Check if analysis job is running
+    is_analyzing = False
+    analysis_job_query = select(Job).where(
+        Job.type == ModelJobType.ANALYSIS,
+        Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
+    )
+    result = await db.execute(analysis_job_query)
+    analysis_jobs = result.scalars().all()
+    is_analyzing = len(analysis_jobs) > 0
+
+    # Get running jobs
+    running_jobs_query = (
+        select(Job)
+        .where(Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]))
+        .order_by(Job.created_at.desc())
+        .limit(5)
+    )
+    running_result = await db.execute(running_jobs_query)
+    running_jobs = running_result.scalars().all()
+
+    # Get recently completed jobs
+    completed_jobs_query = (
+        select(Job)
+        .where(
+            Job.status.in_([JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED])
+        )
+        .order_by(Job.completed_at.desc().nullslast(), Job.updated_at.desc())
+        .limit(10)
+    )
+    completed_result = await db.execute(completed_jobs_query)
+    completed_jobs = completed_result.scalars().all()
+
+    # Get additional metrics
+    # Scenes without files
+    scenes_without_files_query = select(func.count(Scene.id)).where(~Scene.files.any())
+    scenes_without_files_result = await db.execute(scenes_without_files_query)
+    scenes_without_files = scenes_without_files_result.scalar_one()
+
+    # Failed jobs in last 24 hours
+    from datetime import datetime, timedelta
+
+    twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    failed_jobs_query = select(func.count(Job.id)).where(
+        Job.status == JobStatus.FAILED, Job.completed_at >= twenty_four_hours_ago
+    )
+    failed_jobs_result = await db.execute(failed_jobs_query)
+    recent_failed_jobs = failed_jobs_result.scalar_one()
+
+    # Scenes missing key metadata
+    scenes_missing_details_query = select(func.count(Scene.id)).where(
+        or_(Scene.details.is_(None), Scene.details == "")
+    )
+    scenes_missing_details_result = await db.execute(scenes_missing_details_query)
+    scenes_missing_details = scenes_missing_details_result.scalar_one()
+
+    # Scenes without studio
+    scenes_without_studio_query = select(func.count(Scene.id)).where(
+        Scene.studio_id.is_(None)
+    )
+    scenes_without_studio_result = await db.execute(scenes_without_studio_query)
+    scenes_without_studio = scenes_without_studio_result.scalar_one()
+
+    # Scenes without performers
+    scenes_without_performers_query = select(func.count(Scene.id)).where(
+        ~Scene.performers.any()
+    )
+    scenes_without_performers_result = await db.execute(scenes_without_performers_query)
+    scenes_without_performers = scenes_without_performers_result.scalar_one()
+
+    # Scenes without tags
+    scenes_without_tags_query = select(func.count(Scene.id)).where(~Scene.tags.any())
+    scenes_without_tags_result = await db.execute(scenes_without_tags_query)
+    scenes_without_tags = scenes_without_tags_result.scalar_one()
+
+    return {
+        "summary": {
+            "scene_count": scene_count,
+            "performer_count": performer_count,
+            "tag_count": tag_count,
+            "studio_count": studio_count,
+        },
+        "sync": {
+            "last_scene_sync": last_syncs.get("scene"),
+            "last_performer_sync": last_syncs.get("performer"),
+            "last_tag_sync": last_syncs.get("tag"),
+            "last_studio_sync": last_syncs.get("studio"),
+            "pending_scenes": pending_scenes,
+            "is_syncing": is_syncing,
+        },
+        "analysis": {
+            "scenes_not_analyzed": scenes_not_analyzed,
+            "scenes_not_video_analyzed": scenes_not_video_analyzed,
+            "draft_plans": draft_plans,
+            "reviewing_plans": reviewing_plans,
+            "is_analyzing": is_analyzing,
+        },
+        "organization": {
+            "unorganized_scenes": unorganized_scenes,
+        },
+        "metadata": {
+            "scenes_without_files": scenes_without_files,
+            "scenes_missing_details": scenes_missing_details,
+            "scenes_without_studio": scenes_without_studio,
+            "scenes_without_performers": scenes_without_performers,
+            "scenes_without_tags": scenes_without_tags,
+        },
+        "jobs": {
+            "recent_failed_jobs": recent_failed_jobs,
+            "running_jobs": [
+                {
+                    "id": str(job.id),
+                    "type": (
+                        job.type.value if hasattr(job.type, "value") else str(job.type)
+                    ),
+                    "status": (
+                        job.status.value
+                        if hasattr(job.status, "value")
+                        else str(job.status)
+                    ),
+                    "progress": job.progress,
+                    "created_at": (
+                        job.created_at.isoformat() if job.created_at else None
+                    ),
+                    "metadata": job.metadata,
+                }
+                for job in running_jobs
+            ],
+            "completed_jobs": [
+                {
+                    "id": str(job.id),
+                    "type": (
+                        job.type.value if hasattr(job.type, "value") else str(job.type)
+                    ),
+                    "status": (
+                        job.status.value
+                        if hasattr(job.status, "value")
+                        else str(job.status)
+                    ),
+                    "completed_at": (
+                        job.completed_at.isoformat() if job.completed_at else None
+                    ),
+                    "error": job.error,
+                    "result": job.result,
+                }
+                for job in completed_jobs
+            ],
+        },
+        "actionable_items": [
+            {
+                "id": "pending_sync",
+                "type": "sync",
+                "title": "Pending Sync",
+                "description": f"{pending_scenes} scenes have been updated in Stash since last sync",
+                "count": pending_scenes,
+                "action": "sync_scenes",
+                "action_label": "Run Incremental Sync",
+                "priority": "high" if pending_scenes > 10 else "medium",
+                "visible": pending_scenes > 0,
+            },
+            {
+                "id": "draft_plans",
+                "type": "analysis",
+                "title": "Draft Plans",
+                "description": f"{draft_plans} analysis plans are in draft status",
+                "count": draft_plans,
+                "action": "view_plans",
+                "action_label": "Review Plans",
+                "route": "/analysis/plans?status=draft",
+                "priority": "medium",
+                "visible": draft_plans > 0,
+            },
+            {
+                "id": "reviewing_plans",
+                "type": "analysis",
+                "title": "Plans Under Review",
+                "description": f"{reviewing_plans} analysis plans are being reviewed",
+                "count": reviewing_plans,
+                "action": "view_plans",
+                "action_label": "Continue Review",
+                "route": "/analysis/plans?status=reviewing",
+                "priority": "high",
+                "visible": reviewing_plans > 0,
+            },
+            {
+                "id": "scenes_not_analyzed",
+                "type": "analysis",
+                "title": "Scenes Pending Analysis",
+                "description": f"{scenes_not_analyzed} scenes have not been analyzed yet",
+                "count": scenes_not_analyzed,
+                "action": "analyze_scenes",
+                "action_label": "Analyze Scenes",
+                "batch_size": min(scenes_not_analyzed, 50),
+                "priority": "medium",
+                "visible": scenes_not_analyzed > 0,
+            },
+            {
+                "id": "scenes_not_video_analyzed",
+                "type": "analysis",
+                "title": "Scenes Pending Video Analysis",
+                "description": f"{scenes_not_video_analyzed} scenes have not been video analyzed",
+                "count": scenes_not_video_analyzed,
+                "action": "analyze_videos",
+                "action_label": "Analyze Videos",
+                "batch_size": min(scenes_not_video_analyzed, 10),
+                "priority": "low",
+                "visible": scenes_not_video_analyzed > 0,
+            },
+            {
+                "id": "unorganized_scenes",
+                "type": "organization",
+                "title": "Unorganized Scenes",
+                "description": f"{unorganized_scenes} scenes are not organized",
+                "count": unorganized_scenes,
+                "action": "view_scenes",
+                "action_label": "View Unorganized",
+                "route": "/scenes?organized=false",
+                "priority": "low",
+                "visible": unorganized_scenes > 0,
+            },
+            {
+                "id": "scenes_without_files",
+                "type": "sync",
+                "title": "Scenes Without Files",
+                "description": f"{scenes_without_files} scenes have no associated files",
+                "count": scenes_without_files,
+                "action": "view_scenes",
+                "action_label": "View Broken Scenes",
+                "route": "/scenes?has_files=false",
+                "priority": "high" if scenes_without_files > 0 else "low",
+                "visible": scenes_without_files > 0,
+            },
+            {
+                "id": "recent_failed_jobs",
+                "type": "system",
+                "title": "Recent Failed Jobs",
+                "description": f"{recent_failed_jobs} jobs failed in the last 24 hours",
+                "count": recent_failed_jobs,
+                "action": "view_jobs",
+                "action_label": "View Failed Jobs",
+                "route": "/jobs?status=failed",
+                "priority": "high" if recent_failed_jobs > 5 else "medium",
+                "visible": recent_failed_jobs > 0,
+            },
+            {
+                "id": "scenes_missing_metadata",
+                "type": "analysis",
+                "title": "Scenes Missing Metadata",
+                "description": f"{scenes_missing_details} scenes have no details",
+                "count": scenes_missing_details,
+                "action": "analyze_scenes",
+                "action_label": "Analyze Missing",
+                "batch_size": min(scenes_missing_details, 50),
+                "priority": "low",
+                "visible": scenes_missing_details > 10,
+            },
+        ],
+    }

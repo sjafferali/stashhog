@@ -371,15 +371,13 @@ class TestSyncService:
     @pytest.mark.asyncio
     async def test_sync_error_handling(self, sync_service, mock_stash_service, mock_db):
         """Test error handling during sync."""
-        # Mock entity sync methods first
-        mock_stash_service.get_all_performers = AsyncMock(return_value=[])
-        mock_stash_service.get_all_tags = AsyncMock(return_value=[])
-        mock_stash_service.get_all_studios = AsyncMock(return_value=[])
+        # Configure the existing mock_stash_service methods
+        mock_stash_service.get_all_performers.return_value = []
+        mock_stash_service.get_all_tags.return_value = []
+        mock_stash_service.get_all_studios.return_value = []
 
-        # Mock scene sync to fail at get_scenes level
-        mock_stash_service.get_scenes = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+        # Configure scene sync to fail at get_scenes level
+        mock_stash_service.get_scenes.side_effect = Exception("Network error")
 
         # Run sync and expect failure
         with pytest.raises(Exception) as exc_info:

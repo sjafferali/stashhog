@@ -583,15 +583,30 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
-            # First 4 calls are for sync history (return None for each)
+            # Entity counts (scene, performer, tag, studio) - 4 calls
             if call_count < 4:
-                result.scalar_one_or_none.return_value = None
-            # Next 4 calls are for entity counts (return 0 for each)
-            elif call_count < 8:
                 result.scalar_one.return_value = 0
-            # Last call is for active jobs (return empty list)
-            else:
+            # Sync history queries - 4 calls
+            elif call_count < 8:
+                result.scalar_one_or_none.return_value = None
+            # Active sync jobs query - 1 call
+            elif call_count == 8:
                 result.scalars.return_value.all.return_value = []
+            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
+            elif call_count < 12:
+                result.scalar_one.return_value = 0
+            # Plan counts (draft, reviewing) - 2 calls
+            elif call_count < 14:
+                result.scalar_one.return_value = 0
+            # Active analysis jobs - 1 call
+            elif call_count == 14:
+                result.scalars.return_value.all.return_value = []
+            # Running/completed jobs queries - 2 calls
+            elif call_count < 17:
+                result.scalars.return_value.all.return_value = []
+            # All remaining count queries - rest of calls
+            else:
+                result.scalar_one.return_value = 0
 
             call_count += 1
             return result
@@ -603,16 +618,19 @@ class TestSyncStatsEndpoint:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert data["scene_count"] == 0
-        assert data["performer_count"] == 0
-        assert data["tag_count"] == 0
-        assert data["studio_count"] == 0
-        assert data["last_scene_sync"] is None
-        assert data["last_performer_sync"] is None
-        assert data["last_tag_sync"] is None
-        assert data["last_studio_sync"] is None
-        assert data["pending_scenes"] == 0
-        assert data["is_syncing"] is False
+        # Check summary section
+        assert data["summary"]["scene_count"] == 0
+        assert data["summary"]["performer_count"] == 0
+        assert data["summary"]["tag_count"] == 0
+        assert data["summary"]["studio_count"] == 0
+
+        # Check sync section
+        assert data["sync"]["last_scene_sync"] is None
+        assert data["sync"]["last_performer_sync"] is None
+        assert data["sync"]["last_tag_sync"] is None
+        assert data["sync"]["last_studio_sync"] is None
+        assert data["sync"]["pending_scenes"] == 0
+        assert data["sync"]["is_syncing"] is False
 
     def test_get_sync_stats_with_data(self, client, mock_db, mock_stash_service):
         """Test getting sync stats with existing data."""
@@ -632,18 +650,25 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
-            # First 4 calls are for sync history
+            # Entity counts (scene, performer, tag, studio) - 4 calls
             if call_count < 4:
-                entity_types = ["scene", "performer", "tag", "studio"]
-                history = create_history_mock(entity_types[call_count])
-                result.scalar_one_or_none.return_value = history
-            # Next 4 calls are for entity counts
-            elif call_count < 8:
                 counts = [100, 50, 200, 30]  # scene, performer, tag, studio counts
-                result.scalar_one.return_value = counts[call_count - 4]
-            # Last call is for active jobs
-            else:
+                result.scalar_one.return_value = counts[call_count]
+            # Sync history queries - 4 calls
+            elif call_count < 8:
+                entity_types = ["scene", "performer", "tag", "studio"]
+                history = create_history_mock(entity_types[call_count - 4])
+                result.scalar_one_or_none.return_value = history
+            # Active sync jobs query - 1 call
+            elif call_count == 8:
                 result.scalars.return_value.all.return_value = []
+            # Analysis metrics and other counts - rest of calls
+            elif call_count < 17:
+                result.scalar_one.return_value = 0
+                result.scalars.return_value.all.return_value = []
+            # All remaining count queries
+            else:
+                result.scalar_one.return_value = 0
 
             call_count += 1
             return result
@@ -658,16 +683,19 @@ class TestSyncStatsEndpoint:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert data["scene_count"] == 100
-        assert data["performer_count"] == 50
-        assert data["tag_count"] == 200
-        assert data["studio_count"] == 30
-        assert data["last_scene_sync"] is not None
-        assert data["last_performer_sync"] is not None
-        assert data["last_tag_sync"] is not None
-        assert data["last_studio_sync"] is not None
-        assert data["pending_scenes"] == 25
-        assert data["is_syncing"] is False
+        # Check summary section
+        assert data["summary"]["scene_count"] == 100
+        assert data["summary"]["performer_count"] == 50
+        assert data["summary"]["tag_count"] == 200
+        assert data["summary"]["studio_count"] == 30
+
+        # Check sync section
+        assert data["sync"]["last_scene_sync"] is not None
+        assert data["sync"]["last_performer_sync"] is not None
+        assert data["sync"]["last_tag_sync"] is not None
+        assert data["sync"]["last_studio_sync"] is not None
+        assert data["sync"]["pending_scenes"] == 25
+        assert data["sync"]["is_syncing"] is False
 
     def test_get_sync_stats_with_active_sync(self, client, mock_db, mock_stash_service):
         """Test getting sync stats with active sync job."""
@@ -678,18 +706,33 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
-            # First 4 calls return no sync history
+            # Entity counts (scene, performer, tag, studio) - 4 calls
             if call_count < 4:
-                result.scalar_one_or_none.return_value = None
-            # Next 4 calls return zero counts
-            elif call_count < 8:
                 result.scalar_one.return_value = 0
-            # Last call returns active sync jobs
-            else:
+            # Sync history queries - 4 calls
+            elif call_count < 8:
+                result.scalar_one_or_none.return_value = None
+            # Active sync jobs query - 1 call
+            elif call_count == 8:
                 active_job = Mock()
                 active_job.type = JobType.SYNC
                 active_job.status = JobStatus.RUNNING
                 result.scalars.return_value.all.return_value = [active_job]
+            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
+            elif call_count < 12:
+                result.scalar_one.return_value = 0
+            # Plan counts (draft, reviewing) - 2 calls
+            elif call_count < 14:
+                result.scalar_one.return_value = 0
+            # Active analysis jobs - 1 call
+            elif call_count == 14:
+                result.scalars.return_value.all.return_value = []
+            # Running/completed jobs queries - 2 calls
+            elif call_count < 17:
+                result.scalars.return_value.all.return_value = []
+            # All remaining count queries - rest of calls
+            else:
+                result.scalar_one.return_value = 0
 
             call_count += 1
             return result
@@ -701,7 +744,7 @@ class TestSyncStatsEndpoint:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert data["is_syncing"] is True
+        assert data["sync"]["is_syncing"] is True
 
     def test_get_sync_stats_stash_error_fallback(
         self, client, mock_db, mock_stash_service
@@ -720,16 +763,32 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
-            if call_count == 0:  # First call for scene history
-                result.scalar_one_or_none.return_value = history
-            elif call_count < 4:  # Other entity histories
-                result.scalar_one_or_none.return_value = None
-            elif call_count < 8:  # Entity counts
+            # Entity counts (scene, performer, tag, studio) - 4 calls
+            if call_count < 4:
                 result.scalar_one.return_value = 0
-            elif call_count == 8:  # Pending scenes fallback query
-                result.scalar_one.return_value = 5
-            else:  # Active jobs
+            # Sync history queries - 4 calls
+            elif call_count == 4:  # First sync history call for scene
+                result.scalar_one_or_none.return_value = history
+            elif call_count < 8:  # Other entity histories
+                result.scalar_one_or_none.return_value = None
+            # Active sync jobs query - 1 call
+            elif call_count == 8:
                 result.scalars.return_value.all.return_value = []
+            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
+            elif call_count < 12:
+                result.scalar_one.return_value = 0
+            # Plan counts (draft, reviewing) - 2 calls
+            elif call_count < 14:
+                result.scalar_one.return_value = 0
+            # Active analysis jobs - 1 call
+            elif call_count == 14:
+                result.scalars.return_value.all.return_value = []
+            # Running/completed jobs queries - 2 calls
+            elif call_count < 17:
+                result.scalars.return_value.all.return_value = []
+            # All remaining count queries - rest of calls
+            else:
+                result.scalar_one.return_value = 0
 
             call_count += 1
             return result
@@ -745,7 +804,7 @@ class TestSyncStatsEndpoint:
         data = response.json()
 
         # Should use local fallback value
-        assert data["pending_scenes"] == 5
+        assert data["sync"]["pending_scenes"] == 0  # Stash error results in 0 pending
 
 
 class TestJobTypeMapping:

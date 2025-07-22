@@ -27,19 +27,43 @@ describe('SyncManagement', () => {
   it('renders sync management title', () => {
     // Mock the API response
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 0,
-      performer_count: 0,
-      tag_count: 0,
-      studio_count: 0,
-      last_scene_sync: undefined,
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 0,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 0,
+        performer_count: 0,
+        tag_count: 0,
+        studio_count: 0,
+      },
+      sync: {
+        last_scene_sync: undefined,
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 0,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     render(
@@ -53,19 +77,43 @@ describe('SyncManagement', () => {
 
   it('displays sync idle status by default', () => {
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 0,
-      performer_count: 0,
-      tag_count: 0,
-      studio_count: 0,
-      last_scene_sync: undefined,
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 0,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 0,
+        performer_count: 0,
+        tag_count: 0,
+        studio_count: 0,
+      },
+      sync: {
+        last_scene_sync: undefined,
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 0,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     render(
@@ -80,19 +128,43 @@ describe('SyncManagement', () => {
   it('displays statistics after loading', async () => {
     // Mock the API response
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 100,
-      performer_count: 50,
-      tag_count: 75,
-      studio_count: 10,
-      last_scene_sync: '2024-01-01T00:00:00Z',
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 5,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 100,
+        performer_count: 50,
+        tag_count: 75,
+        studio_count: 10,
+      },
+      sync: {
+        last_scene_sync: '2024-01-01T00:00:00Z',
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 5,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     render(
@@ -111,19 +183,43 @@ describe('SyncManagement', () => {
 
   it('displays last sync time', async () => {
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 100,
-      performer_count: 50,
-      tag_count: 75,
-      studio_count: 10,
-      last_scene_sync: '2024-01-01T00:00:00Z',
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 5,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 100,
+        performer_count: 50,
+        tag_count: 75,
+        studio_count: 10,
+      },
+      sync: {
+        last_scene_sync: '2024-01-01T00:00:00Z',
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 5,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     render(
@@ -140,19 +236,43 @@ describe('SyncManagement', () => {
 
   it('handles start sync button click', async () => {
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 0,
-      performer_count: 0,
-      tag_count: 0,
-      studio_count: 0,
-      last_scene_sync: undefined,
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 0,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 0,
+        performer_count: 0,
+        tag_count: 0,
+        studio_count: 0,
+      },
+      sync: {
+        last_scene_sync: undefined,
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 0,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     mockApiClient.startSync.mockResolvedValue({
@@ -183,19 +303,43 @@ describe('SyncManagement', () => {
 
   it('handles refresh button click', async () => {
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 0,
-      performer_count: 0,
-      tag_count: 0,
-      studio_count: 0,
-      last_scene_sync: undefined,
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 0,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: false,
+      summary: {
+        scene_count: 0,
+        performer_count: 0,
+        tag_count: 0,
+        studio_count: 0,
+      },
+      sync: {
+        last_scene_sync: undefined,
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 0,
+        is_syncing: false,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     render(
@@ -247,19 +391,43 @@ describe('SyncManagement', () => {
 
     // Mock syncing state
     mockApiClient.getSyncStatus.mockResolvedValue({
-      scene_count: 0,
-      performer_count: 0,
-      tag_count: 0,
-      studio_count: 0,
-      last_scene_sync: undefined,
-      last_performer_sync: undefined,
-      last_tag_sync: undefined,
-      last_studio_sync: undefined,
-      pending_scenes: 0,
-      pending_performers: 0,
-      pending_tags: 0,
-      pending_studios: 0,
-      is_syncing: true,
+      summary: {
+        scene_count: 0,
+        performer_count: 0,
+        tag_count: 0,
+        studio_count: 0,
+      },
+      sync: {
+        last_scene_sync: undefined,
+        last_performer_sync: undefined,
+        last_tag_sync: undefined,
+        last_studio_sync: undefined,
+        pending_scenes: 0,
+        is_syncing: true,
+      },
+      analysis: {
+        scenes_not_analyzed: 0,
+        scenes_not_video_analyzed: 0,
+        draft_plans: 0,
+        reviewing_plans: 0,
+        is_analyzing: false,
+      },
+      organization: {
+        unorganized_scenes: 0,
+      },
+      metadata: {
+        scenes_without_files: 0,
+        scenes_missing_details: 0,
+        scenes_without_studio: 0,
+        scenes_without_performers: 0,
+        scenes_without_tags: 0,
+      },
+      jobs: {
+        recent_failed_jobs: 0,
+        running_jobs: [],
+        completed_jobs: [],
+      },
+      actionable_items: [],
     });
 
     const { unmount } = render(

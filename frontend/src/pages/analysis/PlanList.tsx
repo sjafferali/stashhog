@@ -11,7 +11,6 @@ import {
   Modal,
 } from 'antd';
 import {
-  PlusOutlined,
   EditOutlined,
   CloseOutlined,
   LoadingOutlined,
@@ -374,15 +373,6 @@ const PlanList: React.FC = () => {
             </>
           )}
         </Space>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            void message.info('Create Plan functionality not implemented yet');
-          }}
-        >
-          Create Plan
-        </Button>
       </div>
 
       <Card>

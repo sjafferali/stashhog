@@ -323,16 +323,6 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           <Descriptions.Item label="Rating">
             {fullScene?.rating !== undefined ? `${fullScene.rating}/5` : 'N/A'}
           </Descriptions.Item>
-
-          <Descriptions.Item label="URL">
-            {fullScene?.url ? (
-              <a href={fullScene.url} target="_blank" rel="noopener noreferrer">
-                <LinkOutlined /> Open
-              </a>
-            ) : (
-              'N/A'
-            )}
-          </Descriptions.Item>
         </Descriptions>
 
         {/* Date Information */}

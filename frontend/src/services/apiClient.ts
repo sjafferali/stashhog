@@ -94,11 +94,6 @@ class ApiClient {
     return response.data;
   }
 
-  async createAnalysisPlan(data: Partial<AnalysisPlan>): Promise<AnalysisPlan> {
-    const response = await api.post('/analysis/plans', data);
-    return response.data;
-  }
-
   async updateAnalysisPlan(
     id: number,
     data: Partial<AnalysisPlan>
@@ -135,6 +130,31 @@ class ApiClient {
       scene_ids: sceneIds,
       plan_id: planId,
     });
+    return response.data;
+  }
+
+  async analyzeScenes(params: {
+    scene_ids?: string[];
+    filters?: FilterParams;
+    options: {
+      detect_performers: boolean;
+      detect_studios: boolean;
+      detect_tags: boolean;
+      detect_details: boolean;
+      detect_video_tags: boolean;
+      confidence_threshold: number;
+    };
+    plan_name?: string;
+    background?: boolean;
+  }): Promise<{
+    job_id?: string;
+    plan_id?: string;
+    status: string;
+    message?: string;
+    total_scenes?: number;
+    total_changes?: number;
+  }> {
+    const response = await api.post('/analysis/generate', params);
     return response.data;
   }
 

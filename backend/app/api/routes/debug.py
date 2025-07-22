@@ -19,6 +19,7 @@ query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene
     scenes {
       id
       title
+      urls
       paths {
         screenshot
         preview
@@ -33,6 +34,22 @@ query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene
       interactive
       interactive_speed
       organized
+      scene_markers{
+        id
+        created_at
+        updated_at
+        primary_tag{
+          id
+          name
+        }
+        seconds
+        end_seconds
+        tags{
+          id
+          name
+        }
+        title
+      }
       details
       created_at
       updated_at

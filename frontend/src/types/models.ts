@@ -230,20 +230,70 @@ export interface Job {
   };
 }
 
+export interface ActionableItem {
+  id: string;
+  type: 'sync' | 'analysis' | 'organization' | 'system';
+  title: string;
+  description: string;
+  count: number;
+  action: string;
+  action_label: string;
+  route?: string;
+  batch_size?: number;
+  priority: 'high' | 'medium' | 'low';
+  visible: boolean;
+}
+
+export interface DashboardJob {
+  id: string;
+  type: string;
+  status: string;
+  progress?: number;
+  created_at?: string;
+  completed_at?: string;
+  error?: string;
+  result?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface SyncStatus {
-  scene_count: number;
-  performer_count: number;
-  tag_count: number;
-  studio_count: number;
-  last_scene_sync?: string;
-  last_performer_sync?: string;
-  last_tag_sync?: string;
-  last_studio_sync?: string;
-  pending_scenes: number;
-  pending_performers: number;
-  pending_tags: number;
-  pending_studios: number;
-  is_syncing: boolean;
+  summary: {
+    scene_count: number;
+    performer_count: number;
+    tag_count: number;
+    studio_count: number;
+  };
+  sync: {
+    last_scene_sync?: string;
+    last_performer_sync?: string;
+    last_tag_sync?: string;
+    last_studio_sync?: string;
+    pending_scenes: number;
+    is_syncing: boolean;
+  };
+  analysis: {
+    scenes_not_analyzed: number;
+    scenes_not_video_analyzed: number;
+    draft_plans: number;
+    reviewing_plans: number;
+    is_analyzing: boolean;
+  };
+  organization: {
+    unorganized_scenes: number;
+  };
+  metadata: {
+    scenes_without_files: number;
+    scenes_missing_details: number;
+    scenes_without_studio: number;
+    scenes_without_performers: number;
+    scenes_without_tags: number;
+  };
+  jobs: {
+    recent_failed_jobs: number;
+    running_jobs: DashboardJob[];
+    completed_jobs: DashboardJob[];
+  };
+  actionable_items: ActionableItem[];
 }
 
 export interface Settings {

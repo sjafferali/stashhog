@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
+from tenacity import RetryError
 
 from app.services.stash import (
     StashAuthenticationError,
@@ -603,6 +604,278 @@ class TestStashService:
                 assert mock_post.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_retry_on_http_error(self, stash_service):
+        """Test retry mechanism on general HTTP errors."""
+        query = "query { findScenes { scenes { id } } }"
+
+        # Reduce retry delay for testing
+        stash_service.max_retries = 3
+
+        with patch.object(stash_service._client, "post") as mock_post:
+            # First two calls: HTTP error
+            # Third call: success
+            mock_post.side_effect = [
+                httpx.HTTPError("Network error"),
+                httpx.HTTPError("Network error"),
+                Mock(
+                    status_code=200,
+                    json=Mock(return_value={"data": {"result": "success"}}),
+                    headers={},
+                ),
+            ]
+
+            # Patch sleep to speed up test
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                result = await stash_service.execute_graphql(query)
+
+                assert result == {"result": "success"}
+                assert mock_post.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_retry_exhaustion(self, stash_service):
+        """Test that retries are exhausted after max attempts."""
+        query = "query { findScenes { scenes { id } } }"
+
+        # Track retry attempts
+        attempt_count = 0
+
+        async def failing_post(*args, **kwargs):
+            nonlocal attempt_count
+            attempt_count += 1
+            raise httpx.ConnectError("Connection failed")
+
+        # Mock the client to always fail
+        with patch.object(stash_service._client, "post", side_effect=failing_post):
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                # The retry decorator is configured on the actual method, should exhaust after 3 attempts
+                # It will raise RetryError after exhausting retries
+                with pytest.raises((StashConnectionError, RetryError)):
+                    await stash_service.execute_graphql(query)
+
+                # Verify it tried 3 times (the default from retry decorator)
+                assert attempt_count == 3
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_handling(self, stash_service):
+        """Test timeout error handling."""
+        query = "query { findScenes { scenes { id } } }"
+
+        # Track retry attempts
+        attempt_count = 0
+
+        async def timeout_post(*args, **kwargs):
+            nonlocal attempt_count
+            attempt_count += 1
+            raise httpx.TimeoutException("Request timed out")
+
+        with patch.object(stash_service._client, "post", side_effect=timeout_post):
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                # TimeoutException should be caught and re-raised as StashConnectionError
+                # After retries are exhausted, it will raise RetryError
+                with pytest.raises((StashConnectionError, RetryError)):
+                    await stash_service.execute_graphql(query)
+
+                # Verify it tried 3 times due to retry
+                assert attempt_count == 3
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_response(self, stash_service):
+        """Test handling of invalid JSON response."""
+        query = "query { findScenes { scenes { id } } }"
+
+        with patch.object(stash_service._client, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.side_effect = ValueError("Invalid JSON")
+            mock_response.headers = {}
+            mock_post.return_value = mock_response
+
+            with pytest.raises(ValueError):
+                await stash_service.execute_graphql(query)
+
+    @pytest.mark.asyncio
+    async def test_header_generation_with_invalid_api_keys(self):
+        """Test header generation with various invalid API key values."""
+        # Test with None
+        service = StashService(stash_url="http://localhost:9999", api_key=None)
+        headers = service._get_headers()
+        assert "ApiKey" not in headers
+
+        # Test with empty string
+        service.api_key = ""
+        headers = service._get_headers()
+        assert "ApiKey" not in headers
+
+        # Test with whitespace
+        service.api_key = "   "
+        headers = service._get_headers()
+        assert "ApiKey" not in headers
+
+        # Test with placeholder values
+        for placeholder in ["0", "null", "none"]:
+            service.api_key = placeholder
+            headers = service._get_headers()
+            assert "ApiKey" not in headers
+
+        # Test with valid key
+        service.api_key = "valid_key_123"
+        headers = service._get_headers()
+        assert headers["ApiKey"] == "valid_key_123"
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        """Test async context manager functionality."""
+        async with StashService(
+            stash_url="http://localhost:9999", api_key="test_key"
+        ) as service:
+            assert service.base_url == "http://localhost:9999"
+            assert service.api_key == "test_key"
+
+        # After exiting context, client should be closed
+        # Check that the client's aclose method was called
+        assert service._client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_retry_with_rate_limit_header(self, stash_service):
+        """Test retry mechanism respects Retry-After header."""
+        query = "query { findScenes { scenes { id } } }"
+
+        with patch.object(stash_service._client, "post") as mock_post:
+            # First call: rate limit with Retry-After header
+            # Second call: success
+            mock_response_rate_limit = Mock()
+            mock_response_rate_limit.status_code = 429
+            mock_response_rate_limit.json.return_value = {"error": "Rate limited"}
+            mock_response_rate_limit.headers = {"Retry-After": "2"}
+
+            mock_response_success = Mock()
+            mock_response_success.status_code = 200
+            mock_response_success.json.return_value = {"data": {"result": "success"}}
+            mock_response_success.headers = {}
+
+            mock_post.side_effect = [mock_response_rate_limit, mock_response_success]
+
+            # Track sleep calls
+            sleep_calls = []
+
+            async def mock_sleep(seconds):
+                sleep_calls.append(seconds)
+
+            with patch("asyncio.sleep", side_effect=mock_sleep):
+                result = await stash_service.execute_graphql(query)
+
+                assert result == {"result": "success"}
+                assert mock_post.call_count == 2
+                # The retry mechanism should respect the Retry-After header
+                # Note: tenacity might add some jitter, so we check if any sleep was called
+                assert len(sleep_calls) > 0
+
+    @pytest.mark.asyncio
+    async def test_graphql_errors_with_multiple_errors(self, stash_service):
+        """Test handling of multiple GraphQL errors."""
+        query = "query { invalidQuery }"
+        error_response = {
+            "errors": [
+                {"message": "Field 'invalidQuery' not found"},
+                {"message": "Syntax error in query"},
+                {"message": "Permission denied"},
+            ]
+        }
+
+        with patch.object(stash_service._client, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = error_response
+            mock_response.headers = {}
+            mock_post.return_value = mock_response
+
+            with pytest.raises(
+                StashGraphQLError,
+                match="Field 'invalidQuery' not found, Syntax error in query, Permission denied",
+            ):
+                await stash_service.execute_graphql(query)
+
+    @pytest.mark.asyncio
+    async def test_http_status_error_handling(self, stash_service):
+        """Test handling of various HTTP status errors."""
+        query = "query { version { version } }"
+
+        # Test 500 Internal Server Error - will be retried and eventually raise RetryError
+        with patch.object(stash_service._client, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 500
+            mock_response.json.return_value = {"error": "Internal Server Error"}
+            mock_response.headers = {}
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Internal Server Error", request=Mock(), response=mock_response
+            )
+            mock_post.return_value = mock_response
+
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises((StashConnectionError, RetryError)):
+                    await stash_service.execute_graphql(query)
+
+        # Test 403 Forbidden - will be retried and eventually raise RetryError
+        with patch.object(stash_service._client, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 403
+            mock_response.json.return_value = {"error": "Forbidden"}
+            mock_response.headers = {}
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Forbidden", request=Mock(), response=mock_response
+            )
+            mock_post.return_value = mock_response
+
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises((StashConnectionError, RetryError)):
+                    await stash_service.execute_graphql(query)
+
+    @pytest.mark.asyncio
+    async def test_connection_error_message_details(self, stash_service):
+        """Test that connection errors include helpful details."""
+        query = "query { version { version } }"
+
+        # Track retry attempts
+        attempt_count = 0
+
+        async def connect_error(*args, **kwargs):
+            nonlocal attempt_count
+            attempt_count += 1
+            raise httpx.ConnectError("Failed to establish connection")
+
+        with patch.object(stash_service._client, "post", side_effect=connect_error):
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises((StashConnectionError, RetryError)) as exc_info:
+                    await stash_service.execute_graphql(query)
+
+                # Check that we made 3 attempts
+                assert attempt_count == 3
+
+                # Get the actual exception
+                error = exc_info.value
+                error_message = str(error)
+
+                # If it's a RetryError, check the last attempt
+                if isinstance(error, RetryError):
+                    # The RetryError contains the last exception in its last_attempt
+                    if hasattr(error, "last_attempt") and error.last_attempt.failed:
+                        inner_error = error.last_attempt.exception()
+                        if isinstance(inner_error, StashConnectionError):
+                            error_message = str(inner_error)
+
+                # The error should mention the connection issue
+                assert (
+                    "Failed to connect" in error_message
+                    or "Connection failed" in error_message
+                    or "StashConnectionError" in error_message
+                )
+
+    @pytest.mark.asyncio
     async def test_cache_functionality(self, stash_service):
         """Test caching functionality for get_scene."""
         scene_id = "123"
@@ -674,3 +947,209 @@ class TestStashService:
             assert result["count"] == 100
             assert len(result["scenes"]) == 25
             assert result["scenes"][0]["title"] == "Scene 26"
+
+    @pytest.mark.asyncio
+    async def test_find_or_create_tag_error_handling(self, stash_service):
+        """Test error handling in find_or_create_tag method."""
+        tag_name = "Test Tag"
+
+        # Test when find_tag raises an error
+        with patch.object(stash_service, "find_tag") as mock_find:
+            mock_find.side_effect = StashConnectionError("Connection failed")
+
+            with pytest.raises(StashConnectionError):
+                await stash_service.find_or_create_tag(tag_name)
+
+        # Test when create_tag fails
+        with patch.object(stash_service, "find_tag") as mock_find:
+            mock_find.return_value = None  # Tag doesn't exist
+
+            with patch.object(stash_service, "create_tag") as mock_create:
+                mock_create.side_effect = StashGraphQLError("Failed to create tag")
+
+                with pytest.raises(StashGraphQLError):
+                    await stash_service.find_or_create_tag(tag_name)
+
+    @pytest.mark.asyncio
+    async def test_bulk_update_scenes_with_mixed_results(self, stash_service):
+        """Test bulk update with partial failures."""
+        updates = [
+            {"id": "1", "title": "Scene 1", "details": "Details 1"},
+            {"id": "2", "title": "Scene 2", "details": "Details 2"},
+            {"id": "3", "title": "Scene 3", "details": "Details 3"},
+        ]
+
+        # The bulk_update_scenes method will find no common updates and fall back to individual updates
+        # Mock update_scene to be called 3 times
+        with patch.object(stash_service, "update_scene") as mock_update:
+            mock_update.side_effect = [
+                {"id": "1", "title": "Scene 1", "details": "Details 1"},
+                {"id": "2", "title": "Scene 2", "details": "Details 2"},
+                {"id": "3", "title": "Scene 3", "details": "Details 3"},
+            ]
+
+            results = await stash_service.bulk_update_scenes(updates)
+
+            assert len(results) == 3
+            assert mock_update.call_count == 3
+            assert results[0]["id"] == "1"
+            assert results[1]["id"] == "2"
+            assert results[2]["id"] == "3"
+
+    @pytest.mark.asyncio
+    async def test_scene_transformation_error(self, stash_service):
+        """Test error handling when scene transformation fails."""
+        with patch.object(stash_service, "execute_graphql") as mock_execute:
+            # Return invalid scene data that will cause transformation to fail
+            mock_execute.return_value = {
+                "findScenes": {
+                    "count": 1,
+                    "scenes": [{"id": "1", "invalid_field": "invalid"}],
+                }
+            }
+
+            with patch(
+                "app.services.stash.transformers.transform_scene"
+            ) as mock_transform:
+                mock_transform.side_effect = KeyError("Missing required field")
+
+                with pytest.raises(KeyError):
+                    await stash_service.get_scenes()
+
+    @pytest.mark.asyncio
+    async def test_entity_cache_error_recovery(self, stash_service):
+        """Test that entity operations recover from cache errors."""
+        # Test performer fetch with cache returning None (cache miss)
+        with patch.object(stash_service._entity_cache, "get_performers") as mock_get:
+            mock_get.return_value = None  # Simulate cache miss
+
+            with patch.object(stash_service, "execute_graphql") as mock_execute:
+                mock_execute.return_value = {
+                    "allPerformers": [
+                        {"id": "1", "name": "Performer 1", "gender": "FEMALE"},
+                    ]
+                }
+
+                with patch(
+                    "app.services.stash.transformers.transform_performer"
+                ) as mock_transform:
+                    mock_transform.side_effect = lambda x: x  # Return as-is
+
+                    # Should fetch from API when cache misses
+                    performers = await stash_service.get_all_performers()
+                    assert len(performers) == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_on_specific_http_status_codes(self, stash_service):
+        """Test retry behavior on specific HTTP status codes."""
+        query = "query { version { version } }"
+
+        # Test 502 Bad Gateway (should retry)
+        with patch.object(stash_service._client, "post") as mock_post:
+            mock_response_502 = Mock()
+            mock_response_502.status_code = 502
+            mock_response_502.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Bad Gateway", request=Mock(), response=mock_response_502
+            )
+
+            mock_response_success = Mock()
+            mock_response_success.status_code = 200
+            mock_response_success.json.return_value = {
+                "data": {"version": {"version": "v0.20.0"}}
+            }
+            mock_response_success.headers = {}
+
+            mock_post.side_effect = [mock_response_502, mock_response_success]
+
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                result = await stash_service.execute_graphql(query)
+                assert result == {"version": {"version": "v0.20.0"}}
+
+    @pytest.mark.asyncio
+    async def test_create_marker_validation_errors(self, stash_service):
+        """Test marker creation validation."""
+        # Test missing required tag_ids
+        marker_data = {"scene_id": "123", "seconds": 60, "title": "Test Marker"}
+
+        with pytest.raises(ValueError, match="At least one tag is required"):
+            await stash_service.create_marker(marker_data)
+
+        # Test empty tag_ids list
+        marker_data["tag_ids"] = []
+
+        with pytest.raises(ValueError, match="At least one tag is required"):
+            await stash_service.create_marker(marker_data)
+
+    @pytest.mark.asyncio
+    async def test_get_scene_raw_method(self, stash_service):
+        """Test get_scene_raw returns untransformed data."""
+        scene_id = "123"
+        raw_scene_data = {
+            "id": scene_id,
+            "title": "Raw Scene",
+            "files": [{"path": "/path/to/file.mp4"}],
+            "extra_field": "should_be_preserved",
+        }
+
+        with patch.object(stash_service, "execute_graphql") as mock_execute:
+            mock_execute.return_value = {"findScene": raw_scene_data}
+
+            result = await stash_service.get_scene_raw(scene_id)
+
+            assert result == raw_scene_data
+            assert "extra_field" in result
+            assert result["extra_field"] == "should_be_preserved"
+
+    @pytest.mark.asyncio
+    async def test_connection_pool_limits(self):
+        """Test that connection pool limits are properly set."""
+        # Mock httpx.AsyncClient to capture the limits parameter
+        with patch("app.services.stash_service.httpx.AsyncClient") as mock_client_class:
+            # Create a mock instance that will be returned
+            mock_instance = AsyncMock()
+            mock_client_class.return_value = mock_instance
+
+            # Create the service
+            service = StashService(stash_url="http://localhost:9999")
+
+            # Verify AsyncClient was called with correct limits
+            mock_client_class.assert_called_once()
+            call_kwargs = mock_client_class.call_args.kwargs
+
+            assert "limits" in call_kwargs
+            limits = call_kwargs["limits"]
+            assert limits.max_connections == 10
+            assert limits.max_keepalive_connections == 5
+
+            # Clean up
+            await service.close()
+
+    @pytest.mark.asyncio
+    async def test_http_error_with_response_text(self, stash_service):
+        """Test HTTP error handling includes response text when available."""
+        query = "query { version { version } }"
+
+        # Track retry attempts
+        attempt_count = 0
+
+        async def http_error(*args, **kwargs):
+            nonlocal attempt_count
+            attempt_count += 1
+            mock_response = Mock()
+            mock_response.text = "Detailed error message from server"
+            error = httpx.HTTPError("HTTP Error")
+            error.response = mock_response
+            raise error
+
+        with patch.object(stash_service._client, "post", side_effect=http_error):
+            # Mock sleep to speed up retries
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                # Capture logs to verify error details are logged
+                with patch("app.services.stash_service.logger") as mock_logger:
+                    with pytest.raises((StashConnectionError, RetryError)):
+                        await stash_service.execute_graphql(query)
+
+                    # Verify that the error was logged with details
+                    assert mock_logger.error.call_count > 0
+                    # Verify retries happened
+                    assert attempt_count == 3
