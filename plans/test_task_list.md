@@ -12,10 +12,10 @@ This document tracks the progress of increasing backend test coverage, focusing 
 
 ## Current Coverage Status
 
-- **Current Coverage**: 25.39% overall, scene_sync.py at 87%, analysis.py improved to ~50%+
+- **Current Coverage**: ~26% overall, sync/progress.py at 91%, setting.py at 91%
 - **Target Coverage**: 80%+
 - **Last Updated**: 2025-07-22
-- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%), analysis.py (improved coverage significantly)
+- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%), analysis.py (improved), jobs.py (improved), core/exceptions.py (improved), sync/progress.py (91%), setting.py (91%)
 
 ## Test Execution Command
 ```bash
@@ -99,15 +99,15 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 39: Create test_core_exceptions.py - Test custom exception handling (2025-07-22)
 - [x] Task 40: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Sync Progress Tests (45% coverage - app/services/sync/progress.py)
-- [ ] Task 41: Create test_sync_progress.py - Test progress tracking
-- [ ] Task 42: Run all backend tests and ensure they pass
-- [ ] Task 43: Add tests for real-time progress updates
-- [ ] Task 44: Run all backend tests and ensure they pass
+#### Sync Progress Tests (91% coverage - app/services/sync/progress.py)
+- [x] Task 41: Create test_sync_progress.py - Test progress tracking (2025-07-22)
+- [x] Task 42: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 43: Add tests for real-time progress updates (2025-07-22)
+- [x] Task 44: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Model Setting Tests (44% coverage - app/models/setting.py)
-- [ ] Task 45: Create test_model_setting.py - Test setting model operations
-- [ ] Task 46: Run all backend tests and ensure they pass
+#### Model Setting Tests (91% coverage - app/models/setting.py)
+- [x] Task 45: Create test_model_setting.py - Test setting model operations (2025-07-22)
+- [x] Task 46: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Video Tag Detector Tests (44% coverage - app/services/analysis/video_tag_detector.py)
 - [ ] Task 47: Create test_video_tag_detector.py - Test video analysis
@@ -243,7 +243,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [ ] 40 of 116 tasks completed (34%)
+- [ ] 46 of 116 tasks completed (40%)
 - [ ] Coverage target of 80% achieved (currently at 72%+)
 - [ ] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests
