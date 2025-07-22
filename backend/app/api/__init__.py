@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     analysis,
+    debug,
     entities,
     health,
     jobs,
@@ -30,5 +31,6 @@ api_router.include_router(
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(sync.router, prefix="/sync", tags=["sync"])
 api_router.include_router(entities.router, prefix="/entities", tags=["entities"])
+api_router.include_router(debug.router, prefix="/debug", tags=["debug"])
 
 __all__ = ["api_router"]

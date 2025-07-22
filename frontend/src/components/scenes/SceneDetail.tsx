@@ -20,6 +20,7 @@ import {
   LinkOutlined,
   FolderOpenOutlined,
   ApiOutlined,
+  BugOutlined,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneCard } from './SceneCard';
@@ -64,6 +65,12 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
     // Get current origin for the API base URL
     const apiUrl = `${window.location.origin}/api/scenes/${scene.id}`;
     window.open(apiUrl, '_blank');
+  };
+
+  const handleDebugStashAPI = () => {
+    // Open the debug endpoint for Stash GraphQL data
+    const debugUrl = `${window.location.origin}/api/debug/stashscene/${scene.id}`;
+    window.open(debugUrl, '_blank');
   };
 
   // Check if we have a valid stash URL
@@ -369,6 +376,13 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 onClick={handleOpenInAPI}
               >
                 Open in API
+              </Button>
+              <Button
+                icon={<BugOutlined />}
+                style={{ width: '100%' }}
+                onClick={handleDebugStashAPI}
+              >
+                Debug Stash API
               </Button>
               <Button danger style={{ width: '100%' }}>
                 Delete Scene

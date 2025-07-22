@@ -12,10 +12,10 @@ This document tracks the progress of increasing backend test coverage, focusing 
 
 ## Current Coverage Status
 
-- **Current Coverage**: 70%
+- **Current Coverage**: 72%+
 - **Target Coverage**: 80%+
 - **Last Updated**: 2025-07-22
-- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%)
+- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved)
 
 ## Test Execution Command
 ```bash
@@ -57,15 +57,15 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 15: Add tests for environment variable parsing and validation (2025-07-22)
 - [x] Task 16: Run all backend tests and ensure they pass (2025-07-22)
 
-#### OpenAI Client Tests (17% coverage - app/services/openai_client.py)
-- [ ] Task 17: Create test_openai_client.py - Test OpenAI API wrapper
-- [ ] Task 18: Run all backend tests and ensure they pass
-- [ ] Task 19: Add tests for retry logic and error handling
-- [ ] Task 20: Run all backend tests and ensure they pass
+#### OpenAI Client Tests (100% coverage - app/services/openai_client.py)
+- [x] Task 17: Create test_openai_client.py - Test OpenAI API wrapper (2025-07-22)
+- [x] Task 18: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 19: Add tests for retry logic and error handling (2025-07-22)
+- [x] Task 20: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Test Routes Tests (18% coverage - app/api/routes/test.py)
-- [ ] Task 21: Create test_api_routes_test.py - Test development/debugging endpoints
-- [ ] Task 22: Run all backend tests and ensure they pass
+#### Debug Routes Tests (improved coverage - app/api/routes/debug.py)
+- [x] Task 21: Create test_api_routes_test.py - Test development/debugging endpoints (2025-07-22)
+- [x] Task 22: Run all backend tests and ensure they pass (2025-07-22)
 
 ### Phase 3: Low Coverage Core Services (<40% coverage)
 
@@ -243,8 +243,8 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [ ] 16 of 116 tasks completed (14%)
-- [ ] Coverage target of 80% achieved (currently at 70%)
+- [ ] 22 of 116 tasks completed (19%)
+- [ ] Coverage target of 80% achieved (currently at 72%+)
 - [ ] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests
 - [ ] Test documentation updated

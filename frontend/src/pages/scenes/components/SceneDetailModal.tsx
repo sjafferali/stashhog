@@ -24,6 +24,7 @@ import {
   // ExportOutlined,
   EditOutlined,
   ApiOutlined,
+  BugOutlined,
   // SyncOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -86,6 +87,12 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     // Get current origin for the API base URL
     const apiUrl = `${window.location.origin}/api/scenes/${scene.id}`;
     window.open(apiUrl, '_blank');
+  };
+
+  const handleDebugStashAPI = () => {
+    // Open the debug endpoint for Stash GraphQL data
+    const debugUrl = `${window.location.origin}/api/debug/stashscene/${scene.id}`;
+    window.open(debugUrl, '_blank');
   };
 
   // Check if we have a valid stash URL
@@ -215,7 +222,11 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     <Spin spinning={isLoading}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Basic Info */}
-        <Descriptions bordered column={2}>
+        <Descriptions bordered column={2} title="Scene Information">
+          <Descriptions.Item label="ID" span={2}>
+            <Text copyable>{fullScene?.id || 'N/A'}</Text>
+          </Descriptions.Item>
+
           <Descriptions.Item label="Title" span={2}>
             {fullScene?.title || 'Untitled'}
           </Descriptions.Item>
@@ -228,36 +239,75 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             )}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Date">
+          <Descriptions.Item label="Organized">
+            <Tag color={fullScene?.organized ? 'green' : 'default'}>
+              {fullScene?.organized ? 'Yes' : 'No'}
+            </Tag>
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Analyzed">
+            <Tag color={fullScene?.analyzed ? 'green' : 'default'}>
+              {fullScene?.analyzed ? 'Yes' : 'No'}
+            </Tag>
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Video Analyzed">
+            <Tag color={fullScene?.video_analyzed ? 'green' : 'default'}>
+              {fullScene?.video_analyzed ? 'Yes' : 'No'}
+            </Tag>
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Rating">
+            {fullScene?.rating !== undefined ? `${fullScene.rating}/5` : 'N/A'}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="URL">
+            {fullScene?.url ? (
+              <a href={fullScene.url} target="_blank" rel="noopener noreferrer">
+                <LinkOutlined /> Open
+              </a>
+            ) : (
+              'N/A'
+            )}
+          </Descriptions.Item>
+        </Descriptions>
+
+        {/* Date Information */}
+        <Descriptions bordered column={2} title="Date Information">
+          <Descriptions.Item label="Scene Date">
             {fullScene?.stash_date
               ? dayjs(fullScene.stash_date).format('YYYY-MM-DD')
               : 'N/A'}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Duration">
-            {formatDuration(fullScene?.duration)}
-          </Descriptions.Item>
-
-          <Descriptions.Item label="File Size">
-            {formatFileSize(fullScene?.size?.toString())}
-          </Descriptions.Item>
-
-          <Descriptions.Item label="Resolution">
-            {fullScene?.width && fullScene?.height
-              ? `${fullScene.width}x${fullScene.height}`
+          <Descriptions.Item label="Stash Created">
+            {fullScene?.stash_created_at
+              ? dayjs(fullScene.stash_created_at).format('YYYY-MM-DD HH:mm:ss')
               : 'N/A'}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Frame Rate">
-            {fullScene?.framerate ? `${fullScene.framerate} fps` : 'N/A'}
+          <Descriptions.Item label="Stash Updated">
+            {fullScene?.stash_updated_at
+              ? dayjs(fullScene.stash_updated_at).format('YYYY-MM-DD HH:mm:ss')
+              : 'N/A'}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Codec">
-            {fullScene?.codec || 'N/A'}
+          <Descriptions.Item label="Last Synced">
+            {fullScene?.last_synced
+              ? dayjs(fullScene.last_synced).format('YYYY-MM-DD HH:mm:ss')
+              : 'N/A'}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Bitrate">
-            {fullScene?.bitrate ? `${fullScene.bitrate} kbps` : 'N/A'}
+          <Descriptions.Item label="StashHog Created">
+            {fullScene?.created_at
+              ? dayjs(fullScene.created_at).format('YYYY-MM-DD HH:mm:ss')
+              : 'N/A'}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="StashHog Updated">
+            {fullScene?.updated_at
+              ? dayjs(fullScene.updated_at).format('YYYY-MM-DD HH:mm:ss')
+              : 'N/A'}
           </Descriptions.Item>
         </Descriptions>
 
@@ -300,51 +350,104 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     </Spin>
   );
 
-  const renderFilesTab = () => (
-    <Descriptions bordered column={1}>
-      <Descriptions.Item label="Path(s)">
-        {fullScene?.paths && fullScene.paths.length > 0 ? (
-          <Space direction="vertical" size="small">
-            {fullScene.paths.map((path, index) => (
-              <Text key={index} code>
-                {path}
-              </Text>
-            ))}
-          </Space>
-        ) : (
-          <Text>N/A</Text>
-        )}
-      </Descriptions.Item>
+  const renderFilesTab = () => {
+    const files = fullScene?.files || [];
 
-      <Descriptions.Item label="ID">
-        <Text copyable>{fullScene?.id || 'N/A'}</Text>
-      </Descriptions.Item>
+    if (files.length === 0) {
+      return (
+        <Empty
+          description="No file information available"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      );
+    }
 
-      <Descriptions.Item label="Perceptual Hash">
-        <Text code type="secondary">
-          Not synchronized from Stash
-        </Text>
-      </Descriptions.Item>
+    return (
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {files.map((file, index) => (
+          <div
+            key={file.id}
+            style={{ marginBottom: index < files.length - 1 ? 16 : 0 }}
+          >
+            <Divider orientation="left">
+              File {index + 1}
+              {file.is_primary && (
+                <Tag color="blue" style={{ marginLeft: 8 }}>
+                  Primary
+                </Tag>
+              )}
+            </Divider>
 
-      <Descriptions.Item label="File Modified">
-        {fullScene?.file_mod_time
-          ? dayjs(fullScene.file_mod_time).format('YYYY-MM-DD HH:mm:ss')
-          : 'N/A'}
-      </Descriptions.Item>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="File ID" span={2}>
+                <Text copyable>{file.id}</Text>
+              </Descriptions.Item>
 
-      <Descriptions.Item label="Created in Stash">
-        {fullScene?.stash_created_at
-          ? dayjs(fullScene.stash_created_at).format('YYYY-MM-DD HH:mm:ss')
-          : 'N/A'}
-      </Descriptions.Item>
+              <Descriptions.Item label="Path" span={2}>
+                <Text code>{file.path}</Text>
+              </Descriptions.Item>
 
-      <Descriptions.Item label="Updated in Stash">
-        {fullScene?.stash_updated_at
-          ? dayjs(fullScene.stash_updated_at).format('YYYY-MM-DD HH:mm:ss')
-          : 'N/A'}
-      </Descriptions.Item>
-    </Descriptions>
-  );
+              {file.basename && (
+                <Descriptions.Item label="Basename" span={2}>
+                  {file.basename}
+                </Descriptions.Item>
+              )}
+
+              <Descriptions.Item label="Size">
+                {formatFileSize(file.size?.toString())}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Format">
+                {file.format || 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Duration">
+                {formatDuration(file.duration)}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Resolution">
+                {file.width && file.height
+                  ? `${file.width}x${file.height}`
+                  : 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Video Codec">
+                {file.video_codec || 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Audio Codec">
+                {file.audio_codec || 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Frame Rate">
+                {file.frame_rate ? `${file.frame_rate} fps` : 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Bitrate">
+                {file.bit_rate
+                  ? `${Math.round(file.bit_rate / 1000)} kbps`
+                  : 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="OS Hash">
+                {file.oshash ? <Text code>{file.oshash}</Text> : 'N/A'}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Perceptual Hash">
+                {file.phash ? <Text code>{file.phash}</Text> : 'N/A'}
+              </Descriptions.Item>
+
+              {file.mod_time && (
+                <Descriptions.Item label="Modified Time" span={2}>
+                  {dayjs(file.mod_time).format('YYYY-MM-DD HH:mm:ss')}
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          </div>
+        ))}
+      </Space>
+    );
+  };
 
   const renderMarkersTab = () => {
     const markers = fullScene?.markers || [];
@@ -599,6 +702,13 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           </Button>,
           <Button key="api" icon={<ApiOutlined />} onClick={handleOpenInAPI}>
             Open in API
+          </Button>,
+          <Button
+            key="debug"
+            icon={<BugOutlined />}
+            onClick={handleDebugStashAPI}
+          >
+            Debug Stash API
           </Button>,
           <Button
             key="analyze"

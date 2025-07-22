@@ -197,7 +197,8 @@ async def list_scenes(
         selectinload(Scene.performers),
         selectinload(Scene.tags),
         selectinload(Scene.studio),
-        selectinload(Scene.markers),
+        selectinload(Scene.markers).selectinload(SceneMarker.primary_tag),
+        selectinload(Scene.markers).selectinload(SceneMarker.tags),
         selectinload(Scene.files),
     )
 

@@ -23,6 +23,7 @@ import {
   ExperimentOutlined,
   ClockCircleOutlined,
   ApiOutlined,
+  BugOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient, useQuery } from 'react-query';
 import dayjs from 'dayjs';
@@ -502,6 +503,14 @@ const SceneDetail: React.FC = () => {
               onClick={() => window.open(`/api/scenes/${id}`, '_blank')}
             >
               Open in API
+            </Button>
+            <Button
+              icon={<BugOutlined />}
+              onClick={() =>
+                window.open(`/api/debug/stashscene/${id}`, '_blank')
+              }
+            >
+              Debug Stash API
             </Button>
             <Button
               type="primary"
