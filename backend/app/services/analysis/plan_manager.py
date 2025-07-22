@@ -150,6 +150,7 @@ class PlanManager:
         stash_service: StashService,
         apply_filters: Optional[Dict[str, bool]] = None,
         change_ids: Optional[List[int]] = None,
+        progress_callback: Optional[Any] = None,
     ) -> ApplyResult:
         """Apply changes from a plan to Stash.
 
@@ -159,6 +160,7 @@ class PlanManager:
             stash_service: Stash service for applying changes
             apply_filters: Optional filters for what to apply
             change_ids: Optional list of specific change IDs to apply
+            progress_callback: Optional callback for progress updates
 
         Returns:
             Result of applying the plan
@@ -176,7 +178,7 @@ class PlanManager:
         # Get changes and apply them
         changes = await self._get_plan_changes(plan_id, db)
         result_data = await self._process_plan_changes(
-            changes, apply_filters, db, stash_service, change_ids
+            changes, apply_filters, db, stash_service, change_ids, progress_callback
         )
 
         # Finalize plan application
@@ -236,6 +238,7 @@ class PlanManager:
         db: AsyncSession,
         stash_service: StashService,
         change_ids: Optional[List[int]] = None,
+        progress_callback: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Process all changes in a plan."""
         total_changes = 0
@@ -243,13 +246,19 @@ class PlanManager:
         failed_changes = 0
         errors = []
 
-        for change in changes:
-            # Skip filtered, rejected, or already applied changes
-            if not self._should_apply_change(change, apply_filters, change_ids):
-                continue
+        # Count changes to apply first
+        changes_to_apply = [
+            change
+            for change in changes
+            if self._should_apply_change(change, apply_filters, change_ids)
+        ]
+        total_changes = len(changes_to_apply)
 
-            total_changes += 1
+        # Report initial progress
+        if progress_callback and total_changes > 0:
+            await progress_callback(10, f"Applying {total_changes} changes")
 
+        for i, change in enumerate(changes_to_apply):
             try:
                 success = await self.apply_single_change(change, db, stash_service)
                 if success:
@@ -260,6 +269,12 @@ class PlanManager:
                 failed_changes += 1
                 errors.append(self._create_error_record(change, e))
                 logger.error(f"Failed to apply change {change.id}: {e}")
+
+            # Report progress after each change
+            if progress_callback and total_changes > 0:
+                progress = 10 + int((i + 1) / total_changes * 85)  # 10-95%
+                scene_info = f"Scene {change.scene_id}: {change.field}"
+                await progress_callback(progress, scene_info)
 
         return {
             "total_changes": total_changes,
@@ -403,6 +418,15 @@ class PlanManager:
             if not scene:
                 logger.error(f"Scene {scene_id} not found")
                 return False
+
+            # Special handling for markers - they are created directly, not via scene update
+            if change.field == "markers":
+                await self._prepare_markers_update(change, scene, stash_service)
+                # Mark change as applied
+                change.applied = True  # type: ignore[assignment]
+                change.applied_at = datetime.utcnow()  # type: ignore[assignment]
+                await db.flush()
+                return True
 
             # Prepare update data based on field and action
             update_data = await self._prepare_update_data(change, scene, stash_service)

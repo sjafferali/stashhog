@@ -47,12 +47,17 @@ export interface ApplyPlanModalProps {
 }
 
 interface ProgressUpdate {
-  type: 'progress' | 'complete' | 'error';
-  jobId: string;
-  current: number;
-  total: number;
+  type: 'job_update' | 'job_status' | 'progress' | 'complete' | 'error';
+  jobId?: string;
+  job_id?: string;
+  current?: number;
+  total?: number;
   scene?: string;
   error?: string;
+  status?: string;
+  progress?: number;
+  message?: string;
+  result?: Record<string, unknown>;
 }
 
 const ApplyPlanModal: React.FC<ApplyPlanModalProps> = ({
@@ -86,16 +91,55 @@ const ApplyPlanModal: React.FC<ApplyPlanModalProps> = ({
     if (wsMessage) {
       const update = wsMessage as ProgressUpdate;
 
-      if (update.type === 'progress') {
+      // Handle backend's job_update and job_status message types
+      if (update.type === 'job_update' || update.type === 'job_status') {
+        // Extract progress from the update
+        const progressValue = update.progress || 0;
+
+        // Update progress based on status
+        if (update.status === 'running') {
+          setProgress((prev) => ({
+            ...prev,
+            completed: Math.round((progressValue / 100) * prev.total),
+            currentScene: update.message,
+            inProgress: true,
+          }));
+        } else if (update.status === 'completed') {
+          setProgress((prev) => ({
+            ...prev,
+            completed: prev.total,
+            inProgress: false,
+          }));
+          setStage('complete');
+          onComplete?.();
+        } else if (update.status === 'failed') {
+          setProgress((prev) => ({
+            ...prev,
+            inProgress: false,
+            failed: prev.total - prev.completed,
+            errors: [
+              ...(prev.errors || []),
+              {
+                sceneId: '',
+                field: '',
+                error: update.error || update.message || 'Unknown error',
+              },
+            ],
+          }));
+          setStage('complete');
+          onComplete?.();
+        }
+      } else if (update.type === 'progress') {
+        // Handle legacy progress messages if any
         setProgress((prev) => ({
           ...prev,
-          completed: update.current,
+          completed: update.current || 0,
           currentScene: update.scene,
         }));
       } else if (update.type === 'complete') {
         setProgress((prev) => ({
           ...prev,
-          completed: update.total,
+          completed: update.total || prev.total,
           inProgress: false,
         }));
         setStage('complete');

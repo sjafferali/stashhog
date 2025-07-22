@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   EditOutlined,
   FileSearchOutlined,
+  PushpinOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -22,6 +23,7 @@ export interface AnalysisJobResultData {
     titles_to_update?: number;
     details_to_update?: number;
     scenes_with_detail_changes?: number;
+    markers_to_add?: number;
   };
 }
 
@@ -88,6 +90,20 @@ export const AnalysisJobResult: React.FC<Props> = ({ result }) => {
                 </Card>
               </Col>
             )}
+
+            {summary.markers_to_add !== undefined &&
+              summary.markers_to_add > 0 && (
+                <Col span={8}>
+                  <Card size="small" bordered={false}>
+                    <Statistic
+                      title="Markers to Add"
+                      value={summary.markers_to_add}
+                      prefix={<PushpinOutlined />}
+                      valueStyle={{ color: '#3f8600' }}
+                    />
+                  </Card>
+                </Col>
+              )}
 
             {summary.studios_to_set !== undefined &&
               summary.studios_to_set > 0 && (

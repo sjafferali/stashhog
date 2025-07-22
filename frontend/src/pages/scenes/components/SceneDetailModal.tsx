@@ -20,6 +20,7 @@ import {
   ExperimentOutlined,
   HistoryOutlined,
   LinkOutlined,
+  ClockCircleOutlined,
   // ExportOutlined,
   EditOutlined,
   // SyncOutlined,
@@ -338,6 +339,87 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     </Descriptions>
   );
 
+  const renderMarkersTab = () => {
+    const markers = fullScene?.markers || [];
+
+    const formatTime = (seconds: number): string => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    if (markers.length === 0) {
+      return (
+        <Empty
+          description="No scene markers"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      );
+    }
+
+    return (
+      <List
+        dataSource={markers}
+        renderItem={(marker) => (
+          <List.Item>
+            <List.Item.Meta
+              avatar={
+                <div
+                  style={{
+                    width: 60,
+                    textAlign: 'center',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: '#1890ff',
+                  }}
+                >
+                  {formatTime(marker.seconds)}
+                </div>
+              }
+              title={
+                <Space>
+                  <Text strong>{marker.title || 'Untitled'}</Text>
+                  {marker.end_seconds && (
+                    <Text type="secondary">
+                      (duration:{' '}
+                      {formatTime(marker.end_seconds - marker.seconds)})
+                    </Text>
+                  )}
+                </Space>
+              }
+              description={
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ width: '100%' }}
+                >
+                  <Space wrap>
+                    <Tag color="blue" key={marker.primary_tag.id}>
+                      {marker.primary_tag.name}
+                    </Tag>
+                    {marker.tags.map((tag) => (
+                      <Tag key={tag.id}>{tag.name}</Tag>
+                    ))}
+                  </Space>
+                  {marker.created_at && (
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Created:{' '}
+                      {dayjs(marker.created_at).format('YYYY-MM-DD HH:mm:ss')}
+                    </Text>
+                  )}
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    );
+  };
+
   const renderAnalysisTab = () => {
     const results = analysisResults || [];
 
@@ -540,6 +622,17 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             key="files"
           >
             {renderFilesTab()}
+          </TabPane>
+
+          <TabPane
+            tab={
+              <span>
+                <ClockCircleOutlined /> Markers
+              </span>
+            }
+            key="markers"
+          >
+            {renderMarkersTab()}
           </TabPane>
 
           <TabPane

@@ -18,6 +18,7 @@ import {
   message,
   Empty,
 } from 'antd';
+import { Link } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import {
   SyncOutlined,
@@ -236,9 +237,24 @@ const JobMonitor: React.FC = () => {
             }
           >
             {record.type === 'scene_analysis' || record.type === 'analysis' ? (
-              <AnalysisJobResult
-                result={record.result as unknown as AnalysisJobResultData}
-              />
+              <>
+                <AnalysisJobResult
+                  result={record.result as unknown as AnalysisJobResultData}
+                />
+                {record.result &&
+                  'plan_id' in record.result &&
+                  record.result.plan_id && (
+                    <div style={{ marginTop: 16 }}>
+                      <Link
+                        to={`/analysis/plans/${record.result.plan_id as string}`}
+                      >
+                        <Button type="primary" icon={<FileTextOutlined />}>
+                          View Created Analysis Plan
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+              </>
             ) : (
               <pre style={{ maxHeight: 200, overflow: 'auto' }}>
                 {JSON.stringify(record.result, null, 2)}
@@ -380,7 +396,7 @@ const JobMonitor: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      width: 200,
+      width: 250,
       render: (_: unknown, record: Job) => (
         <Space>
           <Tooltip title="View Details">
@@ -391,6 +407,23 @@ const JobMonitor: React.FC = () => {
               onClick={() => showJobDetails(record)}
             />
           </Tooltip>
+
+          {record.status === 'completed' &&
+          (record.type === 'scene_analysis' || record.type === 'analysis') &&
+          record.result &&
+          'plan_id' in record.result &&
+          record.result.plan_id ? (
+            <Tooltip title="View Plan">
+              <Link to={`/analysis/plans/${record.result.plan_id as string}`}>
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined />}
+                  size="small"
+                  style={{ color: '#1890ff' }}
+                />
+              </Link>
+            </Tooltip>
+          ) : null}
 
           {record.status === 'running' && (
             <Tooltip title="Cancel Job">
@@ -604,11 +637,29 @@ const JobMonitor: React.FC = () => {
                   <Divider orientation="left">Result</Divider>
                   {selectedJob.type === 'scene_analysis' ||
                   selectedJob.type === 'analysis' ? (
-                    <AnalysisJobResult
-                      result={
-                        selectedJob.result as unknown as AnalysisJobResultData
-                      }
-                    />
+                    <>
+                      <AnalysisJobResult
+                        result={
+                          selectedJob.result as unknown as AnalysisJobResultData
+                        }
+                      />
+                      {selectedJob.result &&
+                        'plan_id' in selectedJob.result &&
+                        selectedJob.result.plan_id && (
+                          <div style={{ marginTop: 16 }}>
+                            <Link
+                              to={`/analysis/plans/${selectedJob.result.plan_id as string}`}
+                            >
+                              <Button
+                                type="primary"
+                                icon={<FileTextOutlined />}
+                              >
+                                View Created Analysis Plan
+                              </Button>
+                            </Link>
+                          </div>
+                        )}
+                    </>
                   ) : (
                     <pre className={styles.codeBlock}>
                       {JSON.stringify(selectedJob.result, null, 2)}

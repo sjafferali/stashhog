@@ -17,6 +17,7 @@ def calculate_plan_summary(plan_changes: Any) -> Dict[str, int]:
     studios_to_set = 0
     titles_to_update = 0
     details_to_update = 0
+    markers_to_add = 0
 
     # Track unique scenes with detail changes
     scenes_with_detail_changes = set()
@@ -33,6 +34,8 @@ def calculate_plan_summary(plan_changes: Any) -> Dict[str, int]:
         elif change.field == "details" and change.action.value in ["set", "update"]:
             details_to_update += 1
             scenes_with_detail_changes.add(change.scene_id)
+        elif change.field == "markers" and change.action.value == "add":
+            markers_to_add += 1
 
     return {
         "performers_to_add": performers_to_add,
@@ -41,4 +44,5 @@ def calculate_plan_summary(plan_changes: Any) -> Dict[str, int]:
         "titles_to_update": titles_to_update,
         "details_to_update": details_to_update,
         "scenes_with_detail_changes": len(scenes_with_detail_changes),
+        "markers_to_add": markers_to_add,
     }

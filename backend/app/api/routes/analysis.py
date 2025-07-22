@@ -652,10 +652,10 @@ def _build_bulk_update_query(
     elif action == "accept_by_confidence":
         query = query.where(PlanChange.confidence >= confidence_threshold)
 
-    # Only update pending changes
+    # Only update pending changes (not accepted and not rejected)
     query = query.where(
+        PlanChange.accepted.is_(False),
         PlanChange.rejected.is_(False),
-        PlanChange.applied.is_(False),
     )
 
     return query
@@ -733,8 +733,8 @@ async def bulk_update_changes(
     # Apply the action
     updated_count = _apply_bulk_action(changes, action)
 
-    # Commit changes
-    await db.commit()
+    # Flush changes to database
+    await db.flush()
 
     # Update plan status
     total_count, applied_count, rejected_count, pending_count = (

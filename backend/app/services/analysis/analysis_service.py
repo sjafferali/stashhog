@@ -1670,6 +1670,7 @@ class AnalysisService:
                     stash_service=self.stash_service,
                     apply_filters=None,  # Apply all changes
                     change_ids=change_ids,
+                    progress_callback=progress_callback,
                 )
 
                 # Commit the transaction after plan is applied
