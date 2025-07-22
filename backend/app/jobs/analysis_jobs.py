@@ -367,53 +367,51 @@ async def generate_scene_details_job(
     results = []
     total_scenes = len(scene_ids or [])
 
-    for idx, scene_id in enumerate(scene_ids or []):
-        progress = int((idx / total_scenes) * 100)
-        await progress_callback(
-            progress, f"Generating details for scene {idx + 1} of {total_scenes}"
-        )
+    # Get scenes from local database
+    from sqlalchemy import select
 
-        try:
-            # This assumes there's a method to generate scene details
-            # You may need to adapt this based on the actual AnalysisService API
-            # Using analyze_single_scene since generate_scene_details doesn't exist
-            scene_data = await stash_service.get_scene(scene_id)
-            if scene_data:
-                # Convert to Scene-like object
-                class SceneLike:
-                    def __init__(self, data: dict[str, Any]) -> None:
-                        self.id = data.get("id")
-                        self.title = data.get("title", "")
-                        self.path = data.get(
-                            "path", data.get("file", {}).get("path", "")
-                        )
-                        self.details = data.get("details", "")
-                        self.duration = data.get("file", {}).get("duration", 0)
-                        self.width = data.get("file", {}).get("width", 0)
-                        self.height = data.get("file", {}).get("height", 0)
-                        self.frame_rate = data.get("file", {}).get("frame_rate", 0)
-                        self.performers = data.get("performers", [])
-                        self.tags = data.get("tags", [])
-                        self.studio = data.get("studio")
+    from app.core.database import AsyncSessionLocal
+    from app.models import Scene
 
-                scene = SceneLike(scene_data)
-                from app.services.analysis.models import AnalysisOptions
-
-                # Cast SceneLike to Scene for type checking
-                changes = await analysis_service.analyze_single_scene(
-                    scene,  # type: ignore[arg-type]
-                    AnalysisOptions(detect_details=True),
-                )
-                details_changes = [c for c in changes if c.field == "details"]
-                details = details_changes[0].proposed_value if details_changes else None
-            else:
-                details = None
-            results.append(
-                {"scene_id": scene_id, "status": "success", "details": details}
+    async with AsyncSessionLocal() as db:
+        for idx, scene_id in enumerate(scene_ids or []):
+            progress = int((idx / total_scenes) * 100)
+            await progress_callback(
+                progress, f"Generating details for scene {idx + 1} of {total_scenes}"
             )
-        except Exception as e:
-            logger.error(f"Failed to generate details for scene {scene_id}: {str(e)}")
-            results.append({"scene_id": scene_id, "status": "failed", "error": str(e)})
+
+            try:
+                # Get scene from local database
+                stmt = select(Scene).where(Scene.id == scene_id)
+                result = await db.execute(stmt)
+                scene = result.scalar_one_or_none()
+
+                if scene:
+                    from app.services.analysis.models import AnalysisOptions
+
+                    # Use the scene directly from database
+                    changes = await analysis_service.analyze_single_scene(
+                        scene,
+                        AnalysisOptions(detect_details=True),
+                    )
+                    details_changes = [c for c in changes if c.field == "details"]
+                    details = (
+                        details_changes[0].proposed_value if details_changes else None
+                    )
+                else:
+                    details = None
+                    logger.warning(f"Scene {scene_id} not found in database")
+
+                results.append(
+                    {"scene_id": scene_id, "status": "success", "details": details}
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to generate details for scene {scene_id}: {str(e)}"
+                )
+                results.append(
+                    {"scene_id": scene_id, "status": "failed", "error": str(e)}
+                )
 
     await progress_callback(100, "Scene details generation completed")
 

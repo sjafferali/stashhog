@@ -122,8 +122,8 @@ class AnalysisService:
         if not db:
             raise ValueError("Database session is required for scene analysis")
 
-        # Sync scenes from Stash to database first
-        scenes = await self._sync_and_get_scenes(scene_ids, filters, db)
+        # Get scenes from local database instead of syncing from Stash
+        scenes = await self._get_scenes_from_database(scene_ids, filters, db)
 
         if not scenes:
             return await self._create_empty_plan(db)
@@ -1124,6 +1124,61 @@ class AnalysisService:
         except Exception as e:
             logger.error(f"Failed to get scenes with filters: {e}")
             return []
+
+    async def _get_scenes_from_database(
+        self, scene_ids: Optional[list[str]], filters: Optional[dict], db: AsyncSession
+    ) -> list[Scene]:
+        """Get scenes from local database without syncing from Stash.
+
+        Args:
+            scene_ids: Optional list of scene IDs to get
+            filters: Optional filters for scene selection
+            db: Database session
+
+        Returns:
+            List of Scene objects from database
+        """
+        from sqlalchemy import and_, select
+
+        from app.models import Scene
+
+        query = select(Scene)
+
+        if scene_ids:
+            logger.debug(f"Getting scenes by IDs from database: {scene_ids}")
+            query = query.where(Scene.id.in_(scene_ids))
+        else:
+            logger.debug(f"Getting scenes by filters from database: {filters}")
+            # Apply filters based on common filter patterns
+            if filters:
+                conditions = []
+
+                # Handle organized filter
+                if "organized" in filters:
+                    conditions.append(Scene.organized == filters["organized"])
+
+                # Handle analyzed filter
+                if "analyzed" in filters:
+                    conditions.append(Scene.analyzed == filters["analyzed"])
+
+                # Handle video_analyzed filter
+                if "video_analyzed" in filters:
+                    conditions.append(Scene.video_analyzed == filters["video_analyzed"])
+
+                # Handle studio filter
+                if "studio_id" in filters:
+                    conditions.append(Scene.studio_id == filters["studio_id"])
+
+                # Apply conditions
+                if conditions:
+                    query = query.where(and_(*conditions))
+
+        # Execute query
+        result = await db.execute(query)
+        scenes = list(result.scalars().all())
+
+        logger.info(f"Retrieved {len(scenes)} scenes from database")
+        return scenes
 
     def _scene_to_dict(self, scene: Any) -> dict:
         """Convert scene object to dictionary.

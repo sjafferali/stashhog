@@ -65,8 +65,8 @@ async def test_analyze_scenes_syncs_to_database():
         paths=["/path/to/scene.mp4"],
     )
 
-    # Mock the scene_sync_utils to return the synced scene
-    service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(return_value=[mock_scene])
+    # Mock the _get_scenes_from_database to return the scene from DB
+    service._get_scenes_from_database = AsyncMock(return_value=[mock_scene])
 
     # Mock the batch processor to avoid actual processing
     service.batch_processor.process_scenes = AsyncMock(return_value=[])
@@ -90,9 +90,9 @@ async def test_analyze_scenes_syncs_to_database():
         db=mock_db,
     )
 
-    # Verify that scene_sync_utils was called
-    service.scene_sync_utils.sync_scenes_by_ids.assert_called_once_with(
-        scene_ids=["scene123"], db=mock_db, update_existing=True
+    # Verify that _get_scenes_from_database was called
+    service._get_scenes_from_database.assert_called_once_with(
+        ["scene123"], None, mock_db
     )
 
     # Verify plan was created
@@ -162,10 +162,8 @@ async def test_analyze_scenes_updates_existing_scene():
         paths=["/path/to/scene.mp4"],
     )
 
-    # Mock the scene_sync_utils to return the updated scene
-    service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(
-        return_value=[updated_scene]
-    )
+    # Mock the _get_scenes_from_database to return the scene from DB
+    service._get_scenes_from_database = AsyncMock(return_value=[updated_scene])
 
     # Mock the batch processor to avoid actual processing
     service.batch_processor.process_scenes = AsyncMock(return_value=[])
@@ -185,9 +183,9 @@ async def test_analyze_scenes_updates_existing_scene():
         db=mock_db,
     )
 
-    # Verify that scene_sync_utils was called to update the scene
-    service.scene_sync_utils.sync_scenes_by_ids.assert_called_once_with(
-        scene_ids=["scene123"], db=mock_db, update_existing=True
+    # Verify that _get_scenes_from_database was called
+    service._get_scenes_from_database.assert_called_once_with(
+        ["scene123"], None, mock_db
     )
 
     # Verify plan was created
