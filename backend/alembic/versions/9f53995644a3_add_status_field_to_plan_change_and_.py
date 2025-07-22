@@ -51,34 +51,11 @@ def upgrade() -> None:
     """
     )
 
-    # Update PlanStatus enum: rename 'applied' to 'complete'
-    # First, add the new value
-    op.execute("ALTER TYPE planstatus ADD VALUE 'complete'")
-
-    # Update existing records
-    op.execute("UPDATE analysis_plan SET status = 'complete' WHERE status = 'applied'")
-
-    # Note: We can't remove 'applied' from the enum in PostgreSQL without recreating it
-    # The old value will remain but won't be used
-
-    # Update the index name to reflect the new status
-    op.drop_index("idx_plan_status_applied", table_name="analysis_plan")
-    op.create_index(
-        "idx_plan_status_complete", "analysis_plan", ["status", "applied_at"]
-    )
+    # No changes needed to PlanStatus enum - keeping APPLIED as is
 
 
 def downgrade() -> None:
-    # Revert index name
-    op.drop_index("idx_plan_status_complete", table_name="analysis_plan")
-    op.create_index(
-        "idx_plan_status_applied", "analysis_plan", ["status", "applied_at"]
-    )
-
-    # Update records back to 'applied' from 'complete'
-    op.execute("UPDATE analysis_plan SET status = 'applied' WHERE status = 'complete'")
-
-    # Note: We can't remove 'complete' from the enum without recreating it
+    # No changes to revert for PlanStatus enum since we didn't modify it
 
     # Drop the status column index
     op.drop_index("idx_change_status_plan", table_name="plan_change")

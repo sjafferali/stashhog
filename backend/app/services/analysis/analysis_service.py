@@ -1327,7 +1327,7 @@ class AnalysisService:
                     "average_confidence": 0.0,
                 },
             },
-            status=PlanStatus.COMPLETE,  # Mark as complete since there's nothing to do
+            status=PlanStatus.APPLIED,  # Mark as applied since there's nothing to do
         )
         # Add properties that tests expect (id remains unset for unsaved objects)
         mock_plan.total_scenes = 0
@@ -1389,7 +1389,7 @@ class AnalysisService:
             name=plan_name or "No Changes Found",
             description="Analysis completed but no changes were identified",
             plan_metadata=metadata,
-            status=PlanStatus.COMPLETE,  # Mark as complete since there's nothing to do
+            status=PlanStatus.APPLIED,  # Mark as applied since there's nothing to do
         )
         # Add properties that tests expect (id remains unset for unsaved objects)
         mock_plan.total_scenes = metadata.get("statistics", {}).get("total_scenes", 0)

@@ -277,7 +277,7 @@ class TestPlanRetrieval:
             name="Draft Plan", status=PlanStatus.DRAFT, plan_metadata={}
         )
         plan2 = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
         )
         plan3 = AnalysisPlan(
             name="Another Draft", status=PlanStatus.DRAFT, plan_metadata={}
@@ -296,11 +296,11 @@ class TestPlanRetrieval:
 
         # Filter by COMPLETE status
         applied_plans = await manager.list_plans(
-            test_async_session, status=PlanStatus.COMPLETE
+            test_async_session, status=PlanStatus.APPLIED
         )
 
         assert len(applied_plans) == 1
-        assert applied_plans[0].status == PlanStatus.COMPLETE
+        assert applied_plans[0].status == PlanStatus.APPLIED
 
     @pytest.mark.asyncio
     async def test_list_plans_pagination(self, test_async_session):
@@ -350,7 +350,7 @@ class TestPlanApplication:
 
         # Create a plan with COMPLETE status
         plan = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
         )
         test_async_session.add(plan)
         await test_async_session.commit()
@@ -631,7 +631,7 @@ class TestPlanExecution:
 
         # Create a completed plan
         plan = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
         )
         test_async_session.add(plan)
         await test_async_session.commit()

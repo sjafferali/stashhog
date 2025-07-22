@@ -17,7 +17,7 @@ class PlanStatus(str, enum.Enum):
 
     DRAFT = "draft"
     REVIEWING = "reviewing"
-    COMPLETE = "complete"
+    APPLIED = "applied"
     CANCELLED = "cancelled"
 
 
@@ -57,7 +57,7 @@ class AnalysisPlan(BaseModel):
     # Indexes for common queries
     __table_args__ = (
         Index("idx_plan_status_created", "status", "created_at"),
-        Index("idx_plan_status_complete", "status", "applied_at"),
+        Index("idx_plan_status_applied", "status", "applied_at"),
     )
 
     def get_change_count(self) -> int:
@@ -119,7 +119,7 @@ class AnalysisPlan(BaseModel):
         if self.status == PlanStatus.DRAFT and (accepted > 0 or rejected > 0):
             self.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
-        # Only mark as COMPLETE when:
+        # Only mark as APPLIED when:
         # 1. There are no pending changes (all changes have been either accepted or rejected)
         # 2. All accepted changes have been applied
         # 3. There's at least one applied change
@@ -127,7 +127,7 @@ class AnalysisPlan(BaseModel):
             # Check if all accepted changes have been applied
             unapplied_accepted = accepted - applied
             if unapplied_accepted == 0:
-                self.status = PlanStatus.COMPLETE  # type: ignore[assignment]
+                self.status = PlanStatus.APPLIED  # type: ignore[assignment]
                 if not self.applied_at:
                     from datetime import datetime, timezone
 

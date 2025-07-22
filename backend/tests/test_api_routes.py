@@ -449,7 +449,7 @@ class TestAnalysisRoutes:
         mock_plan = Mock(spec=AnalysisPlan)
         mock_plan.id = 1
         mock_plan.name = "Test Plan"
-        mock_plan.status = "completed"
+        mock_plan.status = "applied"
         mock_plan.total_scenes = 10
         mock_plan.analyzed_scenes = 10
         mock_plan.created_at = datetime.now()
@@ -475,7 +475,7 @@ class TestAnalysisRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == 1
-        assert data["status"] == "completed"
+        assert data["status"] == "applied"
 
 
 class TestSettingsRoutes:

@@ -625,8 +625,8 @@ async def _update_plan_status_based_on_counts(
     if pending == 0 and accepted == 0:
         # All changes have been processed (no pending, no unapplied approved changes)
         if total_accepted > 0:
-            # At least one change was accepted and applied - mark as COMPLETE
-            plan.status = PlanStatus.COMPLETE  # type: ignore[assignment]
+            # At least one change was accepted and applied - mark as APPLIED
+            plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
             if not plan.applied_at:
                 plan.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
         elif rejected == total:
@@ -840,7 +840,7 @@ async def cancel_plan(
         )
 
     # Check if plan can be cancelled
-    if plan.status == PlanStatus.COMPLETE:
+    if plan.status == PlanStatus.APPLIED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot cancel an already applied plan",

@@ -394,7 +394,7 @@ class PlanManager:
         # Plan is fully applied when all accepted changes are applied
         # and there are no pending changes
         if accepted > 0 and accepted == applied and pending == 0:
-            plan.status = PlanStatus.COMPLETE  # type: ignore[assignment]
+            plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
             plan.applied_at = datetime.utcnow()  # type: ignore[assignment]
 
     async def apply_single_change(
@@ -676,9 +676,9 @@ class PlanManager:
             return False
 
         if plan.status == (
-            PlanStatus.COMPLETE.value
-            if hasattr(PlanStatus.COMPLETE, "value")
-            else PlanStatus.COMPLETE
+            PlanStatus.APPLIED.value
+            if hasattr(PlanStatus.APPLIED, "value")
+            else PlanStatus.APPLIED
         ):
             raise ValueError("Cannot delete an applied plan")
 
