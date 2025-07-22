@@ -15,10 +15,10 @@ if TYPE_CHECKING:
 class PlanStatus(str, enum.Enum):
     """Status of an analysis plan."""
 
-    DRAFT = "draft"
-    REVIEWING = "reviewing"
-    APPLIED = "applied"
-    CANCELLED = "cancelled"
+    DRAFT = "DRAFT"
+    REVIEWING = "REVIEWING"
+    APPLIED = "APPLIED"
+    CANCELLED = "CANCELLED"
 
 
 class AnalysisPlan(BaseModel):

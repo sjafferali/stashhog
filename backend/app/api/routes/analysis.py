@@ -65,7 +65,7 @@ async def get_analysis_stats(
 
     # Count pending plans (not applied)
     pending_plans_query = select(func.count(AnalysisPlan.id)).where(
-        AnalysisPlan.status != "complete"
+        AnalysisPlan.status != PlanStatus.APPLIED
     )
     pending_plans_result = await db.execute(pending_plans_query)
     pending_plans = pending_plans_result.scalar_one()
@@ -390,7 +390,7 @@ async def apply_plan(
         )
 
     # Check if plan is already applied
-    if plan.status == "complete":
+    if plan.status == PlanStatus.APPLIED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Plan has already been applied",
