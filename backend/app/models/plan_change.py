@@ -36,10 +36,10 @@ class ChangeAction(str, enum.Enum):
 class ChangeStatus(str, enum.Enum):
     """Status of an individual change."""
 
-    PENDING = "pending"  # Not yet reviewed
-    APPROVED = "approved"  # Approved but not applied
-    REJECTED = "rejected"  # Rejected, won't be applied
-    APPLIED = "applied"  # Applied to Stash
+    PENDING = "PENDING"  # Not yet reviewed
+    APPROVED = "APPROVED"  # Approved but not applied
+    REJECTED = "REJECTED"  # Rejected, won't be applied
+    APPLIED = "APPLIED"  # Applied to Stash
 
 
 class PlanChange(BaseModel):
