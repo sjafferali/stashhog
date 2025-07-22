@@ -186,9 +186,20 @@ class SceneService:
         Returns:
             Number of new tags added
         """
-        # Get existing tag IDs
+        # Get existing tags
         current_tags = scene_data.get("tags", [])
-        existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+
+        # Remove existing AI tags (tags ending with _AI) before adding new ones
+        # This matches the AITagger plugin behavior
+        existing_tag_ids = []
+        for tag in current_tags:
+            tag_name = tag.get("name", "")
+            tag_id = tag.get("id")
+            # Keep non-AI tags
+            if tag_id and not tag_name.endswith("_AI"):
+                existing_tag_ids.append(tag_id)
+            else:
+                logger.debug(f"Removing existing AI tag: {tag_name}")
 
         # Get IDs for new tags (create if needed)
         new_tag_ids = []
@@ -197,10 +208,7 @@ class SceneService:
             if tag_id and tag_id not in existing_tag_ids:
                 new_tag_ids.append(tag_id)
 
-        if not new_tag_ids:
-            return 0
-
-        # Update scene with all tags
+        # Update scene with filtered existing tags + new AI tags
         all_tag_ids = existing_tag_ids + new_tag_ids
 
         # Remove AI_TagMe if present, add AI_Tagged

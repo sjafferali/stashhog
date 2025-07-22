@@ -107,7 +107,7 @@ async def list_settings(
         ),
         # Video AI settings
         (
-            "video_ai_server_url",
+            "analysis_ai_video_server_url",
             "analysis.ai_video_server_url",
             base_settings.analysis.ai_video_server_url,
             overridden_settings.analysis.ai_video_server_url,
@@ -115,7 +115,7 @@ async def list_settings(
             False,
         ),
         (
-            "video_ai_frame_interval",
+            "analysis_frame_interval",
             "analysis.frame_interval",
             base_settings.analysis.frame_interval,
             overridden_settings.analysis.frame_interval,
@@ -123,7 +123,7 @@ async def list_settings(
             False,
         ),
         (
-            "video_ai_threshold",
+            "analysis_ai_video_threshold",
             "analysis.ai_video_threshold",
             base_settings.analysis.ai_video_threshold,
             overridden_settings.analysis.ai_video_threshold,
@@ -131,7 +131,7 @@ async def list_settings(
             False,
         ),
         (
-            "video_ai_timeout",
+            "analysis_server_timeout",
             "analysis.server_timeout",
             base_settings.analysis.server_timeout,
             overridden_settings.analysis.server_timeout,

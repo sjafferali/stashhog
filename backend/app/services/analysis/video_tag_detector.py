@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import aiohttp
 
@@ -104,7 +104,19 @@ class VideoTagDetector:
                 logger.error(f"result['result'] value: {result_data}")
                 return {}
 
+            # Extract video_tag_info to match AITagger plugin behavior
+            video_tag_info = result_data.get("video_tag_info", {})
+            logger.debug(
+                f"result['result'].get('video_tag_info') type: {type(video_tag_info)}"
+            )
+
+            if isinstance(video_tag_info, dict):
+                logger.debug(f"video_tag_info keys: {list(video_tag_info.keys())}")
+                return video_tag_info
+
+            # Fallback to json_result for backward compatibility
             json_result = result_data.get("json_result", {})
+            logger.warning("video_tag_info not found, falling back to json_result")
             logger.debug(
                 f"result['result'].get('json_result') type: {type(json_result)}"
             )
@@ -218,24 +230,8 @@ class VideoTagDetector:
             f"result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
         )
 
-        changes: list[ProposedChange] = []
-
-        # Check for timespans format (new AI server response format)
-        if "timespans" in result:
-            logger.debug("Found timespans format, extracting tags from timespans")
-            timespans = result.get("timespans", {})
-            logger.debug(
-                f"timespans keys: {list(timespans.keys()) if isinstance(timespans, dict) else 'Not a dict'}"
-            )
-
-            # Convert timespans to tags
-            tags_from_timespans = self._convert_timespans_to_tags(timespans)
-            ai_tags = tags_from_timespans
-            logger.debug(f"Converted timespans to {len(ai_tags)} tags")
-        else:
-            # Original format with direct tags
-            ai_tags = result.get("tags", [])
-            logger.debug(f"Using direct tags format: {len(ai_tags)} tags")
+        # Extract AI tags based on result format
+        ai_tags = self._extract_ai_tags(result)
 
         logger.debug(
             f"ai_tags type: {type(ai_tags)}, count: {len(ai_tags) if isinstance(ai_tags, list) else 'Not a list'}"
@@ -244,46 +240,111 @@ class VideoTagDetector:
         existing_tag_names = [t.lower() for t in existing_tags]
         logger.debug(f"existing_tag_names: {existing_tag_names}")
 
+        # Process tags and create changes
+        changes = self._process_tags_to_changes(ai_tags, existing_tags)
+
+        return changes
+
+    def _extract_ai_tags(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+        """Extract AI tags from different result formats."""
+        # Check for video_tag_info format (AITagger plugin format)
+        if "video_tags" in result:
+            return self._extract_video_tags_format(result)
+        # Check for timespans format (fallback)
+        elif "timespans" in result:
+            return self._extract_timespans_format(result)
+        else:
+            # Original format with direct tags
+            logger.debug("Using direct tags format")
+            tags = result.get("tags", [])
+            return cast(list[dict[str, Any]], tags)
+
+    def _extract_video_tags_format(
+        self, result: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Extract tags from video_tags format (AITagger plugin format)."""
+        logger.debug("Found video_tags format (AITagger plugin format)")
+        video_tags = result.get("video_tags", {})
+        logger.debug(
+            f"video_tags keys: {list(video_tags.keys()) if isinstance(video_tags, dict) else 'Not a dict'}"
+        )
+
+        # Extract all tags from all categories
+        ai_tags = []
+        for category, tag_set in video_tags.items():
+            if isinstance(tag_set, (list, set)):
+                for tag_name in tag_set:
+                    ai_tags.append({"name": tag_name, "confidence": 0.7})
+                    logger.debug(f"Added tag '{tag_name}' from category '{category}'")
+
+        logger.debug(f"Extracted {len(ai_tags)} tags from video_tags")
+        return ai_tags
+
+    def _extract_timespans_format(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+        """Extract tags from timespans format."""
+        logger.debug("Found timespans format, extracting tags from timespans")
+        timespans = result.get("timespans", {})
+        logger.debug(
+            f"timespans keys: {list(timespans.keys()) if isinstance(timespans, dict) else 'Not a dict'}"
+        )
+
+        # Convert timespans to tags
+        tags_from_timespans = self._convert_timespans_to_tags(timespans)
+        logger.debug(f"Converted timespans to {len(tags_from_timespans)} tags")
+        return tags_from_timespans
+
+    def _process_tags_to_changes(
+        self, ai_tags: list[Any], existing_tags: list[str]
+    ) -> list[ProposedChange]:
+        """Process AI tags and create ProposedChange objects."""
+        changes: list[ProposedChange] = []
+
         logger.debug(f"Processing {len(ai_tags)} tags")
         for idx, tag_info in enumerate(ai_tags):
             logger.debug(f"Processing tag {idx}: {tag_info}")
-            if isinstance(tag_info, dict):
-                tag_name = tag_info.get("name", "").strip()
-                confidence = tag_info.get("confidence", 0.5)
-            elif isinstance(tag_info, str):
-                tag_name = tag_info.strip()
-                confidence = 0.7
-            else:
-                logger.debug(f"Skipping tag {idx}: not dict or string")
+
+            tag_name, confidence = self._extract_tag_info(tag_info)
+
+            if not tag_name:
+                logger.debug(f"Skipping tag {idx}: empty name")
                 continue
 
             logger.debug(f"Tag {idx}: name='{tag_name}', confidence={confidence}")
 
-            if tag_name:
-                # Add _AI suffix only if not already present
-                if not tag_name.endswith("_AI"):
-                    ai_tag_name = f"{tag_name}_AI"
-                else:
-                    ai_tag_name = tag_name
+            # Add _AI suffix only if not already present
+            ai_tag_name = tag_name if tag_name.endswith("_AI") else f"{tag_name}_AI"
 
-                # Always add tags without checking if they already exist
-                logger.debug(
-                    f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
+            # Always add tags without checking if they already exist
+            logger.debug(
+                f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
+            )
+            changes.append(
+                ProposedChange(
+                    field="tags",
+                    action="add",
+                    current_value=existing_tags,
+                    proposed_value=ai_tag_name,
+                    confidence=confidence,
+                    reason="Detected from video content analysis",
                 )
-                changes.append(
-                    ProposedChange(
-                        field="tags",
-                        action="add",
-                        current_value=existing_tags,
-                        proposed_value=ai_tag_name,
-                        confidence=confidence,
-                        reason="Detected from video content analysis",
-                    )
-                )
-            else:
-                logger.debug(f"Skipping tag '{tag_name}': empty or already exists")
+            )
 
         return changes
+
+    def _extract_tag_info(self, tag_info: Any) -> tuple[str, float]:
+        """Extract tag name and confidence from tag info."""
+        if isinstance(tag_info, dict):
+            tag_name = tag_info.get("name", "").strip()
+            confidence = tag_info.get("confidence", 0.5)
+        elif isinstance(tag_info, str):
+            tag_name = tag_info.strip()
+            confidence = 0.7
+        else:
+            logger.debug(f"Tag info not dict or string: {type(tag_info)}")
+            tag_name = ""
+            confidence = 0.5
+
+        return tag_name, confidence
 
     def _convert_timespans_to_tags(
         self, timespans: dict[str, Any]
@@ -448,6 +509,64 @@ class VideoTagDetector:
 
         return markers
 
+    def _convert_tag_timespans_to_markers(
+        self, tag_timespans: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Convert tag_timespans format (AITagger plugin format) to markers list.
+
+        The tag_timespans structure from AITagger plugin:
+        {
+            "category1": {
+                "tag1": [TimeFrame objects with start/end],
+                "tag2": [TimeFrame objects]
+            }
+        }
+        """
+        markers = []
+
+        for category, tag_dict in tag_timespans.items():
+            if not isinstance(tag_dict, dict):
+                continue
+
+            logger.debug(
+                f"Processing category '{category}' with tags: {list(tag_dict.keys())}"
+            )
+
+            for tag_name, time_frames in tag_dict.items():
+                if isinstance(time_frames, list):
+                    # Process each time frame for this tag
+                    for time_frame in time_frames:
+                        if isinstance(time_frame, dict):
+                            start_time = time_frame.get("start", 0)
+                            end_time = time_frame.get("end", None)
+                            # AITagger doesn't include confidence in TimeFrame
+                            confidence = 0.7
+
+                            if start_time > 0:
+                                # Add _AI suffix only if not already present
+                                marker_name = (
+                                    tag_name
+                                    if tag_name.endswith("_AI")
+                                    else f"{tag_name}_AI"
+                                )
+                                marker = {
+                                    "time": start_time,
+                                    "title": marker_name,
+                                    "tags": [marker_name],
+                                    "confidence": confidence,
+                                }
+                                # Add end_time if provided
+                                if end_time is not None:
+                                    marker["end_time"] = end_time
+                                markers.append(marker)
+                                logger.debug(
+                                    f"Added marker for {marker_name} at {start_time}s"
+                                    f"{f' to {end_time}s' if end_time is not None else ''}"
+                                )
+
+        logger.debug(f"Converted tag_timespans to {len(markers)} markers")
+        return markers
+
     def _extract_markers_from_result(
         self,
         result: dict[str, Any],
@@ -459,8 +578,14 @@ class VideoTagDetector:
         if not self.create_markers:
             return changes
 
-        # Check for timespans format
-        if "timespans" in result:
+        # Check for tag_timespans format (AITagger plugin format)
+        if "tag_timespans" in result:
+            logger.debug("Found tag_timespans format (AITagger plugin format)")
+            tag_timespans = result.get("tag_timespans", {})
+            ai_markers = self._convert_tag_timespans_to_markers(tag_timespans)
+            logger.debug(f"Converted tag_timespans to {len(ai_markers)} markers")
+        # Check for timespans format (fallback)
+        elif "timespans" in result:
             logger.debug("Found timespans format, extracting markers from timespans")
             timespans = result.get("timespans", {})
             ai_markers = self._convert_timespans_to_markers(timespans)
