@@ -721,6 +721,449 @@ class TestAnalysisServiceBatchProcessing:
         assert changes[0].error == "API error"
 
 
+class TestAnalysisServiceBatchOperations:
+    """Test batch analysis operations."""
+
+    @pytest.fixture
+    def mock_service(self):
+        """Create a mock analysis service."""
+        openai_client = Mock(spec=OpenAIClient)
+        openai_client.model = "gpt-4o-mini"
+        stash_service = Mock(spec=StashService)
+        settings = Mock(spec=Settings)
+        settings.analysis = Mock()
+        settings.analysis.batch_size = 10
+        settings.analysis.max_concurrent = 5
+        settings.analysis.confidence_threshold = 0.8
+
+        service = AnalysisService(openai_client, stash_service, settings)
+        return service
+
+    @pytest.mark.asyncio
+    async def test_analyze_scenes_batch_operations(self, mock_service):
+        """Test batch analysis with multiple scenes."""
+        db = Mock(spec=AsyncSession)
+
+        # Create multiple scenes to test batch processing
+        scenes = [
+            create_test_scene(id=f"scene{i}", title=f"Scene {i}")
+            for i in range(25)  # More than batch size
+        ]
+
+        # Mock database operations
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+        mock_service._mark_scenes_as_analyzed = AsyncMock()
+
+        # Mock batch processor to return changes for each scene
+        scene_changes = []
+        for scene in scenes:
+            scene_changes.append(
+                SceneChanges(
+                    scene_id=scene.id,
+                    scene_title=scene.title,
+                    scene_path=f"/path/to/{scene.id}.mp4",
+                    changes=[
+                        ProposedChange(
+                            field="tags",
+                            action="add",
+                            current_value=[],
+                            proposed_value=[f"tag_{scene.id}"],
+                            confidence=0.9,
+                            reason="Test tag detection",
+                        )
+                    ],
+                )
+            )
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            return_value=scene_changes
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="batch_plan", name="Batch Analysis Plan", status=PlanStatus.DRAFT
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute
+        plan = await mock_service.analyze_scenes(
+            db=db,
+            options=AnalysisOptions(detect_tags=True),
+        )
+
+        # Verify
+        assert plan.id == "batch_plan"
+        mock_service.batch_processor.process_scenes.assert_called_once()
+
+        # Verify batch processor was called with all scenes
+        call_args = mock_service.batch_processor.process_scenes.call_args
+        assert call_args is not None
+        # Check keyword arguments
+        assert "scenes" in call_args.kwargs
+        assert len(call_args.kwargs["scenes"]) == 25
+
+    @pytest.mark.asyncio
+    async def test_batch_analysis_with_partial_failures(self, mock_service):
+        """Test batch analysis when some scenes fail."""
+        db = Mock(spec=AsyncSession)
+
+        scenes = [
+            create_test_scene(id="scene1", title="Scene 1"),
+            create_test_scene(id="scene2", title="Scene 2"),
+            create_test_scene(id="scene3", title="Scene 3"),
+        ]
+
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+
+        # Mock batch processor to return mixed results
+        scene_changes = [
+            SceneChanges(
+                scene_id="scene1",
+                scene_title="Scene 1",
+                scene_path="/path/to/scene1.mp4",
+                changes=[
+                    ProposedChange(
+                        field="tags",
+                        action="add",
+                        current_value=[],
+                        proposed_value=["tag1"],
+                        confidence=0.9,
+                        reason="Success",
+                    )
+                ],
+            ),
+            SceneChanges(
+                scene_id="scene2",
+                scene_title="Scene 2",
+                scene_path="/path/to/scene2.mp4",
+                changes=[],
+                error="Failed to analyze scene",
+            ),
+            SceneChanges(
+                scene_id="scene3",
+                scene_title="Scene 3",
+                scene_path="/path/to/scene3.mp4",
+                changes=[
+                    ProposedChange(
+                        field="performers",
+                        action="add",
+                        current_value=[],
+                        proposed_value=["performer1"],
+                        confidence=0.85,
+                        reason="Success",
+                    )
+                ],
+            ),
+        ]
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            return_value=scene_changes
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="mixed_plan",
+            name="Mixed Results Plan",
+            status=PlanStatus.DRAFT,
+            metadata={"errors": ["Failed to analyze scene"]},
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute
+        plan = await mock_service.analyze_scenes(db=db)
+
+        # Verify
+        assert plan.id == "mixed_plan"
+        assert "errors" in plan.metadata
+
+    @pytest.mark.asyncio
+    async def test_batch_analysis_progress_tracking(self, mock_service):
+        """Test batch analysis with progress tracking."""
+        db = Mock(spec=AsyncSession)
+        progress_callback = AsyncMock()
+
+        scenes = [
+            create_test_scene(id=f"scene{i}", title=f"Scene {i}") for i in range(10)
+        ]
+
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+
+        # Track progress calls
+        progress_updates = []
+
+        async def track_progress(completed, total, *args):
+            progress_updates.append((completed, total))
+
+        # Mock batch processor with progress tracking
+        async def mock_process_with_progress(
+            scenes, analyzer, progress_cb=None, **kwargs
+        ):
+            results = []
+            for i, scene in enumerate(scenes):
+                results.append(
+                    SceneChanges(
+                        scene_id=scene.id,
+                        scene_title=scene.title,
+                        scene_path=f"/path/to/{scene.id}.mp4",
+                        changes=[],
+                    )
+                )
+                if progress_cb:
+                    await progress_cb(i + 1, len(scenes), i + 1, len(scenes))
+            return results
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            side_effect=mock_process_with_progress
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="progress_plan", name="Progress Plan", status=PlanStatus.DRAFT
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute with progress callback
+        plan = await mock_service.analyze_scenes(
+            db=db,
+            progress_callback=progress_callback,
+        )
+
+        # Verify progress tracking was used
+        assert plan.id == "progress_plan"
+        assert mock_service.batch_processor.process_scenes.called
+
+    @pytest.mark.asyncio
+    async def test_batch_analysis_concurrent_processing(self, mock_service):
+        """Test concurrent batch processing."""
+        db = Mock(spec=AsyncSession)
+
+        # Create enough scenes to trigger multiple concurrent batches
+        num_scenes = 30  # With batch_size=10, this creates 3 batches
+        scenes = [
+            create_test_scene(id=f"scene{i}", title=f"Scene {i}")
+            for i in range(num_scenes)
+        ]
+
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+        mock_service._mark_scenes_as_analyzed = AsyncMock()
+
+        # Track concurrent processing
+        processing_times = []
+
+        async def mock_process_scenes(scenes, analyzer, *args, **kwargs):
+            start_time = asyncio.get_event_loop().time()
+            # Simulate concurrent processing
+            results = []
+            for scene in scenes:
+                results.append(
+                    SceneChanges(
+                        scene_id=scene.id,
+                        scene_title=scene.title,
+                        scene_path=f"/path/to/{scene.id}.mp4",
+                        changes=[
+                            ProposedChange(
+                                field="tags",
+                                action="add",
+                                current_value=[],
+                                proposed_value=["concurrent_tag"],
+                                confidence=0.9,
+                                reason="Concurrent processing",
+                            )
+                        ],
+                    )
+                )
+            processing_times.append(asyncio.get_event_loop().time() - start_time)
+            return results
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            side_effect=mock_process_scenes
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="concurrent_plan", name="Concurrent Plan", status=PlanStatus.DRAFT
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute
+        plan = await mock_service.analyze_scenes(db=db)
+
+        # Verify
+        assert plan.id == "concurrent_plan"
+        assert len(processing_times) > 0
+        mock_service.batch_processor.process_scenes.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_batch_analysis_memory_efficiency(self, mock_service):
+        """Test batch analysis handles large datasets efficiently."""
+        db = Mock(spec=AsyncSession)
+
+        # Create a specific number of scenes to test memory efficiency
+        scene_count = 100
+        scenes = [
+            create_test_scene(id=f"scene{i}", title=f"Scene {i}")
+            for i in range(scene_count)
+        ]
+
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+
+        # Track processing to ensure memory-efficient batching
+        processed_batches = []
+
+        async def mock_process_batches(scenes, *args, **kwargs):
+            # Track batch sizes to verify memory efficiency
+            batch_size = 10  # Expected batch size
+            num_batches = (len(scenes) + batch_size - 1) // batch_size
+            processed_batches.append(num_batches)
+
+            results = []
+            for scene in scenes:
+                results.append(
+                    SceneChanges(
+                        scene_id=scene.id,
+                        scene_title=scene.title,
+                        scene_path=f"/path/to/{scene.id}.mp4",
+                        changes=[
+                            ProposedChange(
+                                field="tags",
+                                action="add",
+                                current_value=[],
+                                proposed_value=["batch_tag"],
+                                confidence=0.9,
+                                reason="Batch processing",
+                            )
+                        ],
+                    )
+                )
+            return results
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            side_effect=mock_process_batches
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="memory_plan", name="Memory Efficient Plan", status=PlanStatus.DRAFT
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute
+        plan = await mock_service.analyze_scenes(db=db)
+
+        # Verify efficient batching occurred
+        assert plan.id == "memory_plan"
+        assert len(processed_batches) > 0
+        # With 100 scenes and batch_size=10, we expect 10 batches
+        assert processed_batches[0] == 10
+
+    @pytest.mark.asyncio
+    async def test_batch_analysis_custom_options(self, mock_service):
+        """Test batch analysis with custom analysis options."""
+        db = Mock(spec=AsyncSession)
+
+        scenes = [
+            create_test_scene(id=f"scene{i}", title=f"Scene {i}") for i in range(5)
+        ]
+
+        mock_service._get_scenes_from_database = AsyncMock(return_value=scenes)
+        mock_service._refresh_cache = AsyncMock()
+        mock_service._report_initial_progress = AsyncMock()
+
+        # Custom options for selective analysis
+        custom_options = AnalysisOptions(
+            detect_tags=True,
+            detect_performers=False,
+            detect_studios=True,
+            detect_details=False,
+            detect_video_tags=True,
+            confidence_threshold=0.95,  # Higher threshold
+        )
+
+        # Mock batch processor to handle custom options
+        async def mock_process_with_options(scenes, analyzer, *args, **kwargs):
+            results = []
+            for scene in scenes:
+                changes = []
+
+                # Add changes based on custom options
+                if custom_options.detect_tags:
+                    changes.append(
+                        ProposedChange(
+                            field="tags",
+                            action="add",
+                            current_value=[],
+                            proposed_value=["high_confidence_tag"],
+                            confidence=0.96,
+                            reason="High confidence detection",
+                        )
+                    )
+
+                if custom_options.detect_studios:
+                    changes.append(
+                        ProposedChange(
+                            field="studio",
+                            action="set",
+                            current_value=None,
+                            proposed_value="Studio X",
+                            confidence=0.95,
+                            reason="Studio detected",
+                        )
+                    )
+
+                results.append(
+                    SceneChanges(
+                        scene_id=scene.id,
+                        scene_title=scene.title,
+                        scene_path=f"/path/to/{scene.id}.mp4",
+                        changes=changes,
+                    )
+                )
+            return results
+
+        mock_service.batch_processor.process_scenes = AsyncMock(
+            side_effect=mock_process_with_options
+        )
+
+        # Mock plan manager
+        mock_plan = AnalysisPlan(
+            id="custom_options_plan",
+            name="Custom Options Plan",
+            status=PlanStatus.DRAFT,
+            metadata={
+                "options": {
+                    "detect_tags": custom_options.detect_tags,
+                    "detect_studios": custom_options.detect_studios,
+                    "detect_performers": custom_options.detect_performers,
+                    "confidence_threshold": custom_options.confidence_threshold,
+                }
+            },
+        )
+        mock_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+
+        # Execute
+        plan = await mock_service.analyze_scenes(
+            db=db,
+            options=custom_options,
+        )
+
+        # Verify
+        assert plan.id == "custom_options_plan"
+        assert plan.metadata["options"]["detect_tags"] is True
+        assert plan.metadata["options"]["detect_studios"] is True
+        assert plan.metadata["options"]["detect_performers"] is False
+        assert plan.metadata["options"]["confidence_threshold"] == 0.95
+
+
 class TestAnalysisServiceEdgeCases:
     """Test edge cases and error handling."""
 

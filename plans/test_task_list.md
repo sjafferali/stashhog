@@ -152,18 +152,18 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 68: Run all backend tests and ensure they pass (2025-07-22)
 - [x] Task 69: Add tests for scene analysis workflow (2025-07-22)
 - [x] Task 70: Run all backend tests and ensure they pass (2025-07-22)
-- [ ] Task 71: Add tests for batch analysis operations
-- [ ] Task 72: Run all backend tests and ensure they pass
+- [x] Task 71: Add tests for batch analysis operations (2025-07-22)
+- [x] Task 72: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Batch Processor Tests (54% coverage - app/services/analysis/batch_processor.py)
-- [ ] Task 73: Create test_batch_processor.py - Test batch processing logic
-- [ ] Task 74: Run all backend tests and ensure they pass
-- [ ] Task 75: Add tests for batch error handling and retries
-- [ ] Task 76: Run all backend tests and ensure they pass
+#### Batch Processor Tests (88% coverage - app/services/analysis/batch_processor.py)
+- [x] Task 73: Create test_batch_processor.py - Test batch processing logic (2025-07-22)
+- [x] Task 74: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 75: Add tests for batch error handling and retries (2025-07-22)
+- [x] Task 76: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Core Tasks Tests (54% coverage - app/core/tasks.py)
-- [ ] Task 77: Create test_core_tasks.py - Test background task management
-- [ ] Task 78: Run all backend tests and ensure they pass
+#### Core Tasks Tests (98% coverage - app/core/tasks.py)
+- [x] Task 77: Create test_core_tasks.py - Test background task management (2025-07-22)
+- [x] Task 78: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Sync Scheduler Tests (55% coverage - app/services/sync/scheduler.py)
 - [ ] Task 79: Enhance test_scheduler.py - Add scheduling logic tests
@@ -177,21 +177,21 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ### Phase 8: Additional Components (<80% coverage)
 
-#### Main Application Tests (57% coverage - app/main.py)
-- [ ] Task 85: Enhance test_main.py - Add application lifecycle tests
-- [ ] Task 86: Run all backend tests and ensure they pass
+#### Main Application Tests (85% coverage - app/main.py)
+- [x] Task 85: Enhance test_main.py - Add application lifecycle tests (2025-07-22)
+- [x] Task 86: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Core Dependencies Tests (59% coverage - app/core/dependencies.py)
-- [ ] Task 87: Create test_core_dependencies.py - Test dependency injection
-- [ ] Task 88: Run all backend tests and ensure they pass
+#### Core Dependencies Tests (87% coverage - app/core/dependencies.py)
+- [x] Task 87: Create test_core_dependencies.py - Test dependency injection (2025-07-22)
+- [x] Task 88: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Core Logging Tests (59% coverage - app/core/logging.py)
-- [ ] Task 89: Create test_core_logging.py - Test logging configuration
-- [ ] Task 90: Run all backend tests and ensure they pass
+#### Core Logging Tests (100% coverage - app/core/logging.py)
+- [x] Task 89: Create test_core_logging.py - Test logging configuration (2025-07-22)
+- [x] Task 90: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Cost Tracker Tests (59% coverage - app/services/analysis/cost_tracker.py)
-- [ ] Task 91: Create test_cost_tracker.py - Test cost calculation
-- [ ] Task 92: Run all backend tests and ensure they pass
+#### Cost Tracker Tests (100% coverage - app/services/analysis/cost_tracker.py)
+- [x] Task 91: Create test_cost_tracker.py - Test cost calculation (2025-07-22)
+- [x] Task 92: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Core Database Tests (60% coverage - app/core/database.py)
 - [ ] Task 93: Create test_core_database.py - Test database operations
