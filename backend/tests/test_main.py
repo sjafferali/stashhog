@@ -6,11 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-# Set debug mode for tests before importing the app
-os.environ["APP_DEBUG"] = "true"
-
-from app.core.config import Settings  # noqa: E402
-from app.main import (  # noqa: E402
+from app.core.config import Settings
+from app.main import (
     _run_migrations_with_retry,
     _startup_tasks,
     app,
@@ -348,7 +345,15 @@ class TestErrorHandling:
             == "Automated scene tagging and metadata enrichment for Stash"
         )
 
-        # In test environment, docs should be enabled
-        assert app.docs_url is not None
-        assert app.redoc_url is not None
-        assert app.openapi_url is not None
+        # Check docs URLs based on debug setting
+        from app.core.config import get_settings
+        settings = get_settings()
+
+        if settings.app.debug:
+            assert app.docs_url == "/docs"
+            assert app.redoc_url == "/redoc"
+            assert app.openapi_url == "/openapi.json"
+        else:
+            assert app.docs_url is None
+            assert app.redoc_url is None
+            assert app.openapi_url is None
