@@ -29,7 +29,6 @@ class VideoTagDetector:
         self.video_threshold = settings.analysis.ai_video_threshold
         self.server_timeout = settings.analysis.server_timeout
         self.create_markers = settings.analysis.create_markers
-        self.disable_deduplication = settings.analysis.disable_deduplication
 
     def _parse_nested_json_result(self, json_result: Any) -> dict[str, Any]:
         """Parse nested JSON result if it's a string.
@@ -191,6 +190,14 @@ class VideoTagDetector:
 
         video_path = scene_data.get("file_path") or scene_data.get("path")
         logger.debug(f"Extracted video_path: {video_path}")
+        logger.debug(f"scene_data['file_path']: {scene_data.get('file_path')}")
+        logger.debug(f"scene_data['path']: {scene_data.get('path')}")
+
+        # Log if we detect a stream URL
+        if video_path and "stream" in str(video_path):
+            logger.warning(
+                f"Detected stream URL instead of file path for scene {scene_data.get('id')}: {video_path}"
+            )
 
         if not video_path:
             logger.error(f"No video path found for scene {scene_data.get('id')}")
@@ -259,25 +266,20 @@ class VideoTagDetector:
                 else:
                     ai_tag_name = tag_name
 
-                # Check if this tag (with _AI suffix) already exists
-                # Skip this check if deduplication is disabled
-                if (
-                    self.disable_deduplication
-                    or ai_tag_name.lower() not in existing_tag_names
-                ):
-                    logger.debug(
-                        f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
+                # Always add tags without checking if they already exist
+                logger.debug(
+                    f"Adding tag change for '{ai_tag_name}' (original: '{tag_name}')"
+                )
+                changes.append(
+                    ProposedChange(
+                        field="tags",
+                        action="add",
+                        current_value=existing_tags,
+                        proposed_value=ai_tag_name,
+                        confidence=confidence,
+                        reason="Detected from video content analysis",
                     )
-                    changes.append(
-                        ProposedChange(
-                            field="tags",
-                            action="add",
-                            current_value=existing_tags,
-                            proposed_value=ai_tag_name,
-                            confidence=confidence,
-                            reason="Detected from video content analysis",
-                        )
-                    )
+                )
             else:
                 logger.debug(f"Skipping tag '{tag_name}': empty or already exists")
 
@@ -288,9 +290,6 @@ class VideoTagDetector:
     ) -> list[dict[str, Any]]:
         """Convert timespans format to tags list."""
         tags = []
-        tag_map: dict[str, dict[str, Any]] = (
-            {}
-        )  # Use map to aggregate same tags from different categories
 
         for category, actions in timespans.items():
             if not isinstance(actions, dict):
@@ -302,13 +301,10 @@ class VideoTagDetector:
 
             for action_name, occurrences in actions.items():
                 if isinstance(occurrences, list) and occurrences:
-                    # Merge consecutive occurrences first (unless deduplication is disabled)
-                    if self.disable_deduplication:
-                        merged_occurrences = occurrences
-                    else:
-                        merged_occurrences = self._merge_consecutive_occurrences(
-                            occurrences
-                        )
+                    # Always merge consecutive occurrences
+                    merged_occurrences = self._merge_consecutive_occurrences(
+                        occurrences
+                    )
 
                     # Calculate average confidence from merged occurrences
                     confidences = [
@@ -327,36 +323,20 @@ class VideoTagDetector:
                         else f"{action_name}_AI"
                     )
 
-                    if self.disable_deduplication:
-                        # When deduplication is disabled, add all tags directly
-                        tags.append(
-                            {
-                                "name": tag_name,
-                                "confidence": avg_confidence,
-                                "category": category,
-                            }
-                        )
-                    else:
-                        # Aggregate tags with same name (keep highest confidence)
-                        if tag_name in tag_map:
-                            if avg_confidence > tag_map[tag_name]["confidence"]:
-                                tag_map[tag_name]["confidence"] = avg_confidence
-                                tag_map[tag_name]["category"] = category
-                        else:
-                            tag_map[tag_name] = {
-                                "name": tag_name,
-                                "confidence": avg_confidence,
-                                "category": category,
-                            }
+                    # Add all tags directly without aggregation
+                    tags.append(
+                        {
+                            "name": tag_name,
+                            "confidence": avg_confidence,
+                            "category": category,
+                        }
+                    )
 
                     logger.debug(
                         f"Processed tag: {tag_name} with confidence {avg_confidence:.2f}"
                     )
 
-        # Convert map back to list
-        if not self.disable_deduplication:
-            tags = list(tag_map.values())
-        logger.debug(f"Converted timespans to {len(tags)} unique tags")
+        logger.debug(f"Converted timespans to {len(tags)} tags")
         return tags
 
     def _merge_consecutive_occurrences(
@@ -430,23 +410,20 @@ class VideoTagDetector:
 
             for action_name, occurrences in actions.items():
                 if isinstance(occurrences, list):
-                    # Merge consecutive occurrences first (unless deduplication is disabled)
-                    if self.disable_deduplication:
-                        merged_occurrences = occurrences
-                    else:
-                        merged_occurrences = self._merge_consecutive_occurrences(
-                            occurrences
-                        )
+                    # Always merge consecutive occurrences
+                    merged_occurrences = self._merge_consecutive_occurrences(
+                        occurrences
+                    )
 
-                    # Create markers for significant occurrences
+                    # Create markers for all occurrences
                     for occurrence in merged_occurrences:
                         if isinstance(occurrence, dict):
                             start_time = occurrence.get("start", 0)
                             end_time = occurrence.get("end", None)
                             confidence = occurrence.get("confidence", 0.5)
 
-                            # Only create markers for high confidence occurrences (unless deduplication is disabled)
-                            if confidence >= 0.7 or self.disable_deduplication:
+                            # Create markers for all occurrences regardless of confidence
+                            if True:
                                 # Add _AI suffix only if not already present
                                 marker_name = (
                                     action_name
@@ -471,67 +448,6 @@ class VideoTagDetector:
 
         return markers
 
-    def _deduplicate_markers(
-        self, markers: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        """Deduplicate markers that overlap in time or have same title at similar times.
-
-        Args:
-            markers: List of marker dictionaries
-
-        Returns:
-            Deduplicated list of markers
-        """
-        if not markers:
-            return []
-
-        # Sort by start time
-        sorted_markers = sorted(markers, key=lambda x: x.get("time", 0))
-        deduplicated: list[dict[str, Any]] = []
-
-        for marker in sorted_markers:
-            time = marker.get("time", 0)
-            end_time = marker.get("end_time")
-            title = marker.get("title", "")
-
-            # Check for duplicates
-            is_duplicate = False
-            for existing in deduplicated:
-                existing_time = existing.get("time", 0)
-                existing_end = existing.get("end_time")
-                existing_title = existing.get("title", "")
-
-                # Check if markers overlap in time
-                if end_time is not None and existing_end is not None:
-                    # Both have end times - check for overlap
-                    if (
-                        not (end_time < existing_time or time > existing_end)
-                        and title == existing_title
-                    ):
-                        is_duplicate = True
-                        # Keep the one with higher confidence
-                        if marker.get("confidence", 0) > existing.get("confidence", 0):
-                            deduplicated.remove(existing)
-                            is_duplicate = False
-                        break
-                else:
-                    # Point markers - check if too close (within 2 seconds)
-                    if abs(time - existing_time) < 2.0 and title == existing_title:
-                        is_duplicate = True
-                        # Keep the one with higher confidence
-                        if marker.get("confidence", 0) > existing.get("confidence", 0):
-                            deduplicated.remove(existing)
-                            is_duplicate = False
-                        break
-
-            if not is_duplicate:
-                deduplicated.append(marker)
-
-        logger.debug(
-            f"Deduplicated {len(markers)} markers to {len(deduplicated)} unique markers"
-        )
-        return deduplicated
-
     def _extract_markers_from_result(
         self,
         result: dict[str, Any],
@@ -554,11 +470,8 @@ class VideoTagDetector:
             ai_markers = result.get("markers", [])
             logger.debug(f"Using direct markers format: {len(ai_markers)} markers")
 
-        # Deduplicate markers before processing (unless deduplication is disabled)
-        if not self.disable_deduplication:
-            ai_markers = self._deduplicate_markers(ai_markers)
-
-        logger.debug(f"Processing {len(ai_markers)} markers after deduplication")
+        # Don't deduplicate markers - add all of them
+        logger.debug(f"Processing {len(ai_markers)} markers")
         for idx, marker_info in enumerate(ai_markers):
             logger.debug(f"Processing marker {idx}: {marker_info}")
             if isinstance(marker_info, dict):
@@ -573,54 +486,41 @@ class VideoTagDetector:
                 )
 
                 if marker_time > 0 and (marker_title or marker_tags):
-                    # Check if marker already exists at this time (unless deduplication is disabled)
-                    if self.disable_deduplication:
-                        existing_at_time = False
-                    else:
-                        existing_at_time = any(
-                            abs(m.get("seconds", -1) - marker_time) < 2
-                            for m in existing_markers
-                        )
+                    # Always add markers without checking if they already exist
+                    # Add _AI suffix to marker title and tags only if not already present
+                    ai_marker_title = (
+                        marker_title
+                        if marker_title.endswith("_AI")
+                        else f"{marker_title}_AI" if marker_title else ""
+                    )
+                    ai_marker_tags = [
+                        tag if tag.endswith("_AI") else f"{tag}_AI"
+                        for tag in marker_tags
+                    ]
 
-                    if not existing_at_time:
-                        # Add _AI suffix to marker title and tags only if not already present
-                        ai_marker_title = (
-                            marker_title
-                            if marker_title.endswith("_AI")
-                            else f"{marker_title}_AI" if marker_title else ""
-                        )
-                        ai_marker_tags = [
-                            tag if tag.endswith("_AI") else f"{tag}_AI"
-                            for tag in marker_tags
-                        ]
+                    logger.debug(
+                        f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
+                        f"{f' to {marker_end_time}s' if marker_end_time is not None else ''}"
+                    )
+                    marker_value = {
+                        "seconds": marker_time,
+                        "title": ai_marker_title,
+                        "tags": ai_marker_tags,
+                    }
+                    # Add end_seconds if provided
+                    if marker_end_time is not None:
+                        marker_value["end_seconds"] = marker_end_time
 
-                        logger.debug(
-                            f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
-                            f"{f' to {marker_end_time}s' if marker_end_time is not None else ''}"
+                    changes.append(
+                        ProposedChange(
+                            field="markers",
+                            action="add",
+                            current_value=existing_markers,
+                            proposed_value=marker_value,
+                            confidence=confidence,
+                            reason="Detected from video content",
                         )
-                        marker_value = {
-                            "seconds": marker_time,
-                            "title": ai_marker_title,
-                            "tags": ai_marker_tags,
-                        }
-                        # Add end_seconds if provided
-                        if marker_end_time is not None:
-                            marker_value["end_seconds"] = marker_end_time
-
-                        changes.append(
-                            ProposedChange(
-                                field="markers",
-                                action="add",
-                                current_value=existing_markers,
-                                proposed_value=marker_value,
-                                confidence=confidence,
-                                reason="Detected from video content",
-                            )
-                        )
-                    else:
-                        logger.debug(
-                            f"Marker already exists at time {marker_time}s, skipping"
-                        )
+                    )
 
         return changes
 

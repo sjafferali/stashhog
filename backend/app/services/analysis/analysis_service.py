@@ -1133,14 +1133,17 @@ class AnalysisService:
         Returns:
             Scene data dictionary
         """
+        # Debug logging to trace file path issues
+        logger.debug(
+            f"_scene_to_dict called for scene {getattr(scene, 'id', 'unknown')}"
+        )
+        logger.debug(f"scene.file_path: {getattr(scene, 'file_path', 'NOT FOUND')}")
+        logger.debug(f"scene has file_path attr: {hasattr(scene, 'file_path')}")
+
         return {
             "id": scene.id,
             "title": scene.title or "",
-            "file_path": (
-                scene.file_path
-                if hasattr(scene, "file_path") and scene.file_path
-                else getattr(scene, "path", "")
-            ),
+            "file_path": scene.file_path if hasattr(scene, "file_path") else None,
             "details": scene.details or "",
             "duration": scene.duration or 0,
             "width": scene.width or 0,
