@@ -626,6 +626,35 @@ class SceneSyncHandler:
             None,
         )
 
+    async def _check_has_primary_file(
+        self, scene: Scene, db: Union[Session, AsyncSession]
+    ) -> bool:
+        """Check if scene has a primary file by querying the database"""
+        # First check loaded files if available
+        if hasattr(scene, "files") and scene.files:
+            has_primary = any(f.is_primary for f in scene.files)
+            if has_primary:
+                return True
+        
+        # Query database to be sure
+        from sqlalchemy import and_
+        
+        stmt = select(SceneFile).where(
+            and_(
+                SceneFile.scene_id == scene.id,
+                SceneFile.is_primary == True
+            )
+        ).limit(1)
+        
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            primary_file = result.scalar_one_or_none()
+        else:
+            result = db.execute(stmt)
+            primary_file = result.scalar_one_or_none()
+            
+        return primary_file is not None
+
     async def _sync_scene_files(
         self,
         scene: Scene,
@@ -651,9 +680,18 @@ class SceneSyncHandler:
         # Remove obsolete files
         self._remove_obsolete_files(scene, existing_file_ids, new_file_ids)
 
+        # Check if scene already has a primary file
+        has_primary = await self._check_has_primary_file(scene, db)
+        logger.debug(f"Scene {scene.id} has existing primary file: {has_primary}")
+
         # Process each file
         for idx, file_data in enumerate(files_data):
-            await self._process_file_data(scene, file_data, idx == 0, db)
+            # Only set first file as primary if no primary exists
+            is_primary = idx == 0 and not has_primary
+            await self._process_file_data(scene, file_data, is_primary, db)
+            # Update has_primary flag if we just set a primary
+            if is_primary:
+                has_primary = True
 
     async def _process_file_data(
         self,
@@ -698,7 +736,11 @@ class SceneSyncHandler:
         # Update file fields
         existing_file.path = file_data.get("path", "")
         existing_file.basename = file_data.get("basename")  # type: ignore[assignment]
-        existing_file.is_primary = is_primary  # type: ignore[assignment]
+        # Don't change is_primary status unless it's currently false and we want to set it true
+        if is_primary and not existing_file.is_primary:
+            existing_file.is_primary = True  # type: ignore[assignment]
+        elif not is_primary:
+            existing_file.is_primary = False  # type: ignore[assignment]
         existing_file.parent_folder_id = file_data.get("parent_folder_id")  # type: ignore[assignment]
         existing_file.zip_file_id = file_data.get("zip_file_id")  # type: ignore[assignment]
         existing_file.mod_time = self._parse_datetime(file_data.get("mod_time"))  # type: ignore[assignment]
@@ -732,6 +774,15 @@ class SceneSyncHandler:
         for fp in file_data.get("fingerprints", []):
             if isinstance(fp, dict) and fp.get("type"):
                 fingerprints[fp["type"]] = fp.get("value")
+
+        # Final check - if we're trying to create a primary file, ensure no other primary exists
+        if is_primary:
+            has_primary = await self._check_has_primary_file(scene, db)
+            if has_primary:
+                logger.warning(
+                    f"Scene {scene.id} already has a primary file, setting is_primary=False for new file {file_data['id']}"
+                )
+                is_primary = False
 
         file = SceneFile(
             id=file_data["id"],
