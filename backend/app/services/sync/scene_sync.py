@@ -635,24 +635,23 @@ class SceneSyncHandler:
             has_primary = any(f.is_primary for f in scene.files)
             if has_primary:
                 return True
-        
+
         # Query database to be sure
         from sqlalchemy import and_
-        
-        stmt = select(SceneFile).where(
-            and_(
-                SceneFile.scene_id == scene.id,
-                SceneFile.is_primary == True
-            )
-        ).limit(1)
-        
+
+        stmt = (
+            select(SceneFile)
+            .where(and_(SceneFile.scene_id == scene.id, SceneFile.is_primary.is_(True)))
+            .limit(1)
+        )
+
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
             primary_file = result.scalar_one_or_none()
         else:
             result = db.execute(stmt)
             primary_file = result.scalar_one_or_none()
-            
+
         return primary_file is not None
 
     async def _sync_scene_files(
