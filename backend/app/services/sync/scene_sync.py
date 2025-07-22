@@ -275,6 +275,14 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Sync all relationships for a scene"""
+        # Debug log to check what data we have
+        logger.debug(
+            f"_sync_scene_relationships - stash_scene keys: {list(stash_scene.keys())}"
+        )
+        logger.debug(
+            f"_sync_scene_relationships - files data exists: {'files' in stash_scene}"
+        )
+
         # Sync studio
         await self._sync_scene_studio(scene, stash_scene.get("studio"), db)
 
@@ -578,6 +586,11 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Sync scene's file relationships"""
+        logger.debug(
+            f"_sync_scene_files called for scene {scene.id} with {len(files_data)} files"
+        )
+        if files_data:
+            logger.debug(f"First file data: {files_data[0]}")
 
         # Get existing files
         existing_file_ids = {file.id for file in scene.files if hasattr(scene, "files")}

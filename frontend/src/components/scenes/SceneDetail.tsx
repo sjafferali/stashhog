@@ -19,6 +19,7 @@ import {
   DownloadOutlined,
   LinkOutlined,
   FolderOpenOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneCard } from './SceneCard';
@@ -57,6 +58,12 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
       const fullUrl = `${baseUrl}/scenes/${scene.id}`;
       window.open(fullUrl, '_blank');
     }
+  };
+
+  const handleOpenInAPI = () => {
+    // Get current origin for the API base URL
+    const apiUrl = `${window.location.origin}/api/scenes/${scene.id}`;
+    window.open(apiUrl, '_blank');
   };
 
   // Check if we have a valid stash URL
@@ -355,6 +362,13 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
                 disabled={!hasStashUrl}
               >
                 Open in Stash
+              </Button>
+              <Button
+                icon={<ApiOutlined />}
+                style={{ width: '100%' }}
+                onClick={handleOpenInAPI}
+              >
+                Open in API
               </Button>
               <Button danger style={{ width: '100%' }}>
                 Delete Scene

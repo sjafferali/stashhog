@@ -22,7 +22,7 @@ from app.api.schemas import (
     TagResponse,
 )
 from app.core.dependencies import get_db, get_job_service, get_sync_service
-from app.models import Performer, Scene, SceneMarker, Studio, Tag
+from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, Tag
 from app.models.job import JobType as ModelJobType
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
@@ -38,10 +38,13 @@ def _build_scene_filter_conditions(
 
     if filters.search:
         search_term = f"%{filters.search}%"
+        # Join with files table to search file paths
+        query = query.outerjoin(Scene.files)
         conditions.append(
             or_(
                 Scene.title.ilike(search_term),
                 Scene.details.ilike(search_term),
+                SceneFile.path.ilike(search_term),
             )
         )
 
