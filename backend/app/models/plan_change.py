@@ -74,7 +74,14 @@ class PlanChange(BaseModel):
 
     # Application tracking
     status: Column = Column(
-        Enum(ChangeStatus), nullable=False, default=ChangeStatus.PENDING, index=True
+        Enum(
+            ChangeStatus,
+            name="changestatus",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=ChangeStatus.PENDING,
+        index=True,
     )
     # Legacy fields for backward compatibility (to be removed after migration)
     accepted: Column = Column(Boolean(), default=False, nullable=False, index=True)

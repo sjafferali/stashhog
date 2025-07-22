@@ -13,6 +13,7 @@ import {
   Empty,
   Spin,
   message,
+  Collapse,
 } from 'antd';
 import {
   FileOutlined,
@@ -42,6 +43,7 @@ import {
 
 const { TabPane } = Tabs;
 const { Text, Paragraph } = Typography;
+const { Panel } = Collapse;
 
 interface SceneDetailModalProps {
   scene: Scene;
@@ -362,90 +364,97 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       );
     }
 
+    // Find the primary file to set as default expanded
+    const primaryFileKey =
+      files.find((file) => file.is_primary)?.id || files[0]?.id;
+
     return (
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {files.map((file, index) => (
-          <div
-            key={file.id}
-            style={{ marginBottom: index < files.length - 1 ? 16 : 0 }}
-          >
-            <Divider orientation="left">
-              File {index + 1}
-              {file.is_primary && (
-                <Tag color="blue" style={{ marginLeft: 8 }}>
-                  Primary
-                </Tag>
+      <Collapse defaultActiveKey={primaryFileKey ? [primaryFileKey] : []}>
+        {files.map((file, index) => {
+          const panelHeader = (
+            <Space>
+              <Text strong>{file.basename || `File ${index + 1}`}</Text>
+              {file.is_primary && <Tag color="blue">Primary</Tag>}
+              {file.format && <Tag>{file.format}</Tag>}
+              {file.size && (
+                <Text type="secondary">
+                  {formatFileSize(file.size.toString())}
+                </Text>
               )}
-            </Divider>
+            </Space>
+          );
 
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="File ID" span={2}>
-                <Text copyable>{file.id}</Text>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Path" span={2}>
-                <Text code>{file.path}</Text>
-              </Descriptions.Item>
-
-              {file.basename && (
-                <Descriptions.Item label="Basename" span={2}>
-                  {file.basename}
+          return (
+            <Panel header={panelHeader} key={file.id}>
+              <Descriptions bordered column={2} size="small">
+                <Descriptions.Item label="File ID" span={2}>
+                  <Text copyable>{file.id}</Text>
                 </Descriptions.Item>
-              )}
 
-              <Descriptions.Item label="Size">
-                {formatFileSize(file.size?.toString())}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Format">
-                {file.format || 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Duration">
-                {formatDuration(file.duration)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Resolution">
-                {file.width && file.height
-                  ? `${file.width}x${file.height}`
-                  : 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Video Codec">
-                {file.video_codec || 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Audio Codec">
-                {file.audio_codec || 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Frame Rate">
-                {file.frame_rate ? `${file.frame_rate} fps` : 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Bitrate">
-                {file.bit_rate
-                  ? `${Math.round(file.bit_rate / 1000)} kbps`
-                  : 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="OS Hash">
-                {file.oshash ? <Text code>{file.oshash}</Text> : 'N/A'}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Perceptual Hash">
-                {file.phash ? <Text code>{file.phash}</Text> : 'N/A'}
-              </Descriptions.Item>
-
-              {file.mod_time && (
-                <Descriptions.Item label="Modified Time" span={2}>
-                  {dayjs(file.mod_time).format('YYYY-MM-DD HH:mm:ss')}
+                <Descriptions.Item label="Path" span={2}>
+                  <Text code>{file.path}</Text>
                 </Descriptions.Item>
-              )}
-            </Descriptions>
-          </div>
-        ))}
-      </Space>
+
+                {file.basename && (
+                  <Descriptions.Item label="Basename" span={2}>
+                    {file.basename}
+                  </Descriptions.Item>
+                )}
+
+                <Descriptions.Item label="Size">
+                  {formatFileSize(file.size?.toString())}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Format">
+                  {file.format || 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Duration">
+                  {formatDuration(file.duration)}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Resolution">
+                  {file.width && file.height
+                    ? `${file.width}x${file.height}`
+                    : 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Video Codec">
+                  {file.video_codec || 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Audio Codec">
+                  {file.audio_codec || 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Frame Rate">
+                  {file.frame_rate ? `${file.frame_rate} fps` : 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Bitrate">
+                  {file.bit_rate
+                    ? `${Math.round(file.bit_rate / 1000)} kbps`
+                    : 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="OS Hash">
+                  {file.oshash ? <Text code>{file.oshash}</Text> : 'N/A'}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Perceptual Hash">
+                  {file.phash ? <Text code>{file.phash}</Text> : 'N/A'}
+                </Descriptions.Item>
+
+                {file.mod_time && (
+                  <Descriptions.Item label="Modified Time" span={2}>
+                    {dayjs(file.mod_time).format('YYYY-MM-DD HH:mm:ss')}
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            </Panel>
+          );
+        })}
+      </Collapse>
     );
   };
 

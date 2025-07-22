@@ -88,16 +88,16 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 34: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Jobs Routes Tests (51% coverage - app/api/routes/jobs.py)
-- [ ] Task 35: Enhance test_api_routes_jobs.py - Add job lifecycle tests
-- [ ] Task 36: Run all backend tests and ensure they pass
-- [ ] Task 37: Add tests for job cancellation and retry functionality
-- [ ] Task 38: Run all backend tests and ensure they pass
+- [x] Task 35: Enhance test_api_routes_jobs.py - Add job lifecycle tests (2025-07-22)
+- [x] Task 36: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 37: Add tests for job cancellation and retry functionality (2025-07-22)
+- [x] Task 38: Run all backend tests and ensure they pass (2025-07-22)
 
 ### Phase 5: Core Infrastructure (<60% coverage)
 
 #### Core Exceptions Tests (46% coverage - app/core/exceptions.py)
-- [ ] Task 39: Create test_core_exceptions.py - Test custom exception handling
-- [ ] Task 40: Run all backend tests and ensure they pass
+- [x] Task 39: Create test_core_exceptions.py - Test custom exception handling (2025-07-22)
+- [x] Task 40: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Sync Progress Tests (45% coverage - app/services/sync/progress.py)
 - [ ] Task 41: Create test_sync_progress.py - Test progress tracking
@@ -243,7 +243,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [ ] 34 of 116 tasks completed (29%)
+- [ ] 40 of 116 tasks completed (34%)
 - [ ] Coverage target of 80% achieved (currently at 72%+)
 - [ ] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests

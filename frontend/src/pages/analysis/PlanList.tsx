@@ -78,7 +78,7 @@ const PlanList: React.FC = () => {
       key: 'status',
       width: 120,
       render: (status: unknown) => {
-        const statusStr = String(status);
+        const statusStr = String(status).toLowerCase();
         const colorMap: Record<string, string> = {
           draft: 'blue',
           reviewing: 'orange',
@@ -133,7 +133,8 @@ const PlanList: React.FC = () => {
               void handleCancel(record.id);
             }}
             disabled={
-              record.status === 'applied' || record.status === 'cancelled'
+              record.status.toLowerCase() === 'applied' ||
+              record.status.toLowerCase() === 'cancelled'
             }
           >
             Cancel
@@ -159,7 +160,7 @@ const PlanList: React.FC = () => {
       selectedRowKeys.includes(plan.id)
     );
     const reviewingPlans = selectedPlans.filter(
-      (plan) => plan.status === 'reviewing'
+      (plan) => plan.status.toLowerCase() === 'reviewing'
     );
 
     if (reviewingPlans.length === 0) {
@@ -208,7 +209,7 @@ const PlanList: React.FC = () => {
       selectedRowKeys.includes(plan.id)
     );
     const reviewingPlans = selectedPlans.filter(
-      (plan) => plan.status === 'reviewing'
+      (plan) => plan.status.toLowerCase() === 'reviewing'
     );
 
     if (reviewingPlans.length === 0) {
@@ -261,7 +262,10 @@ const PlanList: React.FC = () => {
     };
 
     plans.forEach((plan) => {
-      counts[plan.status as keyof typeof counts]++;
+      const normalizedStatus = plan.status.toLowerCase();
+      if (normalizedStatus in counts) {
+        counts[normalizedStatus as keyof typeof counts]++;
+      }
     });
 
     return counts;
@@ -269,7 +273,7 @@ const PlanList: React.FC = () => {
 
   const totalChangesReviewing = useMemo(() => {
     return plans
-      .filter((plan) => plan.status === 'reviewing')
+      .filter((plan) => plan.status.toLowerCase() === 'reviewing')
       .reduce((sum, plan) => sum + (plan.total_changes || 0), 0);
   }, [plans]);
 
@@ -278,7 +282,9 @@ const PlanList: React.FC = () => {
 
     // Filter by status
     if (statusFilter) {
-      filtered = filtered.filter((plan) => plan.status === statusFilter);
+      filtered = filtered.filter(
+        (plan) => plan.status.toLowerCase() === statusFilter
+      );
     }
 
     // Sort by status priority and then by creation date
@@ -291,7 +297,9 @@ const PlanList: React.FC = () => {
 
     filtered.sort((a, b) => {
       // First sort by status priority
-      const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+      const priorityDiff =
+        statusPriority[a.status.toLowerCase()] -
+        statusPriority[b.status.toLowerCase()];
       if (priorityDiff !== 0) {
         return priorityDiff;
       }
@@ -407,7 +415,9 @@ const PlanList: React.FC = () => {
               showTotal: (total, range) =>
                 `${range[0]}-${range[1]} of ${total} plans`,
             }}
-            rowClassName={(record) => `plan-row plan-${record.status}`}
+            rowClassName={(record) =>
+              `plan-row plan-${record.status.toLowerCase()}`
+            }
             onRow={(record) => ({
               onClick: (e) => {
                 // Don't navigate if clicking on action buttons or checkbox

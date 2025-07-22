@@ -1,6 +1,7 @@
 """Service for managing scene updates in both stashhog and Stash."""
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, List
 
 from sqlalchemy import select
@@ -107,6 +108,9 @@ class SceneService:
             # Handle specific attributes that need special processing
             if "video_analyzed" in updates:
                 scene.video_analyzed = updates["video_analyzed"]
+
+            # Update stash_updated_at timestamp since we're modifying the scene
+            scene.stash_updated_at = datetime.utcnow()  # type: ignore[assignment]
 
             await db.flush()
             logger.debug(f"Updated scene {scene_id} in database")
