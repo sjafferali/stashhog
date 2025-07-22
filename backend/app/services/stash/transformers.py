@@ -270,8 +270,3 @@ def prepare_scene_update(updates: Dict[str, Any]) -> Dict[str, Any]:
             stash_updates[stash_key] = value
 
     return stash_updates
-
-
-def prepare_bulk_scene_updates(updates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Prepare multiple scene updates for bulk mutation."""
-    return [prepare_scene_update(update) for update in updates]
