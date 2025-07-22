@@ -128,6 +128,7 @@ class SceneSyncUtils:
         # File info
         file_info = stash_scene.get("file", {})
         scene.paths = stash_scene.get("paths", [])
+        scene.file_path = stash_scene.get("file_path")  # type: ignore[assignment]
         scene.duration = file_info.get("duration")
         scene.size = file_info.get("size")
         scene.height = file_info.get("height")
