@@ -594,6 +594,17 @@ class SceneSyncHandler:
 
         # Get existing files
         existing_file_ids = {file.id for file in scene.files if hasattr(scene, "files")}
+
+        # Generate IDs for files that don't have them
+        import hashlib
+
+        for file_data in files_data:
+            if not file_data.get("id") and file_data.get("path"):
+                file_id = hashlib.sha256(
+                    f"{scene.id}:{file_data['path']}".encode()
+                ).hexdigest()[:16]
+                file_data["id"] = file_id
+
         new_file_ids = {
             file_data["id"] for file_data in files_data if file_data.get("id")
         }
@@ -605,14 +616,29 @@ class SceneSyncHandler:
 
         # Process each file
         for idx, file_data in enumerate(files_data):
-            file_id = file_data.get("id")
-            if not file_id:
+            file_path = file_data.get("path")
+            if not file_path:
+                logger.warning(f"Skipping file without path for scene {scene.id}")
                 continue
+
+            # File ID should already be set from above
+            file_id_value = file_data.get("id")
+            if not file_id_value:
+                logger.error(f"File ID missing after generation for path {file_path}")
+                continue
+            current_file_id: str = str(file_id_value)  # Ensure it's a string
 
             # Check if file already exists
             existing_file = None
             if hasattr(scene, "files"):
-                existing_file = next((f for f in scene.files if f.id == file_id), None)
+                existing_file = next(
+                    (
+                        f
+                        for f in scene.files
+                        if f.id == current_file_id or f.path == file_path
+                    ),
+                    None,
+                )
 
             if existing_file:
                 # Update existing file
