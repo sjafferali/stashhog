@@ -72,9 +72,13 @@ class AnalysisPlan(BaseModel):
         """Get number of applied changes."""
         return int(self.changes.filter_by(applied=True).count())
 
+    def get_accepted_change_count(self) -> int:
+        """Get number of accepted changes (may or may not be applied yet)."""
+        return int(self.changes.filter_by(accepted=True).count())
+
     def get_pending_change_count(self) -> int:
-        """Get number of pending changes."""
-        return int(self.changes.filter_by(applied=False, rejected=False).count())
+        """Get number of pending changes (not accepted, not rejected)."""
+        return int(self.changes.filter_by(accepted=False, rejected=False).count())
 
     def get_rejected_change_count(self) -> int:
         """Get number of rejected changes."""
@@ -107,21 +111,27 @@ class AnalysisPlan(BaseModel):
             return
 
         applied = self.get_applied_change_count()
+        accepted = self.get_accepted_change_count()
         rejected = self.get_rejected_change_count()
         pending = self.get_pending_change_count()
 
-        # If all changes are either applied or rejected, mark as reviewing
-        if pending == 0 and (applied > 0 or rejected > 0):
-            if self.status == PlanStatus.DRAFT:
-                self.status = PlanStatus.REVIEWING  # type: ignore[assignment]
+        # If we're in DRAFT and some changes have been accepted/rejected, move to REVIEWING
+        if self.status == PlanStatus.DRAFT and (accepted > 0 or rejected > 0):
+            self.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
-        # If all non-rejected changes are applied, mark as applied
-        if applied > 0 and pending == 0 and applied + rejected == total:
-            self.status = PlanStatus.APPLIED  # type: ignore[assignment]
-            if not self.applied_at:
-                from datetime import datetime, timezone
+        # Only mark as APPLIED when:
+        # 1. There are no pending changes (all changes have been either accepted or rejected)
+        # 2. All accepted changes have been applied
+        # 3. There's at least one applied change
+        if pending == 0 and applied > 0:
+            # Check if all accepted changes have been applied
+            unapplied_accepted = accepted - applied
+            if unapplied_accepted == 0:
+                self.status = PlanStatus.APPLIED  # type: ignore[assignment]
+                if not self.applied_at:
+                    from datetime import datetime, timezone
 
-                self.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+                    self.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
 
     def can_be_applied(self) -> bool:
         """Check if plan can be applied."""

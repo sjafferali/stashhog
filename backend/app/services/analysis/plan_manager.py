@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
@@ -307,8 +307,7 @@ class PlanManager:
         self, plan: AnalysisPlan, result_data: Dict[str, Any], db: AsyncSession
     ) -> None:
         """Finalize plan application with status and metadata updates."""
-        plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
-        plan.applied_at = datetime.utcnow()  # type: ignore[assignment]
+        # Add metadata about this apply operation
         plan.add_metadata(
             "apply_result",
             {
@@ -318,7 +317,70 @@ class PlanManager:
                 "errors": len(result_data["errors"]),
             },
         )
+
+        # For async context, we need to manually calculate the status
+        # instead of using the model's method which uses lazy loading
+        await self._update_plan_status_async(plan, db)
+
         await db.flush()
+
+    async def _update_plan_status_async(
+        self, plan: AnalysisPlan, db: AsyncSession
+    ) -> None:
+        """Update plan status based on changes using async queries."""
+        # Get change counts using async queries
+        base_query = select(func.count()).where(PlanChange.plan_id == plan.id)
+
+        # Total changes
+        total_result = await db.execute(base_query)
+        total = total_result.scalar() or 0
+
+        if total == 0:
+            return
+
+        # Applied changes
+        applied_result = await db.execute(
+            select(func.count()).where(
+                PlanChange.plan_id == plan.id, PlanChange.applied.is_(True)
+            )
+        )
+        applied = applied_result.scalar() or 0
+
+        # Accepted changes
+        accepted_result = await db.execute(
+            select(func.count()).where(
+                PlanChange.plan_id == plan.id, PlanChange.accepted.is_(True)
+            )
+        )
+        accepted = accepted_result.scalar() or 0
+
+        # Rejected changes
+        rejected_result = await db.execute(
+            select(func.count()).where(
+                PlanChange.plan_id == plan.id, PlanChange.rejected.is_(True)
+            )
+        )
+        rejected = rejected_result.scalar() or 0
+
+        # Pending changes
+        pending_result = await db.execute(
+            select(func.count()).where(
+                PlanChange.plan_id == plan.id,
+                PlanChange.accepted.is_(False),
+                PlanChange.rejected.is_(False),
+            )
+        )
+        pending = pending_result.scalar() or 0
+
+        # Update status based on counts (same logic as model method)
+        if plan.status == PlanStatus.DRAFT and (accepted > 0 or rejected > 0):
+            plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
+
+        # Plan is fully applied when all accepted changes are applied
+        # and there are no pending changes
+        if accepted > 0 and accepted == applied and pending == 0:
+            plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
+            plan.applied_at = datetime.utcnow()  # type: ignore[assignment]
 
     async def apply_single_change(
         self, change: PlanChange, db: AsyncSession, stash_service: StashService
@@ -411,20 +473,12 @@ class PlanManager:
         """Prepare performers update data."""
         current_ids = [p["id"] for p in scene.get("performers", [])]
 
-        if change.action == (
-            ChangeAction.ADD.value
-            if hasattr(ChangeAction.ADD, "value")
-            else ChangeAction.ADD
-        ):
+        if change.action == ChangeAction.ADD:
             new_ids = await self._add_performers(
                 change.proposed_value, current_ids, stash_service
             )
             return {"performer_ids": new_ids}
-        elif change.action == (
-            ChangeAction.REMOVE.value
-            if hasattr(ChangeAction.REMOVE, "value")
-            else ChangeAction.REMOVE
-        ):
+        elif change.action == ChangeAction.REMOVE:
             remaining_ids = self._remove_performers(
                 change.proposed_value, current_ids, scene.get("performers", [])
             )
@@ -478,11 +532,7 @@ class PlanManager:
         """Prepare tags update data."""
         current_ids = [t["id"] for t in scene.get("tags", [])]
 
-        if change.action == (
-            ChangeAction.ADD.value
-            if hasattr(ChangeAction.ADD, "value")
-            else ChangeAction.ADD
-        ):
+        if change.action == ChangeAction.ADD:
             new_ids = await self._add_tags(
                 change.proposed_value, current_ids, stash_service
             )

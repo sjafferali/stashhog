@@ -280,7 +280,9 @@ async def job_progress_ws(  # type: ignore[no-untyped-def]
         await manager.subscribe_to_job(websocket, job_id)
 
         # Send current job status
-        async with AsyncSession() as db:
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
             # Get job queue dependency
             from app.core.dependencies import get_job_service
 

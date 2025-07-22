@@ -404,8 +404,8 @@ async def apply_plan(
                 "change_ids": request.change_ids,
             },
         )
-        # Refresh the job object to ensure all attributes are loaded
-        await db.refresh(job)
+        # Don't refresh the job object to avoid session issues
+        # The WebSocket handler will fetch its own copy
         return {
             "job_id": job.id,
             "status": "queued",
