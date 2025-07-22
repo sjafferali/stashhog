@@ -56,7 +56,7 @@ class TestAnalysisJobs:
         """Create mock analysis plan."""
         plan = Mock(spec=AnalysisPlan)
         plan.id = 12345  # Use integer ID instead of UUID string
-        plan.status = PlanStatus.APPLIED
+        plan.status = PlanStatus.COMPLETE
         plan.get_metadata = Mock(return_value=5)
         return plan
 
@@ -501,7 +501,7 @@ class TestAnalysisJobsExtended:
         """Create mock analysis plan."""
         plan = Mock(spec=AnalysisPlan)
         plan.id = 12345  # Use integer ID instead of UUID string
-        plan.status = PlanStatus.APPLIED
+        plan.status = PlanStatus.COMPLETE
         plan.get_metadata = Mock(return_value=5)
         return plan
 

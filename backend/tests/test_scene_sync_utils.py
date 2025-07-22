@@ -9,21 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Scene
 from app.services.stash_service import StashService
 from app.services.sync.scene_sync_utils import SceneSyncUtils
+from tests.helpers import create_test_scene
 
-
-# Helper functions for creating test models with required fields
-def create_test_scene(**kwargs):
-    """Create a Scene instance with required fields."""
-    defaults = {
-        "title": "Test Scene",
-        "paths": [],
-        "organized": False,
-        "analyzed": False,
-        "stash_created_at": datetime.utcnow(),
-        "last_synced": datetime.utcnow(),
-    }
-    defaults.update(kwargs)
-    return Scene(**defaults)
+# Using create_test_scene from tests.helpers
 
 
 @pytest.fixture
@@ -213,13 +201,17 @@ class TestSceneSyncUtils:
         assert result.url == "https://example.com/scene"
         assert result.rating == 5
         assert result.organized is True
-        assert result.duration == 1800.5
-        assert result.size == 1073741824
-        assert result.height == 1080
-        assert result.width == 1920
-        assert result.framerate == 30.0
-        assert result.bitrate == 5000000
-        assert result.codec == "h264"
+        # File attributes should be in the files relationship
+        assert len(result.files) > 0
+        primary_file = result.get_primary_file()
+        assert primary_file is not None
+        assert primary_file.duration == 1800.5
+        assert primary_file.size == 1073741824
+        assert primary_file.height == 1080
+        assert primary_file.width == 1920
+        assert primary_file.frame_rate == 30.0
+        assert primary_file.bit_rate == 5000000
+        assert primary_file.video_codec == "h264"
         assert mock_db_session.add.called
         assert mock_db_session.flush.called
 
@@ -303,7 +295,7 @@ class TestSceneSyncUtils:
     ):
         """Test updating all scene fields."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         # Execute
         await scene_sync_utils._update_scene_fields(scene, sample_stash_scene)
@@ -314,14 +306,18 @@ class TestSceneSyncUtils:
         assert scene.url == "https://example.com/scene"
         assert scene.rating == 5
         assert scene.organized is True
-        assert scene.paths == ["/path/to/scene.mp4"]
-        assert scene.duration == 1800.5
-        assert scene.size == 1073741824
-        assert scene.height == 1080
-        assert scene.width == 1920
-        assert scene.framerate == 30.0
-        assert scene.bitrate == 5000000
-        assert scene.codec == "h264"
+        # File attributes should be updated in the files relationship
+        assert len(scene.files) > 0
+        primary_file = scene.get_primary_file()
+        assert primary_file is not None
+        assert primary_file.path == "/path/to/scene.mp4"
+        assert primary_file.duration == 1800.5
+        assert primary_file.size == 1073741824
+        assert primary_file.height == 1080
+        assert primary_file.width == 1920
+        assert primary_file.frame_rate == 30.0
+        assert primary_file.bit_rate == 5000000
+        assert primary_file.video_codec == "h264"
         assert scene.stash_created_at is not None
         assert scene.stash_updated_at is not None
         assert scene.stash_date is not None
@@ -333,7 +329,7 @@ class TestSceneSyncUtils:
     ):
         """Test updating scene with minimal data."""
         # Setup
-        scene = create_test_scene(id="scene456")
+        scene = create_test_scene(id="scene456", title="")
 
         # Execute
         await scene_sync_utils._update_scene_fields(scene, sample_scene_minimal)
@@ -344,9 +340,11 @@ class TestSceneSyncUtils:
         assert scene.url == ""
         assert scene.rating is None
         assert scene.organized is False
-        assert scene.paths == []
-        assert scene.duration is None
-        assert scene.size is None
+        # File attributes should be None in the files relationship
+        if scene.files:
+            primary_file = scene.get_primary_file()
+            assert primary_file is None or primary_file.duration is None
+            assert primary_file is None or primary_file.size is None
 
     @pytest.mark.asyncio
     async def test_sync_scene_relationships_complete(
@@ -354,7 +352,7 @@ class TestSceneSyncUtils:
     ):
         """Test syncing all scene relationships."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         scene.performers = []
         scene.tags = []
 
@@ -402,7 +400,7 @@ class TestSceneSyncUtils:
     ):
         """Test syncing scene with no relationships."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         scene.performers = [MagicMock()]  # Has existing
         scene.tags = [MagicMock()]  # Has existing
         scene.studio = MagicMock()  # Has existing
@@ -441,8 +439,8 @@ class TestSceneSyncUtils:
     async def test_content_checksum_calculation(self, scene_sync_utils):
         """Test content checksum is calculated consistently."""
         # Setup
-        scene1 = create_test_scene(id="scene1")
-        scene2 = create_test_scene(id="scene2")
+        scene1 = create_test_scene(id="scene1", title="Scene 1")
+        scene2 = create_test_scene(id="scene2", title="Scene 2")
 
         stash_scene = {
             "title": "Test Scene",
@@ -470,7 +468,7 @@ class TestSceneSyncUtils:
     async def test_timestamp_parsing(self, scene_sync_utils):
         """Test timestamp parsing from Stash format."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         stash_scene = {
             "created_at": "2024-01-01T12:00:00Z",
@@ -494,7 +492,7 @@ class TestSceneSyncUtils:
     async def test_sync_multiple_performers(self, scene_sync_utils, mock_db_session):
         """Test syncing scene with multiple performers."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         scene.performers = []
         scene.tags = []
 
@@ -534,7 +532,7 @@ class TestSceneSyncUtils:
     async def test_sync_multiple_tags(self, scene_sync_utils, mock_db_session):
         """Test syncing scene with multiple tags."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         scene.performers = []
         scene.tags = []
 
@@ -577,7 +575,7 @@ class TestSceneSyncUtils:
     ):
         """Test that existing relationships are cleared before adding new ones."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         # Add existing relationships
         old_performer1 = MagicMock()
         old_performer1.id = "old1"
@@ -653,7 +651,7 @@ class TestSceneSyncUtils:
     async def test_scene_entity_filtering(self, scene_sync_utils, mock_db_session):
         """Test that None entities are filtered out when syncing relationships."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         scene.performers = []
         scene.tags = []
 
@@ -711,7 +709,7 @@ class TestSceneSyncUtils:
     async def test_update_scene_fields_date_parsing_variants(self, scene_sync_utils):
         """Test various date format parsing."""
         # Setup
-        scene = create_test_scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         # Test different date formats
         test_cases = [

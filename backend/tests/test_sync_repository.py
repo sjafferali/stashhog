@@ -10,6 +10,7 @@ import pytest
 
 from app.models import Performer, Scene, Studio, SyncHistory, Tag
 from app.repositories.sync_repository import SyncRepository
+from tests.helpers import create_test_scene
 
 
 class TestBulkUpsertScenes:
@@ -49,9 +50,7 @@ class TestBulkUpsertScenes:
         assert len(result) == 1
         assert result[0].id == "scene123"
         assert result[0].title == "Test Scene"
-        assert result[0].duration == 3600.5
-        assert result[0].height == 1080
-        assert result[0].codec == "h264"
+        # File attributes are now in SceneFile, not directly on Scene
 
     def test_bulk_upsert_scenes_multiple_scenes(self, test_session):
         """Test upserting multiple scenes."""
@@ -133,8 +132,8 @@ class TestBulkUpsertScenes:
         result = repo.bulk_upsert_scenes(scene_data, test_session)
 
         assert len(result) == 1
-        assert result[0].duration is None
-        assert result[0].size is None
+        assert result[0].id == "scene1"
+        assert result[0].title == "Scene without file data"
 
     def test_bulk_upsert_scenes_timestamps(self, test_session):
         """Test that timestamps are properly set."""
@@ -399,7 +398,7 @@ class TestEntitySync:
         repo = SyncRepository()
 
         # Create a scene
-        scene = Scene(
+        scene = create_test_scene(
             id="scene1",
             title="Test Scene",
             paths=[],
@@ -423,7 +422,7 @@ class TestEntitySync:
         repo = SyncRepository()
 
         # Create scenes with different sync states
-        scene1 = Scene(
+        scene1 = create_test_scene(
             id="scene1",
             title="Never synced",
             paths=[],
@@ -431,7 +430,7 @@ class TestEntitySync:
             stash_updated_at=datetime.utcnow(),
             last_synced=datetime.utcnow() - timedelta(days=30),  # Old sync date
         )
-        scene2 = Scene(
+        scene2 = create_test_scene(
             id="scene2",
             title="Recently synced",
             paths=[],
@@ -439,7 +438,7 @@ class TestEntitySync:
             stash_updated_at=datetime.utcnow(),
             last_synced=datetime.utcnow(),
         )
-        scene3 = Scene(
+        scene3 = create_test_scene(
             id="scene3",
             title="Also never synced",
             paths=[],
@@ -467,7 +466,7 @@ class TestEntitySync:
         cutoff_time = datetime.utcnow() - timedelta(hours=1)
 
         # Create scenes with different sync times
-        scene1 = Scene(
+        scene1 = create_test_scene(
             id="scene1",
             title="Never synced",
             paths=[],
@@ -475,7 +474,7 @@ class TestEntitySync:
             stash_updated_at=datetime.utcnow(),
             last_synced=datetime.utcnow() - timedelta(days=30),  # Very old sync
         )
-        scene2 = Scene(
+        scene2 = create_test_scene(
             id="scene2",
             title="Synced before cutoff",
             paths=[],
@@ -483,7 +482,7 @@ class TestEntitySync:
             stash_updated_at=datetime.utcnow(),
             last_synced=cutoff_time - timedelta(minutes=30),
         )
-        scene3 = Scene(
+        scene3 = create_test_scene(
             id="scene3",
             title="Synced after cutoff",
             paths=[],
@@ -507,7 +506,7 @@ class TestEntitySync:
 
         # Create many unsynced scenes
         scenes = [
-            Scene(
+            create_test_scene(
                 id=f"scene{i}",
                 title=f"Scene {i}",
                 paths=[],
@@ -608,7 +607,6 @@ class TestTransactionHandling:
         good_scene = {
             "id": "good_scene",
             "title": "Good Scene",
-            "paths": [],
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
         }
@@ -617,7 +615,6 @@ class TestTransactionHandling:
         bad_scene = {
             "id": None,  # Invalid ID should be skipped
             "title": "Bad Scene",
-            "paths": [],
         }
 
         scene_data = [good_scene, bad_scene]
@@ -695,7 +692,6 @@ class TestTransactionHandling:
             {
                 "id": "scene1",
                 "title": "Scene 1",
-                "paths": [],
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
             }
@@ -708,7 +704,7 @@ class TestTransactionHandling:
         savepoint = test_session.begin_nested()
 
         # Second batch - will be skipped due to None ID
-        batch2 = [{"id": None, "title": "Invalid Scene", "paths": []}]
+        batch2 = [{"id": None, "title": "Invalid Scene"}]
         result = repo.bulk_upsert_scenes(batch2, test_session)
         savepoint.commit()
 
@@ -743,16 +739,14 @@ class TestTransactionHandling:
         repo = SyncRepository()
 
         # Create initial scene
-        initial_scene = [
-            {"id": "scene1", "title": "Original Title", "rating": 3, "paths": []}
-        ]
+        initial_scene = [{"id": "scene1", "title": "Original Title", "rating": 3}]
         repo.bulk_upsert_scenes(initial_scene, test_session)
         test_session.commit()
 
         # Simulate concurrent updates
-        update1 = [{"id": "scene1", "title": "Update 1", "rating": 4, "paths": []}]
+        update1 = [{"id": "scene1", "title": "Update 1", "rating": 4}]
 
-        update2 = [{"id": "scene1", "title": "Update 2", "rating": 5, "paths": []}]
+        update2 = [{"id": "scene1", "title": "Update 2", "rating": 5}]
 
         # Both updates should succeed (last write wins)
         repo.bulk_upsert_scenes(update1, test_session)

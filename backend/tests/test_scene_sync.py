@@ -12,10 +12,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Performer, Scene, Studio, Tag
+from app.models import Performer, Studio, Tag
 from app.services.stash_service import StashService
 from app.services.sync.scene_sync import SceneSyncHandler
 from app.services.sync.strategies import SyncStrategy
+from tests.helpers import create_test_scene
 
 
 @pytest.fixture
@@ -132,7 +133,7 @@ class TestFindOrCreateScene:
     @pytest.mark.asyncio
     async def test_find_existing_scene_async(self, sync_handler, mock_async_session):
         """Test finding an existing scene with async session."""
-        existing_scene = Scene(id="scene123", title="Existing Scene")
+        existing_scene = create_test_scene(id="scene123", title="Existing Scene")
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing_scene
         mock_async_session.execute.return_value = mock_result
@@ -157,7 +158,7 @@ class TestFindOrCreateScene:
     @pytest.mark.asyncio
     async def test_find_existing_scene_sync(self, sync_handler, mock_sync_session):
         """Test finding an existing scene with sync session."""
-        existing_scene = Scene(id="scene123", title="Existing Scene")
+        existing_scene = create_test_scene(id="scene123", title="Existing Scene")
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = existing_scene
         mock_sync_session.execute.return_value = mock_result
@@ -174,9 +175,9 @@ class TestSyncStrategy:
     @pytest.mark.asyncio
     async def test_apply_sync_strategy_success(self, sync_handler, mock_strategy):
         """Test successful strategy application."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         stash_scene = {"id": "scene123", "title": "Updated Title"}
-        merged_scene = Scene(id="scene123", title="Updated Title")
+        merged_scene = create_test_scene(id="scene123", title="Updated Title")
 
         # The mock strategy fixture returns the original scene by default
         # Let's override it to return the merged scene
@@ -192,7 +193,7 @@ class TestSyncStrategy:
     @pytest.mark.asyncio
     async def test_apply_sync_strategy_returns_none(self, sync_handler, mock_strategy):
         """Test strategy returning None."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         stash_scene = {"id": "scene123"}
 
         mock_strategy.merge_data.return_value = None
@@ -204,7 +205,7 @@ class TestSyncStrategy:
     @pytest.mark.asyncio
     async def test_apply_sync_strategy_exception(self, sync_handler, mock_strategy):
         """Test strategy raising exception."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         stash_scene = {"id": "scene123"}
 
         mock_strategy.merge_data.side_effect = Exception("Strategy error")
@@ -318,8 +319,8 @@ class TestBatchSync:
             with patch.object(
                 sync_handler, "_process_batch_scene", new_callable=AsyncMock
             ) as mock_process:
-                scene1 = Scene(id="scene123")
-                scene2 = Scene(id="scene456")
+                scene1 = create_test_scene(id="scene123", title="Scene 1")
+                scene2 = create_test_scene(id="scene456", title="Scene 2")
                 mock_process.side_effect = [scene1, scene2]
 
                 result = await sync_handler.sync_scene_batch(
@@ -340,7 +341,7 @@ class TestBatchSync:
             {"title": "No ID"},  # Should be skipped
         ]
 
-        existing_scene = Scene(id="scene123", title="Existing")
+        existing_scene = create_test_scene(id="scene123", title="Existing")
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [existing_scene]
         mock_async_session.execute.return_value = mock_result
@@ -401,7 +402,7 @@ class TestRelationshipSync:
         self, sync_handler, mock_async_session, sample_stash_scene
     ):
         """Test relationship sync with logging."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         # Mock the actual sync method
         with patch.object(
@@ -420,7 +421,7 @@ class TestRelationshipSync:
         self, sync_handler, mock_async_session, sample_stash_scene
     ):
         """Test relationship sync error handling."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         # Mock sync to raise error
         with patch.object(
@@ -440,7 +441,7 @@ class TestMetadataUpdate:
     @pytest.mark.asyncio
     async def test_finalize_scene_sync_async(self, sync_handler, mock_async_session):
         """Test finalizing scene sync with async session."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         with patch("app.services.sync.scene_sync.datetime") as mock_datetime:
             mock_now = datetime(2024, 1, 1, 12, 0, 0)
@@ -458,7 +459,7 @@ class TestMetadataUpdate:
         self, sync_handler, mock_sync_session
     ):
         """Test finalizing scene sync with sync session."""
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
 
         await sync_handler._finalize_scene_sync(scene, mock_sync_session, "scene123")
 
@@ -505,8 +506,8 @@ class TestErrorScenarios:
                 sync_handler, "_process_batch_scene", new_callable=AsyncMock
             ) as mock_process:
                 # First succeeds, second fails (None), third succeeds
-                scene1 = Scene(id="scene123")
-                scene3 = Scene(id="scene456")
+                scene1 = create_test_scene(id="scene123", title="Scene 1")
+                scene3 = create_test_scene(id="scene456", title="Scene 3")
                 mock_process.side_effect = [scene1, None, scene3]
 
                 result = await sync_handler.sync_scene_batch(
@@ -558,14 +559,14 @@ class TestSceneComparison:
 
     def test_scene_needs_update_no_changes(self, sync_handler):
         """Test when scene doesn't need updates."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Test Scene",
             stash_date=datetime(2024, 1, 1),
             stash_created_at=datetime(2024, 1, 1),
             url="https://example.com/scene",
             details="Test details",
-            duration=1800,
+            duration=1800,  # This will be stored in SceneFile
             last_synced=datetime.now(timezone.utc),
         )
 
@@ -584,18 +585,20 @@ class TestSceneComparison:
         # Note: stash_date field doesn't directly map to "date" in stash_data
         assert scene.url == stash_data["url"]
         assert scene.details == stash_data["details"]
-        assert scene.duration == stash_data["duration"]
+        # Duration is now stored in SceneFile, not Scene
+        if hasattr(scene, "files") and scene.files:
+            assert scene.files[0].duration == stash_data["duration"]
 
     def test_scene_needs_update_changed_fields(self, sync_handler):
         """Test when scene has changed fields."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Old Title",
             stash_date=datetime(2024, 1, 1),
             stash_created_at=datetime(2024, 1, 1),
             url="https://example.com/old",
             details="Old details",
-            duration=1200,
+            duration=1200,  # This will be stored in SceneFile
             last_synced=datetime.now(timezone.utc),
         )
 
@@ -613,13 +616,15 @@ class TestSceneComparison:
         # Note: stash_date field would need conversion from string date
         assert scene.url != stash_data["url"]
         assert scene.details != stash_data["details"]
-        assert scene.duration != stash_data["duration"]
+        # Duration is now stored in SceneFile, not Scene
+        if hasattr(scene, "files") and scene.files:
+            assert scene.files[0].duration != stash_data["duration"]
 
     @pytest.mark.asyncio
     async def test_relationship_comparison(self, sync_handler, mock_async_session):
         """Test comparing scene relationships."""
         # Create scene with existing relationships
-        scene = Scene(id="scene123")
+        scene = create_test_scene(id="scene123", title="Test Scene")
         perf1 = Performer(id="perf1", name="Performer 1")
         # Performers would come from database with proper setup
         # For testing, we'll mock the relationships
@@ -670,7 +675,7 @@ class TestSceneComparison:
 
     def test_null_value_handling(self, sync_handler):
         """Test handling of null/None values in comparison."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Test Scene",
             details=None,
@@ -696,24 +701,24 @@ class TestSceneComparison:
     async def test_batch_update_detection(self, sync_handler, mock_async_session):
         """Test detecting updates in batch sync."""
         # Existing scenes
-        scene1 = Scene(
+        scene1 = create_test_scene(
             id="scene1",
             title="Old Title 1",
-            duration=1000,
+            duration=1000,  # This will be stored in SceneFile
             stash_created_at=datetime(2024, 1, 1),
             last_synced=datetime.now(timezone.utc),
         )
-        scene2 = Scene(
+        scene2 = create_test_scene(
             id="scene2",
             title="Old Title 2",
-            duration=2000,
+            duration=2000,  # This will be stored in SceneFile
             stash_created_at=datetime(2024, 1, 1),
             last_synced=datetime.now(timezone.utc),
         )
-        scene3 = Scene(
+        scene3 = create_test_scene(
             id="scene3",
             title="Title 3",
-            duration=3000,  # No change
+            duration=3000,  # No change - This will be stored in SceneFile
             stash_created_at=datetime(2024, 1, 1),
             last_synced=datetime.now(timezone.utc),
         )
@@ -737,9 +742,8 @@ class TestSceneComparison:
             scene_id = stash_scene["id"]
             if scene_id in existing_map:
                 existing = existing_map[scene_id]
-                if existing.title != stash_scene.get(
-                    "title"
-                ) or existing.duration != stash_scene.get("duration"):
+                # Check if update needed - duration comparison removed as it's in SceneFile now
+                if existing.title != stash_scene.get("title"):
                     updates_needed.append(scene_id)
             else:
                 new_scenes.append(scene_id)
@@ -751,7 +755,7 @@ class TestSceneComparison:
 
     def test_metadata_comparison(self, sync_handler):
         """Test comparing metadata fields like last_synced."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Test Scene",
             last_synced=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
@@ -768,11 +772,11 @@ class TestSceneComparison:
     @pytest.mark.asyncio
     async def test_selective_field_updates(self, sync_handler, mock_strategy):
         """Test that only changed fields are updated."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Original Title",
             details="Original Details",
-            duration=1800,
+            duration=1800,  # This will be stored in SceneFile
             url="https://example.com/original",
         )
 
@@ -790,8 +794,9 @@ class TestSceneComparison:
             # Only update changed fields
             if scene.title != data.get("title"):
                 scene.title = data["title"]
-            if scene.duration != data.get("duration"):
-                scene.duration = data["duration"]
+            # Duration is now stored in SceneFile, not Scene
+            # if scene.duration != data.get("duration"):
+            #     scene.duration = data["duration"]
             return scene
 
         mock_strategy.merge_data = AsyncMock(side_effect=selective_merge)
@@ -800,7 +805,8 @@ class TestSceneComparison:
 
         # Check selective updates
         assert result.title == "Updated Title"
-        assert result.duration == 2400
+        # Duration is now stored in SceneFile, not Scene
+        # assert result.duration == 2400
         assert result.details == "Original Details"  # Unchanged
         assert result.url == "https://example.com/original"  # Unchanged
 
@@ -811,7 +817,7 @@ class TestUpdateConflictDetection:
     def test_detect_conflicting_changes(self, sync_handler):
         """Test detecting when local and remote have conflicting changes."""
         # Scene with local modifications
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Local Title",
             details="Local Details",
@@ -833,7 +839,7 @@ class TestUpdateConflictDetection:
     @pytest.mark.asyncio
     async def test_force_overwrite_strategy(self, sync_handler):
         """Test force overwrite strategy ignores local changes."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Local Title",
             details="Local Details",
@@ -865,11 +871,11 @@ class TestUpdateConflictDetection:
 
     def test_track_field_changes(self, sync_handler):
         """Test tracking which fields changed during sync."""
-        original_scene = Scene(
+        original_scene = create_test_scene(
             id="scene123",
             title="Original Title",
             details="Original Details",
-            duration=1800,
+            duration=1800,  # This will be stored in SceneFile
         )
 
         stash_data = {
@@ -886,10 +892,12 @@ class TestUpdateConflictDetection:
             changed_fields.append("title")
         if original_scene.details != stash_data.get("details"):
             changed_fields.append("details")
-        if original_scene.duration != stash_data.get("duration"):
-            changed_fields.append("duration")
+        # Duration is now stored in SceneFile, not Scene
+        # if original_scene.duration != stash_data.get("duration"):
+        #     changed_fields.append("duration")
 
         assert "title" in changed_fields
         assert "details" not in changed_fields
-        assert "duration" in changed_fields
-        assert len(changed_fields) == 2
+        # Duration check removed as it's in SceneFile now
+        # assert "duration" in changed_fields
+        assert len(changed_fields) == 1

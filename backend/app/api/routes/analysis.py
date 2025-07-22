@@ -15,6 +15,7 @@ from fastapi import (
 )
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import Select
 
 from app.api.schemas import (
@@ -64,7 +65,7 @@ async def get_analysis_stats(
 
     # Count pending plans (not applied)
     pending_plans_query = select(func.count(AnalysisPlan.id)).where(
-        AnalysisPlan.status != "applied"
+        AnalysisPlan.status != "complete"
     )
     pending_plans_result = await db.execute(pending_plans_query)
     pending_plans = pending_plans_result.scalar_one()
@@ -310,6 +311,7 @@ async def get_plan(
     changes_query = (
         select(PlanChange, Scene)
         .join(Scene, PlanChange.scene_id == Scene.id)
+        .options(selectinload(Scene.files))
         .where(PlanChange.plan_id == plan_id)
         .order_by(PlanChange.scene_id, PlanChange.field)
     )
@@ -320,10 +322,11 @@ async def get_plan(
     scenes_dict = {}
     for change, scene in changes_with_scenes:
         if scene.id not in scenes_dict:
+            primary_file = scene.get_primary_file()
             scenes_dict[scene.id] = {
                 "scene_id": scene.id,
                 "scene_title": scene.title,
-                "scene_path": scene.file_path,
+                "scene_path": primary_file.path if primary_file else None,
                 "changes": [],
             }
 
@@ -387,7 +390,7 @@ async def apply_plan(
         )
 
     # Check if plan is already applied
-    if plan.status == "applied":
+    if plan.status == "complete":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Plan has already been applied",
@@ -554,15 +557,15 @@ async def update_change(
 
 async def _get_plan_change_counts(
     plan_id: int, db: AsyncSession
-) -> tuple[int, int, int, int]:
-    """Get counts of total, applied, rejected, and pending changes for a plan."""
+) -> tuple[int, int, int, int, int]:
+    """Get counts of total, applied, rejected, accepted, and pending changes for a plan."""
     # Total changes count
     total_query = select(func.count(PlanChange.id)).where(PlanChange.plan_id == plan_id)
     total_result = await db.execute(total_query)
     total = total_result.scalar_one()
 
     if total == 0:
-        return 0, 0, 0, 0
+        return 0, 0, 0, 0, 0
 
     # Applied changes count
     applied_query = select(func.count(PlanChange.id)).where(
@@ -578,16 +581,25 @@ async def _get_plan_change_counts(
     rejected_result = await db.execute(rejected_query)
     rejected = rejected_result.scalar_one()
 
-    # Pending changes count
+    # Accepted changes count (accepted but not yet applied)
+    accepted_query = select(func.count(PlanChange.id)).where(
+        PlanChange.plan_id == plan_id,
+        PlanChange.accepted.is_(True),
+        PlanChange.applied.is_(False),
+    )
+    accepted_result = await db.execute(accepted_query)
+    accepted = accepted_result.scalar_one()
+
+    # Pending changes count (not accepted and not rejected)
     pending_query = select(func.count(PlanChange.id)).where(
         PlanChange.plan_id == plan_id,
-        PlanChange.applied.is_(False),
+        PlanChange.accepted.is_(False),
         PlanChange.rejected.is_(False),
     )
     pending_result = await db.execute(pending_query)
     pending = pending_result.scalar_one()
 
-    return total, applied, rejected, pending
+    return total, applied, rejected, accepted, pending
 
 
 async def _update_plan_status_based_on_counts(
@@ -595,21 +607,33 @@ async def _update_plan_status_based_on_counts(
     total: int,
     applied: int,
     rejected: int,
+    accepted: int,
     pending: int,
 ) -> None:
     """Update plan status based on change counts."""
     if total == 0:
         return
 
-    # If any changes have been reviewed (applied or rejected), mark as reviewing
-    if (applied > 0 or rejected > 0) and plan.status == PlanStatus.DRAFT:
+    # Calculate total accepted (both applied and not applied)
+    total_accepted = applied + accepted
+
+    # If we're in DRAFT and any changes have been reviewed, move to REVIEWING
+    if plan.status == PlanStatus.DRAFT and (total_accepted > 0 or rejected > 0):
         plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
-    # If all non-rejected changes are applied, mark as applied
-    if applied > 0 and pending == 0 and applied + rejected == total:
-        plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
-        if not plan.applied_at:
-            plan.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    # Determine final status when no changes need review or approval
+    if pending == 0 and accepted == 0:
+        # All changes have been processed (no pending, no unapplied approved changes)
+        if total_accepted > 0:
+            # At least one change was accepted and applied - mark as COMPLETE
+            plan.status = PlanStatus.COMPLETE  # type: ignore[assignment]
+            if not plan.applied_at:
+                plan.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+        elif rejected == total:
+            # All changes were rejected - mark as CANCELLED
+            plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
+
+    # Otherwise keep status as REVIEWING if there are pending or unapplied approved changes
 
 
 def _validate_bulk_action_params(
@@ -764,21 +788,16 @@ async def bulk_update_changes(
     logger.info("Changes flushed to database")
 
     # Update plan status
-    total_count, applied_count, rejected_count, pending_count = (
+    total_count, applied_count, rejected_count, accepted_count, pending_count = (
         await _get_plan_change_counts(plan_id, db)
     )
     logger.info(
-        f"Change counts - Total: {total_count}, Applied: {applied_count}, Rejected: {rejected_count}, Pending: {pending_count}"
+        f"Change counts - Total: {total_count}, Applied: {applied_count}, Rejected: {rejected_count}, Accepted: {accepted_count}, Pending: {pending_count}"
     )
 
     await _update_plan_status_based_on_counts(
-        plan, total_count, applied_count, rejected_count, pending_count
+        plan, total_count, applied_count, rejected_count, accepted_count, pending_count
     )
-
-    # If all changes are rejected, mark plan as cancelled
-    if total_count > 0 and rejected_count == total_count:
-        plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
-        logger.info("All changes rejected - marking plan as cancelled")
 
     await db.commit()
     logger.info("Transaction committed successfully")
@@ -821,7 +840,7 @@ async def cancel_plan(
         )
 
     # Check if plan can be cancelled
-    if plan.status == PlanStatus.APPLIED:
+    if plan.status == PlanStatus.COMPLETE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot cancel an already applied plan",
@@ -889,16 +908,12 @@ async def update_change_status(
     plan = plan_result.scalar_one()
 
     # Get change counts and update plan status
-    total_count, applied_count, rejected_count, pending_count = (
+    total_count, applied_count, rejected_count, accepted_count, pending_count = (
         await _get_plan_change_counts(cast(int, change.plan_id), db)
     )
     await _update_plan_status_based_on_counts(
-        plan, total_count, applied_count, rejected_count, pending_count
+        plan, total_count, applied_count, rejected_count, accepted_count, pending_count
     )
-
-    # If all changes are rejected, mark plan as cancelled
-    if total_count > 0 and rejected_count == total_count:
-        plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
 
     await db.commit()
 

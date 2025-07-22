@@ -1,13 +1,12 @@
 """Working tests for analysis service that match actual implementation."""
 
 import json
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from app.core.config import Settings
-from app.models import AnalysisPlan, PlanStatus, Scene
+from app.models import AnalysisPlan, PlanStatus
 from app.models.plan_change import ChangeAction
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import (
@@ -16,6 +15,7 @@ from app.services.analysis.models import (
     DetectionResult,
     ProposedChange,
 )
+from tests.helpers import create_test_scene
 
 
 class TestAnalysisService:
@@ -23,20 +23,23 @@ class TestAnalysisService:
 
     def create_mock_scene(self, scene_id=1, id="scene123", title="Test Scene"):
         """Create a fully mocked scene with all required attributes."""
-        scene = Mock(spec=Scene)
-        scene.id = id
-        scene.title = title
-        scene.details = "Original details"
+        # Use the helper function to create a scene with files
+        scene = create_test_scene(
+            id=id,
+            title=title,
+            details="Original details",
+            paths=[f"/path/to/{id}.mp4"],
+            duration=300,
+            frame_rate=30.0,
+            width=1920,
+            height=1080,
+        )
         scene.performers = []
         scene.tags = []
         scene.studio = None
-        scene.path = f"/path/to/{id}.mp4"
-        scene.frame_rate = 30.0
-        scene.duration = 300
-        scene.date = None
-        scene.width = 1920
-        scene.height = 1080
         scene.rating = None
+        scene.stash_date = None
+        # Add attributes that the analysis service might check
         scene.o_counter = 0
         scene.code = None
         scene.director = None
@@ -44,12 +47,11 @@ class TestAnalysisService:
         scene.last_played_at = None
         scene.play_count = 0
         scene.play_duration = 0
-        scene.created_at = datetime.now(timezone.utc)
-        scene.updated_at = datetime.now(timezone.utc)
-        scene.paths = [f"/path/to/{id}.mp4"]
-        scene.get_primary_path = Mock(return_value=f"/path/to/{id}.mp4")
-        scene.file_path = f"/path/to/{id}.mp4"  # Add explicit file_path attribute
-        scene.framerate = 30.0  # Add framerate attribute
+        # Legacy attributes for backward compatibility in tests
+        scene.path = f"/path/to/{id}.mp4"
+        scene.file_path = f"/path/to/{id}.mp4"
+        scene.framerate = 30.0
+        scene.date = None
         return scene
 
     @pytest.fixture

@@ -160,62 +160,80 @@ class TestSceneRoutes:
         mock_tag.name = "Test Tag"
         mock_tag.scene_count = 2
 
-        scenes = [
-            Mock(
-                spec=Scene,
-                id="1",
-                title="Scene 1",
-                paths=["path1"],
-                file_path="/actual/path/1.mp4",
-                organized=True,
-                analyzed=False,
-                details="Details 1",
-                stash_created_at=datetime.utcnow(),
-                stash_updated_at=datetime.utcnow(),
-                stash_date=datetime.utcnow(),
-                studio=mock_studio,
-                performers=[mock_performer],
-                tags=[mock_tag],
-                last_synced=datetime.utcnow(),
-                # Metadata fields
-                duration=1800.5,
-                size=1024000000,
-                width=1920,
-                height=1080,
-                framerate=30.0,
-                bitrate=5000,
-                codec="h264",
-                video_analyzed=False,
-                markers=[],
-            ),
-            Mock(
-                spec=Scene,
-                id="2",
-                title="Scene 2",
-                paths=["path2"],
-                file_path="/actual/path/2.mp4",
-                organized=False,
-                analyzed=False,
-                details="Details 2",
-                stash_created_at=datetime.utcnow(),
-                stash_updated_at=datetime.utcnow(),
-                stash_date=datetime.utcnow(),
-                studio=None,
-                performers=[],
-                tags=[],
-                markers=[],
-                last_synced=datetime.utcnow(),
-                # Metadata fields
-                duration=2400.0,
-                size=2048000000,
-                width=3840,
-                height=2160,
-                framerate=60.0,
-                bitrate=10000,
-                codec="h265",
-                video_analyzed=False,
-            ),
-        ]
+        # Create mock files
+        mock_file1 = Mock()
+        mock_file1.id = "file1"
+        mock_file1.path = "path1"
+        mock_file1.basename = "1.mp4"
+        mock_file1.is_primary = True
+        mock_file1.duration = 1800.5
+        mock_file1.size = 1024000000
+        mock_file1.width = 1920
+        mock_file1.height = 1080
+        mock_file1.frame_rate = 30.0
+        mock_file1.bit_rate = 5000
+        mock_file1.video_codec = "h264"
+        mock_file1.audio_codec = "aac"
+        mock_file1.format = "mp4"
+        mock_file1.oshash = None
+        mock_file1.phash = None
+        mock_file1.mod_time = None
+
+        mock_file2 = Mock()
+        mock_file2.id = "file2"
+        mock_file2.path = "path2"
+        mock_file2.basename = "2.mp4"
+        mock_file2.is_primary = True
+        mock_file2.duration = 2400.0
+        mock_file2.size = 2048000000
+        mock_file2.width = 3840
+        mock_file2.height = 2160
+        mock_file2.frame_rate = 60.0
+        mock_file2.bit_rate = 10000
+        mock_file2.video_codec = "h265"
+        mock_file2.audio_codec = "aac"
+        mock_file2.format = "mp4"
+        mock_file2.oshash = None
+        mock_file2.phash = None
+        mock_file2.mod_time = None
+
+        scene1 = Mock(spec=Scene)
+        scene1.id = "1"
+        scene1.title = "Scene 1"
+        scene1.organized = True
+        scene1.analyzed = False
+        scene1.video_analyzed = False
+        scene1.details = "Details 1"
+        scene1.stash_created_at = datetime.utcnow()
+        scene1.stash_updated_at = datetime.utcnow()
+        scene1.stash_date = datetime.utcnow()
+        scene1.studio = mock_studio
+        scene1.performers = [mock_performer]
+        scene1.tags = [mock_tag]
+        scene1.last_synced = datetime.utcnow()
+        scene1.markers = []
+        scene1.files = [mock_file1]
+        scene1.get_primary_file = Mock(return_value=mock_file1)
+
+        scene2 = Mock(spec=Scene)
+        scene2.id = "2"
+        scene2.title = "Scene 2"
+        scene2.organized = False
+        scene2.analyzed = False
+        scene2.video_analyzed = False
+        scene2.details = "Details 2"
+        scene2.stash_created_at = datetime.utcnow()
+        scene2.stash_updated_at = datetime.utcnow()
+        scene2.stash_date = datetime.utcnow()
+        scene2.studio = None
+        scene2.performers = []
+        scene2.tags = []
+        scene2.markers = []
+        scene2.last_synced = datetime.utcnow()
+        scene2.files = [mock_file2]
+        scene2.get_primary_file = Mock(return_value=mock_file2)
+
+        scenes = [scene1, scene2]
 
         # Mock scenes result
         scenes_result = Mock()
@@ -250,33 +268,42 @@ class TestSceneRoutes:
         mock_tag.name = "Test Tag"
         mock_tag.scene_count = 2
 
-        scene = Mock(
-            spec=Scene,
-            id="1",
-            title="Test Scene",
-            paths=["path1"],
-            file_path="/actual/path/test.mp4",
-            organized=True,
-            analyzed=False,
-            details="Test details",
-            stash_created_at=datetime.utcnow(),
-            stash_updated_at=datetime.utcnow(),
-            stash_date=datetime.utcnow(),
-            studio=mock_studio,
-            performers=[mock_performer],
-            tags=[mock_tag],
-            markers=[],
-            last_synced=datetime.utcnow(),
-            # Metadata fields
-            duration=1800.5,
-            size=1024000000,
-            width=1920,
-            height=1080,
-            framerate=30.0,
-            bitrate=5000,
-            codec="h264",
-            video_analyzed=False,
-        )
+        # Create mock file
+        mock_file = Mock()
+        mock_file.id = "file1"
+        mock_file.path = "path1"
+        mock_file.basename = "test.mp4"
+        mock_file.is_primary = True
+        mock_file.duration = 1800.5
+        mock_file.size = 1024000000
+        mock_file.width = 1920
+        mock_file.height = 1080
+        mock_file.frame_rate = 30.0
+        mock_file.bit_rate = 5000
+        mock_file.video_codec = "h264"
+        mock_file.audio_codec = "aac"
+        mock_file.format = "mp4"
+        mock_file.oshash = None
+        mock_file.phash = None
+        mock_file.mod_time = None
+
+        scene = Mock(spec=Scene)
+        scene.id = "1"
+        scene.title = "Test Scene"
+        scene.organized = True
+        scene.analyzed = False
+        scene.video_analyzed = False
+        scene.details = "Test details"
+        scene.stash_created_at = datetime.utcnow()
+        scene.stash_updated_at = datetime.utcnow()
+        scene.stash_date = datetime.utcnow()
+        scene.studio = mock_studio
+        scene.performers = [mock_performer]
+        scene.tags = [mock_tag]
+        scene.markers = []
+        scene.last_synced = datetime.utcnow()
+        scene.files = [mock_file]
+        scene.get_primary_file = Mock(return_value=mock_file)
 
         mock_result = Mock()
         mock_result.scalar_one_or_none = Mock(return_value=scene)
@@ -544,10 +571,17 @@ class TestAnalysisRoutes:
         mock_plan_result.scalar_one_or_none = Mock(return_value=plan)
 
         # Mock changes query
+        # Create a mock file for the scene
+        mock_file = Mock()
+        mock_file.path = "/path/to/scene1.mp4"
+        mock_file.is_primary = True
+
         scene = Mock()
         scene.id = "scene1"
         scene.title = "Test Scene"
-        scene.file_path = "/path/to/scene1.mp4"
+        scene.files = [mock_file]
+        scene.get_primary_file = Mock(return_value=mock_file)
+        scene.get_primary_path = Mock(return_value="/path/to/scene1.mp4")
 
         change = Mock()
         change.id = 1

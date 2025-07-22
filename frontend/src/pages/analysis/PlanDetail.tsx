@@ -221,20 +221,22 @@ const PlanDetail: React.FC = () => {
           <Dropdown overlay={exportMenu}>
             <Button icon={<ExportOutlined />}>Export</Button>
           </Dropdown>
-          <BulkActions
-            totalChanges={stats.totalChanges}
-            acceptedChanges={stats.acceptedChanges}
-            rejectedChanges={stats.rejectedChanges}
-            pendingChanges={stats.pendingChanges}
-            onAcceptAll={() => acceptAllChanges()}
-            onRejectAll={() => rejectAllChanges()}
-            onAcceptByConfidence={(threshold) =>
-              void acceptByConfidence(threshold)
-            }
-            onAcceptByField={(field) => void acceptByField(field)}
-            onRejectByField={(field) => void rejectByField(field)}
-            fieldCounts={fieldCounts}
-          />
+          {plan.status !== 'applied' && plan.status !== 'cancelled' && (
+            <BulkActions
+              totalChanges={stats.totalChanges}
+              acceptedChanges={stats.acceptedChanges}
+              rejectedChanges={stats.rejectedChanges}
+              pendingChanges={stats.pendingChanges}
+              onAcceptAll={() => acceptAllChanges()}
+              onRejectAll={() => rejectAllChanges()}
+              onAcceptByConfidence={(threshold) =>
+                void acceptByConfidence(threshold)
+              }
+              onAcceptByField={(field) => void acceptByField(field)}
+              onRejectByField={(field) => void rejectByField(field)}
+              fieldCounts={fieldCounts}
+            />
+          )}
         </Space>
       </div>
 
@@ -400,20 +402,20 @@ const PlanDetail: React.FC = () => {
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}
-            disabled={stats.acceptedChanges === 0}
+            disabled={
+              stats.unappliedAcceptedChanges === 0 ||
+              plan.status === 'applied' ||
+              plan.status === 'cancelled'
+            }
             onClick={() => setShowApplyModal(true)}
           >
-            Apply Changes ({stats.acceptedChanges})
+            Apply Changes ({stats.unappliedAcceptedChanges})
           </Button>
           <Button
             danger
             icon={<CloseCircleOutlined />}
             onClick={handleCancelPlan}
-            disabled={
-              plan.status === 'applied' ||
-              plan.status === 'cancelled' ||
-              plan.status === 'reviewing'
-            }
+            disabled={plan.status === 'applied' || plan.status === 'cancelled'}
           >
             Cancel Plan
           </Button>
@@ -428,12 +430,32 @@ const PlanDetail: React.FC = () => {
               sceneChanges={plan.scenes}
               onSelectScene={setSelectedSceneId}
               selectedSceneId={selectedSceneId}
-              onAcceptAll={handleAcceptAllScene}
-              onRejectAll={handleRejectAllScene}
+              onAcceptAll={
+                plan.status === 'applied' || plan.status === 'cancelled'
+                  ? undefined
+                  : handleAcceptAllScene
+              }
+              onRejectAll={
+                plan.status === 'applied' || plan.status === 'cancelled'
+                  ? undefined
+                  : handleRejectAllScene
+              }
               onPreviewScene={handlePreviewScene}
-              onAcceptChange={(id) => void acceptChange(id)}
-              onRejectChange={(id) => void rejectChange(id)}
-              onEditChange={(id, value) => updateChange(id, value)}
+              onAcceptChange={
+                plan.status === 'applied' || plan.status === 'cancelled'
+                  ? undefined
+                  : (id) => void acceptChange(id)
+              }
+              onRejectChange={
+                plan.status === 'applied' || plan.status === 'cancelled'
+                  ? undefined
+                  : (id) => void rejectChange(id)
+              }
+              onEditChange={
+                plan.status === 'applied' || plan.status === 'cancelled'
+                  ? undefined
+                  : (id, value) => updateChange(id, value)
+              }
             />
           </Card>
         </Col>
@@ -512,13 +534,13 @@ const PlanDetail: React.FC = () => {
         visible={showApplyModal}
         planId={planId}
         planName={plan.name}
-        acceptedChanges={stats.acceptedChanges}
+        acceptedChanges={stats.unappliedAcceptedChanges}
         totalScenes={plan.total_scenes}
         onCancel={() => setShowApplyModal(false)}
         onApply={async () => {
-          // Get accepted change IDs
+          // Get accepted but unapplied change IDs
           const acceptedChangeIds = allChanges
-            .filter((c) => c.accepted)
+            .filter((c) => c.accepted && !c.applied)
             .map((c) => c.id);
 
           // Call API to apply changes

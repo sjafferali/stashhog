@@ -22,6 +22,7 @@ import {
   InfoCircleOutlined,
   ExperimentOutlined,
   ClockCircleOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient, useQuery } from 'react-query';
 import dayjs from 'dayjs';
@@ -54,13 +55,7 @@ const SceneDetail: React.FC = () => {
     detectVideoTags: false,
   });
   const [tempAnalysisOptions, setTempAnalysisOptions] =
-    useState<AnalysisTypeOptions>({
-      detectPerformers: true,
-      detectStudios: true,
-      detectTags: true,
-      detectDetails: false,
-      detectVideoTags: false,
-    });
+    useState<AnalysisTypeOptions>(analysisOptions);
 
   // Fetch scene data
   const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>(
@@ -188,11 +183,15 @@ const SceneDetail: React.FC = () => {
 
   const getFilePath = (scene?: Scene): string => {
     if (!scene) return 'N/A';
-    // Check if there's a file_path field (actual file path from Stash)
+    // Check if there are files and get the primary one
+    if (scene.files && scene.files.length > 0) {
+      const primaryFile =
+        scene.files.find((f) => f.is_primary) || scene.files[0];
+      return primaryFile.path;
+    }
+    // Fall back to legacy fields
     if (scene.file_path) return scene.file_path;
-    // Check if there's a path field (legacy)
     if (scene.path) return scene.path;
-    // Otherwise show the first path from paths array which might be a URL
     if (scene.paths && scene.paths.length > 0) return scene.paths[0];
     return 'N/A';
   };
@@ -241,6 +240,25 @@ const SceneDetail: React.FC = () => {
       <Descriptions.Item label="File Path" span={2}>
         <div style={{ wordBreak: 'break-all' }}>{getFilePath(scene)}</div>
       </Descriptions.Item>
+      {scene?.files && scene.files.length > 1 && (
+        <Descriptions.Item label="All Files" span={2}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {scene.files.map((file, index) => (
+              <div key={file.id} style={{ marginBottom: 8 }}>
+                <Tag color={file.is_primary ? 'blue' : 'default'}>
+                  {file.is_primary ? 'Primary' : `File ${index + 1}`}
+                </Tag>
+                <Text style={{ wordBreak: 'break-all' }}>{file.path}</Text>
+                {file.size && (
+                  <Text type="secondary" style={{ marginLeft: 8 }}>
+                    ({formatFileSize(file.size)})
+                  </Text>
+                )}
+              </div>
+            ))}
+          </Space>
+        </Descriptions.Item>
+      )}
       {scene?.details && (
         <Descriptions.Item label="Details" span={2}>
           {scene.details}
@@ -478,6 +496,12 @@ const SceneDetail: React.FC = () => {
               disabled={!hasStashUrl}
             >
               Open in Stash
+            </Button>
+            <Button
+              icon={<ApiOutlined />}
+              onClick={() => window.open(`/api/scenes/${id}`, '_blank')}
+            >
+              Open in API
             </Button>
             <Button
               type="primary"

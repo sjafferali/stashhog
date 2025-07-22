@@ -6,9 +6,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.models.scene import Scene
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import AnalysisOptions
+from tests.helpers import create_test_scene
 
 
 @pytest.mark.asyncio
@@ -57,7 +57,7 @@ async def test_analyze_scenes_syncs_to_database():
     )
 
     # Create mock scene that will be returned by sync
-    mock_scene = Scene(
+    mock_scene = create_test_scene(
         id="scene123",
         title="Test Scene",
         details="Test details",
@@ -111,7 +111,7 @@ async def test_analyze_scenes_updates_existing_scene():
     mock_settings = Settings()
 
     # Create existing scene
-    existing_scene = Scene(
+    existing_scene = create_test_scene(
         id="scene123",
         title="Old Title",
         details="Old details",
@@ -154,7 +154,7 @@ async def test_analyze_scenes_updates_existing_scene():
     )
 
     # Create updated scene that will be returned by sync
-    updated_scene = Scene(
+    updated_scene = create_test_scene(
         id="scene123",
         title="Updated Title",
         details="Updated details",

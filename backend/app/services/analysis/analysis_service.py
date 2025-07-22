@@ -172,7 +172,7 @@ class AnalysisService:
 
         if not has_changes:
             return await self._handle_no_changes(
-                scenes, all_changes, metadata, plan_name, job_id, db
+                scenes, all_changes, metadata, plan_name, job_id, db, options
             )
 
         # Save plan if database session provided and there are changes
@@ -182,7 +182,7 @@ class AnalysisService:
             )
 
             # Mark scenes as analyzed
-            await self._mark_scenes_as_analyzed(scenes, db)
+            await self._mark_scenes_as_analyzed(scenes, db, options)
 
             # Update job as completed
             if job_id:
@@ -1138,19 +1138,25 @@ class AnalysisService:
         logger.debug(
             f"_scene_to_dict called for scene {getattr(scene, 'id', 'unknown')}"
         )
-        logger.debug(f"scene.file_path: {getattr(scene, 'file_path', 'NOT FOUND')}")
-        logger.debug(f"scene has file_path attr: {hasattr(scene, 'file_path')}")
+
+        # Get primary file for metadata
+        primary_file = (
+            scene.get_primary_file() if hasattr(scene, "get_primary_file") else None
+        )
+        logger.debug(f"primary_file: {primary_file}")
+        logger.debug(
+            f"primary_file.path: {getattr(primary_file, 'path', 'NOT FOUND') if primary_file else 'NO PRIMARY FILE'}"
+        )
 
         return {
             "id": scene.id,
             "title": scene.title or "",
-            "file_path": scene.file_path if hasattr(scene, "file_path") else None,
+            "file_path": primary_file.path if primary_file else None,
             "details": scene.details or "",
-            "duration": scene.duration or 0,
-            "width": scene.width or 0,
-            "height": scene.height or 0,
-            "frame_rate": getattr(scene, "framerate", getattr(scene, "frame_rate", 0))
-            or 0,
+            "duration": primary_file.duration if primary_file else 0,
+            "width": primary_file.width if primary_file else 0,
+            "height": primary_file.height if primary_file else 0,
+            "frame_rate": primary_file.frame_rate if primary_file else 0,
             "performers": (
                 scene.performers if isinstance(scene.performers, list) else []
             ),
@@ -1321,7 +1327,7 @@ class AnalysisService:
                     "average_confidence": 0.0,
                 },
             },
-            status=PlanStatus.APPLIED,  # Mark as applied since there's nothing to do
+            status=PlanStatus.COMPLETE,  # Mark as complete since there's nothing to do
         )
         # Add properties that tests expect (id remains unset for unsaved objects)
         mock_plan.total_scenes = 0
@@ -1336,6 +1342,7 @@ class AnalysisService:
         plan_name: Optional[str],
         job_id: Optional[str],
         db: Optional[AsyncSession],
+        options: Optional[AnalysisOptions] = None,
     ) -> AnalysisPlan:
         """Handle the case when no changes are found in any scenes.
 
@@ -1355,7 +1362,7 @@ class AnalysisService:
         )
         # Mark scenes as analyzed even if no changes
         if db:
-            await self._mark_scenes_as_analyzed(scenes, db)
+            await self._mark_scenes_as_analyzed(scenes, db, options)
 
         # Update job as completed
         if job_id:
@@ -1382,7 +1389,7 @@ class AnalysisService:
             name=plan_name or "No Changes Found",
             description="Analysis completed but no changes were identified",
             plan_metadata=metadata,
-            status=PlanStatus.APPLIED,  # Mark as applied since there's nothing to do
+            status=PlanStatus.COMPLETE,  # Mark as complete since there's nothing to do
         )
         # Add properties that tests expect (id remains unset for unsaved objects)
         mock_plan.total_scenes = metadata.get("statistics", {}).get("total_scenes", 0)
@@ -1473,13 +1480,17 @@ class AnalysisService:
         return metadata
 
     async def _mark_scenes_as_analyzed(
-        self, scenes: list[Scene], db: AsyncSession
+        self,
+        scenes: list[Scene],
+        db: AsyncSession,
+        options: Optional[AnalysisOptions] = None,
     ) -> None:
         """Mark scenes as analyzed in the database.
 
         Args:
             scenes: List of scenes to mark
             db: Database session
+            options: Analysis options to determine which flags to set
         """
         try:
             from sqlalchemy import select
@@ -1497,10 +1508,18 @@ class AnalysisService:
             )
 
             for scene in db_scenes:
+                # Always set analyzed to True if any analysis was performed
                 scene.analyzed = True  # type: ignore[assignment]
 
+                # Set videoAnalyzed to True only if video tag detection was performed
+                if options and options.detect_video_tags:
+                    scene.video_analyzed = True  # type: ignore[assignment]
+                    logger.debug(f"Marking scene {scene.id} as video_analyzed=True")
+
             await db.flush()
-            logger.info(f"Successfully marked {len(db_scenes)} scenes as analyzed")
+            logger.info(
+                f"Successfully marked {len(db_scenes)} scenes as analyzed (video_analyzed={options.detect_video_tags if options else False})"
+            )
 
         except Exception as e:
             logger.error(f"Failed to mark scenes as analyzed: {str(e)}", exc_info=True)

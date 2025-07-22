@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Performer, Scene, SceneMarker, Studio, Tag
+from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, Tag
 from app.services.stash_service import StashService
 
 from .strategies import SyncStrategy
@@ -287,6 +287,9 @@ class SceneSyncHandler:
         # Sync scene markers
         await self._sync_scene_markers(scene, stash_scene.get("scene_markers", []), db)
 
+        # Sync scene files
+        await self._sync_scene_files(scene, stash_scene.get("files", []), db)
+
     async def _sync_scene_relationships_batch(
         self,
         scene: Scene,
@@ -321,6 +324,9 @@ class SceneSyncHandler:
 
         # Sync scene markers (batch sync doesn't pre-fetch markers due to complexity)
         await self._sync_scene_markers(scene, stash_scene.get("scene_markers", []), db)
+
+        # Sync scene files (batch sync doesn't pre-fetch files due to complexity)
+        await self._sync_scene_files(scene, stash_scene.get("files", []), db)
 
     async def _sync_scene_studio(
         self,
@@ -564,6 +570,127 @@ class SceneSyncHandler:
                 db.flush()
 
         return tag
+
+    async def _sync_scene_files(
+        self,
+        scene: Scene,
+        files_data: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Sync scene's file relationships"""
+
+        # Get existing files
+        existing_file_ids = {file.id for file in scene.files if hasattr(scene, "files")}
+        new_file_ids = {
+            file_data["id"] for file_data in files_data if file_data.get("id")
+        }
+
+        # Remove files that no longer exist
+        files_to_remove = existing_file_ids - new_file_ids
+        if files_to_remove and hasattr(scene, "files"):
+            scene.files = [f for f in scene.files if f.id not in files_to_remove]
+
+        # Process each file
+        for idx, file_data in enumerate(files_data):
+            file_id = file_data.get("id")
+            if not file_id:
+                continue
+
+            # Check if file already exists
+            existing_file = None
+            if hasattr(scene, "files"):
+                existing_file = next((f for f in scene.files if f.id == file_id), None)
+
+            if existing_file:
+                # Update existing file
+                await self._update_existing_file(existing_file, file_data, idx == 0, db)
+            else:
+                # Create new file
+                await self._create_new_file(scene, file_data, idx == 0, db)
+
+    async def _update_existing_file(
+        self,
+        existing_file: "SceneFile",
+        file_data: Dict[str, Any],
+        is_primary: bool,
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Update an existing file with new data"""
+        # Extract fingerprints
+        fingerprints = {}
+        for fp in file_data.get("fingerprints", []):
+            if isinstance(fp, dict) and fp.get("type"):
+                fingerprints[fp["type"]] = fp.get("value")
+
+        # Update file fields
+        existing_file.path = file_data.get("path", "")
+        existing_file.basename = file_data.get("basename")  # type: ignore[assignment]
+        existing_file.is_primary = is_primary  # type: ignore[assignment]
+        existing_file.parent_folder_id = file_data.get("parent_folder_id")  # type: ignore[assignment]
+        existing_file.zip_file_id = file_data.get("zip_file_id")  # type: ignore[assignment]
+        existing_file.mod_time = self._parse_datetime(file_data.get("mod_time"))  # type: ignore[assignment]
+        existing_file.size = file_data.get("size")  # type: ignore[assignment]
+        existing_file.format = file_data.get("format")  # type: ignore[assignment]
+        existing_file.width = file_data.get("width")  # type: ignore[assignment]
+        existing_file.height = file_data.get("height")  # type: ignore[assignment]
+        existing_file.duration = file_data.get("duration")  # type: ignore[assignment]
+        existing_file.video_codec = file_data.get("video_codec")  # type: ignore[assignment]
+        existing_file.audio_codec = file_data.get("audio_codec")  # type: ignore[assignment]
+        existing_file.frame_rate = file_data.get("frame_rate")  # type: ignore[assignment]
+        existing_file.bit_rate = file_data.get("bit_rate")  # type: ignore[assignment]
+        existing_file.oshash = fingerprints.get("oshash")  # type: ignore[assignment]
+        existing_file.phash = fingerprints.get("phash")  # type: ignore[assignment]
+        existing_file.stash_created_at = self._parse_datetime(file_data.get("created_at"))  # type: ignore[assignment]
+        existing_file.stash_updated_at = self._parse_datetime(file_data.get("updated_at"))  # type: ignore[assignment]
+        existing_file.last_synced = datetime.utcnow()  # type: ignore[assignment]
+
+    async def _create_new_file(
+        self,
+        scene: Scene,
+        file_data: Dict[str, Any],
+        is_primary: bool,
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Create a new file for the scene"""
+        from app.models.scene_file import SceneFile
+
+        # Extract fingerprints
+        fingerprints = {}
+        for fp in file_data.get("fingerprints", []):
+            if isinstance(fp, dict) and fp.get("type"):
+                fingerprints[fp["type"]] = fp.get("value")
+
+        file = SceneFile(
+            id=file_data["id"],
+            scene_id=scene.id,
+            path=file_data.get("path", ""),
+            basename=file_data.get("basename"),
+            is_primary=is_primary,
+            parent_folder_id=file_data.get("parent_folder_id"),
+            zip_file_id=file_data.get("zip_file_id"),
+            mod_time=self._parse_datetime(file_data.get("mod_time")),
+            size=file_data.get("size"),
+            format=file_data.get("format"),
+            width=file_data.get("width"),
+            height=file_data.get("height"),
+            duration=file_data.get("duration"),
+            video_codec=file_data.get("video_codec"),
+            audio_codec=file_data.get("audio_codec"),
+            frame_rate=file_data.get("frame_rate"),
+            bit_rate=file_data.get("bit_rate"),
+            oshash=fingerprints.get("oshash"),
+            phash=fingerprints.get("phash"),
+            stash_created_at=self._parse_datetime(file_data.get("created_at")),
+            stash_updated_at=self._parse_datetime(file_data.get("updated_at")),
+            last_synced=datetime.utcnow(),
+        )
+
+        db.add(file)
+        if hasattr(scene, "files"):
+            scene.files.append(file)
+        else:
+            # If files relationship not loaded, just add to session
+            pass
 
     async def _fetch_entities_map(
         self, db: Union[Session, AsyncSession], model_class: type, entity_ids: Set[str]

@@ -33,6 +33,15 @@ class ChangeAction(str, enum.Enum):
     SET = "set"  # Set field value (for single values)
 
 
+class ChangeStatus(str, enum.Enum):
+    """Status of an individual change."""
+
+    PENDING = "pending"  # Not yet reviewed
+    APPROVED = "approved"  # Approved but not applied
+    REJECTED = "rejected"  # Rejected, won't be applied
+    APPLIED = "applied"  # Applied to Stash
+
+
 class PlanChange(BaseModel):
     """
     Individual change within an analysis plan.
@@ -64,6 +73,10 @@ class PlanChange(BaseModel):
     confidence = Column(Float(), nullable=True)  # AI confidence score (0-1)
 
     # Application tracking
+    status: Column = Column(
+        Enum(ChangeStatus), nullable=False, default=ChangeStatus.PENDING, index=True
+    )
+    # Legacy fields for backward compatibility (to be removed after migration)
     accepted: Column = Column(Boolean(), default=False, nullable=False, index=True)
     rejected: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied: Column = Column(Boolean(), default=False, nullable=False, index=True)
@@ -78,6 +91,7 @@ class PlanChange(BaseModel):
         Index("idx_change_plan_field", "plan_id", "field"),
         Index("idx_change_scene_field", "scene_id", "field"),
         Index("idx_change_applied_plan", "applied", "plan_id"),
+        Index("idx_change_status_plan", "status", "plan_id"),
         Index("idx_change_confidence", "confidence"),
     )
 

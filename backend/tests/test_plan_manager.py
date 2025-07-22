@@ -16,6 +16,7 @@ from app.models.scene import Scene
 from app.services.analysis.models import ProposedChange, SceneChanges
 from app.services.analysis.plan_manager import PlanManager
 from app.services.stash_service import StashService
+from tests.helpers import create_test_scene
 
 
 class TestPlanCreation:
@@ -45,21 +46,17 @@ class TestPlanCreation:
         manager = PlanManager()
 
         # Create test scenes
-        scene1 = Scene(
+        scene1 = create_test_scene(
             id="scene1",
             title="Scene 1",
             paths=[],
-            stash_created_at=datetime.utcnow(),
             stash_updated_at=datetime.utcnow(),
-            last_synced=datetime.utcnow(),
         )
-        scene2 = Scene(
+        scene2 = create_test_scene(
             id="scene2",
             title="Scene 2",
             paths=[],
-            stash_created_at=datetime.utcnow(),
             stash_updated_at=datetime.utcnow(),
-            last_synced=datetime.utcnow(),
         )
         test_async_session.add_all([scene1, scene2])
         await test_async_session.commit()
@@ -131,14 +128,12 @@ class TestPlanCreation:
         manager = PlanManager()
 
         # Create test scene
-        scene = Scene(
+        scene = create_test_scene(
             id="scene1",
             title="Scene 1",
             paths=[],
             analyzed=False,
-            stash_created_at=datetime.utcnow(),
             stash_updated_at=datetime.utcnow(),
-            last_synced=datetime.utcnow(),
         )
         test_async_session.add(scene)
         await test_async_session.commit()
@@ -175,13 +170,11 @@ class TestPlanCreation:
         manager = PlanManager()
 
         # Create test scene
-        scene = Scene(
+        scene = create_test_scene(
             id="scene1",
             title="Scene 1",
             paths=[],
-            stash_created_at=datetime.utcnow(),
             stash_updated_at=datetime.utcnow(),
-            last_synced=datetime.utcnow(),
         )
         test_async_session.add(scene)
         await test_async_session.commit()
@@ -284,7 +277,7 @@ class TestPlanRetrieval:
             name="Draft Plan", status=PlanStatus.DRAFT, plan_metadata={}
         )
         plan2 = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
         )
         plan3 = AnalysisPlan(
             name="Another Draft", status=PlanStatus.DRAFT, plan_metadata={}
@@ -301,13 +294,13 @@ class TestPlanRetrieval:
         assert len(draft_plans) == 2
         assert all(p.status == PlanStatus.DRAFT for p in draft_plans)
 
-        # Filter by APPLIED status
+        # Filter by COMPLETE status
         applied_plans = await manager.list_plans(
-            test_async_session, status=PlanStatus.APPLIED
+            test_async_session, status=PlanStatus.COMPLETE
         )
 
         assert len(applied_plans) == 1
-        assert applied_plans[0].status == PlanStatus.APPLIED
+        assert applied_plans[0].status == PlanStatus.COMPLETE
 
     @pytest.mark.asyncio
     async def test_list_plans_pagination(self, test_async_session):
@@ -355,9 +348,9 @@ class TestPlanApplication:
         manager = PlanManager()
         stash_service = Mock(spec=StashService)
 
-        # Create a plan with APPLIED status
+        # Create a plan with COMPLETE status
         plan = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
         )
         test_async_session.add(plan)
         await test_async_session.commit()
@@ -636,9 +629,9 @@ class TestPlanExecution:
         """Test that deleting an applied plan fails."""
         manager = PlanManager()
 
-        # Create an applied plan
+        # Create a completed plan
         plan = AnalysisPlan(
-            name="Applied Plan", status=PlanStatus.APPLIED, plan_metadata={}
+            name="Applied Plan", status=PlanStatus.COMPLETE, plan_metadata={}
         )
         test_async_session.add(plan)
         await test_async_session.commit()
@@ -950,13 +943,11 @@ class TestBulkOperations:
         # Create many test scenes
         scenes = []
         for i in range(50):
-            scene = Scene(
+            scene = create_test_scene(
                 id=f"scene{i}",
                 title=f"Scene {i}",
                 paths=[],
-                stash_created_at=datetime.utcnow(),
                 stash_updated_at=datetime.utcnow(),
-                last_synced=datetime.utcnow(),
             )
             scenes.append(scene)
         test_async_session.add_all(scenes)

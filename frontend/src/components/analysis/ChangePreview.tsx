@@ -52,6 +52,7 @@ export interface ProposedChange {
   type: 'text' | 'array' | 'object' | 'date' | 'number';
   accepted?: boolean;
   rejected?: boolean;
+  applied?: boolean;
   editedValue?:
     | string
     | number

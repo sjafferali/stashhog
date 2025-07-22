@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { message } from 'antd';
 import api from '@/services/api';
-import type { SceneChanges } from '@/components/analysis';
+import type { SceneChanges, ProposedChange } from '@/components/analysis';
 import type { CostResponse } from '@/types/models';
 
 // Raw API response types
@@ -93,6 +93,8 @@ export interface UsePlanDetailReturn {
     pendingChanges: number;
     acceptanceRate: number;
     averageConfidence: number;
+    appliedChanges: number;
+    unappliedAcceptedChanges: number;
   };
   getFieldCounts: () => {
     title: number;
@@ -164,6 +166,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
             type: getFieldType(change.field, change.proposed_value),
             accepted: change.accepted || false,
             rejected: change.rejected || false,
+            applied: change.applied || false,
           })),
         })),
       };
@@ -430,24 +433,29 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
         pendingChanges: 0,
         acceptanceRate: 0,
         averageConfidence: 0,
+        appliedChanges: 0,
+        unappliedAcceptedChanges: 0,
       };
     }
 
     let totalChanges = 0;
     let acceptedChanges = 0;
     let rejectedChanges = 0;
+    let appliedChanges = 0;
     let totalConfidence = 0;
 
     plan.scenes.forEach((scene) => {
-      scene.changes.forEach((change) => {
+      scene.changes.forEach((change: ProposedChange) => {
         totalChanges++;
         if (change.accepted) acceptedChanges++;
         else if (change.rejected) rejectedChanges++;
+        if (change.applied) appliedChanges++;
         totalConfidence += change.confidence;
       });
     });
 
     const pendingChanges = totalChanges - acceptedChanges - rejectedChanges;
+    const unappliedAcceptedChanges = acceptedChanges - appliedChanges;
     const acceptanceRate =
       totalChanges > 0 ? (acceptedChanges / totalChanges) * 100 : 0;
     const averageConfidence =
@@ -460,6 +468,8 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
       pendingChanges,
       acceptanceRate,
       averageConfidence,
+      appliedChanges,
+      unappliedAcceptedChanges,
     };
   };
 

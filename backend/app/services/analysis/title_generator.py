@@ -179,8 +179,11 @@ class TitleGenerator:
             context_parts.append(f"Tags: {', '.join(tag_names)}")
 
         # Duration
-        if scene.duration:
-            minutes = int(scene.duration / 60)
+        primary_file = (
+            scene.get_primary_file() if hasattr(scene, "get_primary_file") else None
+        )
+        if primary_file and primary_file.duration:
+            minutes = int(primary_file.duration / 60)
             context_parts.append(f"Duration: {minutes} minutes")
 
         return "\n".join(context_parts)

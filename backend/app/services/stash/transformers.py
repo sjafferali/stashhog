@@ -69,6 +69,7 @@ def transform_scene(stash_scene: Dict) -> Dict:
             "file": transform_file_info(
                 stash_scene.get("files", [{}])[0] if stash_scene.get("files") else None
             ),
+            "files": [transform_file_info(f) for f in stash_scene.get("files", [])],
             "galleries": stash_scene.get("galleries", []),
             "movies": stash_scene.get("movies", []),
         }
@@ -193,8 +194,21 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
         f"Transforming file info with keys: {list(file_info.keys()) if file_info else 'None'}"
     )
 
+    # Extract fingerprints
+    fingerprints = {}
+    for fp in file_info.get("fingerprints", []):
+        if isinstance(fp, dict) and fp.get("type"):
+            fingerprints[fp["type"]] = fp.get("value")
+
     return {
+        "id": file_info.get("id"),
+        "path": file_info.get("path"),
+        "basename": file_info.get("basename"),
+        "parent_folder_id": file_info.get("parent_folder_id"),
+        "zip_file_id": file_info.get("zip_file_id"),
+        "mod_time": file_info.get("mod_time"),
         "size": file_info.get("size", 0),
+        "format": file_info.get("format"),
         "duration": file_info.get("duration", 0),
         "video_codec": file_info.get("video_codec"),
         "audio_codec": file_info.get("audio_codec"),
@@ -202,6 +216,10 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
         "height": file_info.get("height", 0),
         "framerate": file_info.get("frame_rate", 0),
         "bitrate": file_info.get("bit_rate", 0),
+        "oshash": fingerprints.get("oshash"),
+        "phash": fingerprints.get("phash"),
+        "created_at": file_info.get("created_at"),
+        "updated_at": file_info.get("updated_at"),
     }
 
 

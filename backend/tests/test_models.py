@@ -8,13 +8,13 @@ from app.models import (
     JobStatus,
     JobType,
     Performer,
-    Scene,
     ScheduledTask,
     Setting,
     Studio,
     SyncHistory,
     Tag,
 )
+from tests.helpers import create_test_scene
 
 
 class TestBaseModel:
@@ -23,19 +23,19 @@ class TestBaseModel:
     def test_base_model_creation(self):
         """Test base model attributes."""
         # BaseModel is abstract, test through a concrete model
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Test Scene",
             paths=["/path/to/scene.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
 
         assert scene.id == "scene123"
         # created_at and updated_at are set by database, not in memory
         # They would be set after saving to DB
         assert scene.title == "Test Scene"
-        assert scene.paths == ["/path/to/scene.mp4"]
+        # Check files instead of paths
+        assert len(scene.files) == 1
+        assert scene.files[0].path == "/path/to/scene.mp4"
 
     def test_base_model_dict(self):
         """Test model to_dict method."""
@@ -55,31 +55,27 @@ class TestSceneModel:
 
     def test_scene_creation(self):
         """Test creating a scene."""
-        scene = Scene(
+        scene = create_test_scene(
             id="scene123",
             title="Test Scene",
             paths=["/videos/test.mp4"],
             details="Test details",
             url="https://example.com",
             rating=85,
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
         scene.stash_date = datetime.strptime("2023-01-01", "%Y-%m-%d")
 
         assert scene.title == "Test Scene"
-        assert scene.paths == ["/videos/test.mp4"]
+        assert scene.get_primary_path() == "/videos/test.mp4"
         assert scene.rating == 85
         assert scene.stash_date == datetime.strptime("2023-01-01", "%Y-%m-%d")
 
     def test_scene_relationships(self):
         """Test scene relationships."""
-        scene = Scene(
+        scene = create_test_scene(
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
         performer = Performer(id="p1", name="Performer 1", last_synced=datetime.now())
         tag = Tag(id="t1", name="Tag 1", last_synced=datetime.now())
@@ -95,17 +91,16 @@ class TestSceneModel:
 
     def test_scene_json_serialization(self):
         """Test scene JSON fields."""
-        scene = Scene(
+        scene = create_test_scene(
             id="s1",
             title="Test",
             paths=["/test.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
 
-        # Test that paths is a JSON field
-        assert isinstance(scene.paths, list)
-        assert scene.paths[0] == "/test.mp4"
+        # Test that files are properly created
+        assert len(scene.files) == 1
+        assert scene.files[0].path == "/test.mp4"
+        assert scene.get_primary_path() == "/test.mp4"
 
 
 class TestPerformerModel:
@@ -142,19 +137,15 @@ class TestPerformerModel:
         performer = Performer(
             id="p1", name="Test Performer", last_synced=datetime.now()
         )
-        scene1 = Scene(
+        scene1 = create_test_scene(
             id="s1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
-        scene2 = Scene(
+        scene2 = create_test_scene(
             id="s2",
             title="Scene 2",
             paths=["/s2.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
 
         performer.scenes.extend([scene1, scene2])
@@ -209,12 +200,10 @@ class TestStudioModel:
     def test_studio_scenes_relationship(self):
         """Test studio-scenes relationship."""
         studio = Studio(id="st1", name="Test Studio", last_synced=datetime.now())
-        scene = Scene(
+        scene = create_test_scene(
             id="sc1",
             title="Scene 1",
             paths=["/s1.mp4"],
-            stash_created_at=datetime.now(),
-            last_synced=datetime.now(),
         )
 
         # Set the relationship via foreign key

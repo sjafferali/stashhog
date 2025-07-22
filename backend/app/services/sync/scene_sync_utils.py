@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Performer, Scene, Studio, Tag
+from app.models import Performer, Scene, SceneFile, Studio, Tag
 from app.services.stash_service import StashService
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,7 @@ class SceneSyncUtils:
                 selectinload(Scene.performers),
                 selectinload(Scene.tags),
                 selectinload(Scene.studio),
+                selectinload(Scene.files),
             )
         )
         scene = result.scalar_one_or_none()
@@ -125,18 +126,6 @@ class SceneSyncUtils:
         scene.rating = stash_scene.get("rating")  # type: ignore[assignment]
         scene.organized = stash_scene.get("organized", False)
 
-        # File info
-        file_info = stash_scene.get("file", {})
-        scene.paths = stash_scene.get("paths", [])
-        scene.file_path = stash_scene.get("file_path")  # type: ignore[assignment]
-        scene.duration = file_info.get("duration")
-        scene.size = file_info.get("size")
-        scene.height = file_info.get("height")
-        scene.width = file_info.get("width")
-        scene.framerate = file_info.get("frame_rate")
-        scene.bitrate = file_info.get("bitrate")
-        scene.codec = file_info.get("video_codec")
-
         # Timestamps
         if created_at := stash_scene.get("created_at"):
             scene.stash_created_at = datetime.fromisoformat(  # type: ignore[assignment]
@@ -149,13 +138,47 @@ class SceneSyncUtils:
         if scene_date := stash_scene.get("date"):
             scene.stash_date = datetime.fromisoformat(scene_date)  # type: ignore[assignment]
 
+        # Handle file data
+        if not hasattr(scene, "files"):
+            scene.files = []
+
+        # Get paths from stash_scene
+        paths = stash_scene.get("paths", [])
+        file_data = stash_scene.get("file", {})
+
+        # If we have file data and at least one path, create/update the primary file
+        if paths and file_data:
+            # Check if we already have a primary file
+            primary_file = scene.get_primary_file()
+            if not primary_file:
+                # Create a new primary file
+                primary_file = SceneFile(
+                    id=f"{scene.id}_file_0",
+                    scene_id=scene.id,
+                    is_primary=True,
+                    last_synced=datetime.utcnow(),
+                )
+                scene.files.append(primary_file)
+
+            # Update the primary file with the first path
+            primary_file.path = paths[0]
+
+            # Update file properties from the file data
+            primary_file.duration = file_data.get("duration")
+            primary_file.size = file_data.get("size")
+            primary_file.height = file_data.get("height")
+            primary_file.width = file_data.get("width")
+            primary_file.frame_rate = file_data.get("frame_rate")
+            primary_file.bit_rate = file_data.get("bitrate")
+            primary_file.video_codec = file_data.get("video_codec")
+
         # Content checksum for change detection
         content_fields = [
             scene.title,
             scene.details,
             scene.url,
             scene.rating,
-            len(scene.paths),
+            scene.organized,
         ]
         scene.content_checksum = str(hash(tuple(content_fields)))  # type: ignore[assignment]
 

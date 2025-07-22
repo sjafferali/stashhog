@@ -227,6 +227,28 @@ class SceneMarkerResponse(BaseSchema):
     updated_at: Optional[datetime] = Field(None, description="Updated timestamp")
 
 
+# Scene File schema
+class SceneFileResponse(BaseSchema):
+    """Scene file response schema."""
+
+    id: str = Field(..., description="File ID")
+    path: str = Field(..., description="File path")
+    basename: Optional[str] = Field(None, description="File basename")
+    is_primary: bool = Field(..., description="Is primary file")
+    size: Optional[int] = Field(None, description="File size in bytes")
+    format: Optional[str] = Field(None, description="File format")
+    duration: Optional[float] = Field(None, description="Duration in seconds")
+    width: Optional[int] = Field(None, description="Video width")
+    height: Optional[int] = Field(None, description="Video height")
+    video_codec: Optional[str] = Field(None, description="Video codec")
+    audio_codec: Optional[str] = Field(None, description="Audio codec")
+    frame_rate: Optional[float] = Field(None, description="Frame rate")
+    bit_rate: Optional[int] = Field(None, description="Bitrate in bps")
+    oshash: Optional[str] = Field(None, description="OSHash fingerprint")
+    phash: Optional[str] = Field(None, description="PHash fingerprint")
+    mod_time: Optional[datetime] = Field(None, description="File modification time")
+
+
 # Scene-related schemas
 class SceneBase(BaseSchema):
     """Base scene schema."""
@@ -274,6 +296,9 @@ class SceneResponse(SceneBase):
     tags: list[TagResponse] = Field(default_factory=list, description="Scene tags")
     markers: list[SceneMarkerResponse] = Field(
         default_factory=list, description="Scene markers"
+    )
+    files: list[SceneFileResponse] = Field(
+        default_factory=list, description="Scene files"
     )
     last_synced: datetime = Field(..., description="Last sync timestamp")
 
@@ -547,6 +572,7 @@ __all__ = [
     "SceneCreate",
     "SceneUpdate",
     "SceneResponse",
+    "SceneFileResponse",
     "SceneFilter",
     "SceneSyncRequest",
     "AnalysisOptions",

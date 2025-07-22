@@ -6,7 +6,7 @@ import os
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import String, and_, cast, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,6 +14,7 @@ from app.api.schemas import (
     PaginatedResponse,
     PaginationParams,
     PerformerResponse,
+    SceneFileResponse,
     SceneFilter,
     SceneMarkerResponse,
     SceneResponse,
@@ -21,9 +22,8 @@ from app.api.schemas import (
     TagResponse,
 )
 from app.core.dependencies import get_db, get_job_service, get_sync_service
-from app.models import Performer, Scene, Studio, Tag
+from app.models import Performer, Scene, SceneMarker, Studio, Tag
 from app.models.job import JobType as ModelJobType
-from app.models.scene_marker import SceneMarker
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
@@ -42,8 +42,6 @@ def _build_scene_filter_conditions(
             or_(
                 Scene.title.ilike(search_term),
                 Scene.details.ilike(search_term),
-                # Search in paths JSON array - cast to string for simple LIKE search
-                cast(Scene.paths, String).ilike(search_term),
             )
         )
 
@@ -90,23 +88,32 @@ def _apply_scene_sorting(query: Any, pagination: PaginationParams) -> Any:
 
 def _transform_scene_to_response(scene: Scene) -> SceneResponse:
     """Transform Scene model to SceneResponse."""
+    # Get primary file for metadata
+    primary_file = scene.get_primary_file()
+
     # Use filename if title is empty or blank
     title = scene.title
     if not title or not title.strip():
-        # First try to use actual file path if available
-        if scene.file_path:
-            title = os.path.basename(scene.file_path)
-        # Fall back to paths array if no file_path
-        elif scene.paths and len(scene.paths) > 0:
-            title = os.path.basename(scene.paths[0])
+        # Use primary file path if available
+        if primary_file and primary_file.path:
+            title = os.path.basename(primary_file.path)
+
+    # Build paths array and file_path for backward compatibility
+    paths = []
+    file_path = None
+    if hasattr(scene, "files") and scene.files:
+        paths = [f.path for f in scene.files if f.path]
+        if primary_file:
+            file_path = primary_file.path
 
     return SceneResponse(
         id=scene.id,  # type: ignore[arg-type]
         title=title,  # type: ignore[arg-type]
-        paths=scene.paths,  # type: ignore[arg-type]
-        file_path=scene.file_path,  # type: ignore[arg-type]
+        paths=paths,  # type: ignore[arg-type]
+        file_path=file_path,  # type: ignore[arg-type]
         organized=scene.organized,  # type: ignore[arg-type]
         analyzed=scene.analyzed,  # type: ignore[arg-type]
+        video_analyzed=scene.video_analyzed,  # type: ignore[arg-type]
         details=scene.details,  # type: ignore[arg-type]
         stash_created_at=scene.stash_created_at,  # type: ignore[arg-type]
         stash_updated_at=scene.stash_updated_at,  # type: ignore[arg-type]
@@ -136,15 +143,40 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
             )
             for m in scene.markers
         ],
+        files=(
+            [
+                SceneFileResponse(
+                    id=f.id,
+                    path=f.path,
+                    basename=f.basename,
+                    is_primary=f.is_primary,
+                    size=f.size,
+                    format=f.format,
+                    duration=f.duration,
+                    width=f.width,
+                    height=f.height,
+                    video_codec=f.video_codec,
+                    audio_codec=f.audio_codec,
+                    frame_rate=f.frame_rate,
+                    bit_rate=f.bit_rate,
+                    oshash=f.oshash,
+                    phash=f.phash,
+                    mod_time=f.mod_time,
+                )
+                for f in scene.files
+            ]
+            if hasattr(scene, "files")
+            else []
+        ),
         last_synced=scene.last_synced,  # type: ignore[arg-type]
-        # Metadata fields
-        duration=scene.duration,  # type: ignore[arg-type]
-        size=scene.size,  # type: ignore[arg-type]
-        width=scene.width,  # type: ignore[arg-type]
-        height=scene.height,  # type: ignore[arg-type]
-        framerate=scene.framerate,  # type: ignore[arg-type]
-        bitrate=scene.bitrate,  # type: ignore[arg-type]
-        video_codec=scene.codec,  # type: ignore[arg-type]
+        # Metadata fields - populate from primary file for backward compatibility
+        duration=primary_file.duration if primary_file else None,  # type: ignore[arg-type]
+        size=primary_file.size if primary_file else None,  # type: ignore[arg-type]
+        width=primary_file.width if primary_file else None,  # type: ignore[arg-type]
+        height=primary_file.height if primary_file else None,  # type: ignore[arg-type]
+        framerate=primary_file.frame_rate if primary_file else None,  # type: ignore[arg-type]
+        bitrate=primary_file.bit_rate if primary_file else None,  # type: ignore[arg-type]
+        video_codec=primary_file.video_codec if primary_file else None,  # type: ignore[arg-type]
     )
 
 
@@ -162,6 +194,8 @@ async def list_scenes(
         selectinload(Scene.performers),
         selectinload(Scene.tags),
         selectinload(Scene.studio),
+        selectinload(Scene.markers),
+        selectinload(Scene.files),
     )
 
     # Apply filters
@@ -211,6 +245,7 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)) -> SceneR
             selectinload(Scene.studio),
             selectinload(Scene.markers).selectinload(SceneMarker.primary_tag),
             selectinload(Scene.markers).selectinload(SceneMarker.tags),
+            selectinload(Scene.files),
         )
         .where(Scene.id == scene_id)
     )

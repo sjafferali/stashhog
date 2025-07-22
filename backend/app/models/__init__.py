@@ -18,6 +18,7 @@ from app.models.plan_change import ChangeAction, PlanChange
 
 # Import all models
 from app.models.scene import Scene
+from app.models.scene_file import SceneFile
 from app.models.scene_marker import SceneMarker, scene_marker_tags
 from app.models.scheduled_task import ScheduledTask
 from app.models.setting import Setting
@@ -35,6 +36,7 @@ __all__ = [
     "scene_marker_tags",
     # Models
     "Scene",
+    "SceneFile",
     "SceneMarker",
     "Performer",
     "Tag",

@@ -3,12 +3,9 @@
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    JSON,
-    BigInteger,
     Boolean,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -22,6 +19,7 @@ from app.models.base import BaseModel
 if TYPE_CHECKING:
     from app.models.performer import Performer  # noqa: F401
     from app.models.plan_change import PlanChange  # noqa: F401
+    from app.models.scene_file import SceneFile  # noqa: F401
     from app.models.scene_marker import SceneMarker  # noqa: F401
     from app.models.studio import Studio  # noqa: F401
     from app.models.tag import Tag  # noqa: F401
@@ -39,23 +37,12 @@ class Scene(BaseModel):
 
     # Basic scene information
     title = Column(String, nullable=False, index=True)
-    paths = Column(JSON, nullable=False, default=list)  # List of API URLs
-    file_path = Column(String, nullable=True)  # Actual file path from Stash
     organized = Column(Boolean, default=False, nullable=False, index=True)
     analyzed = Column(Boolean, default=False, nullable=False, index=True)
     video_analyzed = Column(Boolean, default=False, nullable=False, index=True)
     details = Column(Text, nullable=True)
     url = Column(String, nullable=True)
     rating = Column(Integer, nullable=True)
-
-    # File properties
-    duration = Column(Float, nullable=True)  # Duration in seconds
-    size = Column(BigInteger, nullable=True)  # File size in bytes
-    height = Column(Integer, nullable=True)  # Video height in pixels
-    width = Column(Integer, nullable=True)  # Video width in pixels
-    framerate = Column(Float, nullable=True)  # Frames per second
-    bitrate = Column(Integer, nullable=True)  # Bitrate in kbps
-    codec = Column(String, nullable=True)  # Video codec
 
     # Date fields
     # Stash-sourced timestamps (prefixed with stash_ for clarity)
@@ -95,6 +82,12 @@ class Scene(BaseModel):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    files = relationship(
+        "SceneFile",
+        back_populates="scene",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     # Composite indexes for common queries
     __table_args__ = (
@@ -127,7 +120,17 @@ class Scene(BaseModel):
 
     def get_primary_path(self) -> Optional[str]:
         """Get the primary file path for the scene."""
-        return str(self.paths[0]) if self.paths else None
+        primary_file = self.get_primary_file()
+        return primary_file.path if primary_file else None  # type: ignore[return-value]
+
+    def get_primary_file(self) -> Optional["SceneFile"]:
+        """Get the primary file for this scene."""
+        if not hasattr(self, "files") or not self.files:
+            return None
+        return next(
+            (f for f in self.files if f.is_primary),
+            self.files[0] if self.files else None,
+        )
 
     def to_dict(self, exclude: Optional[set] = None) -> dict:
         """Convert to dictionary with relationships."""

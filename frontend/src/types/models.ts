@@ -9,6 +9,25 @@ export interface SceneMarker {
   updated_at?: string;
 }
 
+export interface SceneFile {
+  id: string;
+  path: string;
+  basename?: string;
+  is_primary: boolean;
+  size?: number;
+  format?: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  video_codec?: string;
+  audio_codec?: string;
+  frame_rate?: number;
+  bit_rate?: number;
+  oshash?: string;
+  phash?: string;
+  mod_time?: string;
+}
+
 export interface Scene {
   id: string;
   title: string;
@@ -42,6 +61,7 @@ export interface Scene {
   performers: Performer[];
   tags: Tag[];
   markers: SceneMarker[];
+  files: SceneFile[];
 
   // Analysis
   analysis_results?: AnalysisResult[];
