@@ -197,6 +197,63 @@ class TestFullSyncStrategy:
         assert result.rating is None
 
     @pytest.mark.asyncio
+    async def test_date_fallback_to_created_at(self, mock_scene):
+        """Test that stash_date falls back to created_at when date is not present"""
+        strategy = FullSyncStrategy()
+
+        # Remote data without date but with created_at
+        remote_data = {
+            "title": "Scene Without Date",
+            "created_at": "2023-05-15T10:30:00Z",
+            # Note: no "date" field
+        }
+
+        result = await strategy.merge_data(mock_scene, remote_data)
+
+        # Should use created_at as fallback for stash_date
+        assert result.stash_date == datetime(
+            2023, 5, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
+        assert result.stash_created_at == datetime(
+            2023, 5, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
+
+    @pytest.mark.asyncio
+    async def test_date_no_fallback_when_date_exists(self, mock_scene):
+        """Test that stash_date uses date field when present, not created_at"""
+        strategy = FullSyncStrategy()
+
+        # Remote data with both date and created_at
+        remote_data = {
+            "title": "Scene With Both Date and Created",
+            "date": "2023-06-20",
+            "created_at": "2023-05-15T10:30:00Z",
+        }
+
+        result = await strategy.merge_data(mock_scene, remote_data)
+
+        # Should use date field, not created_at
+        assert result.stash_date == datetime(2023, 6, 20)
+        assert result.stash_created_at == datetime(
+            2023, 5, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
+
+    @pytest.mark.asyncio
+    async def test_date_null_when_no_date_or_created_at(self, mock_scene):
+        """Test that stash_date is None when neither date nor created_at exist"""
+        strategy = FullSyncStrategy()
+
+        # Remote data without date or created_at
+        remote_data = {
+            "title": "Scene Without Any Dates",
+        }
+
+        result = await strategy.merge_data(mock_scene, remote_data)
+
+        # Should be None when neither field exists
+        assert result.stash_date is None
+
+    @pytest.mark.asyncio
     async def test_merge_with_no_file_data(self, mock_scene):
         """Test merging when remote data has no file information"""
         strategy = FullSyncStrategy()
@@ -517,6 +574,26 @@ class TestSmartSyncStrategy:
         # Should use current time for stash_created_at when missing
         assert result.stash_created_at == datetime(2023, 8, 1, 12, 0, 0)
         assert result.stash_date is None
+
+    @pytest.mark.asyncio
+    async def test_smart_merge_date_fallback_to_created_at(self, mock_scene):
+        """Test that SmartSyncStrategy also uses created_at as fallback for date"""
+        strategy = SmartSyncStrategy()
+
+        # Remote data without date but with created_at
+        remote_data = {
+            "title": "Smart Sync Scene Without Date",
+            "created_at": "2023-04-10T08:15:00Z",
+            "file": {},
+        }
+
+        result = await strategy.merge_data(mock_scene, remote_data)
+
+        # Should use created_at as fallback for stash_date
+        assert result.stash_date == datetime(2023, 4, 10, 8, 15, 0, tzinfo=timezone.utc)
+        assert result.stash_created_at == datetime(
+            2023, 4, 10, 8, 15, 0, tzinfo=timezone.utc
+        )
 
 
 class TestMergeStrategies:

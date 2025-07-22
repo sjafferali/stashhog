@@ -83,7 +83,12 @@ class FullSyncStrategy(SyncStrategy):
         if date_str:
             scene.stash_date = self._parse_datetime(date_str)  # type: ignore[assignment]
         else:
-            scene.stash_date = None  # type: ignore[assignment]
+            # Fallback to created_at if date is not present
+            created_at = remote_data.get("created_at")
+            if created_at:
+                scene.stash_date = self._parse_datetime(created_at)  # type: ignore[assignment]
+            else:
+                scene.stash_date = None  # type: ignore[assignment]
 
         # Don't overwrite scene.updated_at - let SQLAlchemy handle it
         return scene
@@ -226,7 +231,12 @@ class SmartSyncStrategy(SyncStrategy):
         if date_str:
             scene.stash_date = self._parse_datetime(date_str)  # type: ignore[assignment]
         else:
-            scene.stash_date = None  # type: ignore[assignment]
+            # Fallback to created_at if date is not present
+            created_at = remote_data.get("created_at")
+            if created_at:
+                scene.stash_date = self._parse_datetime(created_at)  # type: ignore[assignment]
+            else:
+                scene.stash_date = None  # type: ignore[assignment]
 
         # Update checksum
         scene.content_checksum = self._calculate_checksum(remote_data)  # type: ignore[assignment]

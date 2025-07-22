@@ -23,6 +23,7 @@ import {
   ClockCircleOutlined,
   // ExportOutlined,
   EditOutlined,
+  ApiOutlined,
   // SyncOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -79,6 +80,12 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       const fullUrl = `${baseUrl}/scenes/${scene.id}`;
       window.open(fullUrl, '_blank');
     }
+  };
+
+  const handleOpenInAPI = () => {
+    // Get current origin for the API base URL
+    const apiUrl = `${window.location.origin}/api/scenes/${scene.id}`;
+    window.open(apiUrl, '_blank');
   };
 
   // Check if we have a valid stash URL
@@ -589,6 +596,9 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             disabled={!hasStashUrl}
           >
             Open in Stash
+          </Button>,
+          <Button key="api" icon={<ApiOutlined />} onClick={handleOpenInAPI}>
+            Open in API
           </Button>,
           <Button
             key="analyze"
