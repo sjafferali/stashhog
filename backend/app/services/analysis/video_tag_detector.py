@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import aiohttp
 
@@ -30,7 +30,7 @@ class VideoTagDetector:
         self.server_timeout = settings.analysis.server_timeout
         self.create_markers = settings.analysis.create_markers
 
-    def _parse_nested_json_result(self, json_result: Any) -> Dict[str, Any]:
+    def _parse_nested_json_result(self, json_result: Any) -> dict[str, Any]:
         """Parse nested JSON result if it's a string.
 
         Args:
@@ -69,7 +69,7 @@ class VideoTagDetector:
             )
             return {}
 
-    def _parse_response_json(self, response_text: str) -> Optional[Dict[str, Any]]:
+    def _parse_response_json(self, response_text: str) -> Optional[dict[str, Any]]:
         """Parse the response text as JSON and extract the result.
 
         Args:
@@ -120,7 +120,7 @@ class VideoTagDetector:
         self,
         video_path: str,
         vr_video: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Process video file through external AI server.
 
         Args:
@@ -181,7 +181,7 @@ class VideoTagDetector:
             logger.error(f"Error processing video: {e}")
             raise
 
-    def _get_video_path(self, scene_data: Dict[str, Any]) -> Optional[str]:
+    def _get_video_path(self, scene_data: dict[str, Any]) -> Optional[str]:
         """Extract and validate video path from scene data."""
         logger.debug(f"_get_video_path called with scene_data type: {type(scene_data)}")
         logger.debug(
@@ -200,9 +200,9 @@ class VideoTagDetector:
 
     def _extract_tags_from_result(
         self,
-        result: Dict[str, Any],
-        existing_tags: List[str],
-    ) -> List[ProposedChange]:
+        result: dict[str, Any],
+        existing_tags: list[str],
+    ) -> list[ProposedChange]:
         """Extract tag changes from AI analysis result."""
         logger.debug("_extract_tags_from_result called")
         logger.debug(f"result type: {type(result)}")
@@ -210,7 +210,7 @@ class VideoTagDetector:
             f"result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
         )
 
-        changes: List[ProposedChange] = []
+        changes: list[ProposedChange] = []
 
         # Check for timespans format (new AI server response format)
         if "timespans" in result:
@@ -279,10 +279,13 @@ class VideoTagDetector:
         return changes
 
     def _convert_timespans_to_tags(
-        self, timespans: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, timespans: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Convert timespans format to tags list."""
         tags = []
+        tag_map: dict[str, dict[str, Any]] = (
+            {}
+        )  # Use map to aggregate same tags from different categories
 
         for category, actions in timespans.items():
             if not isinstance(actions, dict):
@@ -294,10 +297,15 @@ class VideoTagDetector:
 
             for action_name, occurrences in actions.items():
                 if isinstance(occurrences, list) and occurrences:
-                    # Calculate average confidence from all occurrences
+                    # Merge consecutive occurrences first
+                    merged_occurrences = self._merge_consecutive_occurrences(
+                        occurrences
+                    )
+
+                    # Calculate average confidence from merged occurrences
                     confidences = [
                         occ.get("confidence", 0.5)
-                        for occ in occurrences
+                        for occ in merged_occurrences
                         if isinstance(occ, dict)
                     ]
                     avg_confidence = (
@@ -310,32 +318,106 @@ class VideoTagDetector:
                         if action_name.endswith("_AI")
                         else f"{action_name}_AI"
                     )
-                    tag_entry = {
-                        "name": tag_name,
-                        "confidence": avg_confidence,
-                        "category": category,
-                    }
-                    tags.append(tag_entry)
+
+                    # Aggregate tags with same name (keep highest confidence)
+                    if tag_name in tag_map:
+                        if avg_confidence > tag_map[tag_name]["confidence"]:
+                            tag_map[tag_name]["confidence"] = avg_confidence
+                            tag_map[tag_name]["category"] = category
+                    else:
+                        tag_map[tag_name] = {
+                            "name": tag_name,
+                            "confidence": avg_confidence,
+                            "category": category,
+                        }
+
                     logger.debug(
-                        f"Added tag: {tag_name} with confidence {avg_confidence:.2f}"
+                        f"Processed tag: {tag_name} with confidence {avg_confidence:.2f}"
                     )
 
+        # Convert map back to list
+        tags = list(tag_map.values())
+        logger.debug(f"Converted timespans to {len(tags)} unique tags")
         return tags
 
+    def _merge_consecutive_occurrences(
+        self, occurrences: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Merge consecutive occurrences with same confidence level.
+
+        This follows the AITagger plugin logic to reduce the number of markers
+        by combining frame-by-frame detections into continuous time spans.
+
+        Args:
+            occurrences: List of occurrence dictionaries with start, end, confidence
+
+        Returns:
+            Merged list of occurrences
+        """
+        if not occurrences:
+            return []
+
+        # Sort by start time
+        sorted_occurrences = sorted(occurrences, key=lambda x: x.get("start", 0))
+        merged: list[dict[str, Any]] = []
+
+        for occurrence in sorted_occurrences:
+            if not isinstance(occurrence, dict):
+                continue
+
+            start = occurrence.get("start", 0)
+            end = occurrence.get("end", start)
+            confidence = occurrence.get("confidence", 0.5)
+
+            # Check if we can merge with the last occurrence
+            if merged:
+                last = merged[-1]
+                last_end = last.get("end", last.get("start", 0))
+
+                # Merge if:
+                # 1. Same confidence level
+                # 2. Start time is within frame_interval of last end time
+                # (AITagger uses exactly frame_interval, we allow small tolerance)
+                time_gap = start - last_end
+                if (
+                    abs(last.get("confidence", 0) - confidence) < 0.01
+                    and 0 <= time_gap <= self.frame_interval * 1.1
+                ):
+                    # Extend the last occurrence
+                    last["end"] = end
+                    logger.debug(
+                        f"Merged occurrence at {start}s-{end}s into "
+                        f"{last['start']}s-{last['end']}s"
+                    )
+                    continue
+
+            # Add as new occurrence
+            merged.append({"start": start, "end": end, "confidence": confidence})
+
+        logger.debug(
+            f"Merged {len(occurrences)} occurrences into {len(merged)} continuous spans"
+        )
+        return merged
+
     def _convert_timespans_to_markers(
-        self, timespans: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, timespans: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Convert timespans format to markers list."""
         markers = []
 
-        for category, actions in timespans.items():
+        for _, actions in timespans.items():
             if not isinstance(actions, dict):
                 continue
 
             for action_name, occurrences in actions.items():
                 if isinstance(occurrences, list):
+                    # Merge consecutive occurrences first
+                    merged_occurrences = self._merge_consecutive_occurrences(
+                        occurrences
+                    )
+
                     # Create markers for significant occurrences
-                    for occurrence in occurrences:
+                    for occurrence in merged_occurrences:
                         if isinstance(occurrence, dict):
                             start_time = occurrence.get("start", 0)
                             end_time = occurrence.get("end", None)
@@ -367,13 +449,74 @@ class VideoTagDetector:
 
         return markers
 
+    def _deduplicate_markers(
+        self, markers: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Deduplicate markers that overlap in time or have same title at similar times.
+
+        Args:
+            markers: List of marker dictionaries
+
+        Returns:
+            Deduplicated list of markers
+        """
+        if not markers:
+            return []
+
+        # Sort by start time
+        sorted_markers = sorted(markers, key=lambda x: x.get("time", 0))
+        deduplicated: list[dict[str, Any]] = []
+
+        for marker in sorted_markers:
+            time = marker.get("time", 0)
+            end_time = marker.get("end_time")
+            title = marker.get("title", "")
+
+            # Check for duplicates
+            is_duplicate = False
+            for existing in deduplicated:
+                existing_time = existing.get("time", 0)
+                existing_end = existing.get("end_time")
+                existing_title = existing.get("title", "")
+
+                # Check if markers overlap in time
+                if end_time is not None and existing_end is not None:
+                    # Both have end times - check for overlap
+                    if (
+                        not (end_time < existing_time or time > existing_end)
+                        and title == existing_title
+                    ):
+                        is_duplicate = True
+                        # Keep the one with higher confidence
+                        if marker.get("confidence", 0) > existing.get("confidence", 0):
+                            deduplicated.remove(existing)
+                            is_duplicate = False
+                        break
+                else:
+                    # Point markers - check if too close (within 2 seconds)
+                    if abs(time - existing_time) < 2.0 and title == existing_title:
+                        is_duplicate = True
+                        # Keep the one with higher confidence
+                        if marker.get("confidence", 0) > existing.get("confidence", 0):
+                            deduplicated.remove(existing)
+                            is_duplicate = False
+                        break
+
+            if not is_duplicate:
+                deduplicated.append(marker)
+
+        logger.debug(
+            f"Deduplicated {len(markers)} markers to {len(deduplicated)} unique markers"
+        )
+        return deduplicated
+
     def _extract_markers_from_result(
         self,
-        result: Dict[str, Any],
-        existing_markers: List[Dict[str, Any]],
-    ) -> List[ProposedChange]:
+        result: dict[str, Any],
+        existing_markers: list[dict[str, Any]],
+    ) -> list[ProposedChange]:
         """Extract marker changes from AI analysis result."""
-        changes: List[ProposedChange] = []
+        changes: list[ProposedChange] = []
 
         if not self.create_markers:
             return changes
@@ -389,7 +532,10 @@ class VideoTagDetector:
             ai_markers = result.get("markers", [])
             logger.debug(f"Using direct markers format: {len(ai_markers)} markers")
 
-        logger.debug(f"Processing {len(ai_markers)} markers")
+        # Deduplicate markers before processing
+        ai_markers = self._deduplicate_markers(ai_markers)
+
+        logger.debug(f"Processing {len(ai_markers)} markers after deduplication")
         for idx, marker_info in enumerate(ai_markers):
             logger.debug(f"Processing marker {idx}: {marker_info}")
             if isinstance(marker_info, dict):
@@ -454,10 +600,10 @@ class VideoTagDetector:
 
     async def detect(
         self,
-        scene_data: Dict[str, Any],
-        existing_tags: List[str],
-        existing_markers: List[Dict[str, Any]],
-    ) -> Tuple[List[ProposedChange], Optional[Dict[str, Any]]]:
+        scene_data: dict[str, Any],
+        existing_tags: list[str],
+        existing_markers: list[dict[str, Any]],
+    ) -> tuple[list[ProposedChange], Optional[dict[str, Any]]]:
         """Detect tags and markers from video content.
 
         Args:
@@ -477,7 +623,7 @@ class VideoTagDetector:
             f"existing_markers type: {type(existing_markers)}, count: {len(existing_markers)}"
         )
 
-        changes: List[ProposedChange] = []
+        changes: list[ProposedChange] = []
 
         # Validate scene_data is a dictionary
         if not isinstance(scene_data, dict):

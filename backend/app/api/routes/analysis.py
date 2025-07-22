@@ -637,6 +637,12 @@ def _build_bulk_update_query(
     confidence_threshold: Optional[float],
 ) -> Select[tuple[PlanChange]]:
     """Build query for bulk update based on action and filters."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    logger.debug(f"Building query - plan_id: {plan_id}, action: {action}")
+
     query = select(PlanChange).where(
         PlanChange.plan_id == plan_id,
         PlanChange.applied.is_(False),  # Don't modify already applied changes
@@ -645,18 +651,22 @@ def _build_bulk_update_query(
     # Add scene filter if provided
     if scene_id:
         query = query.where(PlanChange.scene_id == scene_id)
+        logger.debug(f"Added scene filter: {scene_id}")
 
     # Apply action-specific filters
     if action in ["accept_by_field", "reject_by_field"]:
         query = query.where(PlanChange.field == field)
+        logger.debug(f"Added field filter: {field}")
     elif action == "accept_by_confidence":
         query = query.where(PlanChange.confidence >= confidence_threshold)
+        logger.debug(f"Added confidence filter: >= {confidence_threshold}")
 
     # Only update pending changes (not accepted and not rejected)
     query = query.where(
         PlanChange.accepted.is_(False),
         PlanChange.rejected.is_(False),
     )
+    logger.debug("Added pending changes filter")
 
     return query
 
@@ -709,16 +719,29 @@ async def bulk_update_changes(
     - reject_by_field: Reject all changes for a specific field
     - accept_by_confidence: Accept all changes above a confidence threshold
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info("=== Bulk update request received ===")
+    logger.info(f"Plan ID: {plan_id}")
+    logger.info(f"Action: {action}")
+    logger.info(f"Field: {field}")
+    logger.info(f"Confidence threshold: {confidence_threshold}")
+    logger.info(f"Scene ID: {scene_id}")
+
     # Verify plan exists
     plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
     plan_result = await db.execute(plan_query)
     plan = plan_result.scalar_one_or_none()
 
     if not plan:
+        logger.error(f"Plan {plan_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Analysis plan {plan_id} not found",
         )
+
+    logger.info(f"Found plan: {plan.name} (status: {plan.status})")
 
     # Validate parameters
     _validate_bulk_action_params(action, field, confidence_threshold)
@@ -727,19 +750,27 @@ async def bulk_update_changes(
     query = _build_bulk_update_query(
         plan_id, action, scene_id, field, confidence_threshold
     )
+    logger.info("Executing query to find changes...")
     result = await db.execute(query)
     changes = result.scalars().all()
+    logger.info(f"Found {len(changes)} changes to update")
 
     # Apply the action
     updated_count = _apply_bulk_action(changes, action)
+    logger.info(f"Applied action to {updated_count} changes")
 
     # Flush changes to database
     await db.flush()
+    logger.info("Changes flushed to database")
 
     # Update plan status
     total_count, applied_count, rejected_count, pending_count = (
         await _get_plan_change_counts(plan_id, db)
     )
+    logger.info(
+        f"Change counts - Total: {total_count}, Applied: {applied_count}, Rejected: {rejected_count}, Pending: {pending_count}"
+    )
+
     await _update_plan_status_based_on_counts(
         plan, total_count, applied_count, rejected_count, pending_count
     )
@@ -747,10 +778,12 @@ async def bulk_update_changes(
     # If all changes are rejected, mark plan as cancelled
     if total_count > 0 and rejected_count == total_count:
         plan.status = PlanStatus.CANCELLED  # type: ignore[assignment]
+        logger.info("All changes rejected - marking plan as cancelled")
 
     await db.commit()
+    logger.info("Transaction committed successfully")
 
-    return {
+    response = {
         "action": action,
         "updated_count": updated_count,
         "plan_status": (
@@ -761,6 +794,11 @@ async def bulk_update_changes(
         "rejected_changes": rejected_count,
         "pending_changes": pending_count,
     }
+
+    logger.info("=== Bulk update completed ===")
+    logger.info(f"Response: {response}")
+
+    return response
 
 
 @router.patch("/plans/{plan_id}/cancel")

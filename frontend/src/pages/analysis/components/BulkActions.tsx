@@ -27,11 +27,11 @@ export interface BulkActionsProps {
   acceptedChanges: number;
   rejectedChanges: number;
   pendingChanges: number;
-  onAcceptAll: () => void;
-  onRejectAll: () => void;
-  onAcceptByConfidence: (threshold: number) => void;
-  onAcceptByField: (field: string) => void;
-  onRejectByField: (field: string) => void;
+  onAcceptAll: () => void | Promise<void>;
+  onRejectAll: () => void | Promise<void>;
+  onAcceptByConfidence: (threshold: number) => void | Promise<void>;
+  onAcceptByField: (field: string) => void | Promise<void>;
+  onRejectByField: (field: string) => void | Promise<void>;
   fieldCounts: {
     title: number;
     performers: number;
@@ -147,7 +147,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
         <Menu.Item
           key="accept-all"
           icon={<CheckCircleOutlined />}
-          onClick={onAcceptAll}
+          onClick={() => void onAcceptAll()}
           disabled={pendingChanges === 0}
         >
           Accept All Pending ({pendingChanges})
@@ -170,7 +170,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
             <Menu.Item
               key={field}
               icon={fieldIcons[field as keyof typeof fieldIcons]}
-              onClick={() => onAcceptByField(field)}
+              onClick={() => void onAcceptByField(field)}
               disabled={count === 0}
             >
               {fieldLabels[field as keyof typeof fieldLabels]}
@@ -186,7 +186,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
         <Menu.Item
           key="reject-all"
           icon={<CloseCircleOutlined />}
-          onClick={onRejectAll}
+          onClick={() => void onRejectAll()}
           disabled={pendingChanges === 0}
         >
           Reject All Pending ({pendingChanges})
@@ -201,7 +201,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
             <Menu.Item
               key={field}
               icon={fieldIcons[field as keyof typeof fieldIcons]}
-              onClick={() => onRejectByField(field)}
+              onClick={() => void onRejectByField(field)}
               disabled={count === 0}
             >
               {fieldLabels[field as keyof typeof fieldLabels]}
@@ -225,7 +225,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
       <Tooltip title="Quick accept all pending changes">
         <Button
           icon={<CheckCircleOutlined />}
-          onClick={onAcceptAll}
+          onClick={() => void onAcceptAll()}
           disabled={pendingChanges === 0}
         >
           Accept All
@@ -235,7 +235,7 @@ const BulkActions: React.FC<BulkActionsProps> = ({
       <Tooltip title="Quick reject all pending changes">
         <Button
           icon={<CloseCircleOutlined />}
-          onClick={onRejectAll}
+          onClick={() => void onRejectAll()}
           disabled={pendingChanges === 0}
           danger
         >

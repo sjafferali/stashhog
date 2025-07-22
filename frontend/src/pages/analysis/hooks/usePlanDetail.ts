@@ -79,8 +79,8 @@ export interface UsePlanDetailReturn {
   ) => Promise<void>;
   acceptChange: (changeId: string | number) => Promise<void>;
   rejectChange: (changeId: string | number) => Promise<void>;
-  acceptAllChanges: (sceneId?: string) => void;
-  rejectAllChanges: (sceneId?: string) => void;
+  acceptAllChanges: (sceneId?: string) => Promise<void>;
+  rejectAllChanges: (sceneId?: string) => Promise<void>;
   acceptByConfidence: (confidenceThreshold: number) => Promise<void>;
   acceptByField: (field: string) => Promise<void>;
   rejectByField: (field: string) => Promise<void>;
@@ -500,10 +500,8 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
     updateChange,
     acceptChange,
     rejectChange,
-    acceptAllChanges: (...args: Parameters<typeof acceptAllChanges>) =>
-      void acceptAllChanges(...args),
-    rejectAllChanges: (...args: Parameters<typeof rejectAllChanges>) =>
-      void rejectAllChanges(...args),
+    acceptAllChanges,
+    rejectAllChanges,
     acceptByConfidence,
     acceptByField,
     rejectByField,

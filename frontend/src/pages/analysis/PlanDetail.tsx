@@ -226,8 +226,8 @@ const PlanDetail: React.FC = () => {
             acceptedChanges={stats.acceptedChanges}
             rejectedChanges={stats.rejectedChanges}
             pendingChanges={stats.pendingChanges}
-            onAcceptAll={() => void acceptAllChanges()}
-            onRejectAll={() => void rejectAllChanges()}
+            onAcceptAll={() => acceptAllChanges()}
+            onRejectAll={() => rejectAllChanges()}
             onAcceptByConfidence={(threshold) =>
               void acceptByConfidence(threshold)
             }
