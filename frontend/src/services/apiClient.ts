@@ -111,6 +111,22 @@ class ApiClient {
     await api.delete(`/analysis/plans/${id}`);
   }
 
+  async cancelAnalysisPlan(id: number): Promise<void> {
+    await api.patch(`/analysis/plans/${id}/cancel`);
+  }
+
+  async bulkUpdateAnalysisPlan(
+    id: number,
+    action: 'accept_all' | 'reject_all',
+    sceneId?: string
+  ): Promise<{ updated_count: number }> {
+    const response = await api.post(`/analysis/plans/${id}/bulk-update`, {
+      action,
+      scene_id: sceneId,
+    });
+    return response.data;
+  }
+
   async analyzeMultipleScenes(
     sceneIds: number[],
     planId?: number

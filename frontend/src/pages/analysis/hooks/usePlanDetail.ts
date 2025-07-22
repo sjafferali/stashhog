@@ -24,8 +24,9 @@ interface RawChange {
     | Record<string, unknown>
     | null;
   confidence: number;
-  applied?: boolean;
+  accepted?: boolean;
   rejected?: boolean;
+  applied?: boolean;
 }
 
 interface RawScene {
@@ -161,7 +162,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
             proposedValue: change.proposed_value,
             confidence: change.confidence,
             type: getFieldType(change.field, change.proposed_value),
-            accepted: change.applied || false,
+            accepted: change.accepted || false,
             rejected: change.rejected || false,
           })),
         })),

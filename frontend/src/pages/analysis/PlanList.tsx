@@ -1,10 +1,22 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Table, Button, Space, Tag, message, Badge, Spin } from 'antd';
+import {
+  Card,
+  Table,
+  Button,
+  Space,
+  Tag,
+  message,
+  Badge,
+  Spin,
+  Modal,
+} from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
-  DeleteOutlined,
+  CloseOutlined,
   LoadingOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
@@ -18,6 +30,7 @@ const PlanList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState<Job[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   useEffect(() => {
     void fetchPlans();
@@ -115,27 +128,128 @@ const PlanList: React.FC = () => {
           <Button
             type="link"
             danger
-            icon={<DeleteOutlined />}
+            icon={<CloseOutlined />}
             onClick={() => {
-              void handleDelete(record.id);
+              void handleCancel(record.id);
             }}
+            disabled={
+              record.status === 'applied' || record.status === 'cancelled'
+            }
           >
-            Delete
+            Cancel
           </Button>
         </Space>
       ),
     },
   ];
 
-  const handleDelete = async (id: number) => {
+  const handleCancel = async (id: number) => {
     try {
-      await apiClient.deleteAnalysisPlan(id);
-      void message.success('Plan deleted successfully');
+      await apiClient.cancelAnalysisPlan(id);
+      void message.success('Plan cancelled successfully');
       void fetchPlans();
     } catch (error) {
-      console.error('Failed to delete plan:', error);
-      void message.error('Failed to delete plan');
+      console.error('Failed to cancel plan:', error);
+      void message.error('Failed to cancel plan');
     }
+  };
+
+  const handleBulkAccept = async () => {
+    const selectedPlans = plans.filter((plan) =>
+      selectedRowKeys.includes(plan.id)
+    );
+    const reviewingPlans = selectedPlans.filter(
+      (plan) => plan.status === 'reviewing'
+    );
+
+    if (reviewingPlans.length === 0) {
+      void message.warning('Please select plans that are in reviewing status');
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Accept All Changes',
+      content: `Are you sure you want to accept all changes for ${reviewingPlans.length} plan(s)?`,
+      onOk: async () => {
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const plan of reviewingPlans) {
+          try {
+            await apiClient.bulkUpdateAnalysisPlan(plan.id, 'accept_all');
+            successCount++;
+          } catch (error) {
+            console.error(
+              `Failed to accept changes for plan ${plan.id}:`,
+              error
+            );
+            errorCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          void message.success(
+            `Successfully accepted changes for ${successCount} plan(s)`
+          );
+          void fetchPlans();
+          setSelectedRowKeys([]);
+        }
+        if (errorCount > 0) {
+          void message.error(
+            `Failed to accept changes for ${errorCount} plan(s)`
+          );
+        }
+      },
+    });
+  };
+
+  const handleBulkReject = async () => {
+    const selectedPlans = plans.filter((plan) =>
+      selectedRowKeys.includes(plan.id)
+    );
+    const reviewingPlans = selectedPlans.filter(
+      (plan) => plan.status === 'reviewing'
+    );
+
+    if (reviewingPlans.length === 0) {
+      void message.warning('Please select plans that are in reviewing status');
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Reject All Changes',
+      content: `Are you sure you want to reject all changes for ${reviewingPlans.length} plan(s)? This will cancel the plans.`,
+      onOk: async () => {
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const plan of reviewingPlans) {
+          try {
+            await apiClient.bulkUpdateAnalysisPlan(plan.id, 'reject_all');
+            successCount++;
+          } catch (error) {
+            console.error(
+              `Failed to reject changes for plan ${plan.id}:`,
+              error
+            );
+            errorCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          void message.success(
+            `Successfully rejected changes for ${successCount} plan(s)`
+          );
+          void fetchPlans();
+          setSelectedRowKeys([]);
+        }
+        if (errorCount > 0) {
+          void message.error(
+            `Failed to reject changes for ${errorCount} plan(s)`
+          );
+        }
+      },
+    });
   };
 
   const statusCounts = useMemo(() => {
@@ -223,10 +337,35 @@ const PlanList: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: 16,
         }}
       >
+        <Space>
+          {selectedRowKeys.length > 0 && (
+            <>
+              <span>{selectedRowKeys.length} plan(s) selected</span>
+              <Button
+                icon={<CheckCircleOutlined />}
+                onClick={() => {
+                  void handleBulkAccept();
+                }}
+              >
+                Accept All Changes
+              </Button>
+              <Button
+                danger
+                icon={<CloseCircleOutlined />}
+                onClick={() => {
+                  void handleBulkReject();
+                }}
+              >
+                Reject All Changes
+              </Button>
+            </>
+          )}
+        </Space>
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -249,11 +388,19 @@ const PlanList: React.FC = () => {
             } as React.CSSProperties
           }
         >
-          <Table
+          <Table<AnalysisPlan>
             columns={columns}
             dataSource={filteredAndSortedPlans}
             loading={loading}
             rowKey="id"
+            {...({
+              rowSelection: {
+                selectedRowKeys,
+                onChange: (newSelectedRowKeys: React.Key[]) => {
+                  setSelectedRowKeys(newSelectedRowKeys);
+                },
+              },
+            } as any)} // eslint-disable-line @typescript-eslint/no-explicit-any
             pagination={{
               pageSize: 20,
               showSizeChanger: true,
@@ -263,9 +410,13 @@ const PlanList: React.FC = () => {
             rowClassName={(record) => `plan-row plan-${record.status}`}
             onRow={(record) => ({
               onClick: (e) => {
-                // Don't navigate if clicking on action buttons
+                // Don't navigate if clicking on action buttons or checkbox
                 const target = e.target as HTMLElement;
-                if (!target.closest('button') && !target.closest('a')) {
+                if (
+                  !target.closest('button') &&
+                  !target.closest('a') &&
+                  !target.closest('.ant-checkbox-wrapper')
+                ) {
                   void navigate(`/analysis/plans/${record.id}`);
                 }
               },
