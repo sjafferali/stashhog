@@ -121,6 +121,22 @@ class TestSceneRoutes:
         mock_scene1.markers = []
         mock_scene1.files = [mock_file1]
         mock_scene1.get_primary_file = Mock(return_value=mock_file1)
+        # Add required SceneResponse fields
+        mock_scene1.paths = ["/api/scenes/1/stream"]
+        mock_scene1.file_path = "/path/1.mp4"
+        mock_scene1.urls = []
+        mock_scene1.o_counter = 0
+        mock_scene1.interactive = False
+        mock_scene1.interactive_speed = None
+        mock_scene1.movies = []
+        mock_scene1.galleries = []
+        mock_scene1.duration = 1800.5
+        mock_scene1.size = 1024000000
+        mock_scene1.width = 1920
+        mock_scene1.height = 1080
+        mock_scene1.framerate = 30.0
+        mock_scene1.bitrate = 5000
+        mock_scene1.video_codec = "h264"
 
         # Create mock file for scene 2
         mock_file2 = Mock()

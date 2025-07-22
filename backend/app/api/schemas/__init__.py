@@ -194,6 +194,9 @@ class PerformerResponse(BaseSchema):
     id: str = Field(..., description="Performer ID")
     name: str = Field(..., description="Performer name")
     scene_count: Optional[int] = Field(None, description="Number of scenes")
+    gender: Optional[str] = Field(None, description="Performer gender")
+    favorite: bool = Field(False, description="Is favorite")
+    rating100: Optional[int] = Field(None, description="Rating out of 100")
 
 
 class TagResponse(BaseSchema):

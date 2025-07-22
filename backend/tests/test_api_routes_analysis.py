@@ -17,7 +17,7 @@ from app.core.dependencies import (
     get_stash_service,
 )
 from app.main import app
-from app.models.analysis_plan import AnalysisPlan
+from app.models.analysis_plan import AnalysisPlan, PlanStatus
 from app.models.plan_change import ChangeAction, PlanChange
 
 
@@ -176,6 +176,162 @@ class TestAnalysisRoutes:
         response = client.get("/api/analysis/plans/999999")
 
         assert response.status_code == 404
+
+    def test_get_plan_detail(self, client, mock_db):
+        """Test getting detailed plan with changes (serves as preview)."""
+        plan_id = 1
+
+        # Mock plan
+        mock_plan = Mock(spec=AnalysisPlan)
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Analysis Plan"
+        mock_plan.status = PlanStatus.DRAFT
+        mock_plan.created_at = datetime.utcnow()
+        mock_plan.plan_metadata = {"model": "gpt-4"}
+
+        # Mock scene
+        mock_scene = Mock()
+        mock_scene.id = "scene123"
+        mock_scene.title = "Test Scene"
+        mock_scene.files = []
+        mock_scene.get_primary_file = Mock(return_value=None)
+
+        # Mock changes
+        mock_change1 = Mock()
+        mock_change1.id = 1
+        mock_change1.field = "title"
+        mock_change1.action = "update"
+        mock_change1.current_value = "Old Title"
+        mock_change1.proposed_value = "New Title"
+        mock_change1.confidence = 0.95
+        mock_change1.accepted = False
+        mock_change1.rejected = False
+        mock_change1.applied = False
+
+        mock_change2 = Mock()
+        mock_change2.id = 2
+        mock_change2.field = "details"
+        mock_change2.action = "set"
+        mock_change2.current_value = None
+        mock_change2.proposed_value = "New details"
+        mock_change2.confidence = 0.85
+        mock_change2.accepted = True
+        mock_change2.rejected = False
+        mock_change2.applied = False
+
+        # Mock query results
+        mock_plan_result = Mock()
+        mock_plan_result.scalar_one_or_none.return_value = mock_plan
+
+        mock_changes_result = Mock()
+        mock_changes_result.all.return_value = [
+            (mock_change1, mock_scene),
+            (mock_change2, mock_scene),
+        ]
+
+        async def async_execute(query):
+            if "analysis_plan" in str(query).lower() and "id" in str(query):
+                return mock_plan_result
+            else:
+                return mock_changes_result
+
+        mock_db.execute = async_execute
+
+        response = client.get(f"/api/analysis/plans/{plan_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == plan_id
+        assert data["name"] == "Test Analysis Plan"
+        assert data["status"] == "DRAFT"
+        assert data["total_scenes"] == 1
+        assert data["total_changes"] == 2
+        assert "scenes" in data
+        assert len(data["scenes"]) == 1
+
+        scene_data = data["scenes"][0]
+        assert scene_data["scene_id"] == "scene123"
+        assert scene_data["scene_title"] == "Test Scene"
+        assert len(scene_data["changes"]) == 2
+
+        # Verify changes
+        change1 = scene_data["changes"][0]
+        assert change1["field"] == "title"
+        assert change1["current_value"] == "Old Title"
+        assert change1["proposed_value"] == "New Title"
+        assert change1["confidence"] == 0.95
+        assert change1["accepted"] is False
+
+        change2 = scene_data["changes"][1]
+        assert change2["field"] == "details"
+        assert change2["proposed_value"] == "New details"
+        assert change2["accepted"] is True
+
+    def test_list_plans_with_pagination(self, client, mock_db):
+        """Test listing plans with pagination and filtering."""
+        # Mock plans
+        plans = []
+        for i in range(3):
+            plan = Mock(spec=AnalysisPlan)
+            plan.id = i + 1
+            plan.name = f"Plan {i + 1}"
+            plan.status = PlanStatus.DRAFT if i < 2 else PlanStatus.APPLIED
+            plan.created_at = datetime.utcnow()
+            plan.plan_metadata = {}
+            # Ensure any list attributes that might be accessed are set
+            plan.changes = []
+            plans.append(plan)
+
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 2  # Only 2 draft plans
+
+        # Mock plans query
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = plans[:2]  # Return only draft plans
+        mock_plans_result = Mock()
+        mock_plans_result.scalars.return_value = mock_scalars
+
+        # Track query execution order
+        execution_order = []
+
+        async def async_execute(query):
+            execution_order.append(query)
+
+            # First query is always the count query for total plans
+            if len(execution_order) == 1:
+                return mock_count_result
+            # Second query is the plans query
+            elif len(execution_order) == 2:
+                return mock_plans_result
+            # Subsequent queries alternate between change count and scene count for each plan
+            else:
+                result = Mock()
+                # Odd queries (3, 5, 7...) are change counts
+                if len(execution_order) % 2 == 1:
+                    result.scalar_one.return_value = 5
+                # Even queries (4, 6, 8...) are scene counts
+                else:
+                    result.scalar_one.return_value = 2
+                return result
+
+        mock_db.execute = async_execute
+
+        response = client.get("/api/analysis/plans?status=draft&page=1&per_page=10")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        assert data["page"] == 1
+        assert data["per_page"] == 10
+        assert len(data["items"]) == 2
+
+        # Verify plan data
+        plan1 = data["items"][0]
+        assert plan1["name"] == "Plan 1"
+        assert plan1["status"] == "DRAFT"
+        assert plan1["total_scenes"] == 2
+        assert plan1["total_changes"] == 5
 
     def test_create_analysis_plan(self, client, mock_db):
         """Test creating a new analysis plan."""
@@ -345,3 +501,659 @@ class TestAnalysisRoutes:
         response = client.post(f"/api/analysis/scenes/{scene_id}/analyze")
 
         assert response.status_code == 404
+
+    def test_bulk_update_changes_accept_all(self, client, mock_db):
+        """Test bulk accepting all changes in a plan."""
+        plan_id = 1
+
+        # Mock the plan query
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Plan"
+        mock_plan.status = "draft"
+
+        # Mock changes to be updated
+        mock_changes = []
+        for i in range(3):
+            change = Mock()
+            change.id = i + 1
+            change.accepted = False
+            change.rejected = False
+            change.applied = False
+            mock_changes.append(change)
+
+        # Setup mock execution results
+        mock_plan_result = Mock()
+        mock_plan_result.scalar_one_or_none.return_value = mock_plan
+
+        mock_changes_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = mock_changes
+        mock_changes_result.scalars.return_value = mock_scalars
+
+        # Mock count results
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.side_effect = [
+            3,
+            0,
+            0,
+            3,
+            0,
+        ]  # total, applied, rejected, accepted, pending
+
+        async def async_execute(query):
+            # Return different results based on query type
+            if "analysis_plan" in str(query):
+                return mock_plan_result
+            elif "count" in str(query):
+                return mock_count_result
+            else:
+                return mock_changes_result
+
+        mock_db.execute = async_execute
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update", json={"action": "accept_all"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "accept_all"
+        assert data["updated_count"] == 3
+        assert data["total_changes"] == 3
+        assert data["pending_changes"] == 0
+
+        # Verify changes were updated
+        for change in mock_changes:
+            assert change.accepted is True
+            assert change.rejected is False
+
+    def test_bulk_update_changes_by_field(self, client, mock_db):
+        """Test bulk accepting changes for a specific field."""
+        plan_id = 1
+        field_name = "title"
+
+        # Mock the plan
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Plan"
+        mock_plan.status = "draft"
+
+        # Mock changes - some for title field, some for other fields
+        mock_changes = []
+        title_change = Mock()
+        title_change.field = "title"
+        title_change.accepted = False
+        title_change.rejected = False
+        title_change.applied = False
+        mock_changes.append(title_change)
+
+        # Setup mock execution
+        mock_plan_result = Mock()
+        mock_plan_result.scalar_one_or_none.return_value = mock_plan
+
+        mock_changes_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = mock_changes
+        mock_changes_result.scalars.return_value = mock_scalars
+
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.side_effect = [
+            5,
+            0,
+            0,
+            1,
+            4,
+        ]  # total, applied, rejected, accepted, pending
+
+        async def async_execute(query):
+            if "analysis_plan" in str(query):
+                return mock_plan_result
+            elif "count" in str(query):
+                return mock_count_result
+            else:
+                return mock_changes_result
+
+        mock_db.execute = async_execute
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update",
+            json={"action": "accept_by_field", "field": field_name},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "accept_by_field"
+        assert data["updated_count"] == 1
+        assert title_change.accepted is True
+
+    def test_bulk_update_changes_by_confidence(self, client, mock_db):
+        """Test bulk accepting changes above a confidence threshold."""
+        plan_id = 1
+        confidence_threshold = 0.8
+
+        # Mock the plan
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Plan"
+        mock_plan.status = "draft"
+
+        # Mock changes with different confidence levels
+        mock_changes = []
+        high_conf_change = Mock()
+        high_conf_change.confidence = 0.9
+        high_conf_change.accepted = False
+        high_conf_change.rejected = False
+        high_conf_change.applied = False
+        mock_changes.append(high_conf_change)
+
+        # Setup mock execution
+        mock_plan_result = Mock()
+        mock_plan_result.scalar_one_or_none.return_value = mock_plan
+
+        mock_changes_result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = mock_changes
+        mock_changes_result.scalars.return_value = mock_scalars
+
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.side_effect = [5, 0, 0, 1, 4]
+
+        async def async_execute(query):
+            if "analysis_plan" in str(query):
+                return mock_plan_result
+            elif "count" in str(query):
+                return mock_count_result
+            else:
+                return mock_changes_result
+
+        mock_db.execute = async_execute
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update",
+            json={
+                "action": "accept_by_confidence",
+                "confidence_threshold": confidence_threshold,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "accept_by_confidence"
+        assert data["updated_count"] == 1
+        assert high_conf_change.accepted is True
+
+    def test_bulk_update_missing_params(self, client, mock_db):
+        """Test bulk update with missing required parameters."""
+        plan_id = 1
+
+        # Mock the plan
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Plan"
+        mock_plan.status = "draft"
+
+        # Mock result
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_plan
+
+        # Setup mock execute as async function
+        async def async_execute(query):
+            return mock_result
+
+        mock_db.execute = async_execute
+
+        # Test missing field for field-based action
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update",
+            json={"action": "accept_by_field"},
+        )
+        assert response.status_code == 400
+        assert "Field parameter is required" in response.json()["detail"]
+
+        # Test missing confidence threshold
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update",
+            json={"action": "accept_by_confidence"},
+        )
+        assert response.status_code == 400
+        assert "Confidence threshold is required" in response.json()["detail"]
+
+    def test_bulk_update_plan_not_found(self, client, mock_db):
+        """Test bulk update on non-existent plan."""
+        plan_id = 999
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        response = client.post(
+            f"/api/analysis/plans/{plan_id}/bulk-update", json={"action": "accept_all"}
+        )
+
+        assert response.status_code == 404
+        assert f"Analysis plan {plan_id} not found" in response.json()["detail"]
+
+    def test_generate_analysis_with_filters(self, client, mock_db):
+        """Test generating analysis using scene filters."""
+        # Mock scene IDs from filter query
+        mock_scene_ids = ["scene1", "scene2", "scene3"]
+
+        async def async_execute(query):
+            # Return scene IDs for filter query
+            result = Mock()
+            result.__iter__ = Mock(return_value=iter([(id,) for id in mock_scene_ids]))
+            return result
+
+        mock_db.execute = async_execute
+
+        # Get mocked services
+        mock_job_service = app.dependency_overrides[get_job_service]()
+        mock_job = Mock()
+        mock_job.id = "job789"
+        mock_job_service.create_job = AsyncMock(return_value=mock_job)
+
+        request_data = {
+            "filters": {"search": "test", "analyzed": False, "organized": True},
+            "options": {
+                "detect_performers": True,
+                "detect_tags": True,
+                "detect_details": False,
+                "detect_studios": False,
+                "detect_video_tags": False,
+                "confidence_threshold": 0.7,
+            },
+            "plan_name": "Filtered Analysis",
+        }
+
+        response = client.post("/api/analysis/generate", json=request_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["job_id"] == "job789"
+        assert data["status"] == "queued"
+        assert "3 scenes" in data["message"]
+
+    def test_generate_analysis_sync_mode(self, client, mock_db):
+        """Test generating analysis in synchronous mode."""
+        scene_ids = ["scene1", "scene2"]
+
+        # Mock empty result for filter query
+        mock_db.execute = AsyncMock(
+            return_value=Mock(__iter__=Mock(return_value=iter([])))
+        )
+
+        # Get mocked analysis service
+        mock_analysis_service = app.dependency_overrides[get_analysis_service]()
+
+        # Create a mock plan
+        mock_plan = Mock()
+        mock_plan.id = "plan123"
+        mock_plan.total_changes = 5
+        mock_analysis_service.analyze_scenes = AsyncMock(return_value=mock_plan)
+
+        request_data = {
+            "scene_ids": scene_ids,
+            "options": {
+                "detect_performers": True,
+                "detect_tags": True,
+                "detect_details": True,
+                "detect_studios": True,
+                "detect_video_tags": False,
+                "confidence_threshold": 0.7,
+            },
+        }
+
+        response = client.post(
+            "/api/analysis/generate?background=false", json=request_data
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["plan_id"] == "plan123"
+        assert data["total_scenes"] == 2
+        assert data["total_changes"] == 5
+
+    def test_generate_analysis_no_scenes_error(self, client, mock_db):
+        """Test error when no scenes match criteria."""
+
+        # Mock empty scene IDs from filter
+        async def async_execute(query):
+            result = Mock()
+            result.__iter__ = Mock(return_value=iter([]))
+            return result
+
+        mock_db.execute = async_execute
+
+        request_data = {
+            "filters": {"analyzed": True},  # No scenes match
+            "options": {
+                "detect_performers": True,
+                "detect_tags": False,
+                "detect_details": False,
+                "detect_studios": False,
+                "detect_video_tags": False,
+                "confidence_threshold": 0.7,
+            },
+        }
+
+        response = client.post("/api/analysis/generate", json=request_data)
+
+        assert response.status_code == 400
+        assert "No scenes found" in response.json()["detail"]
+
+    def test_get_plan_costs(self, client, mock_db):
+        """Test getting cost breakdown for a plan."""
+        plan_id = 1
+
+        # Mock plan with API usage metadata
+        mock_plan = Mock(spec=AnalysisPlan)
+        mock_plan.id = plan_id
+        mock_plan.name = "Test Plan"
+
+        # Mock the get_metadata method
+        api_usage = {
+            "total_cost": 0.15,
+            "total_tokens": 5000,
+            "prompt_tokens": 3000,
+            "completion_tokens": 2000,
+            "cost_breakdown": {"prompt_cost": 0.09, "completion_cost": 0.06},
+            "token_breakdown": {
+                "scene_1": {"prompt": 1500, "completion": 1000},
+                "scene_2": {"prompt": 1500, "completion": 1000},
+            },
+            "model": "gpt-4",
+            "scenes_analyzed": 2,
+            "average_cost_per_scene": 0.075,
+        }
+        mock_plan.get_metadata = Mock(return_value=api_usage)
+
+        # Mock database get
+        mock_db.get = AsyncMock(return_value=mock_plan)
+
+        response = client.get(f"/api/analysis/plans/{plan_id}/costs")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["plan_id"] == plan_id
+        assert data["total_cost"] == 0.15
+        assert data["total_tokens"] == 5000
+        assert data["prompt_tokens"] == 3000
+        assert data["completion_tokens"] == 2000
+        assert data["model"] == "gpt-4"
+        assert data["scenes_analyzed"] == 2
+        assert data["average_cost_per_scene"] == 0.075
+        assert data["currency"] == "USD"
+        assert "cost_breakdown" in data
+        assert "token_breakdown" in data
+
+    def test_get_plan_costs_no_data(self, client, mock_db):
+        """Test getting costs for a plan with no API usage data."""
+        plan_id = 1
+
+        # Mock plan without API usage metadata
+        mock_plan = Mock(spec=AnalysisPlan)
+        mock_plan.id = plan_id
+        mock_plan.get_metadata = Mock(return_value={})
+
+        mock_db.get = AsyncMock(return_value=mock_plan)
+
+        response = client.get(f"/api/analysis/plans/{plan_id}/costs")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["plan_id"] == plan_id
+        assert data["total_cost"] == 0.0
+        assert data["total_tokens"] == 0
+        assert data["model"] is None
+        assert data["currency"] == "USD"
+        assert "No API usage data available" in data["message"]
+
+    def test_get_plan_costs_not_found(self, client, mock_db):
+        """Test getting costs for non-existent plan."""
+        plan_id = 999
+
+        mock_db.get = AsyncMock(return_value=None)
+
+        response = client.get(f"/api/analysis/plans/{plan_id}/costs")
+
+        assert response.status_code == 404
+        assert "Plan not found" in response.json()["detail"]
+
+    def test_get_available_models(self, client):
+        """Test getting available OpenAI models."""
+        response = client.get("/api/analysis/models")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "models" in data
+        assert "categories" in data
+        assert "default" in data
+        assert "recommended" in data
+
+        # Verify structure of models
+        assert isinstance(data["models"], dict)
+        assert isinstance(data["categories"], dict)
+        assert isinstance(data["default"], str)
+        assert isinstance(data["recommended"], dict)
+
+    def test_get_scene_analysis_results(self, client, mock_db):
+        """Test getting analysis results for a specific scene."""
+        scene_id = "scene123"
+
+        # Mock plan
+        mock_plan = Mock()
+        mock_plan.id = 1
+        mock_plan.name = "Test Plan"
+        mock_plan.created_at = datetime.utcnow()
+        mock_plan.plan_metadata = {
+            "ai_model": "gpt-4",
+            "prompt_template": "Analyze this scene",
+            "raw_response": "AI response text",
+            "processing_time": 2.5,
+        }
+
+        # Mock changes
+        mock_changes = []
+        change1 = Mock()
+        change1.field = "title"
+        change1.action = "update"
+        change1.proposed_value = "New Title"
+        change1.confidence = 0.95
+        mock_changes.append((change1, mock_plan))
+
+        change2 = Mock()
+        change2.field = "performers"
+        change2.action = "add"
+        change2.proposed_value = {"name": "John Doe"}
+        change2.confidence = 0.85
+        mock_changes.append((change2, mock_plan))
+
+        # Mock query result
+        mock_result = Mock()
+        mock_result.all.return_value = mock_changes
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        response = client.get(f"/api/analysis/scenes/{scene_id}/results")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1  # One plan
+
+        result = data[0]
+        assert result["scene_id"] == scene_id
+        assert result["plan"]["id"] == 1
+        assert result["plan"]["name"] == "Test Plan"
+        assert result["model_used"] == "gpt-4"
+        assert result["prompt_used"] == "Analyze this scene"
+        assert result["raw_response"] == "AI response text"
+        assert result["processing_time"] == 2.5
+        assert "extracted_data" in result
+        assert "confidence_scores" in result
+        assert result["extracted_data"]["title"] == "New Title"
+        assert result["extracted_data"]["performers"] == ["John Doe"]
+        assert result["confidence_scores"]["title"] == 0.95
+        assert result["confidence_scores"]["performers"] == 0.85
+
+    def test_get_scene_analysis_results_empty(self, client, mock_db):
+        """Test getting analysis results for scene with no results."""
+        scene_id = "scene456"
+
+        # Mock empty result
+        mock_result = Mock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        response = client.get(f"/api/analysis/scenes/{scene_id}/results")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+    def test_update_change_status(self, client, mock_db):
+        """Test updating the acceptance/rejection status of a change."""
+        change_id = 1
+
+        # Mock change
+        mock_change = Mock()
+        mock_change.id = change_id
+        mock_change.plan_id = 1
+        mock_change.field = "title"
+        mock_change.action = "update"
+        mock_change.current_value = "Old Title"
+        mock_change.proposed_value = "New Title"
+        mock_change.confidence = 0.9
+        mock_change.applied = False
+        mock_change.accepted = False
+        mock_change.rejected = False
+
+        # Mock plan
+        mock_plan = Mock()
+        mock_plan.status = PlanStatus.DRAFT
+
+        # Setup mock execution
+        mock_change_result = Mock()
+        mock_change_result.scalar_one_or_none.return_value = mock_change
+
+        mock_plan_result = Mock()
+        mock_plan_result.scalar_one.return_value = mock_plan
+
+        # Track which queries have been called
+        query_count = 0
+
+        async def async_execute(query):
+            nonlocal query_count
+            query_str = str(query)
+
+            # First query is to get the change
+            if query_count == 0 and "plan_change" in query_str.lower():
+                query_count += 1
+                return mock_change_result
+            # Second query is to get the plan
+            elif query_count == 1 and "analysis_plan" in query_str.lower():
+                query_count += 1
+                return mock_plan_result
+            # The remaining queries are count queries for _get_plan_change_counts
+            else:
+                query_count += 1
+                result = Mock()
+                # Return counts in order: total, applied, rejected, accepted, pending
+                if query_count == 3:  # First count query (total)
+                    result.scalar_one.return_value = 5
+                elif query_count == 4:  # Applied count
+                    result.scalar_one.return_value = 0
+                elif query_count == 5:  # Rejected count
+                    result.scalar_one.return_value = 0
+                elif query_count == 6:  # Accepted count
+                    result.scalar_one.return_value = 1
+                elif query_count == 7:  # Pending count
+                    result.scalar_one.return_value = 4
+                else:
+                    result.scalar_one.return_value = 0
+                return result
+
+        mock_db.execute = async_execute
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        # Update the change object to reflect the update
+        mock_change.accepted = True
+
+        response = client.patch(
+            f"/api/analysis/changes/{change_id}/status", json={"accepted": True}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == change_id
+        assert data["field"] == "title"
+        assert data["proposed_value"] == "New Title"
+        # Note: The actual value update happens in the mock, not in the response
+
+    def test_update_change_status_applied_error(self, client, mock_db):
+        """Test error when trying to update an already applied change."""
+        change_id = 1
+
+        # Mock applied change
+        mock_change = Mock()
+        mock_change.id = change_id
+        mock_change.applied = True
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_change
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        response = client.patch(
+            f"/api/analysis/changes/{change_id}/status", json={"accepted": True}
+        )
+
+        assert response.status_code == 400
+        assert "Cannot modify an applied change" in response.json()["detail"]
+
+    def test_cancel_plan(self, client, mock_db):
+        """Test cancelling an analysis plan."""
+        plan_id = 1
+
+        # Mock plan
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.status = "draft"
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_plan
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        mock_db.commit = AsyncMock()
+
+        response = client.patch(f"/api/analysis/plans/{plan_id}/cancel")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == plan_id
+        assert "cancelled" in data["message"]
+
+    def test_cancel_applied_plan_error(self, client, mock_db):
+        """Test error when trying to cancel an already applied plan."""
+        plan_id = 1
+
+        # Mock applied plan
+        mock_plan = Mock()
+        mock_plan.id = plan_id
+        mock_plan.status = PlanStatus.APPLIED
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_plan
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        response = client.patch(f"/api/analysis/plans/{plan_id}/cancel")
+
+        assert response.status_code == 400
+        assert "Cannot cancel an already applied plan" in response.json()["detail"]

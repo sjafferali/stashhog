@@ -53,8 +53,8 @@ def transform_scene(stash_scene: Dict) -> Dict:
             "details": stash_scene.get("details"),
             "date": stash_scene.get("date"),
             "rating": stash_scene.get("rating100"),
+            "rating100": stash_scene.get("rating100"),
             "organized": stash_scene.get("organized", False),
-            "o_counter": stash_scene.get("o_counter", 0),
             "created_at": stash_scene.get("created_at"),
             "updated_at": stash_scene.get("updated_at"),
             "studio": (
@@ -218,10 +218,11 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
         "audio_codec": file_info.get("audio_codec"),
         "width": file_info.get("width", 0),
         "height": file_info.get("height", 0),
-        "framerate": file_info.get("frame_rate", 0),
-        "bitrate": file_info.get("bit_rate", 0),
+        "frame_rate": file_info.get("frame_rate", 0),
+        "bit_rate": file_info.get("bit_rate", 0),
         "oshash": fingerprints.get("oshash"),
         "phash": fingerprints.get("phash"),
+        "fingerprints": file_info.get("fingerprints", []),
         "created_at": file_info.get("created_at"),
         "updated_at": file_info.get("updated_at"),
     }

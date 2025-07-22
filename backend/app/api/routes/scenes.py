@@ -127,7 +127,16 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
             else None
         ),
         performers=[
-            PerformerResponse(id=p.id, name=p.name, scene_count=0)
+            PerformerResponse(
+                id=p.id,
+                name=p.name,
+                scene_count=0,
+                gender=getattr(p, "gender", None),
+                favorite=getattr(p, "favorite", False),
+                rating100=getattr(
+                    p, "rating", None
+                ),  # Convert rating to rating100 if needed
+            )
             for p in scene.performers
         ],
         tags=[TagResponse(id=t.id, name=t.name, scene_count=0) for t in scene.tags],

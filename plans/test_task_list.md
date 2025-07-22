@@ -12,10 +12,10 @@ This document tracks the progress of increasing backend test coverage, focusing 
 
 ## Current Coverage Status
 
-- **Current Coverage**: 25.39% overall, scene_sync.py at 87%
+- **Current Coverage**: 25.39% overall, scene_sync.py at 87%, analysis.py improved to ~50%+
 - **Target Coverage**: 80%+
 - **Last Updated**: 2025-07-22
-- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%)
+- **Files Completed Today**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%), analysis.py (improved coverage significantly)
 
 ## Test Execution Command
 ```bash
@@ -80,12 +80,12 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 ### Phase 4: API Routes with Low Coverage (<60% coverage)
 
 #### Analysis Routes Tests (40% coverage - app/api/routes/analysis.py)
-- [ ] Task 29: Enhance test_api_routes_analysis.py - Add batch operation tests
-- [ ] Task 30: Run all backend tests and ensure they pass
-- [ ] Task 31: Add tests for cost estimation endpoints
-- [ ] Task 32: Run all backend tests and ensure they pass
-- [ ] Task 33: Add tests for analysis plan preview functionality
-- [ ] Task 34: Run all backend tests and ensure they pass
+- [x] Task 29: Enhance test_api_routes_analysis.py - Add batch operation tests (2025-07-22)
+- [x] Task 30: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 31: Add tests for cost estimation endpoints (2025-07-22)
+- [x] Task 32: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 33: Add tests for analysis plan preview functionality (2025-07-22)
+- [x] Task 34: Run all backend tests and ensure they pass (2025-07-22)
 
 #### Jobs Routes Tests (51% coverage - app/api/routes/jobs.py)
 - [ ] Task 35: Enhance test_api_routes_jobs.py - Add job lifecycle tests
@@ -243,7 +243,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [ ] 28 of 116 tasks completed (24%)
+- [ ] 34 of 116 tasks completed (29%)
 - [ ] Coverage target of 80% achieved (currently at 72%+)
 - [ ] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests

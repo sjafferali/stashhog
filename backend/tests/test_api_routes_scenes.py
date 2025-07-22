@@ -248,40 +248,57 @@ class TestSceneRoutes:
 
     def test_get_scene_found(self, client, mock_db):
         """Test getting a scene that exists."""
+
         # Create complete mock scene with all required attributes
-        mock_studio = Mock()
-        mock_studio.id = "studio1"
-        mock_studio.name = "Test Studio"
-        mock_studio.scene_count = 5
+        # Create proper objects that can be serialized
+        class MockStudio:
+            def __init__(self):
+                self.id = "studio1"
+                self.name = "Test Studio"
+                self.scene_count = 5
 
-        mock_performer = Mock()
-        mock_performer.id = "perf1"
-        mock_performer.name = "Test Performer"
-        mock_performer.scene_count = 3
+        mock_studio = MockStudio()
 
-        mock_tag = Mock()
-        mock_tag.id = "tag1"
-        mock_tag.name = "Test Tag"
-        mock_tag.scene_count = 2
+        class MockPerformer:
+            def __init__(self):
+                self.id = "perf1"
+                self.name = "Test Performer"
+                self.scene_count = 3
+                self.gender = "male"
+                self.favorite = False
+                self.rating100 = None
+
+        mock_performer = MockPerformer()
+
+        class MockTag:
+            def __init__(self):
+                self.id = "tag1"
+                self.name = "Test Tag"
+                self.scene_count = 2
+
+        mock_tag = MockTag()
 
         # Create mock file
-        mock_file = Mock()
-        mock_file.id = "file123"
-        mock_file.path = "/path/to/scene.mp4"
-        mock_file.basename = "scene.mp4"
-        mock_file.is_primary = True
-        mock_file.duration = 1800.5
-        mock_file.size = 1024000000
-        mock_file.width = 1920
-        mock_file.height = 1080
-        mock_file.frame_rate = 30.0
-        mock_file.bit_rate = 5000
-        mock_file.video_codec = "h264"
-        mock_file.audio_codec = "aac"
-        mock_file.format = "mp4"
-        mock_file.oshash = None
-        mock_file.phash = None
-        mock_file.mod_time = None
+        class MockFile:
+            def __init__(self):
+                self.id = "file123"
+                self.path = "/path/to/scene.mp4"
+                self.basename = "scene.mp4"
+                self.is_primary = True
+                self.duration = 1800.5
+                self.size = 1024000000
+                self.width = 1920
+                self.height = 1080
+                self.frame_rate = 30.0
+                self.bit_rate = 5000
+                self.video_codec = "h264"
+                self.audio_codec = "aac"
+                self.format = "mp4"
+                self.oshash = None
+                self.phash = None
+                self.mod_time = None
+
+        mock_file = MockFile()
 
         mock_scene = Mock(spec=Scene)
         mock_scene.id = "123"

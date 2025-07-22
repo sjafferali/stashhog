@@ -749,6 +749,12 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Update an existing file with new data"""
+        logger.debug(
+            f"Updating file {existing_file.id} with data keys: {list(file_data.keys())}"
+        )
+        logger.debug(f"frame_rate field value: {file_data.get('frame_rate')}")
+        logger.debug(f"bit_rate field value: {file_data.get('bit_rate')}")
+
         # Extract fingerprints
         fingerprints = {}
         for fp in file_data.get("fingerprints", []):
@@ -775,8 +781,8 @@ class SceneSyncHandler:
         existing_file.audio_codec = file_data.get("audio_codec")  # type: ignore[assignment]
         existing_file.frame_rate = file_data.get("frame_rate")  # type: ignore[assignment]
         existing_file.bit_rate = file_data.get("bit_rate")  # type: ignore[assignment]
-        existing_file.oshash = fingerprints.get("oshash")  # type: ignore[assignment]
-        existing_file.phash = fingerprints.get("phash")  # type: ignore[assignment]
+        existing_file.oshash = fingerprints.get("oshash") or file_data.get("oshash")  # type: ignore[assignment]
+        existing_file.phash = fingerprints.get("phash") or file_data.get("phash")  # type: ignore[assignment]
         existing_file.stash_created_at = self._parse_datetime(file_data.get("created_at"))  # type: ignore[assignment]
         existing_file.stash_updated_at = self._parse_datetime(file_data.get("updated_at"))  # type: ignore[assignment]
         existing_file.last_synced = datetime.utcnow()  # type: ignore[assignment]
@@ -790,6 +796,10 @@ class SceneSyncHandler:
     ) -> None:
         """Create a new file for the scene"""
         from app.models.scene_file import SceneFile
+
+        logger.debug(f"Creating new file with data keys: {list(file_data.keys())}")
+        logger.debug(f"frame_rate field value: {file_data.get('frame_rate')}")
+        logger.debug(f"bit_rate field value: {file_data.get('bit_rate')}")
 
         # Extract fingerprints
         fingerprints = {}
@@ -824,8 +834,8 @@ class SceneSyncHandler:
             audio_codec=file_data.get("audio_codec"),
             frame_rate=file_data.get("frame_rate"),
             bit_rate=file_data.get("bit_rate"),
-            oshash=fingerprints.get("oshash"),
-            phash=fingerprints.get("phash"),
+            oshash=fingerprints.get("oshash") or file_data.get("oshash"),
+            phash=fingerprints.get("phash") or file_data.get("phash"),
             stash_created_at=self._parse_datetime(file_data.get("created_at")),
             stash_updated_at=self._parse_datetime(file_data.get("updated_at")),
             last_synced=datetime.utcnow(),
