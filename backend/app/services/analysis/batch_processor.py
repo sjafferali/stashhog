@@ -147,9 +147,8 @@ class BatchProcessor:
                     scene_dict = {
                         "id": scene.get("id"),
                         "title": scene.get("title", ""),
-                        "file_path": scene.get(
-                            "path", scene.get("file", {}).get("path", "")
-                        ),
+                        "file_path": scene.get("file_path")
+                        or scene.get("path", scene.get("file", {}).get("path", "")),
                         "details": scene.get("details", ""),
                         "duration": scene.get("file", {}).get("duration", 0),
                         "width": scene.get("file", {}).get("width", 0),
@@ -159,6 +158,10 @@ class BatchProcessor:
                         "tags": scene.get("tags", []),
                         "studio": scene.get("studio"),
                     }
+                    # Debug log for dictionary case
+                    logger.debug(
+                        f"Scene {scene_dict['id']} (dict) - file_path: {scene_dict['file_path']}"
+                    )
                 else:
                     # Scene is an object, convert it to dictionary
                     studio = getattr(scene, "studio", None)
@@ -175,17 +178,26 @@ class BatchProcessor:
                                 "name": getattr(studio, "name", ""),
                             }
 
+                    # Debug logging for file_path
+                    scene_file_path = getattr(scene, "file_path", None)
+                    logger.debug(
+                        f"Scene {getattr(scene, 'id', 'unknown')} - file_path attribute: {scene_file_path}"
+                    )
+
                     scene_dict = {
                         "id": getattr(scene, "id", ""),
                         "title": getattr(scene, "title", ""),
                         "file_path": (
-                            getattr(
-                                scene,
-                                "get_primary_path",
-                                lambda: getattr(scene, "path", ""),
-                            )()
-                            if hasattr(scene, "get_primary_path")
-                            else getattr(scene, "path", "")
+                            scene_file_path  # First try file_path
+                            or (
+                                getattr(
+                                    scene,
+                                    "get_primary_path",
+                                    lambda: getattr(scene, "path", ""),
+                                )()
+                                if hasattr(scene, "get_primary_path")
+                                else getattr(scene, "path", "")
+                            )
                         ),
                         "details": getattr(scene, "details", ""),
                         "duration": getattr(scene, "duration", 0),
@@ -226,6 +238,12 @@ class BatchProcessor:
                         ],
                         "studio": studio_dict,
                     }
+
+                    # Debug log the final file_path in the dictionary
+                    logger.debug(
+                        f"Scene {scene_dict['id']} - final file_path in dict: {scene_dict['file_path']}"
+                    )
+
                 batch_data.append(scene_dict)
 
             # Analyze the batch

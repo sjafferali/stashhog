@@ -274,7 +274,8 @@ class AnalysisService:
                     def __init__(self, data: dict[str, Any]) -> None:
                         self.id = data.get("id", "")
                         self.title = data.get("title", "")
-                        self.path = data.get("file_path", "")
+                        self.file_path = data.get("file_path", "")  # Primary file path
+                        self.path = self.file_path  # Alias for compatibility
                         self.details = data.get("details", "")
                         self.duration = data.get("duration", 0)
                         self.width = data.get("width", 0)
@@ -288,7 +289,7 @@ class AnalysisService:
                         self.studio = data.get("studio")
 
                     def get_primary_path(self) -> str:
-                        return str(self.path)
+                        return str(self.file_path or self.path or "")
 
                 scene = SceneLike(scene_data)
                 # Cast to Scene type as expected by analyze_single_scene
@@ -1171,7 +1172,13 @@ class AnalysisService:
             def __init__(self, data: dict[str, Any]) -> None:
                 self.id = data.get("id")
                 self.title = data.get("title", "")
-                self.path = data.get("path", data.get("file", {}).get("path", ""))
+                # Try file_path first, then path, then file.path
+                self.file_path = (
+                    data.get("file_path")
+                    or data.get("path")
+                    or data.get("file", {}).get("path", "")
+                )
+                self.path = self.file_path  # Alias for compatibility
                 self.details = data.get("details", "")
                 self.duration = data.get("file", {}).get("duration", 0)
                 self.width = data.get("file", {}).get("width", 0)
@@ -1185,7 +1192,7 @@ class AnalysisService:
                 self.studio = data.get("studio")
 
             def get_primary_path(self) -> str:
-                return str(self.path)
+                return str(self.file_path or self.path or "")
 
         return SceneLike(data)
 
