@@ -510,19 +510,6 @@ const PlanDetail: React.FC = () => {
                 },
               }}
               onApply={() => setShowApplyModal(true)}
-              onDelete={() => {
-                Modal.confirm({
-                  title: 'Delete Plan',
-                  content:
-                    'Are you sure you want to delete this plan? This action cannot be undone.',
-                  onOk: async () => {
-                    // TODO: Implement delete
-                    void message.info(
-                      'Delete functionality not implemented yet'
-                    );
-                  },
-                });
-              }}
               loading={false}
             />
           </Card>

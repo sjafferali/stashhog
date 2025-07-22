@@ -32,6 +32,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import api from '@/services/api';
+import apiClient from '@/services/apiClient';
 import { Scene, AnalysisResult } from '@/types/models';
 import useAppStore from '@/store';
 import { SceneEditModal } from '@/components/scenes/SceneEditModal';
@@ -155,6 +156,42 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     }
   );
 
+  // Toggle analyzed mutation
+  const toggleAnalyzedMutation = useMutation(
+    async (value: boolean) => {
+      return await apiClient.updateScene(parseInt(scene.id), {
+        analyzed: value,
+      });
+    },
+    {
+      onSuccess: () => {
+        void message.success('Updated analyzed status');
+        void queryClient.invalidateQueries(['scene', scene.id]);
+      },
+      onError: () => {
+        void message.error('Failed to update analyzed status');
+      },
+    }
+  );
+
+  // Toggle video analyzed mutation
+  const toggleVideoAnalyzedMutation = useMutation(
+    async (value: boolean) => {
+      return await apiClient.updateScene(parseInt(scene.id), {
+        video_analyzed: value,
+      });
+    },
+    {
+      onSuccess: () => {
+        void message.success('Updated video analyzed status');
+        void queryClient.invalidateQueries(['scene', scene.id]);
+      },
+      onError: () => {
+        void message.error('Failed to update video analyzed status');
+      },
+    }
+  );
+
   const handleAnalyze = () => {
     let currentOptions = analysisOptions;
     Modal.confirm({
@@ -248,15 +285,39 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           </Descriptions.Item>
 
           <Descriptions.Item label="Analyzed">
-            <Tag color={fullScene?.analyzed ? 'green' : 'default'}>
-              {fullScene?.analyzed ? 'Yes' : 'No'}
-            </Tag>
+            <Space>
+              <Tag color={fullScene?.analyzed ? 'green' : 'default'}>
+                {fullScene?.analyzed ? 'Yes' : 'No'}
+              </Tag>
+              <Button
+                size="small"
+                type="link"
+                loading={toggleAnalyzedMutation.isLoading}
+                onClick={() =>
+                  toggleAnalyzedMutation.mutate(!fullScene?.analyzed)
+                }
+              >
+                {fullScene?.analyzed ? 'Unset' : 'Set'}
+              </Button>
+            </Space>
           </Descriptions.Item>
 
           <Descriptions.Item label="Video Analyzed">
-            <Tag color={fullScene?.video_analyzed ? 'green' : 'default'}>
-              {fullScene?.video_analyzed ? 'Yes' : 'No'}
-            </Tag>
+            <Space>
+              <Tag color={fullScene?.video_analyzed ? 'green' : 'default'}>
+                {fullScene?.video_analyzed ? 'Yes' : 'No'}
+              </Tag>
+              <Button
+                size="small"
+                type="link"
+                loading={toggleVideoAnalyzedMutation.isLoading}
+                onClick={() =>
+                  toggleVideoAnalyzedMutation.mutate(!fullScene?.video_analyzed)
+                }
+              >
+                {fullScene?.video_analyzed ? 'Unset' : 'Set'}
+              </Button>
+            </Space>
           </Descriptions.Item>
 
           <Descriptions.Item label="Rating">
