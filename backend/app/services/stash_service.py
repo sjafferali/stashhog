@@ -277,10 +277,38 @@ class StashService:
         if not scene_data:
             return None
 
+        # Debug logging
+        logger.debug(f"Raw scene data from Stash for scene {scene_id}: {scene_data}")
+        if "files" in scene_data:
+            logger.debug(f"Files in scene data: {scene_data['files']}")
+
         scene = transformers.transform_scene(scene_data)
         self._cache.set(cache_key, scene, ttl=600)  # Cache for 10 minutes
 
         return scene
+
+    async def get_scene_raw(self, scene_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get single scene by ID without transformation.
+
+        Args:
+            scene_id: Stash scene ID
+
+        Returns:
+            Raw scene data from Stash or None if not found
+        """
+        result = await self.execute_graphql(queries.GET_SCENE_BY_ID, {"id": scene_id})
+
+        scene_data = result.get("findScene")
+        if not scene_data:
+            return None
+
+        # Debug logging
+        logger.debug(
+            f"Raw scene data from Stash for scene {scene_id} has {len(scene_data.get('files', []))} files"
+        )
+
+        return dict(scene_data)
 
     async def find_scenes(
         self,

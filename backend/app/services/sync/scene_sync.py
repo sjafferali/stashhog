@@ -41,6 +41,10 @@ class SceneSyncHandler:
         """Sync a single scene with all relationships"""
         scene_id = self._validate_scene_id(stash_scene)
         logger.info(f"Syncing scene {scene_id}")
+        logger.debug(f"sync_scene received data with keys: {list(stash_scene.keys())}")
+        logger.debug(f"sync_scene has 'files' key: {'files' in stash_scene}")
+        if "files" in stash_scene:
+            logger.debug(f"Number of files: {len(stash_scene.get('files', []))}")
 
         # Find or create scene
         scene = await self._find_or_create_scene(scene_id, db)
@@ -579,6 +583,49 @@ class SceneSyncHandler:
 
         return tag
 
+    def _normalize_file_ids(
+        self, files_data: List[Dict[str, Any]], scene_id: str
+    ) -> None:
+        """Normalize file IDs - convert to string or generate if missing"""
+        import hashlib
+
+        for file_data in files_data:
+            # Convert numeric ID to string if present
+            if file_data.get("id"):
+                file_data["id"] = str(file_data["id"])
+            elif file_data.get("path"):
+                # Generate ID if not present
+                file_id = hashlib.sha256(
+                    f"{scene_id}:{file_data['path']}".encode()
+                ).hexdigest()[:16]
+                file_data["id"] = file_id
+
+    def _get_existing_file_ids(self, scene: Scene) -> Set[str]:
+        """Get set of existing file IDs for the scene"""
+        if hasattr(scene, "files"):
+            return {file.id for file in scene.files}
+        return set()
+
+    def _remove_obsolete_files(
+        self, scene: Scene, existing_ids: Set[str], new_ids: Set[str]
+    ) -> None:
+        """Remove files that no longer exist in Stash"""
+        files_to_remove = existing_ids - new_ids
+        if files_to_remove and hasattr(scene, "files"):
+            scene.files = [f for f in scene.files if f.id not in files_to_remove]
+
+    def _find_existing_file(
+        self, scene: Scene, file_id: str, file_path: str
+    ) -> Optional["SceneFile"]:
+        """Find existing file by ID or path"""
+        if not hasattr(scene, "files"):
+            return None
+
+        return next(
+            (f for f in scene.files if f.id == file_id or f.path == file_path),
+            None,
+        )
+
     async def _sync_scene_files(
         self,
         scene: Scene,
@@ -592,60 +639,47 @@ class SceneSyncHandler:
         if files_data:
             logger.debug(f"First file data: {files_data[0]}")
 
-        # Get existing files
-        existing_file_ids = {file.id for file in scene.files if hasattr(scene, "files")}
+        # Normalize file IDs
+        self._normalize_file_ids(files_data, str(scene.id))
 
-        # Generate IDs for files that don't have them
-        import hashlib
-
-        for file_data in files_data:
-            if not file_data.get("id") and file_data.get("path"):
-                file_id = hashlib.sha256(
-                    f"{scene.id}:{file_data['path']}".encode()
-                ).hexdigest()[:16]
-                file_data["id"] = file_id
-
+        # Get existing and new file IDs
+        existing_file_ids = self._get_existing_file_ids(scene)
         new_file_ids = {
             file_data["id"] for file_data in files_data if file_data.get("id")
         }
 
-        # Remove files that no longer exist
-        files_to_remove = existing_file_ids - new_file_ids
-        if files_to_remove and hasattr(scene, "files"):
-            scene.files = [f for f in scene.files if f.id not in files_to_remove]
+        # Remove obsolete files
+        self._remove_obsolete_files(scene, existing_file_ids, new_file_ids)
 
         # Process each file
         for idx, file_data in enumerate(files_data):
-            file_path = file_data.get("path")
-            if not file_path:
-                logger.warning(f"Skipping file without path for scene {scene.id}")
-                continue
+            await self._process_file_data(scene, file_data, idx == 0, db)
 
-            # File ID should already be set from above
-            file_id_value = file_data.get("id")
-            if not file_id_value:
-                logger.error(f"File ID missing after generation for path {file_path}")
-                continue
-            current_file_id: str = str(file_id_value)  # Ensure it's a string
+    async def _process_file_data(
+        self,
+        scene: Scene,
+        file_data: Dict[str, Any],
+        is_primary: bool,
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Process a single file data entry"""
+        file_path = file_data.get("path")
+        if not file_path:
+            logger.warning(f"Skipping file without path for scene {scene.id}")
+            return
 
-            # Check if file already exists
-            existing_file = None
-            if hasattr(scene, "files"):
-                existing_file = next(
-                    (
-                        f
-                        for f in scene.files
-                        if f.id == current_file_id or f.path == file_path
-                    ),
-                    None,
-                )
+        file_id = file_data.get("id")
+        if not file_id:
+            logger.error(f"File ID missing after generation for path {file_path}")
+            return
 
-            if existing_file:
-                # Update existing file
-                await self._update_existing_file(existing_file, file_data, idx == 0, db)
-            else:
-                # Create new file
-                await self._create_new_file(scene, file_data, idx == 0, db)
+        # Find existing file
+        existing_file = self._find_existing_file(scene, str(file_id), file_path)
+
+        if existing_file:
+            await self._update_existing_file(existing_file, file_data, is_primary, db)
+        else:
+            await self._create_new_file(scene, file_data, is_primary, db)
 
     async def _update_existing_file(
         self,

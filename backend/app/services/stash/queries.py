@@ -68,8 +68,14 @@ fragment SceneData on Scene {
         }
     }
     files {
+        id
         path
+        basename
+        parent_folder_id
+        zip_file_id
+        mod_time
         size
+        format
         duration
         video_codec
         audio_codec
@@ -77,6 +83,12 @@ fragment SceneData on Scene {
         height
         frame_rate
         bit_rate
+        fingerprints {
+            type
+            value
+        }
+        created_at
+        updated_at
     }
     o_counter
 }

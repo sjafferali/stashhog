@@ -74,6 +74,9 @@ def transform_scene(stash_scene: Dict) -> Dict:
             "movies": stash_scene.get("movies", []),
         }
         logger.debug(f"Scene {scene_id} transformed successfully")
+        logger.debug(f"Transformed scene has {len(transformed.get('files', []))} files")
+        if transformed.get("files"):
+            logger.debug(f"First file in transformed data: {transformed['files'][0]}")
         return transformed
     except Exception as e:
         logger.error(f"Error transforming scene {scene_id}: {str(e)}")
@@ -201,7 +204,7 @@ def transform_file_info(file_info: Optional[Dict]) -> Dict:
             fingerprints[fp["type"]] = fp.get("value")
 
     return {
-        "id": file_info.get("id"),
+        "id": str(file_info.get("id")) if file_info.get("id") else None,
         "path": file_info.get("path"),
         "basename": file_info.get("basename"),
         "parent_folder_id": file_info.get("parent_folder_id"),

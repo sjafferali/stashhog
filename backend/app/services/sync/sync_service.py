@@ -388,8 +388,8 @@ class SyncService:
         logger.debug(f"Syncing scene {idx+1}/{total_scenes} - id: {scene_id}")
 
         try:
-            # Fetch scene data from Stash
-            scene_data = await self.stash_service.get_scene(scene_id)
+            # Fetch raw scene data from Stash (not transformed)
+            scene_data = await self.stash_service.get_scene_raw(scene_id)
             if scene_data:
                 # Process the scene
                 await self._process_single_scene(scene_data, result, progress_callback)
@@ -972,6 +972,11 @@ class SyncService:
                 result.skipped_items += 1
                 result.stats.scenes_skipped += 1
                 return
+
+            # Log scene data for debugging
+            logger.debug(f"Scene data keys for {scene_id}: {list(scene_data.keys())}")
+            if "files" in scene_data:
+                logger.debug(f"Files data for scene {scene_id}: {scene_data['files']}")
 
             # Sync the scene
             await self.scene_handler.sync_scene(scene_data, self.db)
