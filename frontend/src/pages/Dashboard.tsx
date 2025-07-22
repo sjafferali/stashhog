@@ -235,15 +235,6 @@ const Dashboard: React.FC = () => {
   }
 
   const visibleItems = stats.actionable_items.filter((item) => item.visible);
-  const highPriorityItems = visibleItems.filter(
-    (item) => item.priority === 'high'
-  );
-  const mediumPriorityItems = visibleItems.filter(
-    (item) => item.priority === 'medium'
-  );
-  const lowPriorityItems = visibleItems.filter(
-    (item) => item.priority === 'low'
-  );
 
   return (
     <div>
@@ -363,153 +354,47 @@ const Dashboard: React.FC = () => {
             <FileSearchOutlined /> Action Required
           </Title>
 
-          {highPriorityItems.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <Title level={4} style={{ color: '#ff4d4f', marginBottom: 12 }}>
-                High Priority
-              </Title>
-              <Row gutter={[16, 16]}>
-                {highPriorityItems.map((item) => (
-                  <Col xs={24} sm={12} lg={8} key={item.id}>
-                    <Card
-                      hoverable
-                      style={{ height: '100%' }}
-                      actions={[
-                        <Button
-                          key="action"
-                          type="primary"
-                          danger
-                          icon={getActionIcon(item.type)}
-                          loading={
-                            (item.action === 'sync_scenes' && syncingScenes) ||
-                            (item.action === 'analyze_scenes' &&
-                              analyzingScenes)
-                          }
-                          onClick={() => void handleAction(item)}
-                        >
-                          {item.action_label}
-                        </Button>,
-                      ]}
+          <Row gutter={[16, 16]}>
+            {visibleItems.map((item) => (
+              <Col xs={24} sm={12} lg={8} key={item.id}>
+                <Card
+                  hoverable
+                  style={{ height: '100%' }}
+                  actions={[
+                    <Button
+                      key="action"
+                      type={item.priority === 'high' ? 'primary' : 'default'}
+                      danger={item.priority === 'high'}
+                      icon={getActionIcon(item.type)}
+                      loading={
+                        (item.action === 'sync_scenes' && syncingScenes) ||
+                        (item.action === 'analyze_scenes' && analyzingScenes)
+                      }
+                      onClick={() => void handleAction(item)}
                     >
-                      <Card.Meta
-                        avatar={
-                          <Badge
-                            count={item.count}
-                            showZero
-                            color={getPriorityColor(item.priority)}
-                          >
-                            <div style={{ fontSize: 24, padding: 8 }}>
-                              {getActionIcon(item.type)}
-                            </div>
-                          </Badge>
-                        }
-                        title={item.title}
-                        description={item.description}
-                      />
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          )}
-
-          {mediumPriorityItems.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <Title level={4} style={{ color: '#faad14', marginBottom: 12 }}>
-                Medium Priority
-              </Title>
-              <Row gutter={[16, 16]}>
-                {mediumPriorityItems.map((item) => (
-                  <Col xs={24} sm={12} lg={8} key={item.id}>
-                    <Card
-                      hoverable
-                      style={{ height: '100%' }}
-                      actions={[
-                        <Button
-                          key="action"
-                          type="default"
-                          icon={getActionIcon(item.type)}
-                          loading={
-                            (item.action === 'sync_scenes' && syncingScenes) ||
-                            (item.action === 'analyze_scenes' &&
-                              analyzingScenes)
-                          }
-                          onClick={() => void handleAction(item)}
-                        >
-                          {item.action_label}
-                        </Button>,
-                      ]}
-                    >
-                      <Card.Meta
-                        avatar={
-                          <Badge
-                            count={item.count}
-                            showZero
-                            color={getPriorityColor(item.priority)}
-                          >
-                            <div style={{ fontSize: 24, padding: 8 }}>
-                              {getActionIcon(item.type)}
-                            </div>
-                          </Badge>
-                        }
-                        title={item.title}
-                        description={item.description}
-                      />
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          )}
-
-          {lowPriorityItems.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <Title level={4} style={{ color: '#8c8c8c', marginBottom: 12 }}>
-                Low Priority
-              </Title>
-              <Row gutter={[16, 16]}>
-                {lowPriorityItems.map((item) => (
-                  <Col xs={24} sm={12} lg={8} key={item.id}>
-                    <Card
-                      hoverable
-                      style={{ height: '100%' }}
-                      actions={[
-                        <Button
-                          key="action"
-                          type="text"
-                          icon={getActionIcon(item.type)}
-                          loading={
-                            (item.action === 'sync_scenes' && syncingScenes) ||
-                            (item.action === 'analyze_scenes' &&
-                              analyzingScenes)
-                          }
-                          onClick={() => void handleAction(item)}
-                        >
-                          {item.action_label}
-                        </Button>,
-                      ]}
-                    >
-                      <Card.Meta
-                        avatar={
-                          <Badge
-                            count={item.count}
-                            showZero
-                            color={getPriorityColor(item.priority)}
-                          >
-                            <div style={{ fontSize: 24, padding: 8 }}>
-                              {getActionIcon(item.type)}
-                            </div>
-                          </Badge>
-                        }
-                        title={item.title}
-                        description={item.description}
-                      />
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          )}
+                      {item.action_label}
+                    </Button>,
+                  ]}
+                >
+                  <Card.Meta
+                    avatar={
+                      <Badge
+                        count={item.count}
+                        showZero
+                        color={getPriorityColor(item.priority)}
+                      >
+                        <div style={{ fontSize: 24, padding: 8 }}>
+                          {getActionIcon(item.type)}
+                        </div>
+                      </Badge>
+                    }
+                    title={item.title}
+                    description={item.description}
+                  />
+                </Card>
+              </Col>
+            ))}
+          </Row>
         </>
       )}
 

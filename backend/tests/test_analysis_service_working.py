@@ -262,10 +262,8 @@ class TestAnalysisService:
             for i in range(3)
         ]
 
-        # Mock scene_sync_utils to return the scenes
-        analysis_service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(
-            return_value=scenes
-        )
+        # Mock _get_scenes_from_database to return the scenes
+        analysis_service._get_scenes_from_database = AsyncMock(return_value=scenes)
 
         # Mock analyze_single_scene to return list of ProposedChange
         analysis_service.analyze_single_scene = AsyncMock(
@@ -525,10 +523,8 @@ class TestAnalysisService:
             {"id": f"scene{i+1}", "title": f"Scene {i+1}"} for i in range(10)
         ]
 
-        # Mock scene_sync_utils to return the scenes
-        analysis_service.scene_sync_utils.sync_scenes_by_ids = AsyncMock(
-            return_value=scenes
-        )
+        # Mock _get_scenes_from_database to return the scenes
+        analysis_service._get_scenes_from_database = AsyncMock(return_value=scenes)
 
         # Mock analyze_single_scene to return empty changes
         analysis_service.analyze_single_scene = AsyncMock(

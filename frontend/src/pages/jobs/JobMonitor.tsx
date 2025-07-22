@@ -17,8 +17,9 @@ import {
   Divider,
   message,
   Empty,
+  Select,
 } from 'antd';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import {
   SyncOutlined,
@@ -55,6 +56,10 @@ const JobMonitor: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [_refreshInterval, setRefreshInterval] =
     useState<NodeJS.Timeout | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(
+    searchParams.get('status') || undefined
+  );
 
   const fetchJobs = async () => {
     try {
@@ -460,9 +465,23 @@ const JobMonitor: React.FC = () => {
   );
 
   // Filter jobs by status
+  const filteredJobs = useMemo(() => {
+    if (!statusFilter) return jobsWithKeys;
+    return jobsWithKeys.filter((job) => job.status === statusFilter);
+  }, [jobsWithKeys, statusFilter]);
+
   const runningJobs = jobsWithKeys.filter((job) => job.status === 'running');
   const pendingJobs = jobsWithKeys.filter((job) => job.status === 'pending');
   const failedJobs = jobsWithKeys.filter((job) => job.status === 'failed');
+
+  const handleStatusFilterChange = (value: string | undefined) => {
+    setStatusFilter(value);
+    if (value) {
+      setSearchParams({ status: value });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   return (
     <div className={styles.jobMonitor}>
@@ -484,18 +503,35 @@ const JobMonitor: React.FC = () => {
       <Card
         className={styles.mainCard}
         extra={
-          <Button
-            icon={<SyncOutlined />}
-            onClick={() => void fetchJobs()}
-            loading={loading}
-          >
-            Refresh
-          </Button>
+          <Space>
+            <Select
+              placeholder="Filter by status"
+              allowClear
+              value={statusFilter}
+              onChange={handleStatusFilterChange}
+              style={{ width: 150 }}
+              options={[
+                { label: 'All', value: undefined },
+                { label: 'Pending', value: 'pending' },
+                { label: 'Running', value: 'running' },
+                { label: 'Completed', value: 'completed' },
+                { label: 'Failed', value: 'failed' },
+                { label: 'Cancelled', value: 'cancelled' },
+              ]}
+            />
+            <Button
+              icon={<SyncOutlined />}
+              onClick={() => void fetchJobs()}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Space>
         }
       >
         <Table
           columns={columns}
-          dataSource={jobsWithKeys}
+          dataSource={filteredJobs}
           loading={loading}
           rowKey="key"
           expandable={{

@@ -635,7 +635,12 @@ async def get_sync_stats(
                     "created_at": (
                         job.created_at.isoformat() if job.created_at else None
                     ),
-                    "metadata": job.metadata,
+                    "metadata": (
+                        job.job_metadata
+                        if hasattr(job, "job_metadata")
+                        and isinstance(job.job_metadata, dict)
+                        else {}
+                    ),
                 }
                 for job in running_jobs
             ],
@@ -654,7 +659,7 @@ async def get_sync_stats(
                         job.completed_at.isoformat() if job.completed_at else None
                     ),
                     "error": job.error,
-                    "result": job.result,
+                    "result": job.result if isinstance(job.result, dict) else {},
                 }
                 for job in completed_jobs
             ],
@@ -701,9 +706,9 @@ async def get_sync_stats(
                 "title": "Scenes Pending Analysis",
                 "description": f"{scenes_not_analyzed} scenes have not been analyzed yet",
                 "count": scenes_not_analyzed,
-                "action": "analyze_scenes",
-                "action_label": "Analyze Scenes",
-                "batch_size": min(scenes_not_analyzed, 50),
+                "action": "view_scenes",
+                "action_label": "View Scenes",
+                "route": "/scenes?analyzed=false",
                 "priority": "medium",
                 "visible": scenes_not_analyzed > 0,
             },
@@ -713,9 +718,9 @@ async def get_sync_stats(
                 "title": "Scenes Pending Video Analysis",
                 "description": f"{scenes_not_video_analyzed} scenes have not been video analyzed",
                 "count": scenes_not_video_analyzed,
-                "action": "analyze_videos",
-                "action_label": "Analyze Videos",
-                "batch_size": min(scenes_not_video_analyzed, 10),
+                "action": "view_scenes",
+                "action_label": "View Scenes",
+                "route": "/scenes?video_analyzed=false",
                 "priority": "low",
                 "visible": scenes_not_video_analyzed > 0,
             },

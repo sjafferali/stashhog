@@ -143,15 +143,15 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 63: Add tests for cache invalidation and TTL (2025-07-22)
 - [x] Task 64: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Stash Transformers Tests (53% coverage - app/services/stash/transformers.py)
-- [ ] Task 65: Create test_stash_transformers.py - Test data transformation
-- [ ] Task 66: Run all backend tests and ensure they pass
+#### Stash Transformers Tests (100% coverage - app/services/stash/transformers.py)
+- [x] Task 65: Create test_stash_transformers.py - Test data transformation (2025-07-22)
+- [x] Task 66: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Analysis Service Tests (53% coverage - app/services/analysis/analysis_service.py)
-- [ ] Task 67: Create test_analysis_service.py - Test main analysis service
-- [ ] Task 68: Run all backend tests and ensure they pass
-- [ ] Task 69: Add tests for scene analysis workflow
-- [ ] Task 70: Run all backend tests and ensure they pass
+#### Analysis Service Tests (improved coverage - app/services/analysis/analysis_service.py)
+- [x] Task 67: Create test_analysis_service.py - Test main analysis service (2025-07-22)
+- [x] Task 68: Run all backend tests and ensure they pass (2025-07-22)
+- [x] Task 69: Add tests for scene analysis workflow (2025-07-22)
+- [x] Task 70: Run all backend tests and ensure they pass (2025-07-22)
 - [ ] Task 71: Add tests for batch analysis operations
 - [ ] Task 72: Run all backend tests and ensure they pass
 
@@ -243,9 +243,9 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 64 of 116 tasks completed (55%)
+- [x] 70 of 116 tasks completed (60%)
 - [x] Coverage target of 80% achieved (currently at 81%)
-- [x] All tests passing consistently (1278 passed, 3 skipped)
+- [x] All tests passing consistently (1300+ passed, 3 skipped)
 - [ ] CI/CD pipeline updated with new tests
 - [ ] Test documentation updated
 

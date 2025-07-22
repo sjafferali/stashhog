@@ -13,7 +13,6 @@ from app.models.job import JobStatus
 from app.models.scene import Scene
 from app.services.openai_client import OpenAIClient
 from app.services.stash_service import StashService
-from app.services.sync.scene_sync_utils import SceneSyncUtils
 
 from .ai_client import AIClient
 from .batch_processor import BatchProcessor
@@ -52,7 +51,6 @@ class AnalysisService:
         """
         self.stash_service = stash_service
         self.settings = settings
-        self.scene_sync_utils = SceneSyncUtils(stash_service)
 
         # Initialize AI client
         self.ai_client = AIClient(openai_client)
@@ -657,63 +655,124 @@ class AnalysisService:
         tags_to_add: list[str],
         has_tagme: bool,
     ) -> int:
-        """Apply tags to a scene and return count of tags added."""
-        from app.services.scene_service import SceneService
+        """Apply tags to a scene using local database only."""
+        from sqlalchemy import select
 
-        # Get database session
-        db = await self._get_database_session()
+        from app.core.database import AsyncSessionLocal
+        from app.models import Scene, Tag
 
-        try:
-            # Create scene service instance
-            scene_service = SceneService(self.stash_service)
+        async with AsyncSessionLocal() as db:
+            # Get scene from database
+            result = await db.execute(select(Scene).where(Scene.id == scene_id))
+            scene = result.scalar_one_or_none()
+            if not scene:
+                logger.warning(f"Scene {scene_id} not found in database")
+                return 0
 
-            # Use the scene service to apply tags
-            return await scene_service.apply_tags_to_scene(
-                scene_id=scene_id,
-                scene_data=scene_data,
-                tags_to_add=tags_to_add,
-                has_tagme=has_tagme,
-                db=db,
-            )
-        finally:
-            await db.close()
+            # Get existing tag IDs
+            existing_tag_ids = [tag.id for tag in scene.tags]
+
+            # Find tags in local database only
+            tags_added = 0
+            for tag_name in tags_to_add:
+                # Check if tag exists in local database
+                tag_result = await db.execute(select(Tag).where(Tag.name == tag_name))
+                tag = tag_result.scalar_one_or_none()
+
+                if tag and tag.id not in existing_tag_ids:
+                    scene.tags.append(tag)
+                    tags_added += 1
+                elif not tag:
+                    logger.debug(
+                        f"Tag '{tag_name}' not found in local database, skipping"
+                    )
+
+            # Handle status tags
+            if has_tagme:
+                # Remove AI_TagMe if present
+                tagme_result = await db.execute(
+                    select(Tag).where(Tag.name == "AI_TagMe")
+                )
+                tagme_tag = tagme_result.scalar_one_or_none()
+                if tagme_tag and tagme_tag in scene.tags:
+                    scene.tags.remove(tagme_tag)
+
+            # Add AI_Tagged if not present
+            tagged_result = await db.execute(select(Tag).where(Tag.name == "AI_Tagged"))
+            tagged_tag = tagged_result.scalar_one_or_none()
+            if tagged_tag and tagged_tag not in scene.tags:
+                scene.tags.append(tagged_tag)
+
+            # Mark scene as analyzed
+            scene.analyzed = True  # type: ignore[assignment]
+
+            await db.commit()
+            return tags_added
 
     async def _apply_markers_to_scene(
         self,
         scene_id: str,
         markers_to_add: list[dict],
     ) -> int:
-        """Apply markers to a scene and return count of markers added."""
-        # Get database session
-        db = await self._get_database_session()
+        """Apply markers to a scene using local database only."""
+        from sqlalchemy import select
 
-        try:
+        from app.core.database import AsyncSessionLocal
+        from app.models import Scene, Tag
+        from app.models.scene_marker import SceneMarker
+
+        async with AsyncSessionLocal() as db:
+            # Get scene from database
+            result = await db.execute(select(Scene).where(Scene.id == scene_id))
+            scene = result.scalar_one_or_none()
+            if not scene:
+                logger.warning(f"Scene {scene_id} not found in database")
+                return 0
+
             markers_added = 0
-
             for marker_data in markers_to_add:
+                # Find tags in local database
                 marker_tags = []
                 for tag_name in marker_data.get("tags", []):
-                    # Pass db session to find_or_create_tag to check stashhog first
-                    tag_id = await self.stash_service.find_or_create_tag(tag_name, db)
-                    if tag_id:
-                        marker_tags.append(tag_id)
+                    tag_result = await db.execute(
+                        select(Tag).where(Tag.name == tag_name)
+                    )
+                    tag = tag_result.scalar_one_or_none()
+                    if tag:
+                        marker_tags.append(tag)
+                    else:
+                        logger.debug(
+                            f"Tag '{tag_name}' not found in local database for marker"
+                        )
 
-                marker = {
-                    "scene_id": scene_id,
-                    "seconds": marker_data["seconds"],
-                    "title": marker_data.get("title", ""),
-                    "tag_ids": marker_tags,
-                }
-                # Add end_seconds if provided
-                if "end_seconds" in marker_data:
-                    marker["end_seconds"] = marker_data["end_seconds"]
+                # Only create marker if we have at least one tag
+                if marker_tags:
+                    # Generate a unique ID for the marker
+                    import uuid
 
-                await self.stash_service.create_marker(marker)
-                markers_added += 1
+                    marker = SceneMarker(
+                        id=str(uuid.uuid4()),
+                        scene_id=scene_id,
+                        seconds=marker_data["seconds"],
+                        title=marker_data.get("title", ""),
+                        primary_tag_id=marker_tags[0].id,
+                    )
+                    # Set the tags relationship
+                    marker.tags = marker_tags
 
+                    # Add end_seconds if provided
+                    if "end_seconds" in marker_data:
+                        marker.end_seconds = marker_data["end_seconds"]
+
+                    db.add(marker)
+                    markers_added += 1
+                else:
+                    logger.warning(
+                        f"Skipping marker at {marker_data['seconds']}s - no valid tags found"
+                    )
+
+            await db.commit()
             return markers_added
-        finally:
-            await db.close()
 
     async def _update_scene_status_tags(
         self,
@@ -722,41 +781,47 @@ class AnalysisService:
         has_tagme: bool,
         is_error: bool = False,
     ) -> None:
-        """Update scene status tags (AI_TagMe, AI_Tagged, AI_Errored)."""
-        from app.services.scene_service import SceneService
+        """Update scene status tags using local database only."""
+        from sqlalchemy import select
 
-        # Get database session
-        db = await self._get_database_session()
+        from app.core.database import AsyncSessionLocal
+        from app.models import Scene, Tag
 
-        try:
-            existing_tag_ids = [t.get("id") for t in current_tags if t.get("id")]
+        async with AsyncSessionLocal() as db:
+            # Get scene from database
+            result = await db.execute(select(Scene).where(Scene.id == scene_id))
+            scene = result.scalar_one_or_none()
+            if not scene:
+                logger.warning(f"Scene {scene_id} not found in database")
+                return
 
             if is_error:
-                # Add AI_Errored tag
-                error_tag_id = await self.stash_service.find_or_create_tag(
-                    "AI_Errored", db
+                # Add AI_Errored tag if it exists in database
+                error_result = await db.execute(
+                    select(Tag).where(Tag.name == "AI_Errored")
                 )
-                if error_tag_id not in existing_tag_ids:
-                    existing_tag_ids.append(error_tag_id)
+                error_tag = error_result.scalar_one_or_none()
+                if error_tag and error_tag not in scene.tags:
+                    scene.tags.append(error_tag)
             else:
-                # Add AI_Tagged tag
-                tagged_id = await self.stash_service.find_or_create_tag("AI_Tagged", db)
-                if tagged_id not in existing_tag_ids:
-                    existing_tag_ids.append(tagged_id)
+                # Add AI_Tagged tag if it exists in database
+                tagged_result = await db.execute(
+                    select(Tag).where(Tag.name == "AI_Tagged")
+                )
+                tagged_tag = tagged_result.scalar_one_or_none()
+                if tagged_tag and tagged_tag not in scene.tags:
+                    scene.tags.append(tagged_tag)
 
             # Remove AI_TagMe if present
             if has_tagme:
-                tagme_id = await self.stash_service.find_or_create_tag("AI_TagMe", db)
-                if tagme_id in existing_tag_ids:
-                    existing_tag_ids.remove(tagme_id)
+                tagme_result = await db.execute(
+                    select(Tag).where(Tag.name == "AI_TagMe")
+                )
+                tagme_tag = tagme_result.scalar_one_or_none()
+                if tagme_tag and tagme_tag in scene.tags:
+                    scene.tags.remove(tagme_tag)
 
-            # Update scene using scene service
-            scene_service = SceneService(self.stash_service)
-            await scene_service.update_scene_with_sync(
-                scene_id, {"tag_ids": existing_tag_ids}, db
-            )
-        finally:
-            await db.close()
+            await db.commit()
 
     async def _extract_changes_from_video_detection(
         self, video_changes: list
@@ -772,29 +837,6 @@ class AnalysisService:
                 markers_to_add.append(change.proposed_value)
 
         return tags_to_add, markers_to_add
-
-    async def _get_scenes_for_analysis(
-        self,
-        scene_ids: Optional[list[str]],
-        filters: Optional[dict],
-    ) -> list[dict]:
-        """Get scenes for analysis based on scene IDs or filters."""
-        if scene_ids:
-            scenes_data = []
-            for scene_id in scene_ids:
-                scene = await self.stash_service.get_scene(scene_id)
-                # Only add valid scene dictionaries
-                if scene and isinstance(scene, dict):
-                    scenes_data.append(scene)
-                elif scene and not isinstance(scene, dict):
-                    logger.warning(
-                        f"Invalid scene data for ID {scene_id}: expected dict, got {type(scene).__name__}"
-                    )
-            return scenes_data
-        else:
-            scenes, _ = await self.stash_service.get_scenes(filter=filters)
-            # Filter out any non-dict items
-            return [s for s in scenes if isinstance(s, dict)]
 
     async def _get_database_session(self) -> AsyncSession:
         """Get database session for analysis."""
@@ -1042,88 +1084,43 @@ class AnalysisService:
         return result
 
     async def _refresh_cache(self) -> None:
-        """Refresh cached entities from Stash."""
+        """Refresh cached entities from local database."""
+        from sqlalchemy import select
+
+        from app.core.database import AsyncSessionLocal
+        from app.models import Performer, Studio, Tag
+
         try:
-            # Get all studios
-            studios_data = await self.stash_service.get_all_studios()
-            self._cache["studios"] = [s["name"] for s in studios_data if s.get("name")]
+            async with AsyncSessionLocal() as db:
+                # Get all studios from local database
+                studios_result = await db.execute(select(Studio))
+                studios = studios_result.scalars().all()
+                self._cache["studios"] = [s.name for s in studios if s.name]
 
-            # Get all performers with aliases
-            performers_data = await self.stash_service.get_all_performers()
-            self._cache["performers"] = [
-                {"name": p["name"], "aliases": p.get("aliases", [])}
-                for p in performers_data
-                if p.get("name")
-            ]
+                # Get all performers with aliases from local database
+                performers_result = await db.execute(select(Performer))
+                performers = performers_result.scalars().all()
+                self._cache["performers"] = [
+                    {"name": p.name, "aliases": p.aliases or []}
+                    for p in performers
+                    if p.name
+                ]
 
-            # Get all tags
-            tags_data = await self.stash_service.get_all_tags()
-            self._cache["tags"] = [t["name"] for t in tags_data if t.get("name")]
+                # Get all tags from local database
+                tags_result = await db.execute(select(Tag))
+                tags = tags_result.scalars().all()
+                self._cache["tags"] = [t.name for t in tags if t.name]
 
-            self._cache["last_refresh"] = datetime.utcnow()
+                self._cache["last_refresh"] = datetime.utcnow()
 
-            logger.info(
-                f"Cache refreshed: {len(self._cache['studios']) if isinstance(self._cache['studios'], list) else 0} studios, "
-                f"{len(self._cache['performers']) if isinstance(self._cache['performers'], list) else 0} performers, "
-                f"{len(self._cache['tags']) if isinstance(self._cache['tags'], list) else 0} tags"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to refresh cache: {e}")
-
-    async def _sync_and_get_scenes(
-        self, scene_ids: Optional[list[str]], filters: Optional[dict], db: AsyncSession
-    ) -> list[Scene]:
-        """Sync scenes from Stash to database and return them.
-
-        Args:
-            scene_ids: Optional list of scene IDs to sync
-            filters: Optional filters for scene selection
-            db: Database session
-
-        Returns:
-            List of synced Scene objects
-        """
-        if scene_ids:
-            logger.debug(f"Syncing scenes by IDs: {scene_ids}")
-            return await self.scene_sync_utils.sync_scenes_by_ids(
-                scene_ids=scene_ids, db=db, update_existing=True
-            )
-        else:
-            logger.debug(f"Getting scenes by filters: {filters}")
-            # For filtered queries, we need to get IDs first then sync
-            stash_scenes = await self._get_stash_scenes_by_filters(filters)
-            scene_ids_to_sync = [s["id"] for s in stash_scenes if s.get("id")]
-            if scene_ids_to_sync:
-                return await self.scene_sync_utils.sync_scenes_by_ids(
-                    scene_ids=scene_ids_to_sync, db=db, update_existing=True
+                logger.info(
+                    f"Cache refreshed from local database: {len(self._cache['studios']) if isinstance(self._cache['studios'], list) else 0} studios, "
+                    f"{len(self._cache['performers']) if isinstance(self._cache['performers'], list) else 0} performers, "
+                    f"{len(self._cache['tags']) if isinstance(self._cache['tags'], list) else 0} tags"
                 )
-            return []
 
-    async def _get_stash_scenes_by_filters(
-        self, filters: Optional[dict]
-    ) -> list[dict[str, Any]]:
-        """Get scenes by filters from Stash API.
-
-        Args:
-            filters: Scene filters
-
-        Returns:
-            List of scene dictionaries from Stash
-        """
-        # Default filters
-        if not filters:
-            filters = {}
-
-        try:
-            # Use get_scenes which returns (scenes, total_count)
-            scenes, _ = await self.stash_service.get_scenes(
-                filter=filters, page=1, per_page=1000  # Get many at once
-            )
-            return scenes
         except Exception as e:
-            logger.error(f"Failed to get scenes with filters: {e}")
-            return []
+            logger.error(f"Failed to refresh cache from database: {e}")
 
     async def _get_scenes_from_database(
         self, scene_ids: Optional[list[str]], filters: Optional[dict], db: AsyncSession
