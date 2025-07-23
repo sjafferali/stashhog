@@ -77,6 +77,14 @@ class AnalysisService:
             "last_refresh": None,
         }
 
+        # Progress tracking for current analysis
+        self._current_job_id: Optional[str] = None
+        self._current_progress_callback: Optional[Any] = None
+        self._scenes_processed_in_current_batch: int = 0
+        self._total_scenes_in_all_batches: int = 0
+        self._current_batch_index: int = 0
+        self._total_batches: int = 0
+
     async def analyze_scenes(
         self,
         scene_ids: Optional[list[str]] = None,
@@ -130,6 +138,12 @@ class AnalysisService:
         logger.debug(
             f"First few scene IDs being analyzed: {[s.get('id') if isinstance(s, dict) else s.id for s in scenes[:5]]}"
         )
+
+        # Set up progress tracking
+        self._current_job_id = job_id
+        self._current_progress_callback = progress_callback
+        self._total_scenes_in_all_batches = len(scenes)
+        self._scenes_processed_in_current_batch = 0
 
         # Report initial progress
         await self._report_initial_progress(job_id, len(scenes), progress_callback)
@@ -188,8 +202,24 @@ class AnalysisService:
                     job_id, 100, "Analysis complete", JobStatus.COMPLETED
                 )
 
+            # Reset progress tracking variables
+            self._current_job_id = None
+            self._current_progress_callback = None
+            self._scenes_processed_in_current_batch = 0
+            self._total_scenes_in_all_batches = 0
+            self._current_batch_index = 0
+            self._total_batches = 0
+
             return plan
         else:
+            # Reset progress tracking variables
+            self._current_job_id = None
+            self._current_progress_callback = None
+            self._scenes_processed_in_current_batch = 0
+            self._total_scenes_in_all_batches = 0
+            self._current_batch_index = 0
+            self._total_batches = 0
+
             # Return mock plan for dry run
             return AnalysisPlan(name=plan_name, metadata=metadata, status="draft")
 
@@ -311,8 +341,9 @@ class AnalysisService:
             List of scene changes
         """
         results = []
+        batch_size = len(batch_data)
 
-        for scene_data in batch_data:
+        for scene_index, scene_data in enumerate(batch_data):
             try:
                 # Create Scene-like object for compatibility
                 class SceneLike:
@@ -365,6 +396,20 @@ class AnalysisService:
                         return None
 
                 scene = SceneLike(scene_data)
+
+                # Report progress for this scene if doing video tag detection
+                if options.detect_video_tags and self._current_progress_callback:
+                    # Calculate overall progress considering all scenes across all batches
+                    scenes_completed_so_far = (
+                        self._scenes_processed_in_current_batch + scene_index
+                    )
+                    progress_percent = int(
+                        (scenes_completed_so_far / self._total_scenes_in_all_batches)
+                        * 100
+                    )
+                    message = f"Analyzing video for scene {scene_index + 1}/{batch_size}: {scene.title or 'Untitled'}"
+                    await self._current_progress_callback(progress_percent, message)
+
                 # Cast to Scene type as expected by analyze_single_scene
                 changes = await self.analyze_single_scene(scene, options)  # type: ignore[arg-type]
 
@@ -1535,6 +1580,14 @@ class AnalysisService:
                 db=db,
             )
 
+        # Reset progress tracking variables
+        self._current_job_id = None
+        self._current_progress_callback = None
+        self._scenes_processed_in_current_batch = 0
+        self._total_scenes_in_all_batches = 0
+        self._current_batch_index = 0
+        self._total_batches = 0
+
         # Return a mock plan without creating it in the database
         mock_plan = AnalysisPlan(
             name=plan_name or "No Changes Found",
@@ -1659,18 +1712,53 @@ class AnalysisService:
             )
 
             for scene in db_scenes:
-                # Always set analyzed to True if any analysis was performed
-                scene.analyzed = True  # type: ignore[assignment]
+                # Determine which flags to set based on analysis options
+                if options:
+                    # Check if only video tags detection was run
+                    only_video_tags = (
+                        options.detect_video_tags
+                        and not options.detect_performers
+                        and not options.detect_studios
+                        and not options.detect_tags
+                        and not options.detect_details
+                    )
 
-                # Set videoAnalyzed to True only if video tag detection was performed
-                if options and options.detect_video_tags:
-                    scene.video_analyzed = True  # type: ignore[assignment]
-                    logger.debug(f"Marking scene {scene.id} as video_analyzed=True")
+                    # Set video_analyzed if video tag detection was performed
+                    if options.detect_video_tags:
+                        scene.video_analyzed = True  # type: ignore[assignment]
+                        logger.debug(f"Marking scene {scene.id} as video_analyzed=True")
+
+                    # Set analyzed only if other analysis options were run (not just video tags)
+                    if not only_video_tags:
+                        scene.analyzed = True  # type: ignore[assignment]
+                        logger.debug(f"Marking scene {scene.id} as analyzed=True")
+                else:
+                    # If no options provided, set analyzed to True (backward compatibility)
+                    scene.analyzed = True  # type: ignore[assignment]
 
             await db.flush()
-            logger.info(
-                f"Successfully marked {len(db_scenes)} scenes as analyzed (video_analyzed={options.detect_video_tags if options else False})"
-            )
+
+            # Prepare log message based on what was set
+            if options:
+                only_video_tags = (
+                    options.detect_video_tags
+                    and not options.detect_performers
+                    and not options.detect_studios
+                    and not options.detect_tags
+                    and not options.detect_details
+                )
+                if only_video_tags:
+                    logger.info(
+                        f"Successfully marked {len(db_scenes)} scenes as video_analyzed=True (analyzed flag not set - only video tags detection was run)"
+                    )
+                else:
+                    logger.info(
+                        f"Successfully marked {len(db_scenes)} scenes as analyzed=True (video_analyzed={options.detect_video_tags})"
+                    )
+            else:
+                logger.info(
+                    f"Successfully marked {len(db_scenes)} scenes as analyzed=True"
+                )
 
         except Exception as e:
             logger.error(f"Failed to mark scenes as analyzed: {str(e)}", exc_info=True)
@@ -1869,6 +1957,11 @@ class AnalysisService:
             total_scenes: Total number of scenes
             progress_callback: Optional external progress callback
         """
+        # Update tracking for video tag detection progress
+        self._scenes_processed_in_current_batch = processed_scenes
+        self._current_batch_index = completed_batches
+        self._total_batches = total_batches
+
         progress = int((completed_batches / total_batches) * 100)
         message = f"Processed {processed_scenes}/{total_scenes} scenes ({completed_batches}/{total_batches} batches)"
 

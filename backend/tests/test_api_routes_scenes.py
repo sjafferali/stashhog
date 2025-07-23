@@ -595,3 +595,260 @@ class TestSceneRoutes:
         response = client.get("/api/scenes/?sort=created_at")
 
         assert response.status_code == 200
+
+    def test_list_scenes_filter_by_studio(self, client, mock_db, mock_scene):
+        """Test filtering scenes by studio ID."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?studio_id=studio123")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_filter_by_organized(self, client, mock_db, mock_scene):
+        """Test filtering scenes by organized status."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?organized=true")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_filter_by_analyzed(self, client, mock_db):
+        """Test filtering scenes by analyzed status."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?analyzed=false")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+
+    def test_list_scenes_filter_by_video_analyzed(self, client, mock_db):
+        """Test filtering scenes by video analyzed status."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?video_analyzed=true")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+
+    def test_list_scenes_filter_by_date_range(self, client, mock_db, mock_scene):
+        """Test filtering scenes by date range."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get(
+            "/api/scenes/?date_from=2024-01-01T00:00:00Z&date_to=2024-12-31T23:59:59Z"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_filter_multiple_performers(self, client, mock_db, mock_scene):
+        """Test filtering scenes by multiple performer IDs."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?performer_ids=perf1&performer_ids=perf2")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_filter_multiple_tags(self, client, mock_db, mock_scene):
+        """Test filtering scenes by multiple tag IDs."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get("/api/scenes/?tag_ids=tag1&tag_ids=tag2&tag_ids=tag3")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_complex_filters(self, client, mock_db, mock_scene):
+        """Test combining multiple filters."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 1
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[mock_scene])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        response = client.get(
+            "/api/scenes/?search=test&organized=true&analyzed=false&"
+            "performer_ids=perf1&tag_ids=tag1&studio_id=studio1"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+
+    def test_list_scenes_invalid_date_format(self, client, mock_db):
+        """Test filtering scenes with invalid date format."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        # Invalid date format should be ignored
+        response = client.get("/api/scenes/?date_from=invalid-date")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+
+    def test_list_scenes_sort_by_multiple_fields(self, client, mock_db):
+        """Test sorting scenes by different fields."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        # Test sort by stash_date descending
+        response = client.get("/api/scenes/?sort_by=stash_date&sort_order=desc")
+
+        assert response.status_code == 200
+
+    def test_list_scenes_empty_filter_arrays(self, client, mock_db):
+        """Test with empty arrays for performer and tag filters."""
+        # Mock count query
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock scene query
+        mock_scene_result = Mock()
+        mock_scalars = Mock()
+        mock_unique = Mock()
+        mock_all = Mock(return_value=[])
+        mock_unique.all = mock_all
+        mock_scalars.unique.return_value = mock_unique
+        mock_scene_result.scalars.return_value = mock_scalars
+
+        mock_db.execute = AsyncMock(side_effect=[mock_count_result, mock_scene_result])
+
+        # Empty arrays should be treated as no filter
+        response = client.get("/api/scenes/?performer_ids=&tag_ids=")
+
+        assert response.status_code == 200

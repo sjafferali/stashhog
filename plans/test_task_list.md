@@ -223,12 +223,12 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 106: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Scenes Routes Tests (73% coverage - app/api/routes/scenes.py)
-- [ ] Task 107: Enhance test_api_routes_scenes.py - Add filtering tests
-- [ ] Task 108: Run all backend tests and ensure they pass
+- [x] Task 107: Enhance test_api_routes_scenes.py - Add filtering tests (2025-07-23)
+- [x] Task 108: Run all backend tests and ensure they pass (2025-07-23)
 
-#### Tag Model Tests (77% coverage - app/models/tag.py)
-- [ ] Task 109: Create test_model_tag.py - Test tag model operations
-- [ ] Task 110: Run all backend tests and ensure they pass
+#### Tag Model Tests (100% coverage - app/models/tag.py)
+- [x] Task 109: Create test_model_tag.py - Test tag model operations (2025-07-23)
+- [x] Task 110: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Studio Model Tests (79% coverage - app/models/studio.py)
 - [ ] Task 111: Create test_model_studio.py - Test studio model operations
@@ -244,7 +244,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 90 of 116 tasks completed (78%)
+- [x] 94 of 116 tasks completed (81%)
 - [x] Coverage target of 80% achieved (currently at ~86%)
 - [x] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests
