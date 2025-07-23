@@ -537,7 +537,7 @@ const PlanDetail: React.FC = () => {
               statistics={(() => {
                 const analyzedScenes = (() => {
                   // For pending plans with running jobs, use job progress
-                  if (plan.status === 'pending' && job) {
+                  if (plan.status.toLowerCase() === 'pending' && job) {
                     if (job.status === 'running' || job.status === 'pending') {
                       return job.processed_items || 0;
                     }
@@ -555,7 +555,7 @@ const PlanDetail: React.FC = () => {
                 const pendingScenes = (() => {
                   // For pending plans with running jobs
                   if (
-                    plan.status === 'pending' &&
+                    plan.status.toLowerCase() === 'pending' &&
                     job &&
                     job.status === 'running'
                   ) {
@@ -565,7 +565,10 @@ const PlanDetail: React.FC = () => {
                     );
                   }
                   // For reviewing/draft plans, count scenes without changes as pending
-                  if (plan.status === 'reviewing' || plan.status === 'draft') {
+                  if (
+                    plan.status.toLowerCase() === 'reviewing' ||
+                    plan.status.toLowerCase() === 'draft'
+                  ) {
                     const scenesWithChanges = plan.scenes.length;
                     return Math.max(0, plan.total_scenes - scenesWithChanges);
                   }

@@ -84,7 +84,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
   });
 
   const completionRate =
-    jobProgress !== undefined && plan.status === 'pending'
+    jobProgress !== undefined && plan.status.toLowerCase() === 'pending'
       ? jobProgress
       : statistics.totalScenes > 0
         ? (statistics.analyzedScenes / statistics.totalScenes) * 100
@@ -113,15 +113,15 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
             </Text>
             <Tag
               color={
-                plan.status === 'pending'
+                plan.status.toLowerCase() === 'pending'
                   ? 'purple'
-                  : plan.status === 'draft'
+                  : plan.status.toLowerCase() === 'draft'
                     ? 'blue'
-                    : plan.status === 'reviewing'
+                    : plan.status.toLowerCase() === 'reviewing'
                       ? 'orange'
-                      : plan.status === 'applied'
+                      : plan.status.toLowerCase() === 'applied'
                         ? 'green'
-                        : plan.status === 'cancelled'
+                        : plan.status.toLowerCase() === 'cancelled'
                           ? 'red'
                           : 'default'
               }
