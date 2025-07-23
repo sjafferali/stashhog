@@ -6,6 +6,7 @@ from sqlalchemy import and_, select
 
 from app.core.database import AsyncSessionLocal
 from app.core.tasks import TaskStatus, get_task_queue
+from app.models.analysis_plan import AnalysisPlan, PlanStatus
 from app.models.job import Job, JobStatus, JobType
 from app.services.job_service import JobService
 
@@ -58,6 +59,60 @@ async def _cleanup_old_jobs(db: Any, current_time: datetime) -> int:
         logger.info(f"Deleted {old_jobs_deleted} old completed jobs")
 
     return old_jobs_deleted
+
+
+async def _cleanup_stuck_pending_plans(db: Any, current_time: datetime) -> int:
+    """Find and update plans stuck in PENDING state whose associated job is no longer running."""
+    try:
+        # Find all plans in PENDING status
+        pending_plans_query = select(AnalysisPlan).where(
+            AnalysisPlan.status == PlanStatus.PENDING
+        )
+        pending_plans_result = await db.execute(pending_plans_query)
+        pending_plans = pending_plans_result.scalars().all()
+
+        plans_updated = 0
+
+        for plan in pending_plans:
+            # Skip if no job_id associated
+            if not plan.job_id:
+                logger.warning(
+                    f"Plan {plan.id} is PENDING but has no associated job_id"
+                )
+                # Set to DRAFT anyway since it's orphaned
+                plan.status = PlanStatus.DRAFT
+                plans_updated += 1
+                continue
+
+            # Check if the associated job exists and its status
+            job_query = select(Job).where(Job.id == plan.job_id)
+            job_result = await db.execute(job_query)
+            job = job_result.scalar_one_or_none()
+
+            if not job:
+                # Job doesn't exist, set plan to DRAFT
+                logger.warning(
+                    f"Plan {plan.id} references non-existent job {plan.job_id}"
+                )
+                plan.status = PlanStatus.DRAFT
+                plans_updated += 1
+            elif job.status not in [JobStatus.RUNNING, JobStatus.PENDING]:
+                # Job is no longer running, set plan to DRAFT
+                logger.info(
+                    f"Plan {plan.id} is PENDING but job {job.id} has status {job.status.value}"
+                )
+                plan.status = PlanStatus.DRAFT
+                plans_updated += 1
+
+        if plans_updated > 0:
+            await db.commit()
+            logger.info(f"Updated {plans_updated} stuck PENDING plans to DRAFT status")
+
+        return plans_updated
+
+    except Exception as e:
+        logger.error(f"Error cleaning up stuck pending plans: {str(e)}")
+        return 0
 
 
 async def _process_stale_job(
@@ -129,13 +184,17 @@ async def cleanup_stale_jobs(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
-    Cleanup stale jobs that are marked as running but have exceeded their timeout.
+    Cleanup stale jobs that are marked as running but have exceeded their timeout
+    and cleanup stuck pending plans.
 
     This job will:
     1. Find all jobs marked as RUNNING or PENDING
     2. Check if they have exceeded their timeout threshold
     3. Check if the associated task is actually running
     4. Update the job status accordingly
+    5. Delete old completed jobs (older than 30 days)
+    6. Find plans stuck in PENDING status where the associated job is no longer running
+    7. Update stuck PENDING plans to DRAFT status
     """
     logger.info(f"Starting cleanup job {job_id}")
 
@@ -197,6 +256,10 @@ async def cleanup_stale_jobs(
             # Cleanup old completed jobs
             old_jobs_deleted = await _cleanup_old_jobs(db, current_time)
 
+            # Progress: Cleaning up stuck pending plans
+            await progress_callback(95, "Cleaning up stuck pending plans...")
+            stuck_plans_updated = await _cleanup_stuck_pending_plans(db, current_time)
+
             await progress_callback(100, "Cleanup completed")
 
             return {
@@ -204,6 +267,7 @@ async def cleanup_stale_jobs(
                 "cleaned_jobs": len(cleaned_jobs),
                 "cleaned_job_details": cleaned_jobs,
                 "old_jobs_deleted": old_jobs_deleted,
+                "stuck_plans_updated": stuck_plans_updated,
                 "errors": errors,
             }
 
