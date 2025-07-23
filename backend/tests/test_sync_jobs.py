@@ -594,7 +594,9 @@ class TestSyncJobs:
                         )
 
         # Assert
-        assert result["status"] == "partial"
+        assert (
+            result["status"] == "completed_with_errors"
+        )  # Changed from "partial" to match new error handling
         assert result["failed_items"] == 2
         assert result["success_rate"] == 0.0
 

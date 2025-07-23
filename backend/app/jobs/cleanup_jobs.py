@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.core.tasks import TaskStatus, get_task_queue
@@ -14,17 +15,31 @@ logger = logging.getLogger(__name__)
 
 # Timeout threshold for jobs that should have completed
 JOB_TIMEOUT_MINUTES = {
+    # Full sync of all content from Stash (scenes, performers, tags, studios)
     JobType.SYNC: 30,
+    # Alias for SYNC, used by scheduler for forced sync operations
     JobType.SYNC_ALL: 30,
+    # Sync only scenes from Stash
     JobType.SYNC_SCENES: 30,
+    # Sync only performers from Stash
     JobType.SYNC_PERFORMERS: 20,
+    # Sync only tags from Stash
     JobType.SYNC_TAGS: 20,
+    # Sync only studios from Stash
     JobType.SYNC_STUDIOS: 20,
+    # AI-powered scene analysis using OpenAI Vision API
     JobType.ANALYSIS: 60,  # AI analysis can take longer
+    # Apply analysis plan to update Stash with generated tags/details
     JobType.APPLY_PLAN: 30,
+    # Generate scene details using AI (handler exists but no API endpoint)
     JobType.GENERATE_DETAILS: 45,
+    # Export functionality (not implemented - no handler or endpoints)
+    # TODO: Consider removing if not planned for implementation
     JobType.EXPORT: 15,
+    # Import functionality (not implemented - no handler or endpoints)
+    # TODO: Consider removing if not planned for implementation
     JobType.IMPORT: 15,
+    # Cleanup stale jobs and stuck pending plans
     JobType.CLEANUP: 5,
 }
 
@@ -61,7 +76,9 @@ async def _cleanup_old_jobs(db: Any, current_time: datetime) -> int:
     return old_jobs_deleted
 
 
-async def _cleanup_stuck_pending_plans(db: Any, current_time: datetime) -> int:
+async def _cleanup_stuck_pending_plans(
+    db: Any, current_time: datetime
+) -> Tuple[int, Optional[str]]:
     """Find and update plans stuck in PENDING state whose associated job is no longer running."""
     try:
         # Find all plans in PENDING status
@@ -99,7 +116,7 @@ async def _cleanup_stuck_pending_plans(db: Any, current_time: datetime) -> int:
             elif job.status not in [JobStatus.RUNNING, JobStatus.PENDING]:
                 # Job is no longer running, set plan to DRAFT
                 logger.info(
-                    f"Plan {plan.id} is PENDING but job {job.id} has status {job.status.value}"
+                    f"Plan {plan.id} is PENDING but job {job.id} has status {job.status.value if hasattr(job.status, 'value') else job.status}"
                 )
                 plan.status = PlanStatus.DRAFT
                 plans_updated += 1
@@ -108,11 +125,11 @@ async def _cleanup_stuck_pending_plans(db: Any, current_time: datetime) -> int:
             await db.commit()
             logger.info(f"Updated {plans_updated} stuck PENDING plans to DRAFT status")
 
-        return plans_updated
+        return plans_updated, None
 
     except Exception as e:
         logger.error(f"Error cleaning up stuck pending plans: {str(e)}")
-        return 0
+        return 0, str(e)
 
 
 async def _process_stale_job(
@@ -177,6 +194,68 @@ async def _process_stale_job(
     }
 
 
+async def _find_stale_jobs(db: AsyncSession) -> list[Job]:
+    """Find all jobs that are marked as running or pending."""
+    query = select(Job).where(Job.status.in_([JobStatus.RUNNING, JobStatus.PENDING]))
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def _process_stale_jobs(
+    jobs: list[Job],
+    current_time: datetime,
+    task_queue: Any,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    cancellation_token: Optional[Any],
+) -> tuple[list[dict], list[dict]]:
+    """Process potentially stale jobs and return cleaned jobs and errors."""
+    cleaned_jobs = []
+    errors = []
+    total_jobs = len(jobs)
+
+    for idx, job in enumerate(jobs):
+        if cancellation_token and cancellation_token.is_cancelled:
+            logger.info("Cleanup job cancelled")
+            break
+
+        # Calculate progress
+        progress = 20 + int((idx / total_jobs) * 70)
+        await progress_callback(
+            progress,
+            f"Checking job {job.id} ({job.type.value if hasattr(job.type, 'value') else job.type})",
+        )
+
+        try:
+            job_result = await _process_stale_job(job, current_time, task_queue)
+            if job_result:
+                cleaned_jobs.append(job_result)
+        except Exception as e:
+            logger.error(f"Error processing job {job.id}: {str(e)}")
+            errors.append({"job_id": job.id, "error": str(e)})
+
+    return cleaned_jobs, errors
+
+
+async def _finalize_cleanup(
+    db: AsyncSession,
+    current_time: datetime,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> tuple[int, int, Optional[str]]:
+    """Finalize cleanup by deleting old jobs and updating stuck plans."""
+    await progress_callback(90, "Finalizing cleanup...")
+
+    # Cleanup old completed jobs
+    old_jobs_deleted = await _cleanup_old_jobs(db, current_time)
+
+    # Progress: Cleaning up stuck pending plans
+    await progress_callback(95, "Cleaning up stuck pending plans...")
+    stuck_plans_updated, stuck_plans_error = await _cleanup_stuck_pending_plans(
+        db, current_time
+    )
+
+    return old_jobs_deleted, stuck_plans_updated, stuck_plans_error
+
+
 async def cleanup_stale_jobs(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
@@ -198,21 +277,13 @@ async def cleanup_stale_jobs(
     """
     logger.info(f"Starting cleanup job {job_id}")
 
-    cleaned_jobs = []
-    errors = []
-
     async with AsyncSessionLocal() as db:
         try:
             # Progress: Starting cleanup
             await progress_callback(10, "Finding stale jobs...")
 
-            # Find all jobs that are marked as running or pending
             current_time = datetime.now(timezone.utc)
-            query = select(Job).where(
-                Job.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
-            )
-            result = await db.execute(query)
-            potentially_stale_jobs = result.scalars().all()
+            potentially_stale_jobs = await _find_stale_jobs(db)
 
             total_jobs = len(potentially_stale_jobs)
             logger.info(f"Found {total_jobs} potentially stale jobs")
@@ -225,50 +296,38 @@ async def cleanup_stale_jobs(
             await progress_callback(20, f"Processing {total_jobs} jobs...")
 
             task_queue = get_task_queue()
-
-            for idx, job in enumerate(potentially_stale_jobs):
-                if cancellation_token and cancellation_token.is_cancelled:
-                    logger.info("Cleanup job cancelled")
-                    break
-
-                # Calculate progress
-                progress = 20 + int((idx / total_jobs) * 70)
-                await progress_callback(
-                    progress,
-                    f"Checking job {job.id} ({job.type.value if hasattr(job.type, 'value') else job.type})",
-                )
-
-                try:
-                    job_result = await _process_stale_job(job, current_time, task_queue)
-                    if job_result:
-                        cleaned_jobs.append(job_result)
-
-                except Exception as e:
-                    logger.error(f"Error processing job {job.id}: {str(e)}")
-                    errors.append({"job_id": job.id, "error": str(e)})
+            cleaned_jobs, errors = await _process_stale_jobs(
+                potentially_stale_jobs,
+                current_time,
+                task_queue,
+                progress_callback,
+                cancellation_token,
+            )
 
             # Commit all changes
             await db.commit()
 
-            # Progress: Completing
-            await progress_callback(90, "Finalizing cleanup...")
+            # Finalize cleanup
+            old_jobs_deleted, stuck_plans_updated, stuck_plans_error = (
+                await _finalize_cleanup(db, current_time, progress_callback)
+            )
 
-            # Cleanup old completed jobs
-            old_jobs_deleted = await _cleanup_old_jobs(db, current_time)
-
-            # Progress: Cleaning up stuck pending plans
-            await progress_callback(95, "Cleaning up stuck pending plans...")
-            stuck_plans_updated = await _cleanup_stuck_pending_plans(db, current_time)
+            if stuck_plans_error:
+                errors.append(
+                    {
+                        "error": f"Failed to cleanup stuck pending plans: {stuck_plans_error}"
+                    }
+                )
 
             await progress_callback(100, "Cleanup completed")
 
             return {
-                "status": "completed",
                 "cleaned_jobs": len(cleaned_jobs),
                 "cleaned_job_details": cleaned_jobs,
                 "old_jobs_deleted": old_jobs_deleted,
                 "stuck_plans_updated": stuck_plans_updated,
                 "errors": errors,
+                "status": "completed_with_errors" if errors else "completed",
             }
 
         except Exception as e:
@@ -276,8 +335,8 @@ async def cleanup_stale_jobs(
             return {
                 "status": "failed",
                 "error": str(e),
-                "cleaned_jobs": len(cleaned_jobs),
-                "errors": errors,
+                "cleaned_jobs": 0,
+                "errors": [],
             }
 
 

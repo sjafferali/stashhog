@@ -155,7 +155,12 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
               icon={<CheckCircleOutlined />}
               onClick={onApply}
               loading={loading}
-              disabled={statistics.pendingScenes === 0}
+              disabled={
+                statistics.pendingScenes === 0 ||
+                plan.status === 'pending' ||
+                plan.status === 'applied' ||
+                plan.status === 'cancelled'
+              }
             >
               Apply Changes
             </Button>

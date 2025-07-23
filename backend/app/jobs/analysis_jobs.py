@@ -168,6 +168,7 @@ async def analyze_scenes_job(
     except Exception as e:
         logger.error(f"Job {job_id} failed with error: {str(e)}", exc_info=True)
         await progress_callback(100, f"Analysis failed: {str(e)}")
+        # For complete failures (initialization errors, etc.), re-raise
         raise
 
 
@@ -181,43 +182,56 @@ async def apply_analysis_plan_job(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Apply an analysis plan as a background job."""
-    logger.info(f"Starting apply_analysis_plan job {job_id} for plan {plan_id}")
+    try:
+        logger.info(f"Starting apply_analysis_plan job {job_id} for plan {plan_id}")
 
-    # Create service instances
-    settings = await load_settings_with_db_overrides()
-    stash_service = StashService(
-        stash_url=settings.stash.url,
-        api_key=settings.stash.api_key,
-        timeout=settings.stash.timeout,
-        max_retries=settings.stash.max_retries,
-    )
-    openai_client = (
-        OpenAIClient(
-            api_key=settings.openai.api_key,
-            model=settings.openai.model,
-            base_url=settings.openai.base_url,
-            max_tokens=settings.openai.max_tokens,
-            temperature=settings.openai.temperature,
-            timeout=settings.openai.timeout,
+        # Create service instances
+        settings = await load_settings_with_db_overrides()
+        stash_service = StashService(
+            stash_url=settings.stash.url,
+            api_key=settings.stash.api_key,
+            timeout=settings.stash.timeout,
+            max_retries=settings.stash.max_retries,
         )
-        if settings.openai.api_key
-        else None
-    )
+        openai_client = (
+            OpenAIClient(
+                api_key=settings.openai.api_key,
+                model=settings.openai.model,
+                base_url=settings.openai.base_url,
+                max_tokens=settings.openai.max_tokens,
+                temperature=settings.openai.temperature,
+                timeout=settings.openai.timeout,
+            )
+            if settings.openai.api_key
+            else None
+        )
 
-    # Execute plan application with progress callback
-    if openai_client is None:
-        raise ValueError("OpenAI client is required for analysis")
-    analysis_service = AnalysisService(
-        openai_client=openai_client, stash_service=stash_service, settings=settings
-    )
+        # Execute plan application with progress callback
+        if openai_client is None:
+            raise ValueError("OpenAI client is required for analysis")
+        analysis_service = AnalysisService(
+            openai_client=openai_client, stash_service=stash_service, settings=settings
+        )
 
-    result = await analysis_service.apply_plan(
-        plan_id=plan_id,
-        auto_approve=auto_approve,
-        job_id=job_id,
-        progress_callback=progress_callback,
-        change_ids=change_ids,
-    )
+        result = await analysis_service.apply_plan(
+            plan_id=plan_id,
+            auto_approve=auto_approve,
+            job_id=job_id,
+            progress_callback=progress_callback,
+            change_ids=change_ids,
+        )
+    except Exception as e:
+        logger.error(f"Failed to apply plan {plan_id}: {str(e)}", exc_info=True)
+        # Return error result instead of re-raising
+        return {
+            "plan_id": plan_id,
+            "applied_changes": 0,
+            "failed_changes": 0,
+            "skipped_changes": 0,
+            "total_changes": 0,
+            "success_rate": 0,
+            "errors": [{"error": str(e), "type": "job_failure"}],
+        }
 
     return {
         "plan_id": plan_id,
@@ -230,95 +244,8 @@ async def apply_analysis_plan_job(
             if result.total_changes > 0
             else 0
         ),
+        "errors": result.errors,
     }
-
-
-async def analyze_all_unanalyzed_job(
-    job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
-    options: Optional[dict[str, Any]] = None,
-    batch_size: int = 100,
-    **kwargs: Any,
-) -> dict[str, Any]:
-    """Analyze all unanalyzed scenes as a background job."""
-    logger.info(f"Starting analyze_all_unanalyzed job {job_id}")
-
-    # Convert options dict to AnalysisOptions
-    analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
-
-    # Get unanalyzed scenes
-    from app.core.database import AsyncSessionLocal
-    from app.repositories.scene_repository import scene_repository
-
-    async with AsyncSessionLocal() as db:
-        unanalyzed_scenes = await scene_repository.get_unanalyzed_scenes(db)
-        scene_ids: list[str] = [str(scene.id) for scene in unanalyzed_scenes]
-
-        logger.info(f"Found {len(scene_ids)} unanalyzed scenes")
-
-        # Execute analysis in batches
-        total_scenes = len(scene_ids)
-        analyzed_count = 0
-        all_plans = []
-
-        for i in range(0, total_scenes, batch_size):
-            batch: list[str] = scene_ids[i : i + batch_size]
-            batch_progress = int((i / total_scenes) * 100)
-
-            await progress_callback(
-                batch_progress,
-                f"Analyzing batch {i // batch_size + 1} of {(total_scenes + batch_size - 1) // batch_size}",
-            )
-
-            # Create service instances for this batch
-            settings = await load_settings_with_db_overrides()
-            stash_service = StashService(
-                stash_url=settings.stash.url, api_key=settings.stash.api_key
-            )
-            openai_client = (
-                OpenAIClient(
-                    api_key=settings.openai.api_key,
-                    model=settings.openai.model,
-                    base_url=settings.openai.base_url,
-                    max_tokens=settings.openai.max_tokens,
-                    temperature=settings.openai.temperature,
-                    timeout=settings.openai.timeout,
-                )
-                if settings.openai.api_key
-                else None
-            )
-
-            # Analyze batch
-            async with AsyncSessionLocal() as batch_db:
-                if openai_client is None:
-                    raise ValueError("OpenAI client is required for analysis")
-
-                analysis_service = AnalysisService(
-                    openai_client=openai_client,
-                    stash_service=stash_service,
-                    settings=settings,
-                )
-
-                plan = await analysis_service.analyze_scenes(
-                    scene_ids=batch,
-                    options=analysis_options,
-                    job_id=f"{job_id}_batch_{i // batch_size}",
-                    db=batch_db,
-                    progress_callback=lambda p, m: None,  # Don't report individual progress
-                )
-
-            all_plans.append(plan)
-            analyzed_count += len(batch)
-
-        # Summary
-        total_changes = sum(plan.get_change_count() for plan in all_plans)
-
-        return {
-            "scenes_analyzed": analyzed_count,
-            "total_changes": total_changes,
-            "plans_created": len(all_plans),
-            "plan_ids": [plan.id for plan in all_plans],
-        }
 
 
 async def generate_scene_details_job(
@@ -416,12 +343,23 @@ async def generate_scene_details_job(
     await progress_callback(100, "Scene details generation completed")
 
     success_count = sum(1 for r in results if r["status"] == "success")
-    return {
+    failed_results = [r for r in results if r["status"] == "failed"]
+
+    job_result = {
         "total_scenes": total_scenes,
         "successful": success_count,
         "failed": total_scenes - success_count,
         "results": results,
+        "errors": failed_results,
     }
+
+    # If all scenes failed, mark the job as failed
+    if success_count == 0 and total_scenes > 0:
+        job_result["status"] = "failed"
+    elif failed_results:
+        job_result["status"] = "completed_with_errors"
+
+    return job_result
 
 
 def register_analysis_jobs(job_service: JobService) -> None:

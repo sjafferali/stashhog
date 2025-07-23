@@ -87,12 +87,17 @@ class TestCleanupJobs:
             with patch(
                 "app.jobs.cleanup_jobs.get_task_queue", return_value=mock_task_queue
             ):
-                # Act
-                result = await cleanup_stale_jobs(
-                    job_id="cleanup-job-789",
-                    progress_callback=mock_progress_callback,
-                    cancellation_token=mock_cancellation_token,
-                )
+                with patch("app.jobs.cleanup_jobs._cleanup_old_jobs", return_value=1):
+                    with patch(
+                        "app.jobs.cleanup_jobs._cleanup_stuck_pending_plans",
+                        return_value=(0, None),
+                    ):
+                        # Act
+                        result = await cleanup_stale_jobs(
+                            job_id="cleanup-job-789",
+                            progress_callback=mock_progress_callback,
+                            cancellation_token=mock_cancellation_token,
+                        )
 
         # Assert
         assert result["status"] == "completed"
@@ -140,12 +145,17 @@ class TestCleanupJobs:
             with patch(
                 "app.jobs.cleanup_jobs.get_task_queue", return_value=mock_task_queue
             ):
-                # Act - should not raise TypeError
-                result = await cleanup_stale_jobs(
-                    job_id="cleanup-job-test",
-                    progress_callback=mock_progress_callback,
-                    cancellation_token=mock_cancellation_token,
-                )
+                with patch("app.jobs.cleanup_jobs._cleanup_old_jobs", return_value=1):
+                    with patch(
+                        "app.jobs.cleanup_jobs._cleanup_stuck_pending_plans",
+                        return_value=(0, None),
+                    ):
+                        # Act - should not raise TypeError
+                        result = await cleanup_stale_jobs(
+                            job_id="cleanup-job-test",
+                            progress_callback=mock_progress_callback,
+                            cancellation_token=mock_cancellation_token,
+                        )
 
         # Assert
         assert result["status"] == "completed"
@@ -182,12 +192,17 @@ class TestCleanupJobs:
             with patch(
                 "app.jobs.cleanup_jobs.get_task_queue", return_value=mock_task_queue
             ):
-                # Act
-                result = await cleanup_stale_jobs(
-                    job_id="cleanup-job-123",
-                    progress_callback=mock_progress_callback,
-                    cancellation_token=mock_cancellation_token,
-                )
+                with patch("app.jobs.cleanup_jobs._cleanup_old_jobs", return_value=1):
+                    with patch(
+                        "app.jobs.cleanup_jobs._cleanup_stuck_pending_plans",
+                        return_value=(0, None),
+                    ):
+                        # Act
+                        result = await cleanup_stale_jobs(
+                            job_id="cleanup-job-123",
+                            progress_callback=mock_progress_callback,
+                            cancellation_token=mock_cancellation_token,
+                        )
 
         # Assert
         assert result["status"] == "completed"
@@ -221,12 +236,17 @@ class TestCleanupJobs:
             with patch(
                 "app.jobs.cleanup_jobs.get_task_queue", return_value=mock_task_queue
             ):
-                # Act
-                result = await cleanup_stale_jobs(
-                    job_id="cleanup-job-456",
-                    progress_callback=mock_progress_callback,
-                    cancellation_token=None,  # No cancellation token
-                )
+                with patch("app.jobs.cleanup_jobs._cleanup_old_jobs", return_value=1):
+                    with patch(
+                        "app.jobs.cleanup_jobs._cleanup_stuck_pending_plans",
+                        return_value=(0, None),
+                    ):
+                        # Act
+                        result = await cleanup_stale_jobs(
+                            job_id="cleanup-job-456",
+                            progress_callback=mock_progress_callback,
+                            cancellation_token=None,  # No cancellation token
+                        )
 
         # Assert
         assert result["status"] == "completed"

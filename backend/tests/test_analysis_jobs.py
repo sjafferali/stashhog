@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 
 from app.jobs.analysis_jobs import (
-    analyze_all_unanalyzed_job,
     analyze_scenes_job,
     apply_analysis_plan_job,
     generate_scene_details_job,
@@ -264,6 +263,7 @@ class TestAnalysisJobs:
         apply_result.failed_changes = 1
         apply_result.skipped_changes = 1
         apply_result.total_changes = 10
+        apply_result.errors = []  # Add the errors attribute
 
         # Mock services
         mock_analysis_service = Mock()
@@ -537,99 +537,6 @@ class TestAnalysisJobsExtended:
         # Add SQLAlchemy attribute to avoid UnmappedInstanceError
         plan._sa_instance_state = Mock()
         return plan
-
-    @pytest.mark.asyncio
-    async def test_analyze_all_unanalyzed_job_success(
-        self,
-        mock_settings,
-        mock_progress_callback,
-        mock_analysis_plan,
-    ):
-        """Test successful analyze all unanalyzed scenes job."""
-        # Setup
-        job_id = str(uuid4())
-
-        # Mock unanalyzed scenes
-        mock_scenes = []
-        for i in range(250):  # Test batching with 250 scenes
-            scene = Mock()
-            scene.id = f"scene{i}"
-            mock_scenes.append(scene)
-
-        # Setup all the mocks
-        with (
-            patch(
-                "app.jobs.analysis_jobs.load_settings_with_db_overrides"
-            ) as mock_get_settings,
-            patch("app.jobs.analysis_jobs.AsyncSessionLocal") as mock_async_session,
-            patch("app.jobs.analysis_jobs.StashService"),
-            patch("app.jobs.analysis_jobs.OpenAIClient"),
-            patch(
-                "app.jobs.analysis_jobs.AnalysisService"
-            ) as mock_analysis_service_cls,
-            patch("app.core.database.get_db") as mock_get_db,
-            patch(
-                "app.repositories.scene_repository.scene_repository"
-            ) as mock_scene_repo,
-        ):
-            # Mock async function to return settings
-            mock_get_settings.return_value = mock_settings
-            mock_scene_repo.get_unanalyzed_scenes = AsyncMock(return_value=mock_scenes)
-
-            # Mock database
-            mock_db_instance = Mock()
-            mock_db_instance.close = Mock()
-            mock_get_db.return_value = iter([mock_db_instance])
-
-            # Mock analysis service
-            mock_analysis_service = Mock()
-            mock_plan1 = Mock()
-            mock_plan1.get_change_count = Mock(return_value=10)
-            mock_plan1.id = 10001  # Use integer ID
-            mock_plan2 = Mock()
-            mock_plan2.get_change_count = Mock(return_value=15)
-            mock_plan2.id = 10002  # Use integer ID
-            mock_plan3 = Mock()
-            mock_plan3.get_change_count = Mock(return_value=5)
-            mock_plan3.id = 10003  # Use integer ID
-
-            mock_analysis_service.analyze_scenes = AsyncMock(
-                side_effect=[mock_plan1, mock_plan2, mock_plan3]
-            )
-            mock_analysis_service_cls.return_value = mock_analysis_service
-
-            # Mock database session
-            mock_db = AsyncMock()
-            mock_db.__aenter__ = AsyncMock(return_value=mock_db)
-            mock_db.__aexit__ = AsyncMock(return_value=None)
-            mock_async_session.return_value = mock_db
-
-            # Execute
-            result = await analyze_all_unanalyzed_job(
-                job_id=job_id,
-                progress_callback=mock_progress_callback,
-                batch_size=100,
-            )
-
-            # Assert
-            assert result["scenes_analyzed"] == 250
-            assert result["total_changes"] == 30  # 10 + 15 + 5
-            assert result["plans_created"] == 3
-            assert len(result["plan_ids"]) == 3
-
-            # Verify progress callbacks
-            assert mock_progress_callback.call_count == 3  # One per batch
-
-            # Verify analysis service was called correctly
-            assert mock_analysis_service.analyze_scenes.call_count == 3
-
-            # Check batch sizes
-            call_args_list = mock_analysis_service.analyze_scenes.call_args_list
-            assert len(call_args_list[0][1]["scene_ids"]) == 100  # First batch
-            assert len(call_args_list[1][1]["scene_ids"]) == 100  # Second batch
-            assert (
-                len(call_args_list[2][1]["scene_ids"]) == 50
-            )  # Third batch (remaining)
 
     @pytest.mark.asyncio
     @patch("app.jobs.analysis_jobs.load_settings_with_db_overrides")
