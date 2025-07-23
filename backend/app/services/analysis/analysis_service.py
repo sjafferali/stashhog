@@ -2243,7 +2243,7 @@ class AnalysisService:
                     }
 
                     # Send WebSocket update directly with the updated job data
-                    from app.core.websocket import websocket_manager
+                    from app.services.websocket_manager import websocket_manager
 
                     logger.info(
                         f"Broadcasting job update with plan_id in metadata: {job.job_metadata}"

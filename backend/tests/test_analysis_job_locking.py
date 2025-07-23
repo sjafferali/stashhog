@@ -17,6 +17,7 @@ class TestAnalysisJobLocking:
         """Create a mock database session."""
         mock_db = MagicMock()
         mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
         mock_db.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db.__aexit__ = AsyncMock(return_value=None)
         return mock_db
@@ -103,9 +104,14 @@ class TestAnalysisJobLocking:
         # Setup job repository
         mock_job_repo.create_job = AsyncMock(side_effect=mock_jobs)
         mock_job_repo.update_job_status = AsyncMock(return_value=mock_jobs[0])
+        mock_job_repo.get_job = AsyncMock(return_value=mock_jobs[0])
         # Create a cyclic iterator for _fetch_job to always return a job
         fetch_iter = iter(mock_jobs * 20)
-        mock_job_repo._fetch_job = AsyncMock(side_effect=lambda *args: next(fetch_iter))
+
+        async def fetch_job_side_effect(*args):
+            return next(fetch_iter)
+
+        mock_job_repo._fetch_job = AsyncMock(side_effect=fetch_job_side_effect)
 
         # Setup task queue to capture and allow manual execution
         captured_tasks = []
@@ -124,6 +130,7 @@ class TestAnalysisJobLocking:
         for i in range(3):
             db = Mock()
             db.commit = AsyncMock()
+            db.refresh = AsyncMock()
             job = await job_service.create_job(
                 job_type=JobType.ANALYSIS, db=db, metadata={"scene_ids": [f"scene_{i}"]}
             )
@@ -220,6 +227,7 @@ class TestAnalysisJobLocking:
         for _ in range(20):
             mock_db = MagicMock()
             mock_db.commit = AsyncMock()
+            mock_db.refresh = AsyncMock()
             mock_db.__aenter__ = AsyncMock(return_value=mock_db)
             mock_db.__aexit__ = AsyncMock(return_value=None)
             mock_sessions.append(mock_db)
@@ -258,8 +266,13 @@ class TestAnalysisJobLocking:
 
         mock_job_repo.create_job = AsyncMock(side_effect=create_job_side_effect)
         mock_job_repo.update_job_status = AsyncMock(return_value=mock_jobs[0])
+        mock_job_repo.get_job = AsyncMock(return_value=mock_jobs[0])
         fetch_iter = iter(mock_jobs * 20)
-        mock_job_repo._fetch_job = AsyncMock(side_effect=lambda *args: next(fetch_iter))
+
+        async def fetch_job_side_effect(*args):
+            return next(fetch_iter)
+
+        mock_job_repo._fetch_job = AsyncMock(side_effect=fetch_job_side_effect)
 
         # Capture tasks
         captured_tasks = []
@@ -277,6 +290,7 @@ class TestAnalysisJobLocking:
         for job_type, _ in job_configs:
             db = Mock()
             db.commit = AsyncMock()
+            db.refresh = AsyncMock()
             await job_service.create_job(job_type=job_type, db=db)
 
         # Execute all tasks concurrently

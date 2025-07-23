@@ -159,15 +159,8 @@ class JobService:
             async def async_progress_callback(
                 progress: int, message: Optional[str] = None
             ) -> None:
-                async with AsyncSessionLocal() as progress_db:
-                    await self._update_job_status_with_session(
-                        job_id=job_id,
-                        status=JobStatus.RUNNING,
-                        progress=progress,
-                        message=message,
-                        db=progress_db,
-                    )
-                    await progress_db.commit()
+                # Use _update_job_progress which parses the message for counts
+                await self._update_job_progress(job_id, progress, message)
 
             # Execute handler with job context
             result = await handler(

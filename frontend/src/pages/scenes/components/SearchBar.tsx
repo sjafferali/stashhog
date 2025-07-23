@@ -59,7 +59,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const hasActiveFilters = activeFilterCount > 0 || searchValue !== '';
 
   return (
-    <Space.Compact style={{ width: '100%' }} size="large">
+    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
       <Input
         size="large"
         placeholder="Search scenes by title, path, or details..."
@@ -90,27 +90,29 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         style={{ flex: 1 }}
       />
 
-      <Badge count={activeFilterCount} offset={[-2, 2]}>
-        <Button
-          size="large"
-          icon={<FilterOutlined />}
-          type={showingAdvancedFilters ? 'primary' : 'default'}
-          onClick={onToggleAdvancedFilters}
-        >
-          Filters
-        </Button>
-      </Badge>
+      <Space size="small">
+        <Badge count={activeFilterCount} offset={[-2, 2]}>
+          <Button
+            size="large"
+            icon={<FilterOutlined />}
+            type={showingAdvancedFilters ? 'primary' : 'default'}
+            onClick={onToggleAdvancedFilters}
+          >
+            Filters
+          </Button>
+        </Badge>
 
-      {hasActiveFilters && (
-        <Button
-          size="large"
-          icon={<ClearOutlined />}
-          onClick={handleClearAllFilters}
-          danger
-        >
-          Clear All
-        </Button>
-      )}
-    </Space.Compact>
+        {hasActiveFilters && (
+          <Button
+            size="large"
+            icon={<ClearOutlined />}
+            onClick={handleClearAllFilters}
+            danger
+          >
+            Clear All
+          </Button>
+        )}
+      </Space>
+    </div>
   );
 };
