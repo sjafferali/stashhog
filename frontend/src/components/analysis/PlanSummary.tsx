@@ -73,15 +73,24 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       ? (statistics.acceptedChanges / statistics.totalChanges) * 100
       : 0;
 
+  // Debug logging
+  console.log('PlanSummary Debug:', {
+    planStatus: plan.status,
+    jobProgress,
+    statistics,
+    totalScenes: statistics.totalScenes,
+    analyzedScenes: statistics.analyzedScenes,
+    pendingScenes: statistics.pendingScenes,
+  });
+
   const completionRate =
     jobProgress !== undefined && plan.status === 'pending'
-      ? Math.min(jobProgress, 100)
+      ? jobProgress
       : statistics.totalScenes > 0
-        ? Math.min(
-            (statistics.analyzedScenes / statistics.totalScenes) * 100,
-            100
-          )
+        ? (statistics.analyzedScenes / statistics.totalScenes) * 100
         : 0;
+
+  console.log('Calculated completion rate:', completionRate);
 
   const fieldIcons = {
     title: <FileTextOutlined />,
@@ -98,32 +107,23 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
     <Card className={styles.planSummary}>
       <div className={styles.header}>
         <div>
-          <div
-            style={{
-              marginBottom: 8,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <Text strong style={{ fontSize: '16px' }}>
-              Plan Status:
-            </Text>
+          <div style={{ marginBottom: 8 }}>
+            <Text strong style={{ marginRight: 8 }}>Plan Status:</Text>
             <Tag
               color={
                 plan.status === 'pending'
                   ? 'purple'
                   : plan.status === 'draft'
-                    ? 'blue'
-                    : plan.status === 'reviewing'
-                      ? 'orange'
-                      : plan.status === 'applied'
-                        ? 'green'
-                        : plan.status === 'cancelled'
-                          ? 'red'
-                          : 'default'
+                  ? 'blue'
+                  : plan.status === 'reviewing'
+                  ? 'orange'
+                  : plan.status === 'applied'
+                  ? 'green'
+                  : plan.status === 'cancelled'
+                  ? 'red'
+                  : 'default'
               }
-              style={{ fontWeight: 500, fontSize: '14px', margin: 0 }}
+              style={{ fontWeight: 500, fontSize: '14px' }}
             >
               {plan.status.toUpperCase()}
             </Tag>

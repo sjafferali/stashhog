@@ -534,43 +534,81 @@ const PlanDetail: React.FC = () => {
                 prompt_template: '',
                 metadata: plan.metadata,
               }}
-              statistics={{
-                totalScenes: plan.total_scenes,
-                analyzedScenes:
-                  job?.processed_items !== null &&
-                  job?.processed_items !== undefined
-                    ? Math.min(job.processed_items, plan.total_scenes)
-                    : Math.min(
-                        plan.metadata?.scenes_analyzed || 0,
-                        plan.total_scenes
-                      ),
-                pendingScenes:
-                  job && job.status === 'running'
-                    ? Math.max(
-                        0,
-                        plan.total_scenes - (job.processed_items || 0)
-                      )
-                    : 0,
-                totalChanges: stats.totalChanges,
-                acceptedChanges: stats.acceptedChanges,
-                rejectedChanges: stats.rejectedChanges,
-                avgConfidence: stats.averageConfidence,
-                // acceptanceRate: stats.acceptanceRate / 100,
-                avgProcessingTime: plan.metadata.processing_time || 0,
-                fieldBreakdown: {
-                  title: allChanges.filter((c) => c.field === 'title').length,
-                  performers: allChanges.filter((c) => c.field === 'performers')
-                    .length,
-                  tags: allChanges.filter((c) => c.field === 'tags').length,
-                  studio: allChanges.filter((c) => c.field === 'studio').length,
-                  details: allChanges.filter((c) => c.field === 'details')
-                    .length,
-                  date: allChanges.filter((c) => c.field === 'date').length,
-                  markers: allChanges.filter((c) => c.field === 'markers')
-                    .length,
-                  custom: allChanges.filter((c) => c.field === 'custom').length,
-                },
-              }}
+              statistics={(() => {
+                const analyzedScenes = (() => {
+                  // For pending plans with running jobs, use job progress
+                  if (plan.status === 'pending' && job) {
+                    if (job.status === 'running' || job.status === 'pending') {
+                      return job.processed_items || 0;
+                    }
+                    // If job is completed, use total scenes
+                    if (job.status === 'completed') {
+                      return plan.total_scenes;
+                    }
+                  }
+                  // For other statuses, use metadata or actual analyzed count
+                  return (
+                    plan.metadata?.scenes_analyzed || plan.scenes.length || 0
+                  );
+                })();
+
+                const pendingScenes = (() => {
+                  // For pending plans with running jobs
+                  if (
+                    plan.status === 'pending' &&
+                    job &&
+                    job.status === 'running'
+                  ) {
+                    return Math.max(
+                      0,
+                      plan.total_scenes - (job.processed_items || 0)
+                    );
+                  }
+                  // For reviewing/draft plans, count scenes without changes as pending
+                  if (plan.status === 'reviewing' || plan.status === 'draft') {
+                    const scenesWithChanges = plan.scenes.length;
+                    return Math.max(0, plan.total_scenes - scenesWithChanges);
+                  }
+                  return 0;
+                })();
+
+                const planStats = {
+                  totalScenes: plan.total_scenes,
+                  analyzedScenes,
+                  pendingScenes,
+                  totalChanges: stats.totalChanges,
+                  acceptedChanges: stats.acceptedChanges,
+                  rejectedChanges: stats.rejectedChanges,
+                  avgConfidence: stats.averageConfidence,
+                  // acceptanceRate: stats.acceptanceRate / 100,
+                  avgProcessingTime: plan.metadata.processing_time || 0,
+                  fieldBreakdown: {
+                    title: allChanges.filter((c) => c.field === 'title').length,
+                    performers: allChanges.filter(
+                      (c) => c.field === 'performers'
+                    ).length,
+                    tags: allChanges.filter((c) => c.field === 'tags').length,
+                    studio: allChanges.filter((c) => c.field === 'studio')
+                      .length,
+                    details: allChanges.filter((c) => c.field === 'details')
+                      .length,
+                    date: allChanges.filter((c) => c.field === 'date').length,
+                    markers: allChanges.filter((c) => c.field === 'markers')
+                      .length,
+                    custom: allChanges.filter((c) => c.field === 'custom')
+                      .length,
+                  },
+                };
+                console.log('PlanDetail sending to PlanSummary:', {
+                  planStatus: plan.status,
+                  job,
+                  stats: planStats,
+                  totalScenes: plan.total_scenes,
+                  scenesLength: plan.scenes.length,
+                  metadata: plan.metadata,
+                });
+                return planStats;
+              })()}
               onApply={() => setShowApplyModal(true)}
               loading={false}
               jobProgress={job?.progress}
