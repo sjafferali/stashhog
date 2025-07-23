@@ -66,6 +66,9 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     detectVideoTags: false,
   });
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [tempAnalysisOptions, setTempAnalysisOptions] =
+    useState<AnalysisTypeOptions>(analysisOptions);
   const queryClient = useQueryClient();
   const { settings, loadSettings, isLoaded } = useAppStore();
 
@@ -193,39 +196,19 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   );
 
   const handleAnalyze = () => {
-    let currentOptions = analysisOptions;
-    Modal.confirm({
-      title: 'Analyze Scene',
-      content: (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <p>Analyze this scene with the following options:</p>
-          <AnalysisTypeSelector
-            value={analysisOptions}
-            onChange={(newOptions) => {
-              currentOptions = newOptions;
-              setAnalysisOptions(newOptions);
-              // Update the modal's OK button state
-              const okButton = document.querySelector(
-                '.ant-modal-confirm-btns .ant-btn-primary'
-              ) as HTMLButtonElement;
-              if (okButton) {
-                okButton.disabled =
-                  !hasAtLeastOneAnalysisTypeSelected(newOptions);
-              }
-            }}
-          />
-        </Space>
-      ),
-      onOk: () => {
-        if (hasAtLeastOneAnalysisTypeSelected(currentOptions)) {
-          analyzeMutation.mutate(currentOptions);
-        }
-      },
-      okButtonProps: {
-        disabled: !hasAtLeastOneAnalysisTypeSelected(analysisOptions),
-      },
-      width: 500,
-    });
+    setTempAnalysisOptions(analysisOptions);
+    setAnalysisModalVisible(true);
+  };
+
+  const handleAnalysisModalOk = () => {
+    setAnalysisOptions(tempAnalysisOptions);
+    analyzeMutation.mutate(tempAnalysisOptions);
+    setAnalysisModalVisible(false);
+  };
+
+  const handleAnalysisModalCancel = () => {
+    setAnalysisModalVisible(false);
+    setTempAnalysisOptions(analysisOptions);
   };
 
   const formatFileSize = (bytes?: string): string => {
@@ -851,6 +834,26 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
           }}
         />
       )}
+
+      <Modal
+        title="Analyze Scene"
+        open={analysisModalVisible}
+        onOk={handleAnalysisModalOk}
+        onCancel={handleAnalysisModalCancel}
+        confirmLoading={analyzeMutation.isLoading}
+        okButtonProps={{
+          disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
+        }}
+        width={500}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <p>Analyze this scene with the following options:</p>
+          <AnalysisTypeSelector
+            value={tempAnalysisOptions}
+            onChange={setTempAnalysisOptions}
+          />
+        </Space>
+      </Modal>
     </>
   );
 };

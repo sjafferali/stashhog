@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -207,13 +207,37 @@ class AnalysisService:
         """
         # Convert scene to dictionary
         scene_data = self._scene_to_dict(scene)
-
-        # Perform analysis
         changes = []
 
         # Track scene for cost calculation
         if hasattr(self, "cost_tracker"):
             self.cost_tracker.increment_scenes()
+
+        # Perform standard analysis
+        changes.extend(await self._perform_standard_analysis(scene_data, options))
+
+        # Handle video tag detection if enabled
+        if options.detect_video_tags:
+            video_changes = await self._handle_video_tag_detection(
+                scene, scene_data, options
+            )
+            changes.extend(video_changes)
+
+        return changes
+
+    async def _perform_standard_analysis(
+        self, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
+        """Perform standard analysis (non-video detection).
+
+        Args:
+            scene_data: Scene data dictionary
+            options: Analysis options
+
+        Returns:
+            List of proposed changes
+        """
+        changes = []
 
         # Detect studio
         if options.detect_studios:
@@ -235,19 +259,42 @@ class AnalysisService:
             details_changes = await self._detect_details(scene_data, options)
             changes.extend(details_changes)
 
-        # Detect tags/markers from video content
-        if options.detect_video_tags:
-            logger.debug(f"Video tag detection enabled for scene {scene.id}")
-            logger.debug(f"Scene data keys: {list(scene_data.keys())}")
-            logger.debug(f"Scene file_path: {scene_data.get('file_path')}")
-            logger.debug(f"Scene path: {scene_data.get('path')}")
+        return changes
+
+    async def _handle_video_tag_detection(
+        self, scene: Scene, scene_data: dict, options: AnalysisOptions
+    ) -> list[ProposedChange]:
+        """Handle video tag detection and related AI status tags.
+
+        Args:
+            scene: Scene object
+            scene_data: Scene data dictionary
+            options: Analysis options
+
+        Returns:
+            List of proposed changes including video tags and status tags
+        """
+        changes = []
+        video_tag_changes = []
+        video_detection_error = False
+
+        logger.debug(f"Video tag detection enabled for scene {scene.id}")
+        logger.debug(f"Scene data keys: {list(scene_data.keys())}")
+        logger.debug(f"Scene file_path: {scene_data.get('file_path')}")
+        logger.debug(f"Scene path: {scene_data.get('path')}")
+
+        try:
             video_tag_changes = await self._detect_video_tags(scene_data, options)
             changes.extend(video_tag_changes)
-        else:
-            logger.debug(f"Video tag detection NOT enabled for scene {scene.id}")
-            logger.debug(
-                f"Options: detect_video_tags={options.detect_video_tags}, detect_performers={options.detect_performers}, detect_studios={options.detect_studios}, detect_tags={options.detect_tags}, detect_details={options.detect_details}"
-            )
+        except Exception as e:
+            logger.error(f"Error detecting video tags for scene {scene.id}: {e}")
+            video_detection_error = True
+
+        # Handle AI status tags
+        status_changes = self._generate_ai_status_tag_changes(
+            scene_data, video_tag_changes, video_detection_error
+        )
+        changes.extend(status_changes)
 
         return changes
 
@@ -404,7 +451,7 @@ class AnalysisService:
         )
 
         # Always detect with AI for performers
-        ai_results: List[Any] = []
+        ai_results: list[Any] = []
         # Use tracked version if cost tracker is available
         if hasattr(self, "cost_tracker"):
             ai_results, cost_info = (
@@ -480,7 +527,7 @@ class AnalysisService:
         )
 
         # Always detect with AI for tags
-        ai_results: List[Any] = []
+        ai_results: list[Any] = []
         # Use tracked version if cost tracker is available
         if hasattr(self, "cost_tracker"):
             ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
@@ -1661,6 +1708,96 @@ class AnalysisService:
         # TODO: Implement actual job progress update
         logger.info(f"Job {job_id}: {progress}% - {message}")
 
+    def _generate_ai_status_tag_changes(
+        self,
+        scene_data: dict,
+        video_tag_changes: list[ProposedChange],
+        video_detection_error: bool = False,
+    ) -> list[ProposedChange]:
+        """Generate changes for AI status tags based on video tag detection results.
+
+        Args:
+            scene_data: Scene data including current tags
+            video_tag_changes: Changes detected from video analysis
+            video_detection_error: Whether an error occurred during video detection
+
+        Returns:
+            List of proposed changes for AI status tags
+        """
+        changes = []
+        current_tags = scene_data.get("tags", [])
+        current_tag_names = [
+            tag.get("name", "") for tag in current_tags if isinstance(tag, dict)
+        ]
+
+        # Check if scene has AI status tags
+        has_ai_tagme = "AI_TagMe" in current_tag_names
+        has_ai_tagged = "AI_Tagged" in current_tag_names
+        has_ai_errored = "AI_Errored" in current_tag_names
+
+        # Check if video tag detection found any tags or markers
+        found_tags_or_markers = any(
+            change.field in ["tags", "markers"] for change in video_tag_changes
+        )
+
+        # Handle error case
+        if video_detection_error:
+            # Remove AI_TagMe if present
+            if has_ai_tagme:
+                changes.append(
+                    ProposedChange(
+                        field="tags",
+                        action="remove",
+                        current_value=["AI_TagMe"],
+                        proposed_value=None,
+                        confidence=1.0,
+                        reason="Removing AI_TagMe after failed analysis",
+                    )
+                )
+
+            # Add AI_Errored if not present
+            if not has_ai_errored:
+                changes.append(
+                    ProposedChange(
+                        field="tags",
+                        action="add",
+                        current_value=None,
+                        proposed_value=["AI_Errored"],
+                        confidence=1.0,
+                        reason="Adding AI_Errored after failed analysis",
+                    )
+                )
+
+        # Handle success case
+        elif found_tags_or_markers:
+            # Remove AI_TagMe if present
+            if has_ai_tagme:
+                changes.append(
+                    ProposedChange(
+                        field="tags",
+                        action="remove",
+                        current_value=["AI_TagMe"],
+                        proposed_value=None,
+                        confidence=1.0,
+                        reason="Removing AI_TagMe after successful analysis",
+                    )
+                )
+
+            # Add AI_Tagged if not present
+            if not has_ai_tagged:
+                changes.append(
+                    ProposedChange(
+                        field="tags",
+                        action="add",
+                        current_value=None,
+                        proposed_value=["AI_Tagged"],
+                        confidence=1.0,
+                        reason="Adding AI_Tagged after successful analysis",
+                    )
+                )
+
+        return changes
+
     async def _on_progress(
         self,
         job_id: str,
@@ -1697,7 +1834,7 @@ class AnalysisService:
         auto_approve: bool = False,
         job_id: Optional[str] = None,
         progress_callback: Optional[Any] = None,
-        change_ids: Optional[List[int]] = None,
+        change_ids: Optional[list[int]] = None,
     ) -> ApplyResult:
         """Apply an analysis plan to update scene metadata in Stash.
 

@@ -234,6 +234,8 @@ class TestSceneRoutes:
         scene1.performers = [mock_performer]
         scene1.tags = [mock_tag]
         scene1.last_synced = datetime.utcnow()
+        scene1.created_at = datetime.utcnow()
+        scene1.updated_at = datetime.utcnow()
         scene1.markers = []
         scene1.files = [mock_file1]
         scene1.get_primary_file = Mock(return_value=mock_file1)
@@ -253,6 +255,8 @@ class TestSceneRoutes:
         scene2.tags = []
         scene2.markers = []
         scene2.last_synced = datetime.utcnow()
+        scene2.created_at = datetime.utcnow()
+        scene2.updated_at = datetime.utcnow()
         scene2.files = [mock_file2]
         scene2.get_primary_file = Mock(return_value=mock_file2)
 
@@ -346,6 +350,8 @@ class TestSceneRoutes:
         scene.tags = [mock_tag]
         scene.markers = []
         scene.last_synced = datetime.utcnow()
+        scene.created_at = datetime.utcnow()
+        scene.updated_at = datetime.utcnow()
         scene.files = [mock_file]
         scene.get_primary_file = Mock(return_value=mock_file)
 

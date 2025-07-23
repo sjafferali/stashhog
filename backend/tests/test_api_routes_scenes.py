@@ -311,6 +311,8 @@ class TestSceneRoutes:
         mock_scene.stash_updated_at = datetime.utcnow()
         mock_scene.stash_date = datetime.utcnow()
         mock_scene.last_synced = datetime.utcnow()
+        mock_scene.created_at = datetime.utcnow()
+        mock_scene.updated_at = datetime.utcnow()
         mock_scene.studio = mock_studio
         mock_scene.performers = [mock_performer]
         mock_scene.tags = [mock_tag]
@@ -394,6 +396,8 @@ class TestSceneRoutes:
         mock_scene.stash_updated_at = datetime.utcnow()
         mock_scene.stash_date = datetime.utcnow()
         mock_scene.last_synced = datetime.utcnow()
+        mock_scene.created_at = datetime.utcnow()
+        mock_scene.updated_at = datetime.utcnow()
         mock_scene.studio = mock_studio
         mock_scene.files = [mock_file]
 

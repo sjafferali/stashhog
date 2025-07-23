@@ -118,6 +118,8 @@ class TestSceneRoutes:
         mock_scene1.studio = None
         mock_scene1.details = None
         mock_scene1.last_synced = datetime.now()
+        mock_scene1.created_at = datetime.now()
+        mock_scene1.updated_at = datetime.now()
         mock_scene1.markers = []
         mock_scene1.files = [mock_file1]
         mock_scene1.get_primary_file = Mock(return_value=mock_file1)
@@ -172,6 +174,8 @@ class TestSceneRoutes:
         mock_scene2.studio = None
         mock_scene2.details = None
         mock_scene2.last_synced = datetime.now()
+        mock_scene2.created_at = datetime.now()
+        mock_scene2.updated_at = datetime.now()
         mock_scene2.markers = []
         mock_scene2.files = [mock_file2]
         mock_scene2.get_primary_file = Mock(return_value=mock_file2)
@@ -231,6 +235,8 @@ class TestSceneRoutes:
         mock_scene.studio = None
         mock_scene.details = None
         mock_scene.last_synced = datetime.now()
+        mock_scene.created_at = datetime.now()
+        mock_scene.updated_at = datetime.now()
         mock_scene.files = [mock_file]
         mock_scene.get_primary_file = Mock(return_value=mock_file)
 

@@ -242,11 +242,24 @@ def prepare_scene_update(updates: Dict[str, Any]) -> Dict[str, Any]:
         "gallery_ids": "gallery_ids",
     }
 
+    # Fields that are StashHog-specific and should not be sent to Stash
+    stashhog_only_fields = {
+        "analyzed",
+        "video_analyzed",
+        "last_synced",
+        "created_at",
+        "updated_at",
+    }
+
     stash_updates: Dict[str, Any] = {}
 
     for key, value in updates.items():
         # Skip None values
         if value is None:
+            continue
+
+        # Skip StashHog-only fields
+        if key in stashhog_only_fields:
             continue
 
         # Map field names

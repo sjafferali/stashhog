@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,8 +27,8 @@ class PlanManager:
     async def create_plan(
         self,
         name: str,
-        changes: List[SceneChanges],
-        metadata: Dict[str, Any],
+        changes: list[SceneChanges],
+        metadata: dict[str, Any],
         db: AsyncSession,
     ) -> AnalysisPlan:
         """Create and save a new analysis plan.
@@ -117,7 +117,7 @@ class PlanManager:
         status: Optional[PlanStatus] = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[AnalysisPlan]:
+    ) -> list[AnalysisPlan]:
         """List analysis plans.
 
         Args:
@@ -148,8 +148,8 @@ class PlanManager:
         plan_id: int,
         db: AsyncSession,
         stash_service: StashService,
-        apply_filters: Optional[Dict[str, bool]] = None,
-        change_ids: Optional[List[int]] = None,
+        apply_filters: Optional[dict[str, bool]] = None,
+        change_ids: Optional[list[int]] = None,
         progress_callback: Optional[Any] = None,
     ) -> ApplyResult:
         """Apply changes from a plan to Stash.
@@ -207,7 +207,7 @@ class PlanManager:
 
         return plan
 
-    def _get_default_apply_filters(self) -> Dict[str, bool]:
+    def _get_default_apply_filters(self) -> dict[str, bool]:
         """Get default apply filters."""
         return {
             "performers": True,
@@ -225,7 +225,7 @@ class PlanManager:
 
     async def _get_plan_changes(
         self, plan_id: int, db: AsyncSession
-    ) -> List[PlanChange]:
+    ) -> list[PlanChange]:
         """Get all changes for a plan."""
         changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
         result = await db.execute(changes_query)
@@ -233,13 +233,13 @@ class PlanManager:
 
     async def _process_plan_changes(
         self,
-        changes: List[PlanChange],
-        apply_filters: Dict[str, bool],
+        changes: list[PlanChange],
+        apply_filters: dict[str, bool],
         db: AsyncSession,
         stash_service: StashService,
-        change_ids: Optional[List[int]] = None,
+        change_ids: Optional[list[int]] = None,
         progress_callback: Optional[Any] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process all changes in a plan."""
         total_changes = 0
         applied_changes = 0
@@ -286,8 +286,8 @@ class PlanManager:
     def _should_apply_change(
         self,
         change: PlanChange,
-        apply_filters: Dict[str, bool],
-        change_ids: Optional[List[int]] = None,
+        apply_filters: dict[str, bool],
+        change_ids: Optional[list[int]] = None,
     ) -> bool:
         """Check if a change should be applied."""
         # If specific change_ids are provided, only apply those
@@ -309,7 +309,7 @@ class PlanManager:
 
     def _create_error_record(
         self, change: PlanChange, error: Exception
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create an error record for a failed change."""
         return {
             "change_id": change.id,
@@ -319,7 +319,7 @@ class PlanManager:
         }
 
     async def _finalize_plan_application(
-        self, plan: AnalysisPlan, result_data: Dict[str, Any], db: AsyncSession
+        self, plan: AnalysisPlan, result_data: dict[str, Any], db: AsyncSession
     ) -> None:
         """Finalize plan application with status and metadata updates."""
         # Add metadata about this apply operation
@@ -450,8 +450,8 @@ class PlanManager:
             raise  # Re-raise to be caught by the outer exception handler
 
     async def _prepare_update_data(
-        self, change: PlanChange, scene: Dict, stash_service: StashService
-    ) -> Dict[str, Any]:
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> dict[str, Any]:
         """Prepare update data for a change."""
         if change.field == "studio":
             return await self._prepare_studio_update(change, stash_service)
@@ -472,7 +472,7 @@ class PlanManager:
 
     async def _prepare_studio_update(
         self, change: PlanChange, stash_service: StashService
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Prepare studio update data."""
         if change.action != ChangeAction.SET:
             return {}
@@ -492,8 +492,8 @@ class PlanManager:
         return {}
 
     async def _prepare_performers_update(
-        self, change: PlanChange, scene: Dict, stash_service: StashService
-    ) -> Dict[str, Any]:
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> dict[str, Any]:
         """Prepare performers update data."""
         current_ids = [p["id"] for p in scene.get("performers", [])]
 
@@ -510,8 +510,8 @@ class PlanManager:
         return {}
 
     async def _add_performers(
-        self, new_performers: Any, current_ids: List[str], stash_service: StashService
-    ) -> List[str]:
+        self, new_performers: Any, current_ids: list[str], stash_service: StashService
+    ) -> list[str]:
         """Add new performers to current list."""
         if not isinstance(new_performers, list):
             new_performers = [new_performers]
@@ -533,8 +533,8 @@ class PlanManager:
         return result_ids
 
     def _remove_performers(
-        self, remove_names: Any, current_ids: List[str], current_performers: List[Dict]
-    ) -> List[str]:
+        self, remove_names: Any, current_ids: list[str], current_performers: list[dict]
+    ) -> list[str]:
         """Remove performers from current list."""
         if not isinstance(remove_names, list):
             remove_names = [remove_names]
@@ -551,21 +551,27 @@ class PlanManager:
         return [pid for pid in current_ids if pid not in remove_ids]
 
     async def _prepare_tags_update(
-        self, change: PlanChange, scene: Dict, stash_service: StashService
-    ) -> Dict[str, Any]:
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> dict[str, Any]:
         """Prepare tags update data."""
         current_ids = [t["id"] for t in scene.get("tags", [])]
+        current_tags = scene.get("tags", [])
 
         if change.action == ChangeAction.ADD:
             new_ids = await self._add_tags(
                 change.proposed_value, current_ids, stash_service
             )
             return {"tag_ids": new_ids}
+        elif change.action == ChangeAction.REMOVE:
+            remaining_ids = await self._remove_tags(
+                change.current_value, current_ids, current_tags, stash_service
+            )
+            return {"tag_ids": remaining_ids}
         return {}
 
     async def _add_tags(
-        self, new_tags: Any, current_ids: List[str], stash_service: StashService
-    ) -> List[str]:
+        self, new_tags: Any, current_ids: list[str], stash_service: StashService
+    ) -> list[str]:
         """Add new tags to current list."""
         if not isinstance(new_tags, list):
             new_tags = [new_tags]
@@ -586,7 +592,37 @@ class PlanManager:
 
         return result_ids
 
-    def _prepare_details_update(self, change: PlanChange) -> Dict[str, Any]:
+    async def _remove_tags(
+        self,
+        remove_tags: Any,
+        current_ids: list[str],
+        current_tags: list[dict],
+        stash_service: StashService,
+    ) -> list[str]:
+        """Remove tags from current list."""
+        if not isinstance(remove_tags, list):
+            remove_tags = [remove_tags]
+
+        # Get IDs to remove
+        remove_ids = []
+        for tag_name in remove_tags:
+            if isinstance(tag_name, dict):
+                tag_name = tag_name.get("name", "")
+
+            # Find the tag ID to remove
+            for tag in current_tags:
+                if tag.get("name", "").lower() == tag_name.lower():
+                    remove_ids.append(tag["id"])
+                    break
+            else:
+                # If not in current tags, try to find it via stash service
+                found_tag = await stash_service.find_tag(tag_name)
+                if found_tag:
+                    remove_ids.append(found_tag["id"])
+
+        return [tid for tid in current_ids if tid not in remove_ids]
+
+    def _prepare_details_update(self, change: PlanChange) -> dict[str, Any]:
         """Prepare details update data."""
         if change.action in [ChangeAction.UPDATE, ChangeAction.SET, ChangeAction.ADD]:
             details = change.proposed_value
@@ -596,8 +632,8 @@ class PlanManager:
         return {}
 
     async def _prepare_markers_update(
-        self, change: PlanChange, scene: Dict, stash_service: StashService
-    ) -> Dict[str, Any]:
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> dict[str, Any]:
         """Prepare markers update data.
 
         Note: Markers are handled differently - they need to be created individually
@@ -741,7 +777,7 @@ class PlanManager:
 
     async def get_plan_statistics(
         self, plan_id: int, db: AsyncSession
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get statistics for a plan.
 
         Args:
@@ -765,7 +801,7 @@ class PlanManager:
         scenes_affected = len(set(c.scene_id for c in changes))
 
         # Count by action
-        changes_by_action: Dict[str, int] = {}
+        changes_by_action: dict[str, int] = {}
         for change in changes:
             action_str = (
                 change.action.value
@@ -775,7 +811,7 @@ class PlanManager:
             changes_by_action[action_str] = changes_by_action.get(action_str, 0) + 1
 
         # Count by field
-        changes_by_field: Dict[str, int] = {}
+        changes_by_field: dict[str, int] = {}
         for change in changes:
             field_name = str(change.field)
             changes_by_field[field_name] = changes_by_field.get(field_name, 0) + 1

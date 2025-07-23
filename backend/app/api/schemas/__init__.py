@@ -304,6 +304,10 @@ class SceneResponse(SceneBase):
         default_factory=list, description="Scene files"
     )
     last_synced: datetime = Field(..., description="Last sync timestamp")
+    created_at: datetime = Field(..., description="When scene was created in StashHog")
+    updated_at: datetime = Field(
+        ..., description="When scene was last updated in StashHog"
+    )
 
     # Metadata fields
     duration: Optional[float] = Field(None, description="Duration in seconds")

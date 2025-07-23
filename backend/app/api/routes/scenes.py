@@ -181,6 +181,8 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
             else []
         ),
         last_synced=scene.last_synced,  # type: ignore[arg-type]
+        created_at=scene.created_at,  # type: ignore[arg-type]
+        updated_at=scene.updated_at,  # type: ignore[arg-type]
         # Metadata fields - populate from primary file for backward compatibility
         duration=primary_file.duration if primary_file else None,  # type: ignore[arg-type]
         size=primary_file.size if primary_file else None,  # type: ignore[arg-type]
@@ -427,12 +429,24 @@ async def update_scene(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Scene {scene_id} not found"
         )
 
-    # Update in Stash first
-    stash_service = sync_service.stash_service
-    await stash_service.update_scene(scene_id, updates)
+    # Separate StashHog-specific fields from Stash fields
+    stashhog_fields = {"analyzed", "video_analyzed"}
+    stashhog_updates = {k: v for k, v in updates.items() if k in stashhog_fields}
+    stash_updates = {k: v for k, v in updates.items() if k not in stashhog_fields}
 
-    # Sync the updated scene back to our database
-    await sync_service.sync_scene_by_id(scene_id)
+    # Update StashHog-specific fields locally
+    if stashhog_updates:
+        for field, value in stashhog_updates.items():
+            setattr(scene, field, value)
+        await db.commit()
+
+    # Update Stash fields if any
+    if stash_updates:
+        stash_service = sync_service.stash_service
+        await stash_service.update_scene(scene_id, stash_updates)
+
+        # Sync the updated scene back to our database
+        await sync_service.sync_scene_by_id(scene_id)
 
     # Get updated scene
     await db.refresh(scene)
