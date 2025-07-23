@@ -108,20 +108,22 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       <div className={styles.header}>
         <div>
           <div style={{ marginBottom: 8 }}>
-            <Text strong style={{ marginRight: 8 }}>Plan Status:</Text>
+            <Text strong style={{ marginRight: 8 }}>
+              Plan Status:
+            </Text>
             <Tag
               color={
                 plan.status === 'pending'
                   ? 'purple'
                   : plan.status === 'draft'
-                  ? 'blue'
-                  : plan.status === 'reviewing'
-                  ? 'orange'
-                  : plan.status === 'applied'
-                  ? 'green'
-                  : plan.status === 'cancelled'
-                  ? 'red'
-                  : 'default'
+                    ? 'blue'
+                    : plan.status === 'reviewing'
+                      ? 'orange'
+                      : plan.status === 'applied'
+                        ? 'green'
+                        : plan.status === 'cancelled'
+                          ? 'red'
+                          : 'default'
               }
               style={{ fontWeight: 500, fontSize: '14px' }}
             >
