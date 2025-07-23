@@ -166,19 +166,23 @@ class JobResponse(BaseSchema):
     parameters: dict[str, Any] = Field(
         default_factory=dict, description="Job parameters"
     )
+    metadata: Optional[dict[str, Any]] = Field(None, description="Job metadata")
     result: Optional[dict[str, Any]] = Field(None, description="Job result")
     error: Optional[str] = Field(None, description="Error message")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     started_at: Optional[datetime] = Field(None, description="Start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
+    total: Optional[int] = Field(None, description="Total items to process")
+    processed_items: Optional[int] = Field(
+        None, description="Number of items processed"
+    )
 
 
 class JobDetailResponse(JobResponse):
     """Detailed job response with additional information."""
 
     logs: Optional[list[str]] = Field(None, description="Job logs")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Job metadata")
 
 
 class JobsListResponse(BaseSchema):

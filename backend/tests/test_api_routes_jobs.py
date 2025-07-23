@@ -12,6 +12,27 @@ from app.main import app
 from app.models.job import Job, JobStatus, JobType
 
 
+def create_job_mock(**kwargs):
+    """Create a job mock with all required fields."""
+    job = Mock(spec=Job)
+    # Set defaults
+    job.id = kwargs.get("id", str(uuid4()))
+    job.type = kwargs.get("type", JobType.SYNC_SCENES)
+    job.status = kwargs.get("status", JobStatus.RUNNING)
+    job.progress = kwargs.get("progress", 0)
+    job.message = kwargs.get("message", "Processing...")
+    job.result = kwargs.get("result", None)
+    job.error = kwargs.get("error", None)
+    job.created_at = kwargs.get("created_at", datetime.utcnow())
+    job.updated_at = kwargs.get("updated_at", datetime.utcnow())
+    job.started_at = kwargs.get("started_at", None)
+    job.completed_at = kwargs.get("completed_at", None)
+    job.job_metadata = kwargs.get("job_metadata", {})
+    job.total_items = kwargs.get("total_items", None)
+    job.processed_items = kwargs.get("processed_items", 0)
+    return job
+
+
 @pytest.fixture
 def mock_db():
     """Mock database session."""
@@ -97,6 +118,8 @@ def mock_job():
     job.started_at = datetime.utcnow()
     job.completed_at = None
     job.job_metadata = {"source": "api"}
+    job.total_items = 100  # Add missing field
+    job.processed_items = 50  # Add missing field
     job.to_dict = Mock(
         return_value={
             "id": job.id,
@@ -315,18 +338,15 @@ class TestJobRoutes:
         mock_job_service.get_job_logs = AsyncMock(return_value=None)
 
         # Initial state: pending
-        pending_job = Mock(spec=Job)
-        pending_job.id = job_id
-        pending_job.type = JobType.SYNC_SCENES
-        pending_job.status = JobStatus.PENDING
-        pending_job.progress = 0
-        pending_job.job_metadata = {"source": "api"}
-        pending_job.created_at = datetime.utcnow()
-        pending_job.updated_at = datetime.utcnow()
-        pending_job.started_at = None
-        pending_job.completed_at = None
-        pending_job.result = None
-        pending_job.error = None
+        pending_job = create_job_mock(
+            id=job_id,
+            type=JobType.SYNC_SCENES,
+            status=JobStatus.PENDING,
+            progress=0,
+            job_metadata={"source": "api"},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=pending_job)
 
@@ -337,21 +357,21 @@ class TestJobRoutes:
         assert data["progress"] == 0
 
         # Transition to running
-        running_job = Mock(spec=Job)
-        running_job.id = job_id
-        running_job.type = JobType.SYNC_SCENES
-        running_job.status = JobStatus.RUNNING
-        running_job.progress = 50
-        running_job.job_metadata = {
-            "source": "api",
-            "last_message": "Processing scenes...",
-        }
-        running_job.created_at = pending_job.created_at
-        running_job.updated_at = datetime.utcnow()
-        running_job.started_at = datetime.utcnow()
-        running_job.completed_at = None
-        running_job.result = None
-        running_job.error = None
+        running_job = create_job_mock(
+            id=job_id,
+            type=JobType.SYNC_SCENES,
+            status=JobStatus.RUNNING,
+            progress=50,
+            job_metadata={
+                "source": "api",
+                "last_message": "Processing scenes...",
+            },
+            created_at=pending_job.created_at,
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            total_items=100,
+            processed_items=50,
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=running_job)
 
@@ -362,18 +382,20 @@ class TestJobRoutes:
         assert data["progress"] == 50
 
         # Transition to completed
-        completed_job = Mock(spec=Job)
-        completed_job.id = job_id
-        completed_job.type = JobType.SYNC_SCENES
-        completed_job.status = JobStatus.COMPLETED
-        completed_job.progress = 100
-        completed_job.job_metadata = {"source": "api"}
-        completed_job.created_at = pending_job.created_at
-        completed_job.updated_at = datetime.utcnow()
-        completed_job.started_at = running_job.started_at
-        completed_job.completed_at = datetime.utcnow()
-        completed_job.result = {"scenes_synced": 42, "duration": 120}
-        completed_job.error = None
+        completed_job = create_job_mock(
+            id=job_id,
+            type=JobType.SYNC_SCENES,
+            status=JobStatus.COMPLETED,
+            progress=100,
+            job_metadata={"source": "api"},
+            created_at=pending_job.created_at,
+            updated_at=datetime.utcnow(),
+            started_at=running_job.started_at,
+            completed_at=datetime.utcnow(),
+            result={"scenes_synced": 42, "duration": 120},
+            total_items=100,
+            processed_items=100,
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=completed_job)
 
@@ -392,18 +414,20 @@ class TestJobRoutes:
         mock_job_service.get_job_logs = AsyncMock(return_value=None)
 
         # Create a failed job
-        failed_job = Mock(spec=Job)
-        failed_job.id = job_id
-        failed_job.type = JobType.ANALYSIS
-        failed_job.status = JobStatus.FAILED
-        failed_job.progress = 30
-        failed_job.job_metadata = {"scene_id": "test-scene"}
-        failed_job.created_at = datetime.utcnow()
-        failed_job.updated_at = datetime.utcnow()
-        failed_job.started_at = datetime.utcnow()
-        failed_job.completed_at = datetime.utcnow()
-        failed_job.result = None
-        failed_job.error = "OpenAI API rate limit exceeded"
+        failed_job = create_job_mock(
+            id=job_id,
+            type=JobType.ANALYSIS,
+            status=JobStatus.FAILED,
+            progress=30,
+            job_metadata={"scene_id": "test-scene"},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+            error="OpenAI API rate limit exceeded",
+            total_items=100,
+            processed_items=30,
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=failed_job)
 
@@ -422,18 +446,18 @@ class TestJobRoutes:
         mock_job_service.get_job_logs = AsyncMock(return_value=None)
 
         # Start with a running job
-        running_job = Mock(spec=Job)
-        running_job.id = job_id
-        running_job.type = JobType.ANALYSIS
-        running_job.status = JobStatus.RUNNING
-        running_job.progress = 25
-        running_job.job_metadata = {"batch_size": 100}
-        running_job.created_at = datetime.utcnow()
-        running_job.updated_at = datetime.utcnow()
-        running_job.started_at = datetime.utcnow()
-        running_job.completed_at = None
-        running_job.result = None
-        running_job.error = None
+        running_job = create_job_mock(
+            id=job_id,
+            type=JobType.ANALYSIS,
+            status=JobStatus.RUNNING,
+            progress=25,
+            job_metadata={"batch_size": 100},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            total_items=100,
+            processed_items=25,
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=running_job)
         mock_job_service.cancel_job = AsyncMock(return_value=True)
@@ -444,18 +468,20 @@ class TestJobRoutes:
         assert response.json()["success"] is True
 
         # Check cancelled state
-        cancelled_job = Mock(spec=Job)
-        cancelled_job.id = job_id
-        cancelled_job.type = JobType.ANALYSIS
-        cancelled_job.status = JobStatus.CANCELLED
-        cancelled_job.progress = 25
-        cancelled_job.job_metadata = running_job.job_metadata
-        cancelled_job.created_at = running_job.created_at
-        cancelled_job.updated_at = datetime.utcnow()
-        cancelled_job.started_at = running_job.started_at
-        cancelled_job.completed_at = datetime.utcnow()
-        cancelled_job.result = None
-        cancelled_job.error = "Cancelled by user"
+        cancelled_job = create_job_mock(
+            id=job_id,
+            type=JobType.ANALYSIS,
+            status=JobStatus.CANCELLED,
+            progress=25,
+            job_metadata=running_job.job_metadata,
+            created_at=running_job.created_at,
+            updated_at=datetime.utcnow(),
+            started_at=running_job.started_at,
+            completed_at=datetime.utcnow(),
+            error="Cancelled by user",
+            total_items=100,
+            processed_items=25,
+        )
 
         mock_job_service.get_job = AsyncMock(return_value=cancelled_job)
 
@@ -468,44 +494,40 @@ class TestJobRoutes:
     def test_multiple_jobs_different_types(self, client, mock_db, mock_job_service):
         """Test handling multiple concurrent jobs of different types."""
         # Create jobs of different types
-        sync_job = Mock(spec=Job)
-        sync_job.id = str(uuid4())
-        sync_job.type = JobType.SYNC_ALL
-        sync_job.status = JobStatus.RUNNING
-        sync_job.progress = 40
-        sync_job.job_metadata = {"full_sync": True}
-        sync_job.created_at = datetime.utcnow()
-        sync_job.updated_at = datetime.utcnow()
-        sync_job.started_at = datetime.utcnow()
-        sync_job.completed_at = None
-        sync_job.result = None
-        sync_job.error = None
+        sync_job = create_job_mock(
+            type=JobType.SYNC_ALL,
+            status=JobStatus.RUNNING,
+            progress=40,
+            job_metadata={"full_sync": True},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            total_items=100,
+            processed_items=40,
+        )
 
-        analysis_job = Mock(spec=Job)
-        analysis_job.id = str(uuid4())
-        analysis_job.type = JobType.ANALYSIS
-        analysis_job.status = JobStatus.PENDING
-        analysis_job.progress = 0
-        analysis_job.job_metadata = {"scene_id": "scene-123"}
-        analysis_job.created_at = datetime.utcnow()
-        analysis_job.updated_at = datetime.utcnow()
-        analysis_job.started_at = None
-        analysis_job.completed_at = None
-        analysis_job.result = None
-        analysis_job.error = None
+        analysis_job = create_job_mock(
+            type=JobType.ANALYSIS,
+            status=JobStatus.PENDING,
+            progress=0,
+            job_metadata={"scene_id": "scene-123"},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
 
-        batch_job = Mock(spec=Job)
-        batch_job.id = str(uuid4())
-        batch_job.type = JobType.ANALYSIS
-        batch_job.status = JobStatus.COMPLETED
-        batch_job.progress = 100
-        batch_job.job_metadata = {"batch_size": 50}
-        batch_job.created_at = datetime.utcnow()
-        batch_job.updated_at = datetime.utcnow()
-        batch_job.started_at = datetime.utcnow()
-        batch_job.completed_at = datetime.utcnow()
-        batch_job.result = {"analyzed": 50, "failed": 0}
-        batch_job.error = None
+        batch_job = create_job_mock(
+            type=JobType.ANALYSIS,
+            status=JobStatus.COMPLETED,
+            progress=100,
+            job_metadata={"batch_size": 50},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            completed_at=datetime.utcnow(),
+            result={"analyzed": 50, "failed": 0},
+            total_items=50,
+            processed_items=50,
+        )
 
         # Mock active jobs from queue
         mock_job_service.get_active_jobs = AsyncMock(
@@ -541,18 +563,18 @@ class TestJobRoutes:
         job_id = str(uuid4())
 
         # Create a job with logs
-        job_with_logs = Mock(spec=Job)
-        job_with_logs.id = job_id
-        job_with_logs.type = JobType.SYNC_SCENES
-        job_with_logs.status = JobStatus.RUNNING
-        job_with_logs.progress = 60
-        job_with_logs.job_metadata = {"source": "api"}
-        job_with_logs.created_at = datetime.utcnow()
-        job_with_logs.updated_at = datetime.utcnow()
-        job_with_logs.started_at = datetime.utcnow()
-        job_with_logs.completed_at = None
-        job_with_logs.result = None
-        job_with_logs.error = None
+        job_with_logs = create_job_mock(
+            id=job_id,
+            type=JobType.SYNC_SCENES,
+            status=JobStatus.RUNNING,
+            progress=60,
+            job_metadata={"source": "api"},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            started_at=datetime.utcnow(),
+            total_items=100,
+            processed_items=60,
+        )
 
         # Mock job service to return job and logs
         mock_job_service.get_job = AsyncMock(return_value=job_with_logs)

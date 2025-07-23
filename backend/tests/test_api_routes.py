@@ -317,6 +317,8 @@ class TestJobRoutes:
         mock_job.job_metadata = {}
         mock_job.result = {}
         mock_job.error = None
+        mock_job.total_items = 100
+        mock_job.processed_items = 100
 
         # Mock the jobs query
         mock_scalars = Mock()
@@ -373,6 +375,8 @@ class TestJobRoutes:
         mock_job.job_metadata = {"scenes": 100}
         mock_job.result = None
         mock_job.error = None
+        mock_job.total_items = 100
+        mock_job.processed_items = 50
 
         # Mock the database query
         mock_result = Mock()

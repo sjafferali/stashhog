@@ -102,13 +102,16 @@ async def list_jobs(
                     job.status.value if hasattr(job.status, "value") else job.status
                 ),
                 progress=float(job.progress or 0),
-                parameters=metadata_dict,
+                parameters={},  # Empty dict for parameters since model doesn't have this field
+                metadata=metadata_dict,  # Use job_metadata for metadata field
                 result=job.result,  # type: ignore[arg-type]
                 error=job.error,  # type: ignore[arg-type]
                 created_at=job.created_at,  # type: ignore[arg-type]
                 updated_at=job.updated_at,  # type: ignore[arg-type]
                 started_at=job.started_at,  # type: ignore[arg-type]
                 completed_at=job.completed_at,  # type: ignore[arg-type]
+                total=job.total_items,  # Include progress tracking fields
+                processed_items=job.processed_items,
             )
         )
 
@@ -168,15 +171,17 @@ async def get_job(
             job.status.value if hasattr(job.status, "value") else job.status
         ),
         progress=float(job.progress or 0),
-        parameters=metadata_dict,
+        parameters={},  # Empty dict for parameters since model doesn't have this field
+        metadata=metadata_dict,  # Use job_metadata for metadata field
         result=job.result,  # type: ignore[arg-type]
         error=job.error,  # type: ignore[arg-type]
         created_at=job.created_at,  # type: ignore[arg-type]
         updated_at=job.updated_at,  # type: ignore[arg-type]
         started_at=job.started_at,  # type: ignore[arg-type]
         completed_at=job.completed_at,  # type: ignore[arg-type]
+        total=job.total_items,  # Include progress tracking fields
+        processed_items=job.processed_items,
         logs=logs,
-        metadata=metadata_dict,
     )
 
 

@@ -418,6 +418,8 @@ class TestJobRoutes:
                 job_metadata={},
                 result=None,
                 error=None,
+                total_items=100,
+                processed_items=100,
             ),
             Mock(
                 spec=Job,
@@ -433,6 +435,8 @@ class TestJobRoutes:
                 job_metadata={},
                 result=None,
                 error=None,
+                total_items=100,
+                processed_items=50,
             ),
         ]
 
@@ -467,6 +471,8 @@ class TestJobRoutes:
             updated_at=datetime.utcnow(),
             started_at=datetime.utcnow(),
             completed_at=datetime.utcnow(),
+            total_items=100,
+            processed_items=100,
         )
 
         mock_result = Mock()
