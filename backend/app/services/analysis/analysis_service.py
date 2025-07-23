@@ -699,6 +699,10 @@ class AnalysisService:
                     f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
                 )
 
+                # Ensure job has plan_id in metadata (in case it was missed earlier)
+                if job_id and self._current_job_id and self._current_plan_id:
+                    await self._update_job_with_plan_id(job_id, self._current_plan_id)
+
     def _create_error_scene_changes(
         self, scene_data: dict, error: Exception
     ) -> SceneChanges:
@@ -2169,19 +2173,27 @@ class AnalysisService:
             job_id: Job ID
             plan_id: Plan ID
         """
+        logger.info(f"Starting to update job {job_id} with plan_id {plan_id}")
         try:
             from app.core.database import AsyncSessionLocal
             from app.repositories.job_repository import job_repository
-            from app.services.job_service import job_service
 
             async with AsyncSessionLocal() as db:
                 job = await job_repository.get_job(job_id, db)
                 if job:
+                    logger.debug(
+                        f"Found job {job_id}, current metadata: {job.job_metadata}"
+                    )
                     # Update job metadata with plan_id
                     if not job.job_metadata:
                         job.job_metadata = {"plan_id": plan_id}  # type: ignore[assignment]
                     else:
                         job.job_metadata["plan_id"] = plan_id
+
+                    # Mark the JSON column as modified so SQLAlchemy tracks the change
+                    from sqlalchemy.orm.attributes import flag_modified
+
+                    flag_modified(job, "job_metadata")
 
                     # Force the update to be written to the database
                     db.add(job)
@@ -2189,16 +2201,54 @@ class AnalysisService:
 
                     # Refresh the job to ensure we have the latest data
                     await db.refresh(job)
-                    logger.info(f"Updated job {job_id} metadata with plan_id {plan_id}")
+                    logger.info(
+                        f"Updated job {job_id} metadata with plan_id {plan_id}, final metadata: {job.job_metadata}"
+                    )
 
                     # Small delay to ensure the transaction is visible
                     import asyncio
 
                     await asyncio.sleep(0.1)
 
-                    # Send WebSocket update to notify frontend
-                    # The _send_job_update method will fetch the full job data including metadata
-                    await job_service._send_job_update(job_id, {"plan_id": plan_id})
+                    # Build the complete job data to send via websocket
+                    job_data = {
+                        "id": job.id,
+                        "type": (
+                            job.type.value if hasattr(job.type, "value") else job.type
+                        ),
+                        "status": (
+                            job.status.value
+                            if hasattr(job.status, "value")
+                            else job.status
+                        ),
+                        "progress": job.progress,
+                        "total": job.total_items,
+                        "processed_items": job.processed_items,
+                        "parameters": job.job_metadata,  # Frontend expects metadata as parameters
+                        "metadata": job.job_metadata,  # Also include as metadata for compatibility
+                        "result": job.result,
+                        "error": job.error,
+                        "created_at": (
+                            job.created_at.isoformat() if job.created_at else None
+                        ),
+                        "updated_at": (
+                            job.updated_at.isoformat() if job.updated_at else None
+                        ),
+                        "started_at": (
+                            job.started_at.isoformat() if job.started_at else None
+                        ),
+                        "completed_at": (
+                            job.completed_at.isoformat() if job.completed_at else None
+                        ),
+                    }
+
+                    # Send WebSocket update directly with the updated job data
+                    from app.core.websocket import websocket_manager
+
+                    logger.info(
+                        f"Broadcasting job update with plan_id in metadata: {job.job_metadata}"
+                    )
+                    await websocket_manager.broadcast_job_update(job_data)
                 else:
                     logger.warning(
                         f"Job {job_id} not found when trying to update plan_id"

@@ -413,6 +413,12 @@ class JobService:
                     job.completed_at = datetime.utcnow()  # type: ignore[assignment]
 
                 await db.commit()
+                await db.refresh(job)
+
+                # Small delay to ensure transaction is visible
+                import asyncio
+
+                await asyncio.sleep(0.05)
 
                 # Send WebSocket update
                 await self._send_job_update(
@@ -423,8 +429,8 @@ class JobService:
                         "message": message,
                         "error": error,
                         "result": result,
-                        "processed_items": processed_items,
-                        "total_items": total_items,
+                        "processed_items": job.processed_items,
+                        "total_items": job.total_items,
                     },
                 )
 

@@ -65,7 +65,12 @@ class JobRepository:
         if message is not None:
             if not job.job_metadata:
                 job.job_metadata = {}  # type: ignore[assignment]
-            job.job_metadata = {**job.job_metadata, "last_message": message}  # type: ignore[assignment]
+            # Update metadata in place to avoid losing existing values
+            job.job_metadata["last_message"] = message
+            # Mark the JSON column as modified so SQLAlchemy tracks the change
+            from sqlalchemy.orm.attributes import flag_modified
+
+            flag_modified(job, "job_metadata")
 
     def _update_job_timestamps(self, job: Job, status: JobStatus) -> None:
         """Update job timestamps based on status."""
