@@ -2141,6 +2141,8 @@ class AnalysisService:
 
         if progress_callback:
             await progress_callback(0, f"Starting analysis of {scene_count} scenes")
+            # Also send an update with just the counts to ensure total_items is set
+            await progress_callback(0, f"Processed 0/{scene_count} scenes")
 
     async def _update_job_progress(
         self,
@@ -2180,8 +2182,19 @@ class AnalysisService:
                         job.job_metadata = {"plan_id": plan_id}  # type: ignore[assignment]
                     else:
                         job.job_metadata["plan_id"] = plan_id
+
+                    # Force the update to be written to the database
+                    db.add(job)
                     await db.commit()
+
+                    # Refresh the job to ensure we have the latest data
+                    await db.refresh(job)
                     logger.info(f"Updated job {job_id} metadata with plan_id {plan_id}")
+
+                    # Small delay to ensure the transaction is visible
+                    import asyncio
+
+                    await asyncio.sleep(0.1)
 
                     # Send WebSocket update to notify frontend
                     # The _send_job_update method will fetch the full job data including metadata

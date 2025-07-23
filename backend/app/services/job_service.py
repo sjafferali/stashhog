@@ -342,12 +342,95 @@ class JobService:
         self, job_id: str, progress: int, message: Optional[str] = None
     ) -> None:
         """Update job progress."""
-        await self._update_job_status(
-            job_id=job_id, status=JobStatus.RUNNING, progress=progress, message=message
+        # Extract processed/total from message if present
+        processed_items = None
+        total_items = None
+
+        if message and "Processed" in message and "/" in message:
+            # Parse messages like "Processed 4/6 scenes"
+            import re
+
+            match = re.search(r"Processed (\d+)/(\d+)", message)
+            if match:
+                processed_items = int(match.group(1))
+                total_items = int(match.group(2))
+
+        # Update job with progress and counts
+        await self._update_job_status_with_counts(
+            job_id=job_id,
+            status=JobStatus.RUNNING,
+            progress=progress,
+            message=message,
+            processed_items=processed_items,
+            total_items=total_items,
         )
+
+    async def _update_job_status_with_counts(
+        self,
+        job_id: str,
+        status: JobStatus,
+        progress: Optional[int] = None,
+        result: Optional[dict[str, Any]] = None,
+        error: Optional[str] = None,
+        message: Optional[str] = None,
+        processed_items: Optional[int] = None,
+        total_items: Optional[int] = None,
+    ) -> None:
+        """Update job status with item counts in database and send WebSocket notification."""
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            job = await job_repository.get_job(job_id, db)
+            if job:
+                # Update standard fields
+                job.status = status.value if hasattr(status, "value") else status  # type: ignore[assignment]
+
+                if progress is not None:
+                    job.progress = progress  # type: ignore[assignment]
+                if result is not None:
+                    job.result = result  # type: ignore[assignment]
+                if error is not None:
+                    job.error = error  # type: ignore[assignment]
+
+                # Update item counts
+                if processed_items is not None:
+                    job.processed_items = processed_items  # type: ignore[assignment]
+                if total_items is not None:
+                    job.total_items = total_items  # type: ignore[assignment]
+
+                # Update timestamps based on status
+                if status == JobStatus.RUNNING and not job.started_at:
+                    from datetime import datetime
+
+                    job.started_at = datetime.utcnow()  # type: ignore[assignment]
+                elif status in [
+                    JobStatus.COMPLETED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ]:
+                    from datetime import datetime
+
+                    job.completed_at = datetime.utcnow()  # type: ignore[assignment]
+
+                await db.commit()
+
+                # Send WebSocket update
+                await self._send_job_update(
+                    job_id,
+                    {
+                        "status": status.value,
+                        "progress": job.progress,
+                        "message": message,
+                        "error": error,
+                        "result": result,
+                        "processed_items": processed_items,
+                        "total_items": total_items,
+                    },
+                )
 
     async def _send_job_update(self, job_id: str, data: dict[str, Any]) -> None:
         """Send job update via WebSocket."""
+        logger.debug(f"Sending job update for {job_id} with data: {data}")
         # Get the full job object to send complete data
         from app.core.database import AsyncSessionLocal
 
@@ -385,6 +468,7 @@ class JobService:
                         job.completed_at.isoformat() if job.completed_at else None
                     ),
                 }
+                logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
                 await websocket_manager.broadcast_job_update(job_data)
 
     def _task_callback(
