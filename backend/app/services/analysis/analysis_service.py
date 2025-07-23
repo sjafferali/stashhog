@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from typing import Any, Optional, Union
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -84,6 +85,7 @@ class AnalysisService:
         self._total_scenes_in_all_batches: int = 0
         self._current_batch_index: int = 0
         self._total_batches: int = 0
+        self._current_plan_id: Optional[int] = None
 
     async def analyze_scenes(
         self,
@@ -112,33 +114,77 @@ class AnalysisService:
         if options is None:
             options = AnalysisOptions()
 
-        # Log analysis options
-        logger.info(
-            f"Analysis options: detect_video_tags={options.detect_video_tags}, detect_performers={options.detect_performers}, detect_studios={options.detect_studios}, detect_tags={options.detect_tags}, detect_details={options.detect_details}"
+        if not db:
+            raise ValueError("Database session is required for scene analysis")
+
+        # Initialize analysis
+        scenes = await self._initialize_analysis(scene_ids, filters, options, db)
+        if not scenes:
+            return await self._create_empty_plan(db)
+
+        # Set up context for analysis
+        await self._setup_analysis_context(
+            scenes, options, job_id, progress_callback, plan_name
         )
 
-        # Refresh cache
+        # Process scenes and collect changes
+        start_time = time.time()
+        all_changes = await self._process_scenes_with_plan(
+            scenes, options, db, job_id, progress_callback, cancellation_token
+        )
+        processing_time = time.time() - start_time
+
+        # Finalize and return plan
+        plan = await self._finalize_analysis(
+            all_changes, scenes, processing_time, db, job_id, options
+        )
+
+        # Clean up
+        self._reset_progress_tracking()
+        return plan
+
+    async def _initialize_analysis(
+        self,
+        scene_ids: Optional[list[str]],
+        filters: Optional[dict],
+        options: AnalysisOptions,
+        db: AsyncSession,
+    ) -> list[Scene]:
+        """Initialize analysis by logging options and fetching scenes."""
+        logger.info(
+            f"Analysis options: detect_video_tags={options.detect_video_tags}, "
+            f"detect_performers={options.detect_performers}, "
+            f"detect_studios={options.detect_studios}, "
+            f"detect_tags={options.detect_tags}, "
+            f"detect_details={options.detect_details}"
+        )
+
         await self._refresh_cache()
 
-        # Get scenes to analyze
         logger.debug(
             f"analyze_scenes called with scene_ids: {scene_ids}, filters: {filters}"
         )
 
-        if not db:
-            raise ValueError("Database session is required for scene analysis")
-
-        # Get scenes from local database instead of syncing from Stash
         scenes = await self._get_scenes_from_database(scene_ids, filters, db)
 
-        if not scenes:
-            return await self._create_empty_plan(db)
+        if scenes:
+            logger.info(f"Starting analysis of {len(scenes)} scenes")
+            logger.debug(
+                f"First few scene IDs being analyzed: "
+                f"{[s.get('id') if isinstance(s, dict) else s.id for s in scenes[:5]]}"
+            )
 
-        logger.info(f"Starting analysis of {len(scenes)} scenes")
-        logger.debug(
-            f"First few scene IDs being analyzed: {[s.get('id') if isinstance(s, dict) else s.id for s in scenes[:5]]}"
-        )
+        return scenes
 
+    async def _setup_analysis_context(
+        self,
+        scenes: list[Scene],
+        options: AnalysisOptions,
+        job_id: Optional[str],
+        progress_callback: Optional[Any],
+        plan_name: Optional[str],
+    ) -> None:
+        """Set up context and tracking for the analysis."""
         # Set up progress tracking
         self._current_job_id = job_id
         self._current_progress_callback = progress_callback
@@ -151,15 +197,29 @@ class AnalysisService:
         # Initialize cost tracker
         self.cost_tracker = AnalysisCostTracker()
 
-        # Track processing time
-        start_time = time.time()
+        # Store plan creation context
+        self._current_plan_id = None
+        self._current_plan_name = plan_name or self._generate_plan_name(
+            options, len(scenes), scenes
+        )
+        self._plan_metadata = self._create_analysis_metadata(options, scenes, [])
 
-        # Process scenes in batches
-        # Cast scenes to the expected type for batch processor
+    async def _process_scenes_with_plan(
+        self,
+        scenes: list[Scene],
+        options: AnalysisOptions,
+        db: AsyncSession,
+        job_id: Optional[str],
+        progress_callback: Optional[Any],
+        cancellation_token: Optional[Any],
+    ) -> list[SceneChanges]:
+        """Process scenes in batches with incremental plan updates."""
         scenes_for_processing: list[Union[Scene, dict[str, Any], Any]] = scenes  # type: ignore[assignment]
-        all_changes = await self.batch_processor.process_scenes(
+        return await self.batch_processor.process_scenes(
             scenes=scenes_for_processing,
-            analyzer=lambda batch: self._analyze_batch(batch, options),
+            analyzer=lambda batch: self._analyze_batch_with_plan(
+                batch, options, db, job_id
+            ),
             progress_callback=lambda c, t, p, s: (
                 self._on_progress(job_id or "", c, t, p, s, progress_callback)
                 if job_id or progress_callback
@@ -168,60 +228,75 @@ class AnalysisService:
             cancellation_token=cancellation_token,
         )
 
-        # Calculate processing time
-        processing_time = time.time() - start_time
+    async def _finalize_analysis(
+        self,
+        all_changes: list[SceneChanges],
+        scenes: list[Scene],
+        processing_time: float,
+        db: Optional[AsyncSession],
+        job_id: Optional[str],
+        options: AnalysisOptions,
+    ) -> AnalysisPlan:
+        """Finalize the analysis and return the plan."""
+        if db and self._current_plan_id:
+            # Collect any errors from scene processing
+            errors = [sc.error for sc in all_changes if sc.error]
 
-        # Generate plan name
-        if plan_name is None:
-            plan_name = self._generate_plan_name(options, len(scenes), scenes)
+            final_metadata = {
+                "processing_time": round(processing_time, 2),
+                "total_scenes": len(scenes),
+                "completed_at": datetime.utcnow().isoformat(),
+            }
 
-        # Create metadata
-        metadata = self._create_analysis_metadata(options, scenes, all_changes)
-        metadata["processing_time"] = round(processing_time, 2)
+            if errors:
+                final_metadata["errors"] = errors
 
-        # Check if there are any actual changes
-        has_changes = any(scene_changes.has_changes() for scene_changes in all_changes)
-
-        if not has_changes:
-            return await self._handle_no_changes(
-                scenes, all_changes, metadata, plan_name, job_id, db, options
+            await self.plan_manager.finalize_plan(
+                self._current_plan_id, db, final_metadata
             )
 
-        # Save plan if database session provided and there are changes
-        if db:
-            plan = await self.plan_manager.create_plan(
-                name=plan_name, changes=all_changes, metadata=metadata, db=db
-            )
-
-            # Mark scenes as analyzed
-            await self._mark_scenes_as_analyzed(scenes, db, options)
-
-            # Update job as completed
-            if job_id:
-                await self._update_job_progress(
-                    job_id, 100, "Analysis complete", JobStatus.COMPLETED
+            plan = await self.plan_manager.get_plan(self._current_plan_id, db)
+            if not plan:
+                raise ValueError(
+                    f"Plan {self._current_plan_id} not found after finalization"
                 )
-
-            # Reset progress tracking variables
-            self._current_job_id = None
-            self._current_progress_callback = None
-            self._scenes_processed_in_current_batch = 0
-            self._total_scenes_in_all_batches = 0
-            self._current_batch_index = 0
-            self._total_batches = 0
-
-            return plan
         else:
-            # Reset progress tracking variables
-            self._current_job_id = None
-            self._current_progress_callback = None
-            self._scenes_processed_in_current_batch = 0
-            self._total_scenes_in_all_batches = 0
-            self._current_batch_index = 0
-            self._total_batches = 0
-
+            # No changes found or dry run
+            if not all_changes or not any(sc.has_changes() for sc in all_changes):
+                return await self._handle_no_changes(
+                    scenes,
+                    all_changes,
+                    self._plan_metadata,
+                    self._current_plan_name,
+                    job_id,
+                    db,
+                    options,
+                )
             # Return mock plan for dry run
-            return AnalysisPlan(name=plan_name, metadata=metadata, status="draft")
+            plan = AnalysisPlan(
+                name=self._current_plan_name,
+                plan_metadata=self._plan_metadata,
+                status=PlanStatus.DRAFT,
+            )
+
+        # Update job as completed
+        if job_id:
+            await self._update_job_progress(
+                job_id, 100, "Analysis complete", JobStatus.COMPLETED
+            )
+
+        return plan
+
+    def _reset_progress_tracking(self) -> None:
+        """Reset all progress tracking variables."""
+        self._current_job_id = None
+        self._current_progress_callback = None
+        self._current_plan_id = None
+        self._current_plan_name = ""
+        self._scenes_processed_in_current_batch = 0
+        self._total_scenes_in_all_batches = 0
+        self._current_batch_index = 0
+        self._total_batches = 0
 
     async def analyze_single_scene(
         self, scene: Scene, options: AnalysisOptions
@@ -435,6 +510,207 @@ class AnalysisService:
                 )
 
         return results
+
+    async def _analyze_batch_with_plan(
+        self,
+        batch_data: list[dict],
+        options: AnalysisOptions,
+        db: Optional[AsyncSession],
+        job_id: Optional[str],
+    ) -> list[SceneChanges]:
+        """Analyze a batch of scenes with incremental plan updates.
+
+        Args:
+            batch_data: Batch of scene data dictionaries
+            options: Analysis options
+            db: Database session for plan updates
+            job_id: Job ID for linking to plan
+
+        Returns:
+            List of scene changes
+        """
+        results = []
+
+        for scene_data in batch_data:
+            # Analyze the scene
+            scene_changes = await self._analyze_single_scene_with_plan(
+                scene_data, options, db, job_id
+            )
+            results.append(scene_changes)
+
+        return results
+
+    async def _analyze_single_scene_with_plan(
+        self,
+        scene_data: dict,
+        options: AnalysisOptions,
+        db: Optional[AsyncSession],
+        job_id: Optional[str],
+    ) -> SceneChanges:
+        """Analyze a single scene and update plan incrementally.
+
+        Args:
+            scene_data: Scene data dictionary
+            options: Analysis options
+            db: Database session
+            job_id: Job ID for plan creation
+
+        Returns:
+            SceneChanges for this scene
+        """
+        try:
+            # Create Scene-like object and analyze
+            scene = self._create_scene_like(scene_data)
+            changes = await self.analyze_single_scene(scene, options)  # type: ignore[arg-type]
+
+            # Create SceneChanges object
+            scene_changes = SceneChanges(
+                scene_id=scene.id,
+                scene_title=scene.title or "Untitled",
+                scene_path=scene.path,
+                changes=changes,
+            )
+
+            # Update plan if needed
+            await self._update_plan_if_needed(scene_changes, db, job_id)
+
+            # Mark scene as analyzed
+            if db:
+                await self._mark_single_scene_analyzed(scene.id, db, options)
+
+            return scene_changes
+
+        except Exception as e:
+            logger.error(f"Error analyzing scene {scene_data.get('id')}: {e}")
+            return self._create_error_scene_changes(scene_data, e)
+
+    def _create_scene_like(self, scene_data: dict) -> Any:
+        """Create a Scene-like object from scene data dictionary."""
+
+        class SceneLike:
+            def __init__(self, data: dict[str, Any]) -> None:
+                self.id = data.get("id", "")
+                self.title = data.get("title", "")
+                self.file_path = data.get("file_path", "")  # Primary file path
+                self.path = self.file_path  # Alias for compatibility
+                self.details = data.get("details", "")
+                self.duration = data.get("duration", 0)
+                self.width = data.get("width", 0)
+                self.height = data.get("height", 0)
+                self.frame_rate = data.get("frame_rate", 0)
+                self.framerate = data.get("frame_rate", 0)  # Add framerate alias
+                self.performers = data.get("performers", [])
+                self.tags = data.get("tags", [])
+                self.studio = data.get("studio")
+
+            def get_primary_path(self) -> str:
+                return str(self.file_path or self.path or "")
+
+            def get_primary_file(self) -> Optional[Any]:
+                """Return a mock primary file object for compatibility."""
+                if self.file_path:
+
+                    class MockFile:
+                        def __init__(
+                            self,
+                            path: str,
+                            duration: int,
+                            width: int,
+                            height: int,
+                            frame_rate: float,
+                        ):
+                            self.path = path
+                            self.duration = duration
+                            self.width = width
+                            self.height = height
+                            self.frame_rate = frame_rate
+
+                    return MockFile(
+                        self.file_path,
+                        self.duration,
+                        self.width,
+                        self.height,
+                        self.frame_rate,
+                    )
+                return None
+
+        return SceneLike(scene_data)
+
+    async def _update_plan_if_needed(
+        self,
+        scene_changes: SceneChanges,
+        db: Optional[AsyncSession],
+        job_id: Optional[str],
+    ) -> None:
+        """Update plan with scene changes if needed."""
+        if db and scene_changes.has_changes():
+            if not self._current_plan_id:
+                # Create new plan
+                plan = await self.plan_manager.create_or_update_plan(
+                    name=self._current_plan_name,
+                    scene_changes=scene_changes,
+                    metadata=self._plan_metadata,
+                    db=db,
+                    job_id=job_id,
+                )
+                plan_id: int = plan.id  # type: ignore[assignment]
+                self._current_plan_id = plan_id
+            else:
+                # Add to existing plan
+                await self.plan_manager.add_changes_to_plan(
+                    self._current_plan_id,
+                    scene_changes,
+                    db,
+                )
+
+    def _create_error_scene_changes(
+        self, scene_data: dict, error: Exception
+    ) -> SceneChanges:
+        """Create SceneChanges object for error case."""
+        return SceneChanges(
+            scene_id=scene_data.get("id", "unknown"),
+            scene_title=scene_data.get("title", "Untitled"),
+            scene_path=scene_data.get("file_path", ""),
+            changes=[],
+            error=str(error),
+        )
+
+    async def _mark_single_scene_analyzed(
+        self,
+        scene_id: str,
+        db: AsyncSession,
+        options: AnalysisOptions,
+    ) -> None:
+        """Mark a single scene as analyzed.
+
+        This is safe for concurrent access as it uses a simple UPDATE.
+
+        Args:
+            scene_id: Scene ID to mark
+            db: Database session
+            options: Analysis options to determine which flags to set
+        """
+        update_values = {}
+
+        # Set analyzed flag if standard analysis was performed
+        if (
+            options.detect_performers
+            or options.detect_studios
+            or options.detect_tags
+            or options.detect_details
+        ):
+            update_values["analyzed"] = True
+
+        # Set video_analyzed flag if video analysis was performed
+        if options.detect_video_tags:
+            update_values["video_analyzed"] = True
+
+        if update_values:
+            await db.execute(
+                update(Scene).where(Scene.id == scene_id).values(**update_values)
+            )
+            # Use flush instead of commit to keep it within the same transaction
+            await db.flush()
 
     async def _detect_studio(
         self, scene_data: dict, options: AnalysisOptions

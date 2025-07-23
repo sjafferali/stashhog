@@ -31,6 +31,7 @@ import { useChangeManager } from './hooks/useChangeManager';
 import { SceneChangesList, PlanSummary } from '@/components/analysis';
 import ApplyPlanModal from './components/ApplyPlanModal';
 import BulkActions from './components/BulkActions';
+import { JobProgress } from '@/components/jobs/JobProgress';
 import api from '@/services/api';
 import { Scene } from '@/types/models';
 
@@ -197,7 +198,9 @@ const PlanDetail: React.FC = () => {
                   ? 'error'
                   : plan.status === 'reviewing'
                     ? 'warning'
-                    : 'processing'
+                    : plan.status === 'pending'
+                      ? 'processing'
+                      : 'default'
             }
             text={plan.status.toUpperCase()}
           />
@@ -221,24 +224,47 @@ const PlanDetail: React.FC = () => {
           <Dropdown overlay={exportMenu}>
             <Button icon={<ExportOutlined />}>Export</Button>
           </Dropdown>
-          {plan.status !== 'applied' && plan.status !== 'cancelled' && (
-            <BulkActions
-              totalChanges={stats.totalChanges}
-              acceptedChanges={stats.acceptedChanges}
-              rejectedChanges={stats.rejectedChanges}
-              pendingChanges={stats.pendingChanges}
-              onAcceptAll={() => acceptAllChanges()}
-              onRejectAll={() => rejectAllChanges()}
-              onAcceptByConfidence={(threshold) =>
-                void acceptByConfidence(threshold)
-              }
-              onAcceptByField={(field) => void acceptByField(field)}
-              onRejectByField={(field) => void rejectByField(field)}
-              fieldCounts={fieldCounts}
-            />
-          )}
+          {plan.status !== 'applied' &&
+            plan.status !== 'cancelled' &&
+            plan.status !== 'pending' && (
+              <BulkActions
+                totalChanges={stats.totalChanges}
+                acceptedChanges={stats.acceptedChanges}
+                rejectedChanges={stats.rejectedChanges}
+                pendingChanges={stats.pendingChanges}
+                onAcceptAll={() => acceptAllChanges()}
+                onRejectAll={() => rejectAllChanges()}
+                onAcceptByConfidence={(threshold) =>
+                  void acceptByConfidence(threshold)
+                }
+                onAcceptByField={(field) => void acceptByField(field)}
+                onRejectByField={(field) => void rejectByField(field)}
+                fieldCounts={fieldCounts}
+              />
+            )}
         </Space>
       </div>
+
+      {/* Job Progress for PENDING plans */}
+      {plan.status === 'pending' && plan.job_id && (
+        <div style={{ marginBottom: 16 }}>
+          <Alert
+            message="Analysis in Progress"
+            description="This plan is being created as scenes are analyzed. Changes will appear as scenes complete processing."
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <JobProgress
+            jobId={plan.job_id}
+            showDetails={true}
+            onComplete={() => {
+              // Refresh the plan when the job completes
+              void refresh();
+            }}
+          />
+        </div>
+      )}
 
       {/* Statistics Row */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
@@ -405,7 +431,8 @@ const PlanDetail: React.FC = () => {
             disabled={
               stats.unappliedAcceptedChanges === 0 ||
               plan.status === 'applied' ||
-              plan.status === 'cancelled'
+              plan.status === 'cancelled' ||
+              plan.status === 'pending'
             }
             onClick={() => setShowApplyModal(true)}
           >
@@ -415,7 +442,11 @@ const PlanDetail: React.FC = () => {
             danger
             icon={<CloseCircleOutlined />}
             onClick={handleCancelPlan}
-            disabled={plan.status === 'applied' || plan.status === 'cancelled'}
+            disabled={
+              plan.status === 'applied' ||
+              plan.status === 'cancelled' ||
+              plan.status === 'pending'
+            }
           >
             Cancel Plan
           </Button>
@@ -431,28 +462,38 @@ const PlanDetail: React.FC = () => {
               onSelectScene={setSelectedSceneId}
               selectedSceneId={selectedSceneId}
               onAcceptAll={
-                plan.status === 'applied' || plan.status === 'cancelled'
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
                   ? undefined
                   : handleAcceptAllScene
               }
               onRejectAll={
-                plan.status === 'applied' || plan.status === 'cancelled'
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
                   ? undefined
                   : handleRejectAllScene
               }
               onPreviewScene={handlePreviewScene}
               onAcceptChange={
-                plan.status === 'applied' || plan.status === 'cancelled'
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
                   ? undefined
                   : (id) => void acceptChange(id)
               }
               onRejectChange={
-                plan.status === 'applied' || plan.status === 'cancelled'
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
                   ? undefined
                   : (id) => void rejectChange(id)
               }
               onEditChange={
-                plan.status === 'applied' || plan.status === 'cancelled'
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
                   ? undefined
                   : (id, value) => updateChange(id, value)
               }

@@ -295,8 +295,23 @@ class TestAnalysisService:
         mock_plan.total_scenes = 3
         mock_plan.scenes_with_changes = 1
 
-        # Mock plan creation
-        analysis_service.plan_manager.create_plan = AsyncMock(return_value=mock_plan)
+        # Mock the incremental plan creation methods
+        mock_plan_incremental = Mock(spec=AnalysisPlan)
+        mock_plan_incremental.id = 1
+        mock_plan_incremental.name = "Test Analysis"
+        mock_plan_incremental.status = PlanStatus.PENDING
+        mock_plan_incremental.job_id = "test-job-123"
+
+        # Mock create_or_update_plan and finalize_plan
+        analysis_service.plan_manager.create_or_update_plan = AsyncMock(
+            return_value=mock_plan_incremental
+        )
+        analysis_service.plan_manager.add_changes_to_plan = AsyncMock()
+        analysis_service.plan_manager.finalize_plan = AsyncMock()
+        analysis_service.plan_manager.get_plan = AsyncMock(return_value=mock_plan)
+
+        # Mock _mark_single_scene_analyzed
+        analysis_service._mark_single_scene_analyzed = AsyncMock()
 
         # Create a simple progress callback
         async def progress_cb(current, message):
@@ -309,10 +324,12 @@ class TestAnalysisService:
             options=options,
             db=mock_db,
             progress_callback=progress_cb,
+            plan_name="Test Analysis",
         )
 
         # Verify plan
         assert isinstance(plan, AnalysisPlan)
+        # Plan name is returned from the mocked get_plan
         assert plan.name == "Test Analysis"
         assert plan.status == PlanStatus.DRAFT
         assert plan.total_scenes == 3

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 class PlanStatus(str, enum.Enum):
     """Status of an analysis plan."""
 
+    PENDING = "PENDING"  # Plan is being actively built during analysis
     DRAFT = "DRAFT"
     REVIEWING = "REVIEWING"
     APPLIED = "APPLIED"
@@ -41,6 +42,9 @@ class AnalysisPlan(BaseModel):
     status: Column = Column(
         Enum(PlanStatus), nullable=False, default=PlanStatus.DRAFT, index=True
     )
+
+    # Link to the job that created this plan
+    job_id = Column(String(), nullable=True, index=True)
 
     # Timestamps (created_at and updated_at from BaseModel)
     applied_at = Column(DateTime(timezone=True), nullable=True, index=True)

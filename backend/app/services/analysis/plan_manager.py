@@ -5,11 +5,10 @@ from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.analysis_plan import AnalysisPlan, PlanStatus
-from app.models.plan_change import ChangeAction, PlanChange
-from app.models.scene import Scene
+from app.models import AnalysisPlan, ChangeAction, PlanChange, PlanStatus, Scene
 from app.services.stash_service import StashService
 
 from .models import ApplyResult, SceneChanges
@@ -95,6 +94,191 @@ class PlanManager:
 
         logger.info(f"Created analysis plan '{name}' with {change_count} changes")
         return plan
+
+    async def create_or_update_plan(
+        self,
+        name: str,
+        scene_changes: SceneChanges,
+        metadata: dict[str, Any],
+        db: AsyncSession,
+        job_id: Optional[str] = None,
+    ) -> AnalysisPlan:
+        """Create a new plan or update existing plan with scene changes.
+
+        This method is safe for concurrent access from multiple workers.
+
+        Args:
+            name: Plan name
+            scene_changes: Changes for a single scene
+            metadata: Plan metadata
+            db: Database session
+            job_id: Job ID that's creating this plan
+
+        Returns:
+            Created or updated analysis plan
+        """
+        # Use FOR UPDATE to lock the row during read to prevent concurrent modifications
+        existing_plan = None
+        if job_id:
+            query = (
+                select(AnalysisPlan)
+                .where(
+                    AnalysisPlan.job_id == job_id,
+                    AnalysisPlan.status == PlanStatus.PENDING,
+                )
+                .with_for_update()
+            )
+            result = await db.execute(query)
+            existing_plan = result.scalar_one_or_none()
+
+        if existing_plan:
+            # Update existing plan
+            existing_plan_id: int = existing_plan.id  # type: ignore[assignment]
+            await self.add_changes_to_plan(existing_plan_id, scene_changes, db)
+
+            # Update metadata
+            scenes_analyzed = existing_plan.get_metadata("scenes_analyzed", 0) + 1
+            existing_plan.add_metadata("scenes_analyzed", scenes_analyzed)
+            existing_plan.add_metadata("updated_at", datetime.utcnow().isoformat())
+
+            await db.flush()
+            return existing_plan
+        else:
+            # Create new plan in PENDING status
+            # Handle potential race condition where multiple workers try to create the plan
+            try:
+                plan = AnalysisPlan(
+                    name=name,
+                    description=metadata.get("description", ""),
+                    plan_metadata=metadata,
+                    status=PlanStatus.PENDING,
+                    job_id=job_id,
+                )
+
+                db.add(plan)
+                await db.flush()
+
+                # Add changes if any
+                if scene_changes.has_changes():
+                    new_plan_id: int = plan.id  # type: ignore[assignment]
+                    await self._add_scene_changes(new_plan_id, scene_changes, db)
+
+                # Initialize metadata
+                plan.add_metadata("scenes_analyzed", 1)
+                plan.add_metadata("created_at", datetime.utcnow().isoformat())
+
+                await db.flush()
+
+                logger.info(f"Created new analysis plan '{name}' in PENDING status")
+                return plan
+            except IntegrityError:
+                # Another worker created the plan, retry to get it
+                await db.rollback()
+                if job_id:
+                    query = (
+                        select(AnalysisPlan)
+                        .where(
+                            AnalysisPlan.job_id == job_id,
+                            AnalysisPlan.status == PlanStatus.PENDING,
+                        )
+                        .with_for_update()
+                    )
+                    result = await db.execute(query)
+                    existing_plan = result.scalar_one_or_none()
+
+                    if existing_plan:
+                        retry_plan_id: int = existing_plan.id  # type: ignore[assignment]
+                        await self.add_changes_to_plan(retry_plan_id, scene_changes, db)
+                        return existing_plan
+                raise
+
+    async def add_changes_to_plan(
+        self,
+        plan_id: int,
+        scene_changes: SceneChanges,
+        db: AsyncSession,
+    ) -> None:
+        """Add changes from a scene to an existing plan.
+
+        Args:
+            plan_id: Plan ID to add changes to
+            scene_changes: Changes for a single scene
+            db: Database session
+        """
+        if not scene_changes.has_changes():
+            return
+
+        await self._add_scene_changes(plan_id, scene_changes, db)
+
+        # Update plan metadata
+        plan = await self.get_plan(plan_id, db)
+        if plan:
+            current_changes = plan.get_metadata("total_changes", 0)
+            plan.add_metadata(
+                "total_changes", current_changes + len(scene_changes.changes)
+            )
+
+        await db.flush()
+
+    async def _add_scene_changes(
+        self,
+        plan_id: int,
+        scene_changes: SceneChanges,
+        db: AsyncSession,
+    ) -> None:
+        """Add changes from a single scene to the plan.
+
+        Args:
+            plan_id: Plan ID
+            scene_changes: Changes for the scene
+            db: Database session
+        """
+        for change in scene_changes.changes:
+            plan_change = PlanChange(
+                plan_id=plan_id,
+                scene_id=scene_changes.scene_id,
+                field=change.field,
+                action=self._map_action(change.action),
+                current_value=self._serialize_value(change.current_value),
+                proposed_value=self._serialize_value(change.proposed_value),
+                confidence=change.confidence,
+            )
+            db.add(plan_change)
+
+    async def finalize_plan(
+        self,
+        plan_id: int,
+        db: AsyncSession,
+        final_metadata: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Finalize a plan when analysis is complete.
+
+        Args:
+            plan_id: Plan ID to finalize
+            db: Database session
+            final_metadata: Final metadata to add
+        """
+        plan = await self.get_plan(plan_id, db)
+        if not plan:
+            return
+
+        # Update status from PENDING to DRAFT
+        if plan.status == PlanStatus.PENDING:
+            plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
+
+        # Add final metadata
+        if final_metadata:
+            for key, value in final_metadata.items():
+                plan.add_metadata(key, value)
+
+        # Refresh change count
+        query = select(func.count()).where(PlanChange.plan_id == plan_id)
+        result = await db.execute(query)
+        total_changes = result.scalar() or 0
+        plan.add_metadata("total_changes", total_changes)
+
+        await db.flush()
+        logger.info(f"Finalized plan {plan_id} with {total_changes} changes")
 
     async def get_plan(self, plan_id: int, db: AsyncSession) -> Optional[AnalysisPlan]:
         """Retrieve a plan with its changes.
