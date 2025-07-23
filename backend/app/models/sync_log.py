@@ -1,10 +1,10 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
-from app.models.base import BaseModel
+from app.models.base_log import BaseLogModel
 
 
-class SyncLog(BaseModel):
+class SyncLog(BaseLogModel):
     __tablename__ = "sync_log"  # type: ignore[assignment]
 
     id = Column(Integer, primary_key=True, index=True)
