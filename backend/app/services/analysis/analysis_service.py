@@ -336,6 +336,34 @@ class AnalysisService:
                     def get_primary_path(self) -> str:
                         return str(self.file_path or self.path or "")
 
+                    def get_primary_file(self) -> Optional[Any]:
+                        """Return a mock primary file object for compatibility."""
+                        if self.file_path:
+
+                            class MockFile:
+                                def __init__(
+                                    self,
+                                    path: str,
+                                    duration: int,
+                                    width: int,
+                                    height: int,
+                                    frame_rate: float,
+                                ):
+                                    self.path = path
+                                    self.duration = duration
+                                    self.width = width
+                                    self.height = height
+                                    self.frame_rate = frame_rate
+
+                            return MockFile(
+                                self.file_path,
+                                self.duration,
+                                self.width,
+                                self.height,
+                                self.frame_rate,
+                            )
+                        return None
+
                 scene = SceneLike(scene_data)
                 # Cast to Scene type as expected by analyze_single_scene
                 changes = await self.analyze_single_scene(scene, options)  # type: ignore[arg-type]
@@ -1294,6 +1322,34 @@ class AnalysisService:
 
             def get_primary_path(self) -> str:
                 return str(self.file_path or self.path or "")
+
+            def get_primary_file(self) -> Optional[Any]:
+                """Return a mock primary file object for compatibility."""
+                if self.file_path:
+
+                    class MockFile:
+                        def __init__(
+                            self,
+                            path: str,
+                            duration: int,
+                            width: int,
+                            height: int,
+                            frame_rate: float,
+                        ):
+                            self.path = path
+                            self.duration = duration
+                            self.width = width
+                            self.height = height
+                            self.frame_rate = frame_rate
+
+                    return MockFile(
+                        self.file_path,
+                        self.duration,
+                        self.width,
+                        self.height,
+                        self.frame_rate,
+                    )
+                return None
 
         return SceneLike(data)
 
