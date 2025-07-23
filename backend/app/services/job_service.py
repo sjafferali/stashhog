@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -296,7 +296,7 @@ class JobService:
         )
 
         if job:
-            # Send WebSocket update
+            # Send WebSocket update with the job object to avoid re-fetching
             await self._send_job_update(
                 job_id,
                 {
@@ -306,6 +306,7 @@ class JobService:
                     "error": error,
                     "result": result,
                 },
+                job=job,  # Pass the job to avoid double-fetch
             )
 
     async def _update_job_status(
@@ -408,36 +409,8 @@ class JobService:
                 await db.commit()
                 await db.refresh(job)
 
-                # Small delay to ensure transaction is visible
-                import asyncio
-
-                await asyncio.sleep(0.05)
-
-                # Send WebSocket update
-                await self._send_job_update(
-                    job_id,
-                    {
-                        "status": status.value,
-                        "progress": job.progress,
-                        "message": message,
-                        "error": error,
-                        "result": result,
-                        "processed_items": job.processed_items,
-                        "total_items": job.total_items,
-                    },
-                )
-
-    async def _send_job_update(self, job_id: str, data: dict[str, Any]) -> None:
-        """Send job update via WebSocket."""
-        logger.debug(f"Sending job update for {job_id} with data: {data}")
-        # Get the full job object to send complete data
-        from app.core.database import AsyncSessionLocal
-
-        async with AsyncSessionLocal() as db:
-            job = await job_repository._fetch_job(job_id, db)
-            if job:
-                # Ensure metadata is a dict
-                metadata_dict: dict[str, Any] = (
+                # Build the complete job data from the current job object
+                metadata_dict: Dict[str, Any] = (
                     job.job_metadata if isinstance(job.job_metadata, dict) else {}
                 )
 
@@ -467,8 +440,58 @@ class JobService:
                         job.completed_at.isoformat() if job.completed_at else None
                     ),
                 }
+
+                # Send WebSocket update directly with the current job data
                 logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
                 await websocket_manager.broadcast_job_update(job_data)
+
+    async def _send_job_update(
+        self, job_id: str, data: dict[str, Any], job: Optional[Job] = None
+    ) -> None:
+        """Send job update via WebSocket.
+
+        Args:
+            job_id: Job ID
+            data: Additional data to include
+            job: Optional job object to use (avoids re-fetching from DB)
+        """
+        logger.debug(f"Sending job update for {job_id} with data: {data}")
+
+        # If job not provided, fetch from database
+        if job is None:
+            from app.core.database import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as db:
+                job = await job_repository._fetch_job(job_id, db)
+
+        if job:
+            # Ensure metadata is a dict
+            metadata_dict: dict[str, Any] = (
+                job.job_metadata if isinstance(job.job_metadata, dict) else {}
+            )
+
+            job_data = {
+                "id": job.id,
+                "type": job.type.value if hasattr(job.type, "value") else job.type,
+                "status": (
+                    job.status.value if hasattr(job.status, "value") else job.status
+                ),
+                "progress": job.progress,
+                "total": job.total_items,
+                "processed_items": job.processed_items,
+                "parameters": metadata_dict,  # Frontend expects metadata as parameters
+                "metadata": metadata_dict,  # Also include as metadata for compatibility
+                "result": job.result,
+                "error": job.error,
+                "created_at": (job.created_at.isoformat() if job.created_at else None),
+                "updated_at": (job.updated_at.isoformat() if job.updated_at else None),
+                "started_at": (job.started_at.isoformat() if job.started_at else None),
+                "completed_at": (
+                    job.completed_at.isoformat() if job.completed_at else None
+                ),
+            }
+            logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
+            await websocket_manager.broadcast_job_update(job_data)
 
     def _task_callback(
         self,

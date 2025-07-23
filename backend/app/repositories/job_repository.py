@@ -54,6 +54,10 @@ class JobRepository:
         message: Optional[str],
     ) -> None:
         """Update job fields based on provided values."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         job.status = status.value if hasattr(status, "value") else status  # type: ignore[assignment]
 
         if progress is not None:
@@ -65,12 +69,19 @@ class JobRepository:
         if message is not None:
             if not job.job_metadata:
                 job.job_metadata = {}  # type: ignore[assignment]
+            # Log current metadata before update
+            logger.debug(
+                f"Job {job.id} metadata before message update: {job.job_metadata}"
+            )
             # Update metadata in place to avoid losing existing values
             job.job_metadata["last_message"] = message
             # Mark the JSON column as modified so SQLAlchemy tracks the change
             from sqlalchemy.orm.attributes import flag_modified
 
             flag_modified(job, "job_metadata")
+            logger.debug(
+                f"Job {job.id} metadata after message update: {job.job_metadata}"
+            )
 
     def _update_job_timestamps(self, job: Job, status: JobStatus) -> None:
         """Update job timestamps based on status."""

@@ -20,12 +20,12 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov pytest-xdist
         
     - name: Run backend tests
       run: |
         cd backend
-        pytest -v
+        pytest
   
   frontend-tests:
     name: Frontend Tests
@@ -72,7 +72,7 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov pytest-xdist
         
     - name: Install frontend dependencies
       run: |
