@@ -699,9 +699,8 @@ class AnalysisService:
                     f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
                 )
 
-                # Ensure job has plan_id in metadata (in case it was missed earlier)
-                if job_id and self._current_job_id and self._current_plan_id:
-                    await self._update_job_with_plan_id(job_id, self._current_plan_id)
+                # Don't update job metadata here - it was already done when plan was created
+                # This avoids race conditions with progress updates
 
     def _create_error_scene_changes(
         self, scene_data: dict, error: Exception
@@ -2205,50 +2204,11 @@ class AnalysisService:
                         f"Updated job {job_id} metadata with plan_id {plan_id}, final metadata: {job.job_metadata}"
                     )
 
-                    # Small delay to ensure the transaction is visible
-                    import asyncio
-
-                    await asyncio.sleep(0.1)
-
-                    # Build the complete job data to send via websocket
-                    job_data = {
-                        "id": job.id,
-                        "type": (
-                            job.type.value if hasattr(job.type, "value") else job.type
-                        ),
-                        "status": (
-                            job.status.value
-                            if hasattr(job.status, "value")
-                            else job.status
-                        ),
-                        "progress": job.progress,
-                        "total": job.total_items,
-                        "processed_items": job.processed_items,
-                        "parameters": job.job_metadata,  # Frontend expects metadata as parameters
-                        "metadata": job.job_metadata,  # Also include as metadata for compatibility
-                        "result": job.result,
-                        "error": job.error,
-                        "created_at": (
-                            job.created_at.isoformat() if job.created_at else None
-                        ),
-                        "updated_at": (
-                            job.updated_at.isoformat() if job.updated_at else None
-                        ),
-                        "started_at": (
-                            job.started_at.isoformat() if job.started_at else None
-                        ),
-                        "completed_at": (
-                            job.completed_at.isoformat() if job.completed_at else None
-                        ),
-                    }
-
-                    # Send WebSocket update directly with the updated job data
-                    from app.services.websocket_manager import websocket_manager
-
+                    # Don't send a websocket update here - let the next progress update include the plan_id
+                    # This avoids race conditions between metadata updates and progress updates
                     logger.info(
-                        f"Broadcasting job update with plan_id in metadata: {job.job_metadata}"
+                        f"Job {job_id} metadata now includes plan_id, will be included in next progress update"
                     )
-                    await websocket_manager.broadcast_job_update(job_data)
                 else:
                     logger.warning(
                         f"Job {job_id} not found when trying to update plan_id"

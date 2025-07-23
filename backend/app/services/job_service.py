@@ -407,7 +407,14 @@ class JobService:
                     job.completed_at = datetime.utcnow()  # type: ignore[assignment]
 
                 await db.commit()
+
+                # Force read the latest metadata from DB to avoid stale data
                 await db.refresh(job)
+
+                # Re-fetch to ensure we have the absolute latest data (including any concurrent updates)
+                fresh_job = await job_repository.get_job(job_id, db)
+                if fresh_job:
+                    job = fresh_job
 
                 # Build the complete job data from the current job object
                 metadata_dict: Dict[str, Any] = (

@@ -123,9 +123,16 @@ class JobRepository:
         """Get job by ID."""
         if isinstance(db, AsyncSession):
             result = await db.execute(select(Job).filter(Job.id == job_id))
-            return result.scalar_one_or_none()
+            job = result.scalar_one_or_none()
+            if job:
+                # Ensure we have the latest metadata by expiring the object
+                await db.refresh(job)
+            return job
         else:
-            return db.query(Job).filter(Job.id == job_id).first()
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if job:
+                db.refresh(job)
+            return job
 
     async def list_jobs(
         self,
