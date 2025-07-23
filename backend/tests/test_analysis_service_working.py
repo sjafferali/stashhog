@@ -243,7 +243,7 @@ class TestAnalysisService:
         scenes = []
         for i in range(3):
             scene = self.create_mock_scene(
-                scene_id=i + 1, id=f"scene{i+1}", title=f"Scene {i+1}"
+                scene_id=i + 1, id=f"scene{i + 1}", title=f"Scene {i + 1}"
             )
             scenes.append(scene)
 
@@ -258,7 +258,12 @@ class TestAnalysisService:
 
         # Mock Stash responses
         mock_stash_service.get_scene.side_effect = [
-            {"id": f"scene{i+1}", "title": f"Scene {i+1}", "performers": [], "tags": []}
+            {
+                "id": f"scene{i + 1}",
+                "title": f"Scene {i + 1}",
+                "performers": [],
+                "tags": [],
+            }
             for i in range(3)
         ]
 
@@ -504,7 +509,7 @@ class TestAnalysisService:
         scenes = []
         for i in range(10):
             scene = self.create_mock_scene(
-                scene_id=i + 1, id=f"scene{i+1}", title=f"Scene {i+1}"
+                scene_id=i + 1, id=f"scene{i + 1}", title=f"Scene {i + 1}"
             )
             scenes.append(scene)
 
@@ -520,7 +525,7 @@ class TestAnalysisService:
         # Mock Stash service
         mock_stash_service = analysis_service.stash_service
         mock_stash_service.get_scene.side_effect = [
-            {"id": f"scene{i+1}", "title": f"Scene {i+1}"} for i in range(10)
+            {"id": f"scene{i + 1}", "title": f"Scene {i + 1}"} for i in range(10)
         ]
 
         # Mock _get_scenes_from_database to return the scenes

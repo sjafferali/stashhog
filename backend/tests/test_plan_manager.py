@@ -972,7 +972,7 @@ class TestBulkOperations:
                         field="tags",
                         action="add",
                         current_value=[],
-                        proposed_value=[f"tag{i}", f"tag{i+1}"],
+                        proposed_value=[f"tag{i}", f"tag{i + 1}"],
                         confidence=0.85,
                     ),
                 ],

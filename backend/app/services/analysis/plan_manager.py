@@ -640,62 +640,109 @@ class PlanManager:
         rather than updated on the scene.
         """
         if change.action == ChangeAction.ADD:
-            # Markers are added through separate create_marker calls
-            # They're not part of the scene update payload
-            markers_value = change.proposed_value
-            if not isinstance(markers_value, list):
-                markers_to_create = [markers_value]
-            else:
-                markers_to_create = markers_value
+            await self._add_markers(change, scene, stash_service)
+        elif change.action == ChangeAction.REMOVE:
+            await self._remove_marker(change, scene, stash_service)
 
-            for marker_data in markers_to_create:
-                # Ensure scene_id is set correctly
-                marker_data["scene_id"] = scene["id"]
-
-                # Convert tag names to tag IDs
-                marker_tags = []
-                for tag_name in marker_data.get("tags", []):
-                    # Get database session
-                    from app.core.database import AsyncSessionLocal
-
-                    async with AsyncSessionLocal() as db:
-                        tag_id = await stash_service.find_or_create_tag(tag_name, db)
-                        if tag_id:
-                            marker_tags.append(tag_id)
-
-                # Only create marker if we have at least one tag
-                if not marker_tags:
-                    logger.warning(
-                        f"Skipping marker creation - no tags found for marker at {marker_data.get('seconds', 0)}s"
-                    )
-                    continue
-
-                # Create marker with proper format
-                marker_to_create = {
-                    "scene_id": scene["id"],
-                    "seconds": marker_data.get("seconds", 0),
-                    "title": marker_data.get("title", ""),
-                    "tag_ids": marker_tags,
-                }
-
-                # Add end_seconds if provided
-                if "end_seconds" in marker_data:
-                    marker_to_create["end_seconds"] = marker_data["end_seconds"]
-
-                try:
-                    await stash_service.create_marker(marker_to_create)  # type: ignore[arg-type]
-                    logger.info(
-                        f"Created marker for scene {scene['id']} at {marker_data.get('seconds', 0)}s"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to create marker: {e}")
-                    raise
-
-            # Return empty dict as markers are handled separately
-            return {}
-
-        # Other actions not supported for markers yet
+        # Return empty dict as markers are handled separately
         return {}
+
+    async def _add_markers(
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> None:
+        """Add markers to a scene."""
+        from typing import cast
+
+        markers_value = cast(Any, change.proposed_value)
+        markers_to_create: list[dict[str, Any]]
+        if isinstance(markers_value, list):
+            markers_to_create = markers_value
+        else:
+            # Single marker or None
+            markers_to_create = [markers_value] if markers_value else []
+
+        for marker_data in markers_to_create:
+            await self._create_single_marker(marker_data, scene, stash_service)
+
+    async def _create_single_marker(
+        self, marker_data: dict, scene: dict, stash_service: StashService
+    ) -> None:
+        """Create a single marker."""
+        # Ensure scene_id is set correctly
+        marker_data["scene_id"] = scene["id"]
+
+        # Convert tag names to tag IDs
+        marker_tags = await self._get_marker_tags(marker_data, stash_service)
+
+        # Only create marker if we have at least one tag
+        if not marker_tags:
+            logger.warning(
+                f"Skipping marker creation - no tags found for marker at {marker_data.get('seconds', 0)}s"
+            )
+            return
+
+        # Create marker with proper format
+        marker_to_create = self._build_marker_data(scene, marker_data, marker_tags)
+
+        try:
+            await stash_service.create_marker(marker_to_create)  # type: ignore[arg-type]
+            logger.info(
+                f"Created marker for scene {scene['id']} at {marker_data.get('seconds', 0)}s"
+            )
+        except Exception as e:
+            logger.error(f"Failed to create marker: {e}")
+            raise
+
+    async def _get_marker_tags(
+        self, marker_data: dict, stash_service: StashService
+    ) -> list[str]:
+        """Get tag IDs for marker."""
+        from app.core.database import AsyncSessionLocal
+
+        marker_tags = []
+        for tag_name in marker_data.get("tags", []):
+            async with AsyncSessionLocal() as db:
+                tag_id = await stash_service.find_or_create_tag(tag_name, db)
+                if tag_id:
+                    marker_tags.append(tag_id)
+        return marker_tags
+
+    def _build_marker_data(
+        self, scene: dict, marker_data: dict, marker_tags: list[str]
+    ) -> dict[str, Any]:
+        """Build marker data for creation."""
+        marker_to_create = {
+            "scene_id": scene["id"],
+            "seconds": marker_data.get("seconds", 0),
+            "title": marker_data.get("title", ""),
+            "tag_ids": marker_tags,
+        }
+
+        # Add end_seconds if provided
+        if "end_seconds" in marker_data:
+            marker_to_create["end_seconds"] = marker_data["end_seconds"]
+
+        return marker_to_create
+
+    async def _remove_marker(
+        self, change: PlanChange, scene: dict, stash_service: StashService
+    ) -> None:
+        """Remove a marker from a scene."""
+        marker_to_remove = change.current_value
+        if not marker_to_remove or not isinstance(marker_to_remove, dict):
+            return
+
+        marker_id = marker_to_remove.get("id")
+        if not marker_id:
+            logger.warning("Marker to remove has no ID")
+            return
+
+        try:
+            await stash_service.delete_marker(marker_id)
+            logger.info(f"Deleted marker {marker_id} for scene {scene['id']}")
+        except Exception as e:
+            logger.error(f"Failed to delete marker {marker_id}: {e}")
+            raise
 
     async def delete_plan(self, plan_id: int, db: AsyncSession) -> bool:
         """Delete an analysis plan.

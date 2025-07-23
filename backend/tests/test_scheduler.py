@@ -1,7 +1,7 @@
 """Tests for sync scheduler."""
 
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -179,20 +179,20 @@ class TestSyncScheduler:
     @pytest.mark.asyncio
     async def test_run_full_sync_success(self):
         """Test successful full sync execution."""
-        # Skip these tests as they involve complex internal imports
-        pytest.skip("Complex internal imports make mocking difficult")
+        # These are complex integration tests, skip for now
+        pytest.skip("Complex integration test requiring full system setup")
 
     @pytest.mark.asyncio
     async def test_run_full_sync_failure(self):
         """Test full sync with failure."""
-        # Skip these tests as they involve complex internal imports
-        pytest.skip("Complex internal imports make mocking difficult")
+        # These are complex integration tests, skip for now
+        pytest.skip("Complex integration test requiring full system setup")
 
     @pytest.mark.asyncio
     async def test_run_incremental_sync_success(self):
         """Test successful incremental sync execution."""
-        # Skip these tests as they involve complex internal imports
-        pytest.skip("Complex internal imports make mocking difficult")
+        # These are complex integration tests, skip for now
+        pytest.skip("Complex integration test requiring full system setup")
 
     def test_update_scheduled_task(self):
         """Test updating scheduled task record."""
@@ -247,6 +247,112 @@ class TestSyncScheduler:
 
         # Commit not called if task not found
         mock_db.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_scheduled_task_sync_db(self):
+        """Test _update_scheduled_task with synchronous Session."""
+        from sqlalchemy.orm import Session
+
+        mock_db = Mock(spec=Session)
+        mock_task = Mock(spec=ScheduledTask)
+        mock_task.last_run = None
+        mock_task.next_run = None
+        mock_task.config = {}
+
+        # Mock sync query result
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_task
+        mock_db.execute.return_value = mock_result
+
+        scheduler = SyncScheduler()
+
+        # Call async method with sync session
+        await scheduler._update_scheduled_task(
+            mock_db, "test_task", "completed", "error msg"
+        )
+
+        # Verify it used sync operations
+        assert mock_task.config["last_status"] == "completed"
+        assert mock_task.config["error_message"] == "error msg"
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_scheduled_task_async(self):
+        """Test async version of updating scheduled task."""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_task = Mock(spec=ScheduledTask)
+        mock_task.last_run = None
+        mock_task.next_run = None
+        mock_task.config = {}
+
+        # Mock async query result
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_task
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        mock_job = Mock()
+        mock_job.next_run_time = datetime(2023, 1, 2, 10, 0, 0)
+
+        scheduler = SyncScheduler()
+        scheduler._jobs["test_task"] = mock_job
+
+        await scheduler._update_scheduled_task(mock_db, "test_task", "completed", None)
+
+        assert mock_task.last_run is not None
+        assert mock_task.config["last_status"] == "completed"
+        assert mock_task.config["error_message"] is None
+        assert mock_task.next_run == datetime(2023, 1, 2, 10, 0, 0)
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_scheduled_task_async_not_found(self):
+        """Test async update when task not found."""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        scheduler = SyncScheduler()
+
+        # Should not raise
+        await scheduler._update_scheduled_task(mock_db, "nonexistent", "completed")
+
+        # Commit not called if task not found
+        mock_db.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_incremental_sync_failure(self):
+        """Test incremental sync with failure."""
+        # These are complex integration tests, skip for now
+        pytest.skip("Complex integration test requiring full system setup")
+
+    def test_schedule_incremental_sync_with_existing_job(self):
+        """Test rescheduling existing incremental job."""
+        mock_scheduler = Mock(spec=AsyncIOScheduler)
+        mock_job = Mock()
+        mock_scheduler.add_job.return_value = mock_job
+
+        scheduler = SyncScheduler(mock_scheduler)
+        scheduler._jobs["incremental_sync"] = Mock()
+
+        job_id = scheduler.schedule_incremental_sync(30)
+
+        mock_scheduler.remove_job.assert_called_once_with("incremental_sync")
+        assert scheduler._jobs[job_id] == mock_job
+
+    @patch("app.services.sync.scheduler.CronTrigger")
+    def test_schedule_full_sync_cron_trigger_error(self, mock_cron_trigger):
+        """Test handling cron trigger creation error."""
+        mock_cron_trigger.side_effect = Exception("Invalid cron")
+
+        scheduler = SyncScheduler()
+
+        with pytest.raises(Exception, match="Invalid cron"):
+            scheduler.schedule_full_sync("invalid")
 
     def test_global_scheduler_instance(self):
         """Test global scheduler instance."""

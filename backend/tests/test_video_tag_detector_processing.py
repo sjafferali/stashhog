@@ -182,10 +182,19 @@ class TestVideoTagDetectorProcessing:
 
         changes = detector._extract_markers_from_result(result, existing_markers)
 
-        # Should add all markers regardless of existing ones
+        # Should remove existing marker and add new ones
         # After merging consecutive occurrences: 10-12 (merged), 20-21, 20.5-21.5
-        assert len(changes) == 3
+        # Total: 1 remove + 3 add = 4 changes
+        assert len(changes) == 4
 
-        # Check that all are marker additions
+        # Check that all changes are for markers
         assert all(c.field == "markers" for c in changes)
-        assert all(c.action == "add" for c in changes)
+
+        # Check that we have 1 remove and 3 add operations
+        remove_changes = [c for c in changes if c.action == "remove"]
+        add_changes = [c for c in changes if c.action == "add"]
+        assert len(remove_changes) == 1
+        assert len(add_changes) == 3
+
+        # Check that the remove operation is for the existing marker
+        assert remove_changes[0].current_value == existing_markers[0]

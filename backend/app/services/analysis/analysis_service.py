@@ -488,18 +488,16 @@ class AnalysisService:
                     ):
                         all_results[name] = result
 
-        # Create changes for new performers
-        if all_results:
-            new_performers = list(all_results.keys())
+        # Create individual changes for each new performer
+        for performer_name, result in all_results.items():
             changes.append(
                 ProposedChange(
                     field="performers",
                     action="add",
                     current_value=current_names,
-                    proposed_value=new_performers,
-                    confidence=sum(r.confidence for r in all_results.values())
-                    / len(all_results),
-                    reason=f"Detected {len(new_performers)} new performers",
+                    proposed_value=performer_name,
+                    confidence=result.confidence,
+                    reason=f"Detected performer: {performer_name}",
                 )
             )
 
@@ -575,18 +573,16 @@ class AnalysisService:
                 else:
                     logger.debug(f"Discarding non-existent tag: {tag}")
 
-        # Create changes for new tags
-        if all_results:
-            new_tags = list(all_results.keys())
+        # Create individual changes for each new tag
+        for tag_name, result in all_results.items():
             changes.append(
                 ProposedChange(
                     field="tags",
                     action="add",
                     current_value=current_names,
-                    proposed_value=new_tags,
-                    confidence=sum(r.confidence for r in all_results.values())
-                    / len(all_results),
-                    reason=f"Detected {len(new_tags)} new tags",
+                    proposed_value=tag_name,
+                    confidence=result.confidence,
+                    reason=f"Detected tag: {tag_name}",
                 )
             )
 

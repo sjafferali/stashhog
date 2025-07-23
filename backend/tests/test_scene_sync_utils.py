@@ -566,8 +566,8 @@ class TestSceneSyncUtils:
         # Verify
         assert len(scene.tags) == 4
         for i, tag in enumerate(scene.tags):
-            assert tag.id == f"t{i+1}"
-            assert tag.name == f"Tag {i+1}"
+            assert tag.id == f"t{i + 1}"
+            assert tag.name == f"Tag {i + 1}"
 
     @pytest.mark.asyncio
     async def test_clear_existing_relationships(

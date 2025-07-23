@@ -154,3 +154,10 @@ mutation SceneMarkerCreate($input: SceneMarkerCreateInput!) {
     }
 }
 """
+
+# Delete scene marker
+DELETE_SCENE_MARKER = """
+mutation SceneMarkerDestroy($id: ID!) {
+    sceneMarkerDestroy(id: $id)
+}
+"""

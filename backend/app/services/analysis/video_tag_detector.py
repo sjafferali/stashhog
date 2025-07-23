@@ -573,81 +573,204 @@ class VideoTagDetector:
         existing_markers: list[dict[str, Any]],
     ) -> list[ProposedChange]:
         """Extract marker changes from AI analysis result."""
+        if not self.create_markers:
+            return []
+
+        # Get AI markers from result
+        ai_markers = self._get_ai_markers_from_result(result)
+
+        # Build set of new markers for comparison
+        new_markers_set = self._build_new_markers_set(ai_markers)
+
+        # Get changes
         changes: list[ProposedChange] = []
 
-        if not self.create_markers:
-            return changes
+        # Add removal changes for existing markers not in new set
+        removal_changes = self._get_marker_removal_changes(
+            existing_markers, new_markers_set
+        )
+        changes.extend(removal_changes)
 
-        # Check for tag_timespans format (AITagger plugin format)
+        # Add addition changes for new markers
+        addition_changes = self._get_marker_addition_changes(
+            ai_markers, existing_markers
+        )
+        changes.extend(addition_changes)
+
+        return changes
+
+    def _get_ai_markers_from_result(
+        self, result: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Extract AI markers from result based on format."""
         if "tag_timespans" in result:
             logger.debug("Found tag_timespans format (AITagger plugin format)")
             tag_timespans = result.get("tag_timespans", {})
             ai_markers = self._convert_tag_timespans_to_markers(tag_timespans)
             logger.debug(f"Converted tag_timespans to {len(ai_markers)} markers")
-        # Check for timespans format (fallback)
         elif "timespans" in result:
             logger.debug("Found timespans format, extracting markers from timespans")
             timespans = result.get("timespans", {})
             ai_markers = self._convert_timespans_to_markers(timespans)
             logger.debug(f"Converted timespans to {len(ai_markers)} markers")
         else:
-            # Original format with direct markers
             ai_markers = result.get("markers", [])
             logger.debug(f"Using direct markers format: {len(ai_markers)} markers")
 
-        # Don't deduplicate markers - add all of them
-        logger.debug(f"Processing {len(ai_markers)} markers")
-        for idx, marker_info in enumerate(ai_markers):
-            logger.debug(f"Processing marker {idx}: {marker_info}")
-            if isinstance(marker_info, dict):
-                marker_time = marker_info.get("time", 0)
-                marker_end_time = marker_info.get("end_time", None)
-                marker_title = marker_info.get("title", "")
-                marker_tags = marker_info.get("tags", [])
-                confidence = marker_info.get("confidence", 0.7)
+        return ai_markers
 
+    def _build_new_markers_set(
+        self, ai_markers: list[dict[str, Any]]
+    ) -> set[tuple[float, str]]:
+        """Build a set of new markers for comparison."""
+        new_markers_set = set()
+        for marker_info in ai_markers:
+            if not isinstance(marker_info, dict):
+                continue
+
+            marker_time = marker_info.get("time", 0)
+            marker_title = marker_info.get("title", "")
+
+            if marker_time > 0 and marker_title:
+                ai_marker_title = self._add_ai_suffix(marker_title)
+                new_markers_set.add((marker_time, ai_marker_title))
+
+        return new_markers_set
+
+    def _get_marker_removal_changes(
+        self,
+        existing_markers: list[dict[str, Any]],
+        new_markers_set: set[tuple[float, str]],
+    ) -> list[ProposedChange]:
+        """Get removal changes for existing markers not in new set."""
+        changes = []
+
+        for existing_marker in existing_markers:
+            marker_time = existing_marker.get("seconds", 0)
+            marker_title = existing_marker.get("title", "")
+            marker_tuple = (marker_time, marker_title)
+
+            if marker_tuple not in new_markers_set:
+                changes.append(
+                    ProposedChange(
+                        field="markers",
+                        action="remove",
+                        current_value=existing_marker,
+                        proposed_value=None,
+                        confidence=1.0,
+                        reason="Removing existing marker to replace with new detection",
+                    )
+                )
                 logger.debug(
-                    f"Marker {idx}: time={marker_time}, title='{marker_title}', tags={marker_tags}, confidence={confidence}"
+                    f"Adding REMOVE change for marker '{marker_title}' at {marker_time}s"
                 )
 
-                if marker_time > 0 and (marker_title or marker_tags):
-                    # Always add markers without checking if they already exist
-                    # Add _AI suffix to marker title and tags only if not already present
-                    ai_marker_title = (
-                        marker_title
-                        if marker_title.endswith("_AI")
-                        else f"{marker_title}_AI" if marker_title else ""
-                    )
-                    ai_marker_tags = [
-                        tag if tag.endswith("_AI") else f"{tag}_AI"
-                        for tag in marker_tags
-                    ]
+        return changes
 
-                    logger.debug(
-                        f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
-                        f"{f' to {marker_end_time}s' if marker_end_time is not None else ''}"
-                    )
-                    marker_value = {
-                        "seconds": marker_time,
-                        "title": ai_marker_title,
-                        "tags": ai_marker_tags,
-                    }
-                    # Add end_seconds if provided
-                    if marker_end_time is not None:
-                        marker_value["end_seconds"] = marker_end_time
+    def _get_marker_addition_changes(
+        self, ai_markers: list[dict[str, Any]], existing_markers: list[dict[str, Any]]
+    ) -> list[ProposedChange]:
+        """Get addition changes for new markers."""
+        changes = []
+        logger.debug(f"Processing {len(ai_markers)} markers for addition")
 
-                    changes.append(
-                        ProposedChange(
-                            field="markers",
-                            action="add",
-                            current_value=existing_markers,
-                            proposed_value=marker_value,
-                            confidence=confidence,
-                            reason="Detected from video content",
-                        )
-                    )
+        for idx, marker_info in enumerate(ai_markers):
+            logger.debug(f"Processing marker {idx}: {marker_info}")
+
+            if not isinstance(marker_info, dict):
+                continue
+
+            change = self._process_single_marker_addition(
+                marker_info, existing_markers, idx
+            )
+            if change:
+                changes.append(change)
 
         return changes
+
+    def _process_single_marker_addition(
+        self,
+        marker_info: dict[str, Any],
+        existing_markers: list[dict[str, Any]],
+        idx: int,
+    ) -> Optional[ProposedChange]:
+        """Process a single marker for addition."""
+        marker_time = marker_info.get("time", 0)
+        marker_title = marker_info.get("title", "")
+        marker_tags = marker_info.get("tags", [])
+
+        if not (marker_time > 0 and (marker_title or marker_tags)):
+            return None
+
+        # Add AI suffix
+        ai_marker_title = self._add_ai_suffix(marker_title) if marker_title else ""
+        ai_marker_tags = [self._add_ai_suffix(tag) for tag in marker_tags]
+
+        # Check if marker already exists
+        if self._marker_exists(existing_markers, marker_time, ai_marker_title):
+            logger.debug(
+                f"Marker '{ai_marker_title}' at {marker_time}s already exists, skipping"
+            )
+            return None
+
+        # Build and return the change
+        return self._build_marker_addition_change(
+            marker_info, marker_time, ai_marker_title, ai_marker_tags, existing_markers
+        )
+
+    def _add_ai_suffix(self, text: str) -> str:
+        """Add _AI suffix if not already present."""
+        return text if text.endswith("_AI") else f"{text}_AI"
+
+    def _marker_exists(
+        self,
+        existing_markers: list[dict[str, Any]],
+        marker_time: float,
+        marker_title: str,
+    ) -> bool:
+        """Check if marker already exists."""
+        for existing_marker in existing_markers:
+            if (
+                existing_marker.get("seconds") == marker_time
+                and existing_marker.get("title") == marker_title
+            ):
+                return True
+        return False
+
+    def _build_marker_addition_change(
+        self,
+        marker_info: dict[str, Any],
+        marker_time: float,
+        ai_marker_title: str,
+        ai_marker_tags: list[str],
+        existing_markers: list[dict[str, Any]],
+    ) -> ProposedChange:
+        """Build a marker addition change."""
+        marker_end_time = marker_info.get("end_time", None)
+        confidence = marker_info.get("confidence", 0.7)
+
+        logger.debug(
+            f"Adding marker change for '{ai_marker_title}' at {marker_time}s"
+            f"{f' to {marker_end_time}s' if marker_end_time is not None else ''}"
+        )
+
+        marker_value = {
+            "seconds": marker_time,
+            "title": ai_marker_title,
+            "tags": ai_marker_tags,
+        }
+
+        if marker_end_time is not None:
+            marker_value["end_seconds"] = marker_end_time
+
+        return ProposedChange(
+            field="markers",
+            action="add",
+            current_value=existing_markers,
+            proposed_value=marker_value,
+            confidence=confidence,
+            reason="Detected from video content",
+        )
 
     async def detect(
         self,

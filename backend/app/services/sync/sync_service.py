@@ -385,7 +385,7 @@ class SyncService:
         progress_callback: Optional[Any],
     ) -> None:
         """Sync a single scene by its ID."""
-        logger.debug(f"Syncing scene {idx+1}/{total_scenes} - id: {scene_id}")
+        logger.debug(f"Syncing scene {idx + 1}/{total_scenes} - id: {scene_id}")
 
         try:
             # Fetch raw scene data from Stash (not transformed)
@@ -578,7 +578,7 @@ class SyncService:
 
             scene_id = scene_data.get("id", "unknown")
             logger.debug(
-                f"Processing scene {idx+1}/{len(batch_scenes)} - id: {scene_id}"
+                f"Processing scene {idx + 1}/{len(batch_scenes)} - id: {scene_id}"
             )
             await self._process_single_scene(scene_data, result, progress_callback)
 

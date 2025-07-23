@@ -864,6 +864,20 @@ class StashService:
         marker_result: Dict[str, Any] = result.get("sceneMarkerCreate", {})
         return marker_result
 
+    async def delete_marker(self, marker_id: str) -> bool:
+        """Delete a scene marker.
+
+        Args:
+            marker_id: ID of the marker to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        result = await self.execute_graphql(
+            mutations.DELETE_SCENE_MARKER, {"id": marker_id}
+        )
+        return bool(result.get("sceneMarkerDestroy", False))
+
 
 # Maintain backward compatibility with old class name
 StashClient = StashService
