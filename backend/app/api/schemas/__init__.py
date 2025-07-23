@@ -438,6 +438,7 @@ class PlanResponse(BaseSchema):
     total_scenes: int = Field(..., description="Total scenes analyzed")
     total_changes: int = Field(..., description="Total proposed changes")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Plan metadata")
+    job_id: Optional[str] = Field(None, description="Job ID that created this plan")
 
 
 class PlanDetailResponse(PlanResponse):

@@ -437,6 +437,7 @@ class TestAnalysisRoutes:
         mock_plan.created_at = datetime.now()
         mock_plan.completed_at = None
         mock_plan.plan_metadata = {}
+        mock_plan.job_id = None  # Add job_id attribute
 
         # Mock plans query
         mock_scalars = Mock()
@@ -478,6 +479,7 @@ class TestAnalysisRoutes:
         mock_plan.completed_at = datetime.now()
         mock_plan.changes = []
         mock_plan.plan_metadata = {}
+        mock_plan.job_id = None  # Add job_id attribute
 
         # Mock execute for plan query
         mock_plan_result = Mock()

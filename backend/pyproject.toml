@@ -40,7 +40,7 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "-n=auto"
+    "-n=auto"  # Enables parallel test execution. If this causes errors, ensure you're running in a virtualenv with pytest-xdist installed
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

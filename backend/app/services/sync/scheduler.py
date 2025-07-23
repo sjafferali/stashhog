@@ -120,6 +120,40 @@ class SyncScheduler:
 
         return job_id
 
+    def schedule_cleanup_job(
+        self, interval_minutes: int = 30, job_id: str = "cleanup_stale_jobs"
+    ) -> str:
+        """
+        Schedule cleanup job to run at regular intervals
+
+        Args:
+            interval_minutes: Interval in minutes between cleanup runs (default: 30)
+            job_id: Unique job identifier
+
+        Returns:
+            Job ID
+        """
+        if interval_minutes < 5:
+            raise ValueError("Minimum interval is 5 minutes")
+
+        # Remove existing job if any
+        if job_id in self._jobs:
+            self.scheduler.remove_job(job_id)
+
+        # Add new job
+        job = self.scheduler.add_job(
+            self._run_cleanup_job,
+            trigger=IntervalTrigger(minutes=interval_minutes),
+            id=job_id,
+            replace_existing=True,
+            misfire_grace_time=300,  # 5 minutes grace time
+        )
+
+        self._jobs[job_id] = job
+        logger.info(f"Scheduled cleanup job every {interval_minutes} minutes")
+
+        return job_id
+
     def cancel_job(self, job_id: str) -> bool:
         """
         Cancel a scheduled job
@@ -262,6 +296,28 @@ class SyncScheduler:
         except Exception as e:
             logger.error(f"Scheduled incremental sync failed: {str(e)}")
             await self._update_scheduled_task(db, "incremental_sync", "failed", str(e))
+
+    async def _run_cleanup_job(self) -> None:
+        """Execute cleanup job for stale jobs"""
+        from app.core.database import AsyncSessionLocal
+        from app.services.job_service import job_service
+
+        try:
+            async with AsyncSessionLocal() as db:
+                # Create cleanup job
+                job = await job_service.create_job(
+                    job_type=JobType.CLEANUP, db=db, metadata={"scheduled": True}
+                )
+                logger.info(f"Started scheduled cleanup job: {job.id}")
+
+                # Update scheduled task
+                await self._update_scheduled_task(db, "cleanup_stale_jobs", "completed")
+
+        except Exception as e:
+            logger.error(f"Scheduled cleanup job failed: {str(e)}")
+            await self._update_scheduled_task(
+                db, "cleanup_stale_jobs", "failed", str(e)
+            )
 
     async def _update_scheduled_task(
         self,

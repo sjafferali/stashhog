@@ -278,6 +278,7 @@ async def list_plans(
                 total_scenes=total_scenes,
                 total_changes=total_changes,
                 metadata=plan.plan_metadata or {},  # type: ignore[attr-defined]
+                job_id=plan.job_id,  # type: ignore[attr-defined]
             )
         )
 
@@ -359,6 +360,7 @@ async def get_plan(
         total_changes=total_changes,
         metadata=dict(plan.plan_metadata) if plan.plan_metadata else {},
         scenes=scenes,
+        job_id=plan.job_id,
     )
 
 

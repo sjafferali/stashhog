@@ -242,9 +242,16 @@ class AnalysisService:
             # Collect any errors from scene processing
             errors = [sc.error for sc in all_changes if sc.error]
 
+            # Get actual number of scenes analyzed from plan metadata
+            plan = await self.plan_manager.get_plan(self._current_plan_id, db)
+            scenes_analyzed = (
+                plan.get_metadata("scenes_analyzed", 0) if plan else len(scenes)
+            )
+
             final_metadata = {
                 "processing_time": round(processing_time, 2),
                 "total_scenes": len(scenes),
+                "scenes_analyzed": scenes_analyzed,
                 "completed_at": datetime.utcnow().isoformat(),
             }
 
@@ -2177,7 +2184,8 @@ class AnalysisService:
                     logger.info(f"Updated job {job_id} metadata with plan_id {plan_id}")
 
                     # Send WebSocket update to notify frontend
-                    await job_service._send_job_update(job_id, {})
+                    # The _send_job_update method will fetch the full job data including metadata
+                    await job_service._send_job_update(job_id, {"plan_id": plan_id})
                 else:
                     logger.warning(
                         f"Job {job_id} not found when trying to update plan_id"

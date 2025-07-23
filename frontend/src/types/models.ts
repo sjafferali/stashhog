@@ -176,6 +176,7 @@ export interface AnalysisPlan {
   extract_details?: boolean;
   custom_fields?: Record<string, string | number | boolean | null>;
   prompt_template?: string;
+  job_id?: string | null;
 }
 
 export interface AnalysisResult {

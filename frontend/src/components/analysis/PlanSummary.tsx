@@ -75,7 +75,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       : 0;
 
   const completionRate =
-    jobProgress !== undefined
+    jobProgress !== undefined && plan.status === 'pending'
       ? jobProgress
       : statistics.totalScenes > 0
         ? (statistics.analyzedScenes / statistics.totalScenes) * 100

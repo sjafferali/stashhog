@@ -1,4 +1,5 @@
 from app.jobs.analysis_jobs import register_analysis_jobs
+from app.jobs.cleanup_jobs import register_cleanup_jobs
 from app.jobs.sync_jobs import register_sync_jobs
 from app.services.job_service import JobService
 
@@ -11,6 +12,7 @@ def register_all_jobs(job_service: JobService) -> None:
     """
     register_sync_jobs(job_service)
     register_analysis_jobs(job_service)
+    register_cleanup_jobs(job_service)
 
 
 __all__ = ["register_all_jobs"]

@@ -188,6 +188,7 @@ class TestAnalysisRoutes:
         mock_plan.status = PlanStatus.DRAFT
         mock_plan.created_at = datetime.utcnow()
         mock_plan.plan_metadata = {"model": "gpt-4"}
+        mock_plan.job_id = None  # Add job_id attribute
 
         # Mock scene
         mock_scene = Mock()
@@ -280,6 +281,7 @@ class TestAnalysisRoutes:
             plan.plan_metadata = {}
             # Ensure any list attributes that might be accessed are set
             plan.changes = []
+            plan.job_id = None  # Add job_id attribute
             plans.append(plan)
 
         # Mock count query

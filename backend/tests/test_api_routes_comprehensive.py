@@ -561,6 +561,7 @@ class TestAnalysisRoutes:
         plan1.plan_metadata = {}
         plan1.total_scenes = 5
         plan1.total_changes = 10
+        plan1.job_id = None  # Add job_id attribute
 
         plan2 = Mock(spec=AnalysisPlan)
         plan2.id = 2
@@ -570,6 +571,7 @@ class TestAnalysisRoutes:
         plan2.plan_metadata = {}
         plan2.total_scenes = 3
         plan2.total_changes = 5
+        plan2.job_id = None  # Add job_id attribute
 
         plans = [plan1, plan2]
 
@@ -615,6 +617,7 @@ class TestAnalysisRoutes:
         plan.plan_metadata = {}
         plan.total_scenes = 1
         plan.total_changes = 1
+        plan.job_id = None  # Add job_id attribute
 
         # Mock plan query
         mock_plan_result = Mock()

@@ -213,13 +213,20 @@ class TestApplicationLifecycle:
                     with patch("app.main.close_db") as mock_close_db:
                         mock_close_db.return_value = None
 
-                        async with lifespan(mock_app):
-                            # Startup should be called
-                            mock_startup.assert_called_once()
+                        # Mock the sync_scheduler to prevent "Event loop is closed" error
+                        with patch(
+                            "app.services.sync.scheduler.sync_scheduler"
+                        ) as mock_scheduler:
+                            mock_scheduler.shutdown = MagicMock()
 
-                        # Shutdown should be called
-                        mock_queue.return_value.stop.assert_called_once()
-                        mock_close_db.assert_called_once()
+                            async with lifespan(mock_app):
+                                # Startup should be called
+                                mock_startup.assert_called_once()
+
+                            # Shutdown should be called
+                            mock_queue.return_value.stop.assert_called_once()
+                            mock_scheduler.shutdown.assert_called_once()
+                            mock_close_db.assert_called_once()
         finally:
             # Restore test environment
             if pytest_test:

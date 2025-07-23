@@ -10,12 +10,12 @@ import {
   Alert,
   Statistic,
   Progress,
-  Badge,
   Dropdown,
   Menu,
   // Divider,
   Modal,
   message,
+  Tag,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -194,20 +194,24 @@ const PlanDetail: React.FC = () => {
             Back
           </Button>
           <h1 style={{ margin: 0 }}>{plan.name}</h1>
-          <Badge
-            status={
-              plan.status === 'applied'
-                ? 'success'
-                : plan.status === 'cancelled'
-                  ? 'error'
+          <Tag
+            color={
+              plan.status === 'pending'
+                ? 'purple'
+                : plan.status === 'draft'
+                  ? 'blue'
                   : plan.status === 'reviewing'
-                    ? 'warning'
-                    : plan.status === 'pending'
-                      ? 'processing'
-                      : 'default'
+                    ? 'orange'
+                    : plan.status === 'applied'
+                      ? 'green'
+                      : plan.status === 'cancelled'
+                        ? 'red'
+                        : 'default'
             }
-            text={plan.status.toUpperCase()}
-          />
+            style={{ fontWeight: 500, fontSize: '14px' }}
+          >
+            {plan.status.toUpperCase()}
+          </Tag>
         </Space>
 
         <Space style={{ float: 'right' }}>
@@ -532,11 +536,9 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={{
                 totalScenes: plan.total_scenes,
-                analyzedScenes:
-                  plan.metadata?.scenes_analyzed ||
-                  (job
-                    ? Math.round((job.progress / 100) * plan.total_scenes)
-                    : plan.total_scenes),
+                analyzedScenes: job
+                  ? Math.round((job.progress / 100) * plan.total_scenes)
+                  : plan.metadata?.scenes_analyzed || plan.total_scenes,
                 pendingScenes:
                   job && job.status === 'running'
                     ? plan.total_scenes -

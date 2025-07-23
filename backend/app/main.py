@@ -92,6 +92,20 @@ async def _startup_tasks() -> None:
     logger.info("Registering job handlers...")
     register_all_jobs(job_service)
 
+    # Start scheduler and schedule cleanup job
+    if not os.getenv("PYTEST_CURRENT_TEST"):
+        logger.info("Starting scheduler...")
+        from app.services.sync.scheduler import sync_scheduler
+
+        sync_scheduler.start()
+
+        # Schedule cleanup job to run every 30 minutes
+        try:
+            sync_scheduler.schedule_cleanup_job(interval_minutes=30)
+            logger.info("Scheduled cleanup job to run every 30 minutes")
+        except Exception as e:
+            logger.warning(f"Failed to schedule cleanup job: {e}")
+
     # TODO: Test external connections
     # logger.info("Testing external connections...")
     # await test_connections()
@@ -134,6 +148,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Stopping background workers...")
             task_queue = get_task_queue()
             await task_queue.stop()
+
+            # Stop scheduler
+            logger.info("Stopping scheduler...")
+            from app.services.sync.scheduler import sync_scheduler
+
+            sync_scheduler.shutdown()
         else:
             logger.info("Skipping worker shutdown in test environment")
 
