@@ -568,7 +568,9 @@ const PlanDetail: React.FC = () => {
                   // For pending plans with running jobs, use job progress
                   if (plan.status.toLowerCase() === 'pending' && job) {
                     if (job.status === 'running' || job.status === 'pending') {
-                      return job.processed_items || 0;
+                      // Cap at total scenes to prevent showing more than 100%
+                      const processed = job.processed_items || 0;
+                      return Math.min(processed, plan.total_scenes);
                     }
                     // If job is completed, use total scenes
                     if (job.status === 'completed') {
@@ -576,9 +578,9 @@ const PlanDetail: React.FC = () => {
                     }
                   }
                   // For other statuses, use metadata or actual analyzed count
-                  return (
-                    plan.metadata?.scenes_analyzed || plan.scenes.length || 0
-                  );
+                  const analyzed =
+                    plan.metadata?.scenes_analyzed || plan.scenes.length || 0;
+                  return Math.min(analyzed, plan.total_scenes);
                 })();
 
                 const pendingScenes = (() => {
@@ -586,12 +588,10 @@ const PlanDetail: React.FC = () => {
                   if (
                     plan.status.toLowerCase() === 'pending' &&
                     job &&
-                    job.status === 'running'
+                    (job.status === 'running' || job.status === 'pending')
                   ) {
-                    return Math.max(
-                      0,
-                      plan.total_scenes - (job.processed_items || 0)
-                    );
+                    // Use analyzedScenes which is already capped at total_scenes
+                    return Math.max(0, plan.total_scenes - analyzedScenes);
                   }
                   // For reviewing/draft plans, count scenes without changes as pending
                   if (
