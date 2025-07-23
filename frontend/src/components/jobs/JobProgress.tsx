@@ -140,10 +140,7 @@ export const JobProgress: React.FC<JobProgressProps> = ({
     );
   }
 
-  const progressPercent =
-    job.total && job.total > 0
-      ? (job.progress / job.total) * 100
-      : job.progress;
+  const progressPercent = job.progress; // job.progress is already a percentage (0-100)
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -214,8 +211,8 @@ export const JobProgress: React.FC<JobProgressProps> = ({
         <div className={styles.progressInfo}>
           <Text>
             Progress:{' '}
-            {job.total
-              ? `${job.progress} / ${job.total}`
+            {job.total && job.processed_items !== undefined
+              ? `${job.processed_items} / ${job.total}`
               : `${Math.round(job.progress)}%`}
           </Text>
           <Text type="secondary">{progressPercent.toFixed(0)}%</Text>

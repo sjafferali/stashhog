@@ -116,10 +116,7 @@ export const JobCard: React.FC<JobCardProps> = ({
     return `${seconds}s`;
   };
 
-  const progressPercent =
-    job.total && job.total > 0
-      ? (job.progress / job.total) * 100
-      : job.progress;
+  const progressPercent = job.progress; // job.progress is already a percentage (0-100)
 
   const actions = [];
 

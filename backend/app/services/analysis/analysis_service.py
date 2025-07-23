@@ -2154,7 +2154,7 @@ class AnalysisService:
         message: str,
         status: Optional[JobStatus] = None,
     ) -> None:
-        """Update job progress (placeholder for actual implementation).
+        """Update job progress in the database.
 
         Args:
             job_id: Job ID
@@ -2162,8 +2162,22 @@ class AnalysisService:
             message: Progress message
             status: Optional status update
         """
-        # TODO: Implement actual job progress update
-        logger.info(f"Job {job_id}: {progress}% - {message}")
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.repositories.job_repository import job_repository
+
+            async with AsyncSessionLocal() as db:
+                # Use the job repository to update the job
+                await job_repository.update_job_status(
+                    job_id=job_id,
+                    status=status or JobStatus.RUNNING,
+                    progress=progress,
+                    message=message,
+                    db=db,
+                )
+                logger.info(f"Updated job {job_id}: {progress}% - {message}")
+        except Exception as e:
+            logger.error(f"Failed to update job {job_id} progress: {e}")
 
     async def _update_job_with_plan_id(self, job_id: str, plan_id: int) -> None:
         """Update job metadata with plan_id.
@@ -2329,8 +2343,25 @@ class AnalysisService:
         self._current_batch_index = completed_batches
         self._total_batches = total_batches
 
-        # Don't update progress here since we're updating it per-scene
-        # Just log the batch completion
+        # Calculate overall progress percentage
+        progress_percent = (
+            int((processed_scenes / total_scenes) * 100) if total_scenes > 0 else 0
+        )
+
+        # Update job progress
+        if job_id:
+            await self._update_job_progress(
+                job_id,
+                progress_percent,
+                f"Processed {processed_scenes}/{total_scenes} scenes",
+            )
+
+        # Call external progress callback if provided
+        if progress_callback:
+            await progress_callback(
+                progress_percent, f"Processed {processed_scenes}/{total_scenes} scenes"
+            )
+
         logger.debug(
             f"Batch {completed_batches}/{total_batches} completed with {processed_scenes}/{total_scenes} scenes total"
         )
