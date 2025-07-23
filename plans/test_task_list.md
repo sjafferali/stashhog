@@ -194,9 +194,9 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 91: Create test_cost_tracker.py - Test cost calculation (2025-07-22)
 - [x] Task 92: Run all backend tests and ensure they pass (2025-07-22)
 
-#### Core Database Tests (60% coverage - app/core/database.py)
-- [ ] Task 93: Create test_core_database.py - Test database operations
-- [ ] Task 94: Run all backend tests and ensure they pass
+#### Core Database Tests (87% coverage - app/core/database.py)
+- [x] Task 93: Create test_core_database.py - Test database operations (2025-07-23)
+- [x] Task 94: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Job Repository Tests (66% coverage - app/repositories/job_repository.py)
 - [ ] Task 95: Create test_job_repository.py - Test job data operations
@@ -244,7 +244,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 76 of 116 tasks completed (66%)
+- [x] 78 of 116 tasks completed (67%)
 - [x] Coverage target of 80% achieved (currently at 86%)
 - [x] All tests passing consistently (1541 passed, 6 skipped, 3 minor failures)
 - [ ] CI/CD pipeline updated with new tests

@@ -407,6 +407,44 @@ async def resync_scenes_bulk(
         }
 
 
+@router.patch("/bulk-update", response_model=Dict[str, Any])
+async def bulk_update_scenes(
+    scene_ids: List[str] = Body(..., description="List of scene IDs to update"),
+    updates: Dict[str, Any] = Body(..., description="Fields to update"),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Bulk update scene attributes.
+
+    This endpoint allows updating multiple scenes with the same attributes.
+    Currently supports updating 'analyzed' and 'video_analyzed' fields.
+    """
+    # Validate that only allowed fields are being updated
+    allowed_fields = {"analyzed", "video_analyzed"}
+    update_fields = set(updates.keys())
+    invalid_fields = update_fields - allowed_fields
+
+    if invalid_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid fields for bulk update: {invalid_fields}. Allowed fields: {allowed_fields}",
+        )
+
+    # Convert scene IDs to integers
+    scene_ids_int = [int(scene_id) for scene_id in scene_ids]
+
+    # Update scenes in database
+    update_stmt = update(Scene).where(Scene.id.in_(scene_ids_int)).values(**updates)
+
+    result = await db.execute(update_stmt)
+    await db.commit()
+
+    # Get updated count
+    updated_count = result.rowcount
+
+    return {"updated_count": updated_count, "scene_ids": scene_ids, "updates": updates}
+
+
 @router.patch("/{scene_id}", response_model=SceneResponse)
 async def update_scene(
     scene_id: str,
@@ -505,41 +543,3 @@ async def get_scene_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         "total_studios": total_studios,
         "scenes_by_studio": scenes_by_studio,
     }
-
-
-@router.patch("/bulk-update", response_model=Dict[str, Any])
-async def bulk_update_scenes(
-    scene_ids: List[str] = Body(..., description="List of scene IDs to update"),
-    updates: Dict[str, Any] = Body(..., description="Fields to update"),
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Bulk update scene attributes.
-
-    This endpoint allows updating multiple scenes with the same attributes.
-    Currently supports updating 'analyzed' and 'video_analyzed' fields.
-    """
-    # Validate that only allowed fields are being updated
-    allowed_fields = {"analyzed", "video_analyzed"}
-    update_fields = set(updates.keys())
-    invalid_fields = update_fields - allowed_fields
-
-    if invalid_fields:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid fields for bulk update: {invalid_fields}. Allowed fields: {allowed_fields}",
-        )
-
-    # Convert scene IDs to integers
-    scene_ids_int = [int(scene_id) for scene_id in scene_ids]
-
-    # Update scenes in database
-    update_stmt = update(Scene).where(Scene.id.in_(scene_ids_int)).values(**updates)
-
-    result = await db.execute(update_stmt)
-    await db.commit()
-
-    # Get updated count
-    updated_count = result.rowcount
-
-    return {"updated_count": updated_count, "scene_ids": scene_ids, "updates": updates}
