@@ -168,7 +168,7 @@ async def cleanup_stale_jobs(
             task_queue = get_task_queue()
 
             for idx, job in enumerate(potentially_stale_jobs):
-                if cancellation_token and cancellation_token.is_cancelled():
+                if cancellation_token and cancellation_token.is_cancelled:
                     logger.info("Cleanup job cancelled")
                     break
 

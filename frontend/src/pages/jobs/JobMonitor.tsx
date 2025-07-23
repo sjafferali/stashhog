@@ -41,6 +41,11 @@ import {
   AnalysisJobResultData,
 } from '@/components/jobs/AnalysisJobResult';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import {
+  getJobTypeLabel,
+  getJobTypeColor,
+  JOB_TYPE_LABELS,
+} from '@/utils/jobUtils';
 import styles from './JobMonitor.module.scss';
 
 const { Text, Title, Paragraph } = Typography;
@@ -168,13 +173,6 @@ const JobMonitor: React.FC = () => {
       default:
         return <InfoCircleOutlined />;
     }
-  };
-
-  const getJobTypeColor = (type: string) => {
-    if (type.includes('sync')) return 'blue';
-    if (type.includes('analysis')) return 'green';
-    if (type.includes('test')) return 'purple';
-    return 'default';
   };
 
   const formatDuration = (start?: string, end?: string) => {
@@ -356,24 +354,7 @@ const JobMonitor: React.FC = () => {
       key: 'type',
       width: 150,
       render: (type: string) => {
-        const typeLabels: Record<string, string> = {
-          sync_all: 'Full Sync',
-          scene_sync: 'Scene Sync',
-          scene_analysis: 'Scene Analysis',
-          sync_scenes: 'Sync Scenes',
-          sync_performers: 'Sync Performers',
-          sync_tags: 'Sync Tags',
-          sync_studios: 'Sync Studios',
-          analysis: 'Analysis',
-          apply_plan: 'Apply Plan',
-          settings_test: 'Settings Test',
-        };
-
-        return (
-          <Tag color={getJobTypeColor(type)}>
-            {typeLabels[type] || type.replace(/_/g, ' ').toUpperCase()}
-          </Tag>
-        );
+        return <Tag color={getJobTypeColor(type)}>{getJobTypeLabel(type)}</Tag>;
       },
     },
     {
@@ -596,16 +577,10 @@ const JobMonitor: React.FC = () => {
               style={{ width: 180 }}
               options={[
                 { label: 'All', value: undefined },
-                { label: 'Full Sync', value: 'sync_all' },
-                { label: 'Scene Sync', value: 'scene_sync' },
-                { label: 'Scene Analysis', value: 'scene_analysis' },
-                { label: 'Sync Scenes', value: 'sync_scenes' },
-                { label: 'Sync Performers', value: 'sync_performers' },
-                { label: 'Sync Tags', value: 'sync_tags' },
-                { label: 'Sync Studios', value: 'sync_studios' },
-                { label: 'Analysis', value: 'analysis' },
-                { label: 'Apply Plan', value: 'apply_plan' },
-                { label: 'Settings Test', value: 'settings_test' },
+                ...Object.entries(JOB_TYPE_LABELS).map(([value, label]) => ({
+                  label,
+                  value,
+                })),
               ]}
             />
             <Button
@@ -679,7 +654,7 @@ const JobMonitor: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Type">
                 <Tag color={getJobTypeColor(selectedJob.type)}>
-                  {selectedJob.type.replace(/_/g, ' ').toUpperCase()}
+                  {getJobTypeLabel(selectedJob.type)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Status">

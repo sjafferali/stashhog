@@ -19,6 +19,7 @@ import {
 import { Job } from '@/types/models';
 import { JobCard } from './JobCard';
 import { LoadingSpinner } from '../common';
+import { JOB_TYPE_LABELS } from '@/utils/jobUtils';
 import styles from './JobList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -149,10 +150,10 @@ export const JobList: React.FC<JobListProps> = ({
     { label: 'Cancelled', value: 'cancelled', color: 'warning' },
   ];
 
-  const typeOptions = [
-    { label: 'Synchronization', value: 'sync' },
-    { label: 'Scene Analysis', value: 'analysis' },
-  ];
+  const typeOptions = Object.entries(JOB_TYPE_LABELS).map(([value, label]) => ({
+    label,
+    value,
+  }));
 
   if (loading && jobs.length === 0) {
     return <LoadingSpinner />;

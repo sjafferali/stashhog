@@ -19,10 +19,12 @@ export const useJob = (jobId: string | null | undefined) => {
         setError(null);
         const response = await apiClient.getJob(jobId);
         setJob(response);
+        return response;
       } catch (err) {
         console.error('Failed to fetch job:', err);
         setError('Failed to fetch job details');
         setJob(null);
+        return null;
       } finally {
         setLoading(false);
       }
@@ -33,16 +35,25 @@ export const useJob = (jobId: string | null | undefined) => {
 
     // Poll for updates if job is running
     const interval = setInterval(() => {
-      if (job && (job.status === 'running' || job.status === 'pending')) {
-        void fetchJob();
-      }
+      void (async () => {
+        try {
+          const currentJob = await apiClient.getJob(jobId);
+          if (
+            currentJob &&
+            (currentJob.status === 'running' || currentJob.status === 'pending')
+          ) {
+            void fetchJob();
+          }
+        } catch {
+          // Ignore errors in polling
+        }
+      })();
     }, 2000);
 
     return () => {
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId]); // Don't include job in dependencies to avoid re-polling issues
+  }, [jobId]);
 
   return { job, loading, error };
 };

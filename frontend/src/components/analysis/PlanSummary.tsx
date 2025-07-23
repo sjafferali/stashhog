@@ -12,7 +12,6 @@ import {
   Typography,
   Tooltip,
   Descriptions,
-  Badge,
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -29,7 +28,7 @@ import {
 import { AnalysisPlan } from '@/types/models';
 import styles from './PlanSummary.module.scss';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export interface PlanStatistics {
   totalScenes: number;
@@ -81,26 +80,6 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
         ? (statistics.analyzedScenes / statistics.totalScenes) * 100
         : 0;
 
-  const getStatusColor = () => {
-    switch (plan.status) {
-      case 'applied':
-        return 'success';
-      case 'cancelled':
-        return 'error';
-      case 'reviewing':
-        return 'warning';
-      case 'pending':
-        return 'processing';
-      case 'draft':
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusText = () => {
-    return plan.status.toUpperCase();
-  };
-
   const fieldIcons = {
     title: <FileTextOutlined />,
     date: <ClockCircleOutlined />,
@@ -116,24 +95,26 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
     <Card className={styles.planSummary}>
       <div className={styles.header}>
         <div>
-          <Title level={4}>
-            <span>{plan.name}</span>
-            <div
-              className={`${styles.statusBox} ${styles[`status-${plan.status}`]}`}
+          <div style={{ marginBottom: 8 }}>
+            <Tag
+              color={
+                plan.status === 'pending'
+                  ? 'purple'
+                  : plan.status === 'draft'
+                    ? 'blue'
+                    : plan.status === 'reviewing'
+                      ? 'orange'
+                      : plan.status === 'applied'
+                        ? 'green'
+                        : plan.status === 'cancelled'
+                          ? 'red'
+                          : 'default'
+              }
+              style={{ fontWeight: 500, fontSize: '14px' }}
             >
-              <Badge
-                status={
-                  getStatusColor() as
-                    | 'success'
-                    | 'processing'
-                    | 'default'
-                    | 'error'
-                    | 'warning'
-                }
-                text={getStatusText()}
-              />
-            </div>
-          </Title>
+              {plan.status.toUpperCase()}
+            </Tag>
+          </div>
           {plan.description && <Text type="secondary">{plan.description}</Text>}
         </div>
         <Space>

@@ -21,6 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
+import { getJobTypeLabel } from '@/utils/jobUtils';
 import styles from './JobCard.module.scss';
 
 const { Text, Title } = Typography;
@@ -77,20 +78,6 @@ export const JobCard: React.FC<JobCardProps> = ({
         return 'warning';
       default:
         return 'default';
-    }
-  };
-
-  const getJobTypeLabel = () => {
-    switch (job.type) {
-      case 'sync':
-      case 'sync_all':
-      case 'sync_scenes':
-      case 'sync_performers':
-        return 'Synchronization';
-      case 'scene_analysis':
-        return 'Scene Analysis';
-      default:
-        return job.type;
     }
   };
 
@@ -237,7 +224,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         {showDetails && (
           <Descriptions column={2} size="small" className={styles.details}>
             <Descriptions.Item label="Type">
-              <Tag>{getJobTypeLabel()}</Tag>
+              <Tag>{getJobTypeLabel(job.type)}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Duration">
               {formatDuration() || 'N/A'}

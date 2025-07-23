@@ -536,9 +536,11 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={{
                 totalScenes: plan.total_scenes,
-                analyzedScenes: job?.processed_items
-                  ? job.processed_items
-                  : plan.metadata?.scenes_analyzed || plan.total_scenes,
+                analyzedScenes:
+                  job?.processed_items !== null &&
+                  job?.processed_items !== undefined
+                    ? job.processed_items
+                    : plan.metadata?.scenes_analyzed || 0,
                 pendingScenes:
                   job && job.status === 'running'
                     ? plan.total_scenes - (job.processed_items || 0)

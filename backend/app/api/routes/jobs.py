@@ -57,6 +57,10 @@ async def list_jobs(
     # Get active jobs from queue
     active_jobs = await job_service.get_active_jobs(db)
 
+    # Filter active jobs by status if status filter is provided
+    if status:
+        active_jobs = [job for job in active_jobs if job.status in status]
+
     # Build database query
     if status:
         # If status filter is provided, only get jobs with those statuses

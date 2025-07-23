@@ -21,6 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
+import { getJobTypeLabel } from '@/utils/jobUtils';
 // import { useWebSocketStore } from '@/store/websocket';
 import styles from './JobProgress.module.scss';
 
@@ -186,7 +187,9 @@ export const JobProgress: React.FC<JobProgressProps> = ({
       <div className={styles.header}>
         <Space>
           {getStatusIcon()}
-          <Title level={4}>{job.name || `${job.type} Job`}</Title>
+          <Title level={4}>
+            {job.name || `${getJobTypeLabel(job.type)} Job`}
+          </Title>
           <Tag
             color={
               job.status === 'completed'
