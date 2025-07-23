@@ -6,7 +6,7 @@ import os
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, distinct, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -203,8 +203,8 @@ async def list_scenes(
     """
     List scenes with pagination and filters.
     """
-    # Build base query
-    query = select(Scene).options(
+    # Build base query - use distinct to avoid duplicates when joining
+    query = select(Scene).distinct().options(
         selectinload(Scene.performers),
         selectinload(Scene.tags),
         selectinload(Scene.studio),
@@ -221,8 +221,10 @@ async def list_scenes(
     # Apply sorting
     query = _apply_scene_sorting(query, pagination)
 
-    # Count total
-    count_query = select(func.count()).select_from(query.subquery())
+    # Count total distinct scenes (important when joining with tags/performers)
+    # Create a count query that counts distinct scene IDs
+    count_subquery = query.subquery()
+    count_query = select(func.count(distinct(count_subquery.c.id)))
     result = await db.execute(count_query)
     total = result.scalar_one()
 
