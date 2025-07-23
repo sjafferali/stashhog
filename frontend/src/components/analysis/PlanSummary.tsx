@@ -75,9 +75,12 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
 
   const completionRate =
     jobProgress !== undefined && plan.status === 'pending'
-      ? jobProgress
+      ? Math.min(jobProgress, 100)
       : statistics.totalScenes > 0
-        ? (statistics.analyzedScenes / statistics.totalScenes) * 100
+        ? Math.min(
+            (statistics.analyzedScenes / statistics.totalScenes) * 100,
+            100
+          )
         : 0;
 
   const fieldIcons = {
@@ -95,7 +98,17 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
     <Card className={styles.planSummary}>
       <div className={styles.header}>
         <div>
-          <div style={{ marginBottom: 8 }}>
+          <div
+            style={{
+              marginBottom: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Text strong style={{ fontSize: '16px' }}>
+              Plan Status:
+            </Text>
             <Tag
               color={
                 plan.status === 'pending'
@@ -110,7 +123,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
                           ? 'red'
                           : 'default'
               }
-              style={{ fontWeight: 500, fontSize: '14px' }}
+              style={{ fontWeight: 500, fontSize: '14px', margin: 0 }}
             >
               {plan.status.toUpperCase()}
             </Tag>

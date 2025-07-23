@@ -539,11 +539,17 @@ const PlanDetail: React.FC = () => {
                 analyzedScenes:
                   job?.processed_items !== null &&
                   job?.processed_items !== undefined
-                    ? job.processed_items
-                    : plan.metadata?.scenes_analyzed || 0,
+                    ? Math.min(job.processed_items, plan.total_scenes)
+                    : Math.min(
+                        plan.metadata?.scenes_analyzed || 0,
+                        plan.total_scenes
+                      ),
                 pendingScenes:
                   job && job.status === 'running'
-                    ? plan.total_scenes - (job.processed_items || 0)
+                    ? Math.max(
+                        0,
+                        plan.total_scenes - (job.processed_items || 0)
+                      )
                     : 0,
                 totalChanges: stats.totalChanges,
                 acceptedChanges: stats.acceptedChanges,
