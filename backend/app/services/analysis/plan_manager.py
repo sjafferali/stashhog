@@ -147,6 +147,7 @@ class PlanManager:
             # Create new plan in PENDING status
             # Handle potential race condition where multiple workers try to create the plan
             try:
+                logger.info(f"Creating new plan in PENDING status with job_id={job_id}")
                 plan = AnalysisPlan(
                     name=name,
                     description=metadata.get("description", ""),
@@ -157,6 +158,7 @@ class PlanManager:
 
                 db.add(plan)
                 await db.flush()
+                logger.info(f"Flushed new plan to database with id={plan.id}")
 
                 # Add changes if any
                 if scene_changes.has_changes():
@@ -206,19 +208,26 @@ class PlanManager:
             db: Database session
         """
         if not scene_changes.has_changes():
+            logger.debug(f"No changes to add for scene {scene_changes.scene_id}")
             return
 
+        logger.info(
+            f"Adding {len(scene_changes.changes)} changes from scene {scene_changes.scene_id} to plan {plan_id}"
+        )
         await self._add_scene_changes(plan_id, scene_changes, db)
 
         # Update plan metadata
         plan = await self.get_plan(plan_id, db)
         if plan:
             current_changes = plan.get_metadata("total_changes", 0)
-            plan.add_metadata(
-                "total_changes", current_changes + len(scene_changes.changes)
+            new_total = current_changes + len(scene_changes.changes)
+            plan.add_metadata("total_changes", new_total)
+            logger.info(
+                f"Updated plan {plan_id} total changes: {current_changes} -> {new_total}"
             )
 
         await db.flush()
+        logger.debug(f"Flushed changes for plan {plan_id} to database")
 
     async def _add_scene_changes(
         self,

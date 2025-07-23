@@ -578,6 +578,10 @@ class AnalysisService:
             if db:
                 await self._mark_single_scene_analyzed(scene.id, db, options)
 
+                # Commit after each scene to make the plan visible incrementally
+                await db.commit()
+                logger.info(f"Committed scene {scene.id} changes to database")
+
             return scene_changes
 
         except Exception as e:
@@ -646,6 +650,9 @@ class AnalysisService:
         if db and scene_changes.has_changes():
             if not self._current_plan_id:
                 # Create new plan
+                logger.info(
+                    f"Creating new plan for job {job_id} with name: {self._current_plan_name}"
+                )
                 plan = await self.plan_manager.create_or_update_plan(
                     name=self._current_plan_name,
                     scene_changes=scene_changes,
@@ -655,12 +662,17 @@ class AnalysisService:
                 )
                 plan_id: int = plan.id  # type: ignore[assignment]
                 self._current_plan_id = plan_id
+                logger.info(f"Created plan {plan_id} for job {job_id}")
             else:
                 # Add to existing plan
+                logger.info(f"Adding changes to existing plan {self._current_plan_id}")
                 await self.plan_manager.add_changes_to_plan(
                     self._current_plan_id,
                     scene_changes,
                     db,
+                )
+                logger.info(
+                    f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
                 )
 
     def _create_error_scene_changes(

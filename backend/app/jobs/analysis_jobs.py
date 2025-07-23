@@ -159,8 +159,8 @@ async def analyze_scenes_job(
                     )
                     raise
 
-            # Commit the transaction to persist the plan
-            await db.commit()
+            # No need to commit here since we're committing after each scene
+            # The plan is already persisted incrementally
 
             logger.info(f"Job {job_id} completed successfully with result: {result}")
             return result
