@@ -3,6 +3,14 @@
   .plan-row {
     transition: background-color 0.2s ease;
     
+    &.plan-pending {
+      background-color: var(--pending-bg);
+      
+      &:hover td {
+        background-color: #efdbff !important;
+      }
+    }
+    
     &.plan-reviewing {
       background-color: var(--reviewing-bg);
       

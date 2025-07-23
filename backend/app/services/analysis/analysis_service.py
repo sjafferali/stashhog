@@ -2163,6 +2163,7 @@ class AnalysisService:
         try:
             from app.core.database import AsyncSessionLocal
             from app.repositories.job_repository import job_repository
+            from app.services.job_service import job_service
 
             async with AsyncSessionLocal() as db:
                 job = await job_repository.get_job(job_id, db)
@@ -2174,6 +2175,9 @@ class AnalysisService:
                         job.job_metadata["plan_id"] = plan_id
                     await db.commit()
                     logger.info(f"Updated job {job_id} metadata with plan_id {plan_id}")
+
+                    # Send WebSocket update to notify frontend
+                    await job_service._send_job_update(job_id, {})
                 else:
                     logger.warning(
                         f"Job {job_id} not found when trying to update plan_id"

@@ -58,6 +58,7 @@ export interface PlanSummaryProps {
   onApply?: () => void;
   onDelete?: () => void;
   loading?: boolean;
+  jobProgress?: number;
 }
 
 export const PlanSummary: React.FC<PlanSummaryProps> = ({
@@ -66,6 +67,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
   onApply,
   onDelete,
   loading = false,
+  jobProgress,
 }) => {
   const acceptanceRate =
     statistics.totalChanges > 0
@@ -73,9 +75,11 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       : 0;
 
   const completionRate =
-    statistics.totalScenes > 0
-      ? (statistics.analyzedScenes / statistics.totalScenes) * 100
-      : 0;
+    jobProgress !== undefined
+      ? jobProgress
+      : statistics.totalScenes > 0
+        ? (statistics.analyzedScenes / statistics.totalScenes) * 100
+        : 0;
 
   const getStatusColor = () => {
     switch (plan.status) {
@@ -114,18 +118,21 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
         <div>
           <Title level={4}>
             <span>{plan.name}</span>
-            <Badge
-              status={
-                getStatusColor() as
-                  | 'success'
-                  | 'processing'
-                  | 'default'
-                  | 'error'
-                  | 'warning'
-              }
-              text={getStatusText()}
-              className={styles.status}
-            />
+            <div
+              className={`${styles.statusBox} ${styles[`status-${plan.status}`]}`}
+            >
+              <Badge
+                status={
+                  getStatusColor() as
+                    | 'success'
+                    | 'processing'
+                    | 'default'
+                    | 'error'
+                    | 'warning'
+                }
+                text={getStatusText()}
+              />
+            </div>
           </Title>
           {plan.description && <Text type="secondary">{plan.description}</Text>}
         </div>

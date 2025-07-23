@@ -5,10 +5,12 @@ import {
   FileSearchOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import styles from './StatusSummary.module.scss';
 
 interface StatusSummaryProps {
+  pending: number;
   draft: number;
   reviewing: number;
   applied: number;
@@ -19,6 +21,7 @@ interface StatusSummaryProps {
 }
 
 export const StatusSummary: React.FC<StatusSummaryProps> = ({
+  pending,
   draft,
   reviewing,
   applied,
@@ -27,7 +30,7 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
   activeFilter,
   onFilterChange,
 }) => {
-  const totalPlans = draft + reviewing + applied + cancelled;
+  const totalPlans = pending + draft + reviewing + applied + cancelled;
 
   const summaryCards = [
     {
@@ -37,6 +40,14 @@ export const StatusSummary: React.FC<StatusSummaryProps> = ({
       color: '#8c8c8c',
       description: 'Total plans',
       status: null,
+    },
+    {
+      title: 'Pending',
+      value: pending,
+      icon: <ClockCircleOutlined />,
+      color: '#722ed1',
+      description: 'Plans being created',
+      status: 'pending',
     },
     {
       title: 'Draft',

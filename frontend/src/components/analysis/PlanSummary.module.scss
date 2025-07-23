@@ -34,6 +34,42 @@
     white-space: nowrap;
     flex-shrink: 0;
   }
+  
+  .statusBox {
+    display: inline-flex;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: normal;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1px solid;
+    
+    &.status-applied {
+      background-color: #f6ffed;
+      border-color: #b7eb8f;
+    }
+    
+    &.status-cancelled {
+      background-color: #fff1f0;
+      border-color: #ffccc7;
+    }
+    
+    &.status-reviewing {
+      background-color: #fff7e6;
+      border-color: #ffd591;
+    }
+    
+    &.status-pending {
+      background-color: #f9f0ff;
+      border-color: #d3adf7;
+    }
+    
+    &.status-draft {
+      background-color: #e6f7ff;
+      border-color: #91d5ff;
+    }
+  }
 }
 
 .progressSection {

@@ -354,16 +354,35 @@ class JobService:
         async with AsyncSessionLocal() as db:
             job = await job_repository._fetch_job(job_id, db)
             if job:
+                # Ensure metadata is a dict
+                metadata_dict: dict[str, Any] = (
+                    job.job_metadata if isinstance(job.job_metadata, dict) else {}
+                )
+
                 job_data = {
                     "id": job.id,
-                    "job_type": job.type,
-                    "status": job.status,
+                    "type": job.type.value if hasattr(job.type, "value") else job.type,
+                    "status": (
+                        job.status.value if hasattr(job.status, "value") else job.status
+                    ),
                     "progress": job.progress,
+                    "total": job.total_items,
+                    "processed_items": job.processed_items,
+                    "parameters": metadata_dict,  # Frontend expects metadata as parameters
+                    "metadata": metadata_dict,  # Also include as metadata for compatibility
+                    "result": job.result,
+                    "error": job.error,
                     "created_at": (
                         job.created_at.isoformat() if job.created_at else None
                     ),
                     "updated_at": (
                         job.updated_at.isoformat() if job.updated_at else None
+                    ),
+                    "started_at": (
+                        job.started_at.isoformat() if job.started_at else None
+                    ),
+                    "completed_at": (
+                        job.completed_at.isoformat() if job.completed_at else None
                     ),
                 }
                 await websocket_manager.broadcast_job_update(job_data)

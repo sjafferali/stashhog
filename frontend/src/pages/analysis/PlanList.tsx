@@ -49,6 +49,7 @@ const PlanList: React.FC = () => {
       render: (status: unknown) => {
         const statusStr = String(status).toLowerCase();
         const colorMap: Record<string, string> = {
+          pending: 'purple',
           draft: 'blue',
           reviewing: 'orange',
           applied: 'green',
@@ -224,6 +225,7 @@ const PlanList: React.FC = () => {
 
   const statusCounts = useMemo(() => {
     const counts = {
+      pending: 0,
       draft: 0,
       reviewing: 0,
       applied: 0,
@@ -258,10 +260,11 @@ const PlanList: React.FC = () => {
 
     // Sort by status priority and then by creation date
     const statusPriority: Record<string, number> = {
-      reviewing: 1,
-      draft: 2,
-      applied: 3,
-      cancelled: 4,
+      pending: 1,
+      reviewing: 2,
+      draft: 3,
+      applied: 4,
+      cancelled: 5,
     };
 
     filtered.sort((a, b) => {
@@ -287,6 +290,7 @@ const PlanList: React.FC = () => {
       <h1>Analysis Plans</h1>
 
       <StatusSummary
+        pending={statusCounts.pending}
         draft={statusCounts.draft}
         reviewing={statusCounts.reviewing}
         applied={statusCounts.applied}
@@ -334,6 +338,7 @@ const PlanList: React.FC = () => {
         <div
           style={
             {
+              '--pending-bg': '#f9f0ff',
               '--reviewing-bg': '#fff7e6',
               '--draft-bg': '#e6f7ff',
               '--applied-bg': '#f6ffed',

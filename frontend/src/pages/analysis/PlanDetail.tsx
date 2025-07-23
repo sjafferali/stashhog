@@ -565,6 +565,7 @@ const PlanDetail: React.FC = () => {
               }}
               onApply={() => setShowApplyModal(true)}
               loading={false}
+              jobProgress={job?.progress}
             />
           </Card>
         </Col>

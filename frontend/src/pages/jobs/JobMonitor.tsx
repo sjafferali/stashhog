@@ -40,6 +40,7 @@ import {
   AnalysisJobResult,
   AnalysisJobResultData,
 } from '@/components/jobs/AnalysisJobResult';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import styles from './JobMonitor.module.scss';
 
 const { Text, Title, Paragraph } = Typography;
@@ -60,6 +61,10 @@ const JobMonitor: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     searchParams.get('status') || undefined
   );
+  const [typeFilter, setTypeFilter] = useState<string | undefined>(
+    searchParams.get('type') || undefined
+  );
+  const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = async () => {
     try {
@@ -92,6 +97,34 @@ const JobMonitor: React.FC = () => {
       }
     };
   }, []);
+
+  // Handle WebSocket updates for real-time job changes
+  useEffect(() => {
+    if (lastMessage && typeof lastMessage === 'object') {
+      const update = lastMessage as { type: string; job: Job };
+
+      if (update.type === 'job_update' && update.job) {
+        setJobs((prevJobs) => {
+          const jobIndex = prevJobs.findIndex((j) => j.id === update.job.id);
+
+          if (jobIndex >= 0) {
+            // Update existing job
+            const newJobs = [...prevJobs];
+            newJobs[jobIndex] = update.job;
+            return newJobs;
+          } else {
+            // Add new job at the beginning
+            return [update.job, ...prevJobs];
+          }
+        });
+
+        // Also update selected job if it's the same one
+        if (selectedJob && selectedJob.id === update.job.id) {
+          setSelectedJob(update.job);
+        }
+      }
+    }
+  }, [lastMessage, selectedJob]);
 
   const handleCancel = async (jobId: string) => {
     try {
@@ -483,11 +516,20 @@ const JobMonitor: React.FC = () => {
     [jobs]
   );
 
-  // Filter jobs by status
+  // Filter jobs by status and type
   const filteredJobs = useMemo(() => {
-    if (!statusFilter) return jobsWithKeys;
-    return jobsWithKeys.filter((job) => job.status === statusFilter);
-  }, [jobsWithKeys, statusFilter]);
+    let filtered = jobsWithKeys;
+
+    if (statusFilter) {
+      filtered = filtered.filter((job) => job.status === statusFilter);
+    }
+
+    if (typeFilter) {
+      filtered = filtered.filter((job) => job.type === typeFilter);
+    }
+
+    return filtered;
+  }, [jobsWithKeys, statusFilter, typeFilter]);
 
   const runningJobs = jobsWithKeys.filter((job) => job.status === 'running');
   const pendingJobs = jobsWithKeys.filter((job) => job.status === 'pending');
@@ -495,11 +537,19 @@ const JobMonitor: React.FC = () => {
 
   const handleStatusFilterChange = (value: string | undefined) => {
     setStatusFilter(value);
-    if (value) {
-      setSearchParams({ status: value });
-    } else {
-      setSearchParams({});
-    }
+    updateSearchParams({ status: value, type: typeFilter });
+  };
+
+  const handleTypeFilterChange = (value: string | undefined) => {
+    setTypeFilter(value);
+    updateSearchParams({ status: statusFilter, type: value });
+  };
+
+  const updateSearchParams = (params: { status?: string; type?: string }) => {
+    const newParams: Record<string, string> = {};
+    if (params.status) newParams.status = params.status;
+    if (params.type) newParams.type = params.type;
+    setSearchParams(newParams);
   };
 
   return (
@@ -536,6 +586,26 @@ const JobMonitor: React.FC = () => {
                 { label: 'Completed', value: 'completed' },
                 { label: 'Failed', value: 'failed' },
                 { label: 'Cancelled', value: 'cancelled' },
+              ]}
+            />
+            <Select
+              placeholder="Filter by type"
+              allowClear
+              value={typeFilter}
+              onChange={handleTypeFilterChange}
+              style={{ width: 180 }}
+              options={[
+                { label: 'All', value: undefined },
+                { label: 'Full Sync', value: 'sync_all' },
+                { label: 'Scene Sync', value: 'scene_sync' },
+                { label: 'Scene Analysis', value: 'scene_analysis' },
+                { label: 'Sync Scenes', value: 'sync_scenes' },
+                { label: 'Sync Performers', value: 'sync_performers' },
+                { label: 'Sync Tags', value: 'sync_tags' },
+                { label: 'Sync Studios', value: 'sync_studios' },
+                { label: 'Analysis', value: 'analysis' },
+                { label: 'Apply Plan', value: 'apply_plan' },
+                { label: 'Settings Test', value: 'settings_test' },
               ]}
             />
             <Button
