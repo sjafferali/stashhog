@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from sqlalchemy import and_, select
@@ -148,7 +148,7 @@ async def cleanup_stale_jobs(
             await progress_callback(10, "Finding stale jobs...")
 
             # Find all jobs that are marked as running or pending
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc)
             query = select(Job).where(
                 Job.status.in_([JobStatus.RUNNING, JobStatus.PENDING])
             )

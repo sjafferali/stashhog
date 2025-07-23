@@ -1,6 +1,6 @@
 """Tests for cleanup job functions."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -38,8 +38,8 @@ class TestCleanupJobs:
         job.id = "stale-job-123"
         job.type = JobType.SYNC
         job.status = JobStatus.RUNNING
-        job.created_at = datetime.utcnow() - timedelta(hours=2)
-        job.started_at = datetime.utcnow() - timedelta(hours=2)
+        job.created_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        job.started_at = datetime.now(timezone.utc) - timedelta(hours=2)
         job.progress = 50
         job.job_metadata = {"task_id": "task-123"}
         return job
@@ -51,8 +51,8 @@ class TestCleanupJobs:
         job.id = "old-job-456"
         job.type = JobType.SYNC
         job.status = JobStatus.COMPLETED
-        job.created_at = datetime.utcnow() - timedelta(days=40)
-        job.completed_at = datetime.utcnow() - timedelta(days=40)
+        job.created_at = datetime.now(timezone.utc) - timedelta(days=40)
+        job.completed_at = datetime.now(timezone.utc) - timedelta(days=40)
         return job
 
     async def test_cleanup_stale_jobs_with_cancellation_token(

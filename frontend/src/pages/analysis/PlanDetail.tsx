@@ -565,10 +565,24 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={(() => {
                 const analyzedScenes = (() => {
-                  // For pending plans with running jobs, use job progress percentage
+                  // For pending plans with running jobs, check job metadata
                   if (plan.status.toLowerCase() === 'pending' && job) {
                     if (job.status === 'running' || job.status === 'pending') {
-                      // Use job progress percentage to calculate analyzed scenes
+                      // Use scenes_analyzed from job metadata if available
+                      if (
+                        job.metadata?.scenes_analyzed !== undefined &&
+                        typeof job.metadata.scenes_analyzed === 'number'
+                      ) {
+                        return Math.min(
+                          job.metadata.scenes_analyzed,
+                          plan.total_scenes
+                        );
+                      }
+                      // Fallback to processed_items if available
+                      if (job.processed_items !== undefined) {
+                        return Math.min(job.processed_items, plan.total_scenes);
+                      }
+                      // Last resort: calculate from progress percentage
                       const progressPercent = job.progress || 0;
                       const analyzed = Math.floor(
                         (progressPercent / 100) * plan.total_scenes
@@ -593,8 +607,9 @@ const PlanDetail: React.FC = () => {
                     job &&
                     (job.status === 'running' || job.status === 'pending')
                   ) {
-                    // Use analyzedScenes which is already capped at total_scenes
-                    return Math.max(0, plan.total_scenes - analyzedScenes);
+                    // Use job.total if available for accurate count
+                    const totalScenes = job.total || plan.total_scenes;
+                    return Math.max(0, totalScenes - analyzedScenes);
                   }
                   // For reviewing/draft plans, count scenes without changes as pending
                   if (
