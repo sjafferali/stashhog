@@ -95,9 +95,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 4px 0;
+  gap: 8px;
   
   .fieldName {
     text-transform: capitalize;
+    word-break: break-word;
+    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -106,5 +110,76 @@
   
   .configTags {
     margin-top: 8px;
+  }
+}
+
+// Responsive styles for statistics
+.statisticWrapper {
+  min-height: 85px;
+  display: flex;
+  align-items: center;
+  
+  :global {
+    .ant-statistic {
+      width: 100%;
+      
+      .ant-statistic-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 14px;
+      }
+      
+      .ant-statistic-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        
+        .ant-statistic-content-prefix,
+        .ant-statistic-content-value,
+        .ant-statistic-content-suffix {
+          flex-shrink: 0;
+        }
+      }
+    }
+  }
+}
+
+// Make cards more responsive
+@media (max-width: 768px) {
+  .statRow,
+  .fieldRow {
+    font-size: 13px;
+    
+    :global(.ant-tag) {
+      font-size: 12px;
+    }
+  }
+  
+  .header {
+    flex-direction: column;
+    
+    > div:first-child {
+      width: 100%;
+    }
+  }
+}
+
+// Handle very small screens
+@media (max-width: 480px) {
+  .planSummary {
+    :global {
+      .ant-card-body {
+        padding: 12px;
+      }
+      
+      .ant-descriptions-item-label {
+        font-size: 12px;
+      }
+      
+      .ant-descriptions-item-content {
+        font-size: 12px;
+      }
+    }
   }
 }

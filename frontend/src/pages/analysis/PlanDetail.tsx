@@ -205,15 +205,15 @@ const PlanDetail: React.FC = () => {
             <h1 style={{ margin: 0 }}>{plan.name}</h1>
             <Tag
               color={
-                plan.status === 'pending'
+                plan.status.toLowerCase() === 'pending'
                   ? 'purple'
-                  : plan.status === 'draft'
+                  : plan.status.toLowerCase() === 'draft'
                     ? 'blue'
-                    : plan.status === 'reviewing'
+                    : plan.status.toLowerCase() === 'reviewing'
                       ? 'orange'
-                      : plan.status === 'applied'
+                      : plan.status.toLowerCase() === 'applied'
                         ? 'green'
-                        : plan.status === 'cancelled'
+                        : plan.status.toLowerCase() === 'cancelled'
                           ? 'red'
                           : 'default'
               }
@@ -492,8 +492,12 @@ const PlanDetail: React.FC = () => {
 
       {/* Main Content */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <Card title="Scene Changes" size="small">
+        <Col xs={24} sm={24} md={24} lg={16} xl={16} xxl={16}>
+          <Card
+            title="Scene Changes"
+            size="small"
+            style={{ overflow: 'hidden' }}
+          >
             <SceneChangesList
               sceneChanges={plan.scenes}
               onSelectScene={setSelectedSceneId}
@@ -538,8 +542,12 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
 
-        <Col xs={24} lg={8}>
-          <Card title="Plan Summary" size="small">
+        <Col xs={24} sm={24} md={24} lg={8} xl={8} xxl={8}>
+          <Card
+            title="Plan Summary"
+            size="small"
+            style={{ overflow: 'hidden' }}
+          >
             <PlanSummary
               plan={{
                 id: plan.id,

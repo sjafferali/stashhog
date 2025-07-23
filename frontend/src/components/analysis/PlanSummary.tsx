@@ -156,37 +156,45 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
 
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={12} md={6}>
-          <Statistic
-            title="Total Scenes"
-            value={statistics.totalScenes}
-            prefix={<BarChartOutlined />}
-          />
+          <div className={styles.statisticWrapper}>
+            <Statistic
+              title="Scenes"
+              value={statistics.totalScenes}
+              prefix={<BarChartOutlined />}
+            />
+          </div>
         </Col>
         <Col xs={12} sm={12} md={6}>
-          <Statistic
-            title="Analyzed"
-            value={statistics.analyzedScenes}
-            valueStyle={{ color: '#52c41a' }}
-            prefix={<CheckCircleOutlined />}
-          />
+          <div className={styles.statisticWrapper}>
+            <Statistic
+              title="Analyzed"
+              value={statistics.analyzedScenes}
+              valueStyle={{ color: '#52c41a' }}
+              prefix={<CheckCircleOutlined />}
+            />
+          </div>
         </Col>
         <Col xs={12} sm={12} md={6}>
-          <Statistic
-            title="Pending"
-            value={statistics.pendingScenes}
-            valueStyle={{ color: '#faad14' }}
-            prefix={<SyncOutlined />}
-          />
+          <div className={styles.statisticWrapper}>
+            <Statistic
+              title="Pending"
+              value={statistics.pendingScenes}
+              valueStyle={{ color: '#faad14' }}
+              prefix={<SyncOutlined />}
+            />
+          </div>
         </Col>
         {statistics.avgProcessingTime > 0 && (
           <Col xs={12} sm={12} md={6}>
-            <Statistic
-              title="Avg Processing"
-              value={statistics.avgProcessingTime}
-              suffix="ms"
-              precision={0}
-              prefix={<ClockCircleOutlined />}
-            />
+            <div className={styles.statisticWrapper}>
+              <Statistic
+                title="Avg Time"
+                value={statistics.avgProcessingTime}
+                suffix="ms"
+                precision={0}
+                prefix={<ClockCircleOutlined />}
+              />
+            </div>
           </Col>
         )}
       </Row>
@@ -206,7 +214,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       <Divider />
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={12}>
+        <Col xs={24} sm={24} md={24} lg={12}>
           <Card size="small" title="Change Statistics">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div className={styles.statRow}>
@@ -247,7 +255,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           </Card>
         </Col>
 
-        <Col xs={24} md={12}>
+        <Col xs={24} sm={24} md={24} lg={12}>
           <Card size="small" title="Field Breakdown">
             <Space direction="vertical" style={{ width: '100%' }}>
               {Object.entries(statistics.fieldBreakdown).map(
