@@ -239,6 +239,16 @@ const PlanList: React.FC = () => {
       }
     });
 
+    console.log('PlanList statusCounts:', counts);
+    console.log(
+      'Plans statuses:',
+      plans.map((p) => ({
+        id: p.id,
+        status: p.status,
+        normalized: p.status.toLowerCase(),
+      }))
+    );
+
     return counts;
   }, [plans]);
 

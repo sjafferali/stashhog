@@ -7,6 +7,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+  flex-wrap: wrap;
   
   > div:first-child {
     flex: 1;
@@ -18,7 +19,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     
     // Ensure title text doesn't wrap
     > span:first-child {

@@ -52,6 +52,7 @@
   .sceneInfo {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
     
     .sceneTitle {
       margin: 0 !important;
@@ -59,6 +60,8 @@
       word-break: break-word;
       white-space: normal;
       line-height: 1.4;
+      overflow-wrap: break-word;
+      max-width: 100%;
     }
   }
   

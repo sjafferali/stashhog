@@ -155,14 +155,14 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       <Divider />
 
       <Row gutter={[16, 16]}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={12} md={6}>
           <Statistic
             title="Total Scenes"
             value={statistics.totalScenes}
             prefix={<BarChartOutlined />}
           />
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={12} md={6}>
           <Statistic
             title="Analyzed"
             value={statistics.analyzedScenes}
@@ -170,7 +170,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
             prefix={<CheckCircleOutlined />}
           />
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={12} md={6}>
           <Statistic
             title="Pending"
             value={statistics.pendingScenes}
@@ -179,7 +179,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
           />
         </Col>
         {statistics.avgProcessingTime > 0 && (
-          <Col xs={12} sm={6}>
+          <Col xs={12} sm={12} md={6}>
             <Statistic
               title="Avg Processing"
               value={statistics.avgProcessingTime}
@@ -270,7 +270,7 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
 
       <Divider />
 
-      <Descriptions column={2} size="small">
+      <Descriptions column={{ xs: 1, sm: 1, md: 2 }} size="small">
         <Descriptions.Item label="Model">
           <Tag color="blue">{plan.model}</Tag>
         </Descriptions.Item>

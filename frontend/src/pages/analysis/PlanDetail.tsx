@@ -184,73 +184,83 @@ const PlanDetail: React.FC = () => {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
-        <Space style={{ marginBottom: 8 }}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => {
-              void navigate('/analysis/plans');
-            }}
-          >
-            Back
-          </Button>
-          <h1 style={{ margin: 0 }}>{plan.name}</h1>
-          <Tag
-            color={
-              plan.status === 'pending'
-                ? 'purple'
-                : plan.status === 'draft'
-                  ? 'blue'
-                  : plan.status === 'reviewing'
-                    ? 'orange'
-                    : plan.status === 'applied'
-                      ? 'green'
-                      : plan.status === 'cancelled'
-                        ? 'red'
-                        : 'default'
-            }
-            style={{ fontWeight: 500, fontSize: '14px' }}
-          >
-            {plan.status.toUpperCase()}
-          </Tag>
-        </Space>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            gap: 16,
+            marginBottom: 8,
+          }}
+        >
+          <Space wrap style={{ flex: '1 1 auto' }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => {
+                void navigate('/analysis/plans');
+              }}
+            >
+              Back
+            </Button>
+            <h1 style={{ margin: 0 }}>{plan.name}</h1>
+            <Tag
+              color={
+                plan.status === 'pending'
+                  ? 'purple'
+                  : plan.status === 'draft'
+                    ? 'blue'
+                    : plan.status === 'reviewing'
+                      ? 'orange'
+                      : plan.status === 'applied'
+                        ? 'green'
+                        : plan.status === 'cancelled'
+                          ? 'red'
+                          : 'default'
+              }
+              style={{ fontWeight: 500, fontSize: '14px' }}
+            >
+              {plan.status.toUpperCase()}
+            </Tag>
+          </Space>
 
-        <Space style={{ float: 'right' }}>
-          <Button
-            icon={<UndoOutlined />}
-            disabled={!changeManager.canUndo}
-            onClick={() => void changeManager.undo()}
-          >
-            Undo
-          </Button>
-          <Button
-            icon={<RedoOutlined />}
-            disabled={!changeManager.canRedo}
-            onClick={() => void changeManager.redo()}
-          >
-            Redo
-          </Button>
-          <Dropdown overlay={exportMenu}>
-            <Button icon={<ExportOutlined />}>Export</Button>
-          </Dropdown>
-          {plan.status !== 'applied' &&
-            plan.status !== 'cancelled' &&
-            plan.status !== 'pending' && (
-              <BulkActions
-                totalChanges={stats.totalChanges}
-                acceptedChanges={stats.acceptedChanges}
-                rejectedChanges={stats.rejectedChanges}
-                pendingChanges={stats.pendingChanges}
-                onAcceptAll={() => acceptAllChanges()}
-                onRejectAll={() => rejectAllChanges()}
-                onAcceptByConfidence={(threshold) =>
-                  void acceptByConfidence(threshold)
-                }
-                onAcceptByField={(field) => void acceptByField(field)}
-                onRejectByField={(field) => void rejectByField(field)}
-                fieldCounts={fieldCounts}
-              />
-            )}
-        </Space>
+          <Space wrap>
+            <Button
+              icon={<UndoOutlined />}
+              disabled={!changeManager.canUndo}
+              onClick={() => void changeManager.undo()}
+            >
+              Undo
+            </Button>
+            <Button
+              icon={<RedoOutlined />}
+              disabled={!changeManager.canRedo}
+              onClick={() => void changeManager.redo()}
+            >
+              Redo
+            </Button>
+            <Dropdown overlay={exportMenu}>
+              <Button icon={<ExportOutlined />}>Export</Button>
+            </Dropdown>
+            {plan.status !== 'applied' &&
+              plan.status !== 'cancelled' &&
+              plan.status !== 'pending' && (
+                <BulkActions
+                  totalChanges={stats.totalChanges}
+                  acceptedChanges={stats.acceptedChanges}
+                  rejectedChanges={stats.rejectedChanges}
+                  pendingChanges={stats.pendingChanges}
+                  onAcceptAll={() => acceptAllChanges()}
+                  onRejectAll={() => rejectAllChanges()}
+                  onAcceptByConfidence={(threshold) =>
+                    void acceptByConfidence(threshold)
+                  }
+                  onAcceptByField={(field) => void acceptByField(field)}
+                  onRejectByField={(field) => void rejectByField(field)}
+                  fieldCounts={fieldCounts}
+                />
+              )}
+          </Space>
+        </div>
       </div>
 
       {/* Job Progress for PENDING plans */}
@@ -275,8 +285,8 @@ const PlanDetail: React.FC = () => {
       )}
 
       {/* Statistics Row */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={4}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -289,7 +299,7 @@ const PlanDetail: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={4}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -307,7 +317,7 @@ const PlanDetail: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={4}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -320,7 +330,7 @@ const PlanDetail: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={4}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -333,7 +343,7 @@ const PlanDetail: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={4}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -347,7 +357,7 @@ const PlanDetail: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={4}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card
             size="small"
             style={{ height: '100%', display: 'flex', alignItems: 'center' }}
@@ -360,7 +370,7 @@ const PlanDetail: React.FC = () => {
 
       {/* Cost Row (if AI was used) */}
       {(costsLoading || (costs && costs.total_cost > 0)) && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           {costsLoading ? (
             <Col span={24}>
               <Card size="small" style={{ textAlign: 'center' }}>
@@ -369,7 +379,7 @@ const PlanDetail: React.FC = () => {
             </Col>
           ) : costs && costs.total_cost > 0 ? (
             <>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small" style={{ height: '100%' }}>
                   <Statistic
                     title="Total API Cost"
@@ -380,7 +390,7 @@ const PlanDetail: React.FC = () => {
                   />
                 </Card>
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small" style={{ height: '100%' }}>
                   <Statistic
                     title="Cost per Scene"
@@ -393,7 +403,7 @@ const PlanDetail: React.FC = () => {
                   />
                 </Card>
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small" style={{ height: '100%' }}>
                   <Statistic
                     title="Total Tokens"
@@ -402,7 +412,7 @@ const PlanDetail: React.FC = () => {
                   />
                 </Card>
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Card size="small" style={{ height: '100%' }}>
                   <Statistic
                     title="Token Breakdown"
@@ -419,51 +429,70 @@ const PlanDetail: React.FC = () => {
 
       {/* Progress Bar */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span>Review Progress:</span>
-          <Progress
-            percent={Math.round(
-              ((stats.acceptedChanges + stats.rejectedChanges) /
-                stats.totalChanges) *
-                100
-            )}
-            strokeColor={{
-              '0%': '#108ee9',
-              '100%': '#87d068',
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flex: '1 1 300px',
+              minWidth: 0,
             }}
-            style={{ flex: 1 }}
-          />
-          <Button
-            type="primary"
-            icon={<PlayCircleOutlined />}
-            disabled={
-              stats.unappliedAcceptedChanges === 0 ||
-              plan.status === 'applied' ||
-              plan.status === 'cancelled' ||
-              plan.status === 'pending'
-            }
-            onClick={() => setShowApplyModal(true)}
           >
-            Apply Changes ({stats.unappliedAcceptedChanges})
-          </Button>
-          <Button
-            danger
-            icon={<CloseCircleOutlined />}
-            onClick={handleCancelPlan}
-            disabled={
-              plan.status === 'applied' ||
-              plan.status === 'cancelled' ||
-              plan.status === 'pending'
-            }
-          >
-            Cancel Plan
-          </Button>
+            <span style={{ flexShrink: 0 }}>Review Progress:</span>
+            <Progress
+              percent={Math.round(
+                ((stats.acceptedChanges + stats.rejectedChanges) /
+                  stats.totalChanges) *
+                  100
+              )}
+              strokeColor={{
+                '0%': '#108ee9',
+                '100%': '#87d068',
+              }}
+              style={{ flex: 1 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              disabled={
+                stats.unappliedAcceptedChanges === 0 ||
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
+              }
+              onClick={() => setShowApplyModal(true)}
+            >
+              Apply Changes ({stats.unappliedAcceptedChanges})
+            </Button>
+            <Button
+              danger
+              icon={<CloseCircleOutlined />}
+              onClick={handleCancelPlan}
+              disabled={
+                plan.status === 'applied' ||
+                plan.status === 'cancelled' ||
+                plan.status === 'pending'
+              }
+            >
+              Cancel Plan
+            </Button>
+          </div>
         </div>
       </Card>
 
       {/* Main Content */}
-      <Row gutter={16}>
-        <Col span={16}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={16}>
           <Card title="Scene Changes" size="small">
             <SceneChangesList
               sceneChanges={plan.scenes}
@@ -509,7 +538,7 @@ const PlanDetail: React.FC = () => {
           </Card>
         </Col>
 
-        <Col span={8}>
+        <Col xs={24} lg={8}>
           <Card title="Plan Summary" size="small">
             <PlanSummary
               plan={{
