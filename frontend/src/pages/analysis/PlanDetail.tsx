@@ -565,12 +565,15 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={(() => {
                 const analyzedScenes = (() => {
-                  // For pending plans with running jobs, use job progress
+                  // For pending plans with running jobs, use job progress percentage
                   if (plan.status.toLowerCase() === 'pending' && job) {
                     if (job.status === 'running' || job.status === 'pending') {
-                      // Cap at total scenes to prevent showing more than 100%
-                      const processed = job.processed_items || 0;
-                      return Math.min(processed, plan.total_scenes);
+                      // Use job progress percentage to calculate analyzed scenes
+                      const progressPercent = job.progress || 0;
+                      const analyzed = Math.floor(
+                        (progressPercent / 100) * plan.total_scenes
+                      );
+                      return Math.min(analyzed, plan.total_scenes);
                     }
                     // If job is completed, use total scenes
                     if (job.status === 'completed') {
