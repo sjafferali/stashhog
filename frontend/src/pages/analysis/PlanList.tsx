@@ -1,46 +1,25 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import {
-  Card,
-  Table,
-  Button,
-  Space,
-  Tag,
-  message,
-  Badge,
-  Spin,
-  Modal,
-} from 'antd';
+import { Card, Table, Button, Space, Tag, message, Modal } from 'antd';
 import {
   EditOutlined,
   CloseOutlined,
-  LoadingOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
-import { AnalysisPlan, Job } from '@/types/models';
+import { AnalysisPlan } from '@/types/models';
 import { StatusSummary } from '@/components/analysis/StatusSummary';
-import styles from './PlanList.module.scss';
 
 const PlanList: React.FC = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<AnalysisPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [runningJobs, setRunningJobs] = useState<Job[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   useEffect(() => {
     void fetchPlans();
-    void fetchRunningJobs();
-
-    // Poll for running jobs every 5 seconds
-    const interval = setInterval(() => {
-      void fetchRunningJobs();
-    }, 5000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const fetchPlans = async () => {
@@ -53,15 +32,6 @@ const PlanList: React.FC = () => {
       void message.error('Failed to load analysis plans');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchRunningJobs = async () => {
-    try {
-      const jobs = await apiClient.getJobs({ status: 'running' });
-      setRunningJobs(jobs.filter((job) => job.status === 'running'));
-    } catch (error) {
-      console.error('Failed to fetch running jobs:', error);
     }
   };
 
@@ -314,22 +284,7 @@ const PlanList: React.FC = () => {
 
   return (
     <div>
-      <div className={styles.pageHeader}>
-        <h1>Analysis Plans</h1>
-        {runningJobs.length > 0 && (
-          <Badge count={runningJobs.length} className={styles.runningJobsBadge}>
-            <div className={styles.runningJobsIndicator}>
-              <Spin
-                indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />}
-              />
-              <span>
-                {runningJobs.length} job{runningJobs.length > 1 ? 's' : ''}{' '}
-                running
-              </span>
-            </div>
-          </Badge>
-        )}
-      </div>
+      <h1>Analysis Plans</h1>
 
       <StatusSummary
         draft={statusCounts.draft}

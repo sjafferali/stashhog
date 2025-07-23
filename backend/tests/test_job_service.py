@@ -302,3 +302,89 @@ class TestJobService:
 
         assert result is True
         mock_job_repo.cancel_job.assert_called_once_with(job_id, mock_db)
+
+    @pytest.mark.asyncio
+    @patch("app.services.job_service.job_repository")
+    async def test_cancel_non_existent_job(self, mock_job_repo, job_service, mock_db):
+        """Test canceling a job that doesn't exist."""
+        job_id = "non-existent-job"
+        mock_job_repo.get_job = AsyncMock(return_value=None)
+
+        result = await job_service.cancel_job(job_id, mock_db)
+
+        assert result is False
+        mock_job_repo.cancel_job.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.services.job_service.job_repository")
+    @patch("app.services.job_service.get_task_queue")
+    async def test_create_job_task_queue_error(
+        self, mock_get_task_queue, mock_job_repo, job_service, mock_db, mock_job
+    ):
+        """Test job creation when task queue submission fails."""
+        job_type = JobType.SYNC_SCENES
+        handler = AsyncMock(return_value={"status": "ok"})
+        job_service.register_handler(job_type, handler)
+
+        mock_job_repo.create_job = AsyncMock(return_value=mock_job)
+
+        # Mock task queue to raise an error
+        mock_task_queue = Mock()
+        mock_task_queue.submit = AsyncMock(side_effect=Exception("Queue full"))
+        mock_get_task_queue.return_value = mock_task_queue
+
+        with pytest.raises(Exception, match="Queue full"):
+            await job_service.create_job(job_type=job_type, db=mock_db)
+
+    def test_sync_job_types_defined(self, job_service):
+        """Test that sync job types are properly defined."""
+        expected_sync_types = {
+            JobType.SYNC,
+            JobType.SYNC_ALL,
+            JobType.SYNC_SCENES,
+            JobType.SYNC_PERFORMERS,
+            JobType.SYNC_TAGS,
+            JobType.SYNC_STUDIOS,
+        }
+
+        assert job_service.sync_job_types == expected_sync_types
+
+    @pytest.mark.asyncio
+    async def test_register_handler_overwrite(self, job_service):
+        """Test that registering a handler overwrites previous handler."""
+        job_type = JobType.SYNC_SCENES
+        handler1 = Mock()
+        handler2 = Mock()
+
+        job_service.register_handler(job_type, handler1)
+        assert job_service.job_handlers[job_type] == handler1
+
+        job_service.register_handler(job_type, handler2)
+        assert job_service.job_handlers[job_type] == handler2
+        assert job_service.job_handlers[job_type] != handler1
+
+    @pytest.mark.asyncio
+    @patch("app.services.job_service.job_repository")
+    async def test_list_jobs_with_none_filters(
+        self, mock_job_repo, job_service, mock_db
+    ):
+        """Test listing jobs with None filters (should list all)."""
+        mock_jobs = [Mock(spec=Job) for _ in range(3)]
+        mock_job_repo.list_jobs = AsyncMock(return_value=mock_jobs)
+
+        result = await job_service.list_jobs(
+            db=mock_db,
+            job_type=None,
+            status=None,
+            limit=None,
+            offset=None,
+        )
+
+        assert result == mock_jobs
+        mock_job_repo.list_jobs.assert_called_once_with(
+            db=mock_db,
+            job_type=None,
+            status=None,
+            limit=None,
+            offset=None,
+        )

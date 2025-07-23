@@ -15,7 +15,7 @@ This document tracks the progress of increasing backend test coverage, focusing 
 - **Current Coverage**: ~86% overall (improved from 26%)
 - **Target Coverage**: 80%+ (ACHIEVED! 🎉)
 - **Last Updated**: 2025-07-23
-- **Files Completed Today**: sync_service.py (improved from 55% to 88%), scheduler.py (improved from 55% to 69%), scene.py (improved from 70%), scene_repository.py (improved from 70%)
+- **Files Completed Today**: studio.py (improved from 79% to 89%), scheduled_task.py (improved from 45% to 100%), job_service.py (improved from 79% to 81%), sync_service.py (improved from 55% to 88%), scheduler.py (improved from 55% to 69%), scene.py (improved from 70%), scene_repository.py (improved from 70%)
 - **Files Completed Yesterday**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%), analysis.py (improved), jobs.py (improved), core/exceptions.py (100%), sync/progress.py (92%), setting.py (91%), analysis_plan.py (100%), plan_change.py (97%), job.py (93%), stash_service.py (70%)
 
 ## Test Execution Command
@@ -230,21 +230,21 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 109: Create test_model_tag.py - Test tag model operations (2025-07-23)
 - [x] Task 110: Run all backend tests and ensure they pass (2025-07-23)
 
-#### Studio Model Tests (79% coverage - app/models/studio.py)
-- [ ] Task 111: Create test_model_studio.py - Test studio model operations
-- [ ] Task 112: Run all backend tests and ensure they pass
+#### Studio Model Tests (89% coverage - app/models/studio.py)
+- [x] Task 111: Create test_model_studio.py - Test studio model operations (2025-07-23)
+- [x] Task 112: Run all backend tests and ensure they pass (2025-07-23)
 
-#### Scheduled Task Model Tests (79% coverage - app/models/scheduled_task.py)
-- [ ] Task 113: Create test_model_scheduled_task.py - Test task scheduling
-- [ ] Task 114: Run all backend tests and ensure they pass
+#### Scheduled Task Model Tests (100% coverage - app/models/scheduled_task.py)
+- [x] Task 113: Create test_model_scheduled_task.py - Test task scheduling (2025-07-23)
+- [x] Task 114: Run all backend tests and ensure they pass (2025-07-23)
 
-#### Job Service Tests (79% coverage - app/services/job_service.py)
-- [ ] Task 115: Enhance test_job_service.py - Add edge case tests
-- [ ] Task 116: Run all backend tests and ensure they pass
+#### Job Service Tests (81% coverage - app/services/job_service.py)
+- [x] Task 115: Enhance test_job_service.py - Add edge case tests (2025-07-23)
+- [x] Task 116: Run all backend tests and ensure they pass (2025-07-23)
 
 ## Completion Checklist
 
-- [x] 94 of 116 tasks completed (81%)
+- [x] 100 of 116 tasks completed (86%)
 - [x] Coverage target of 80% achieved (currently at ~86%)
 - [x] All tests passing consistently
 - [ ] CI/CD pipeline updated with new tests
