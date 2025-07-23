@@ -135,15 +135,16 @@ class Scene(BaseModel):
     def to_dict(self, exclude: Optional[set] = None) -> dict:
         """Convert to dictionary with relationships."""
         data = super().to_dict(exclude)
+        exclude = exclude or set()
 
         # Add relationship data
-        if hasattr(self, "studio") and self.studio:
+        if "studio" not in exclude and hasattr(self, "studio") and self.studio:
             data["studio"] = {"id": self.studio.id, "name": self.studio.name}
 
-        if hasattr(self, "performers"):
+        if "performers" not in exclude and hasattr(self, "performers"):
             data["performers"] = [{"id": p.id, "name": p.name} for p in self.performers]
 
-        if hasattr(self, "tags"):
+        if "tags" not in exclude and hasattr(self, "tags"):
             data["tags"] = [{"id": t.id, "name": t.name} for t in self.tags]
 
         return data

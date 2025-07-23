@@ -15,7 +15,7 @@ This document tracks the progress of increasing backend test coverage, focusing 
 - **Current Coverage**: ~86% overall (improved from 26%)
 - **Target Coverage**: 80%+ (ACHIEVED! 🎉)
 - **Last Updated**: 2025-07-23
-- **Files Completed Today**: sync_service.py (improved from 55% to 88%), scheduler.py (improved from 55% to 69%)
+- **Files Completed Today**: sync_service.py (improved from 55% to 88%), scheduler.py (improved from 55% to 69%), scene.py (improved from 70%), scene_repository.py (improved from 70%)
 - **Files Completed Yesterday**: tag_repository.py (100%), scene_service.py (96%), settings_loader.py (100%), openai_client.py (100%), debug.py (improved), scene_sync.py (87%), analysis.py (improved), jobs.py (improved), core/exceptions.py (100%), sync/progress.py (92%), setting.py (91%), analysis_plan.py (100%), plan_change.py (97%), job.py (93%), stash_service.py (70%)
 
 ## Test Execution Command
@@ -207,12 +207,12 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 - [x] Task 98: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Scene Model Tests (70% coverage - app/models/scene.py)
-- [ ] Task 99: Create test_model_scene.py - Test scene model operations
-- [ ] Task 100: Run all backend tests and ensure they pass
+- [x] Task 99: Create test_model_scene.py - Test scene model operations (2025-07-23)
+- [x] Task 100: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Scene Repository Tests (70% coverage - app/repositories/scene_repository.py)
-- [ ] Task 101: Create test_scene_repository.py - Test scene data operations
-- [ ] Task 102: Run all backend tests and ensure they pass
+- [x] Task 101: Create test_scene_repository.py - Test scene data operations (2025-07-23)
+- [x] Task 102: Run all backend tests and ensure they pass (2025-07-23)
 
 #### Core Middleware Tests (70% coverage - app/core/middleware.py)
 - [ ] Task 103: Create test_core_middleware.py - Test middleware components
@@ -244,7 +244,7 @@ cd backend && python -m pytest -v --cov=app --cov-report=html --cov-report=term 
 
 ## Completion Checklist
 
-- [x] 82 of 116 tasks completed (71%)
+- [x] 86 of 116 tasks completed (74%)
 - [x] Coverage target of 80% achieved (currently at ~86%)
 - [x] All tests passing consistently (1595 passed)
 - [ ] CI/CD pipeline updated with new tests

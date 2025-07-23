@@ -3,7 +3,7 @@ Scene management endpoints.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import and_, distinct, func, or_, select, update
@@ -28,6 +28,47 @@ from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
 router = APIRouter()
+
+
+async def parse_scene_filters(
+    search: Optional[str] = Query(None),
+    studio_id: Optional[str] = Query(None),
+    performer_ids: Annotated[Optional[List[str]], Query()] = None,
+    tag_ids: Annotated[Optional[List[str]], Query()] = None,
+    organized: Optional[bool] = Query(None),
+    analyzed: Optional[bool] = Query(None),
+    video_analyzed: Optional[bool] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+) -> SceneFilter:
+    """Parse scene filters from query parameters."""
+    from datetime import datetime
+
+    # Parse dates if provided
+    parsed_date_from = None
+    parsed_date_to = None
+    if date_from:
+        try:
+            parsed_date_from = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            parsed_date_to = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+    return SceneFilter(
+        search=search,
+        studio_id=studio_id,
+        performer_ids=performer_ids or [],
+        tag_ids=tag_ids or [],
+        organized=organized,
+        analyzed=analyzed,
+        video_analyzed=video_analyzed,
+        date_from=parsed_date_from,
+        date_to=parsed_date_to,
+    )
 
 
 def _build_scene_filter_conditions(
@@ -197,30 +238,29 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
 @router.get("", response_model=PaginatedResponse[SceneResponse])
 async def list_scenes(
     pagination: PaginationParams = Depends(),
-    filters: SceneFilter = Depends(),
+    filters: SceneFilter = Depends(parse_scene_filters),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[SceneResponse]:
     """
     List scenes with pagination and filters.
     """
-    # Build base query - use distinct to avoid duplicates when joining
-    query = (
-        select(Scene)
-        .distinct()
-        .options(
-            selectinload(Scene.performers),
-            selectinload(Scene.tags),
-            selectinload(Scene.studio),
-            selectinload(Scene.markers).selectinload(SceneMarker.primary_tag),
-            selectinload(Scene.markers).selectinload(SceneMarker.tags),
-            selectinload(Scene.files),
-        )
-    )
+    # Build base query
+    query = select(Scene).distinct()
 
     # Apply filters
     query, conditions = _build_scene_filter_conditions(filters, query)
     if conditions:
         query = query.where(and_(*conditions))
+
+    # Add eager loading options
+    query = query.options(
+        selectinload(Scene.performers),
+        selectinload(Scene.tags),
+        selectinload(Scene.studio),
+        selectinload(Scene.markers).selectinload(SceneMarker.primary_tag),
+        selectinload(Scene.markers).selectinload(SceneMarker.tags),
+        selectinload(Scene.files),
+    )
 
     # Apply sorting
     query = _apply_scene_sorting(query, pagination)
