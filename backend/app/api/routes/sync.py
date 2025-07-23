@@ -767,7 +767,7 @@ async def get_sync_stats(
                 "description": f"{scenes_missing_details} scenes have no details",
                 "count": scenes_missing_details,
                 "action": "analyze_scenes",
-                "action_label": "Analyze Missing",
+                "action_label": "View Scenes",
                 "batch_size": min(scenes_missing_details, 50),
                 "priority": "low",
                 "visible": scenes_missing_details > 10,

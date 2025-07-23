@@ -46,7 +46,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<SyncStatus | null>(null);
   const [syncingScenes, setSyncingScenes] = useState(false);
-  const [analyzingScenes, setAnalyzingScenes] = useState(false);
+  const [analyzingScenes] = useState(false);
   const navigate = useNavigate();
 
   const fetchStats = async () => {
@@ -105,35 +105,8 @@ const Dashboard: React.FC = () => {
         break;
 
       case 'analyze_scenes':
-        setAnalyzingScenes(true);
-        try {
-          // Get unanalyzed scenes
-          const scenes = await apiClient.getScenes({
-            analyzed: false,
-            per_page: item.batch_size || 50,
-          });
-          const sceneIds = scenes.items.map((s) => s.id);
-
-          await apiClient.analyzeScenes({
-            scene_ids: sceneIds,
-            options: {
-              detect_performers: true,
-              detect_studios: true,
-              detect_tags: true,
-              detect_details: true,
-              detect_video_tags: false,
-              confidence_threshold: 0.7,
-            },
-            background: true,
-          });
-
-          // Refresh stats
-          await fetchStats();
-        } catch (error) {
-          console.error('Failed to analyze scenes:', error);
-        } finally {
-          setAnalyzingScenes(false);
-        }
+        // Navigate to scenes page instead of analyzing
+        void navigate('/scenes');
         break;
 
       case 'analyze_videos':

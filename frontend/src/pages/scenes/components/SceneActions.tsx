@@ -17,6 +17,9 @@ import {
   PlusOutlined,
   MinusOutlined,
   SyncOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import api from '@/services/api';
@@ -165,6 +168,46 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     }
   );
 
+  // Bulk update mutation for analyzed status
+  const bulkUpdateMutation = useMutation(
+    async ({
+      sceneIds,
+      updates,
+    }: {
+      sceneIds: string[];
+      updates: { analyzed?: boolean; video_analyzed?: boolean };
+    }) => {
+      const response = await api.patch('/scenes/bulk-update', {
+        scene_ids: sceneIds,
+        updates,
+      });
+      return response.data;
+    },
+    {
+      onSuccess: (data, variables) => {
+        const updateMessages = [];
+        if (variables.updates.analyzed !== undefined) {
+          updateMessages.push(
+            `${variables.updates.analyzed ? 'Set' : 'Unset'} analyzed status`
+          );
+        }
+        if (variables.updates.video_analyzed !== undefined) {
+          updateMessages.push(
+            `${variables.updates.video_analyzed ? 'Set' : 'Unset'} video analyzed status`
+          );
+        }
+        void message.success(
+          `${updateMessages.join(' and ')} for ${data.updated_count} scenes`
+        );
+        onClearSelection();
+        void queryClient.invalidateQueries('scenes');
+      },
+      onError: () => {
+        void message.error('Failed to update scene attributes');
+      },
+    }
+  );
+
   const handleAnalyze = () => {
     setTempAnalysisOptions(analysisOptions);
     setAnalysisModalVisible(true);
@@ -248,6 +291,25 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     }
   };
 
+  const handleBulkAnalyzedUpdate = (
+    field: 'analyzed' | 'video_analyzed',
+    value: boolean
+  ) => {
+    const fieldName = field === 'analyzed' ? 'Analyzed' : 'Video Analyzed';
+    const action = value ? 'Set' : 'Unset';
+
+    Modal.confirm({
+      title: `${action} ${fieldName} Status`,
+      content: `Are you sure you want to ${action.toLowerCase()} the ${fieldName} status for ${selectedCount} selected scenes?`,
+      onOk: () => {
+        bulkUpdateMutation.mutate({
+          sceneIds: Array.from(selectedScenes),
+          updates: { [field]: value },
+        });
+      },
+    });
+  };
+
   const bulkActions: MenuProps['items'] = [
     {
       key: 'add-tags',
@@ -266,6 +328,36 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
         setTagAction('remove');
         handleTagAction();
       },
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'set-analyzed',
+      label: 'Set Analyzed',
+      icon: <CheckCircleOutlined />,
+      onClick: () => handleBulkAnalyzedUpdate('analyzed', true),
+    },
+    {
+      key: 'unset-analyzed',
+      label: 'Unset Analyzed',
+      icon: <CloseCircleOutlined />,
+      onClick: () => handleBulkAnalyzedUpdate('analyzed', false),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'set-video-analyzed',
+      label: 'Set Video Analyzed',
+      icon: <VideoCameraOutlined />,
+      onClick: () => handleBulkAnalyzedUpdate('video_analyzed', true),
+    },
+    {
+      key: 'unset-video-analyzed',
+      label: 'Unset Video Analyzed',
+      icon: <CloseCircleOutlined />,
+      onClick: () => handleBulkAnalyzedUpdate('video_analyzed', false),
     },
     {
       type: 'divider',
