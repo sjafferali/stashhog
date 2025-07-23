@@ -283,13 +283,26 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
 
-        {job.result &&
-        job.status === 'completed' &&
-        (job.type === 'scene_analysis' || job.type === 'analysis') &&
-        'plan_id' in job.result &&
-        job.result.plan_id ? (
+        {(job.result &&
+          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          'plan_id' in job.result &&
+          job.result.plan_id) ||
+        (job.metadata &&
+          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          'plan_id' in job.metadata &&
+          job.metadata.plan_id) ||
+        (job.parameters &&
+          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          'plan_id' in job.parameters &&
+          job.parameters.plan_id) ? (
           <div className={styles.planLink}>
-            <Link to={`/analysis/plans/${job.result.plan_id as string}`}>
+            <Link
+              to={`/analysis/plans/${
+                (job.result?.plan_id ||
+                  job.metadata?.plan_id ||
+                  job.parameters?.plan_id) as string
+              }`}
+            >
               <Button type="primary" icon={<FileTextOutlined />}>
                 View Created Analysis Plan
               </Button>

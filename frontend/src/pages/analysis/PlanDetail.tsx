@@ -532,13 +532,16 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={{
                 totalScenes: plan.total_scenes,
-                analyzedScenes: job
-                  ? Math.round((job.progress / 100) * plan.total_scenes)
-                  : plan.total_scenes,
+                analyzedScenes:
+                  plan.metadata?.scenes_analyzed ||
+                  (job
+                    ? Math.round((job.progress / 100) * plan.total_scenes)
+                    : plan.total_scenes),
                 pendingScenes:
                   job && job.status === 'running'
                     ? plan.total_scenes -
-                      Math.round((job.progress / 100) * plan.total_scenes)
+                      (plan.metadata?.scenes_analyzed ||
+                        Math.round((job.progress / 100) * plan.total_scenes))
                     : 0,
                 totalChanges: stats.totalChanges,
                 acceptedChanges: stats.acceptedChanges,

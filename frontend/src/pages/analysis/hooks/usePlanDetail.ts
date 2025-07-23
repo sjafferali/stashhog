@@ -52,6 +52,7 @@ export interface PlanDetailData {
     temperature?: number;
     confidence_threshold?: number;
     processing_time?: number;
+    scenes_analyzed?: number;
     options?: {
       detect_performers?: boolean;
       detect_studios?: boolean;

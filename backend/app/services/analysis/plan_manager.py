@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -271,9 +271,26 @@ class PlanManager:
         if not plan:
             return
 
-        # Update status from PENDING to DRAFT
+        # Update status from PENDING based on whether any changes have been approved/rejected
         if plan.status == PlanStatus.PENDING:
-            plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
+            # Check if any changes have been approved or rejected
+            approved_or_rejected_query = select(func.count()).where(
+                PlanChange.plan_id == plan_id,
+                or_(PlanChange.accepted.is_(True), PlanChange.rejected.is_(True)),
+            )
+            result = await db.execute(approved_or_rejected_query)
+            approved_or_rejected_count = result.scalar() or 0
+
+            if approved_or_rejected_count > 0:
+                plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
+                logger.info(
+                    f"Plan {plan_id} has {approved_or_rejected_count} approved/rejected changes, setting status to REVIEWING"
+                )
+            else:
+                plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
+                logger.info(
+                    f"Plan {plan_id} has no approved/rejected changes, setting status to DRAFT"
+                )
 
         # Add final metadata
         if final_metadata:

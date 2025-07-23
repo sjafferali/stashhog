@@ -162,6 +162,7 @@ export interface AnalysisPlan {
   total_changes: number;
   metadata?: Record<string, unknown> & {
     api_usage?: ApiUsage;
+    scenes_analyzed?: number;
   };
   active?: boolean;
   model?: string;

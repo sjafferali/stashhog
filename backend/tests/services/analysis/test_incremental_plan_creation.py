@@ -423,10 +423,18 @@ class TestPendingStatusBehavior:
         # Mock get_plan to return our plan
         plan_manager.get_plan = AsyncMock(return_value=plan)
 
-        # Mock the count query
-        mock_result = Mock()
-        mock_result.scalar.return_value = 5
-        db.execute = AsyncMock(return_value=mock_result)
+        # Mock the database queries
+        # First query checks for approved/rejected changes
+        approved_rejected_result = Mock()
+        approved_rejected_result.scalar.return_value = 0  # No approved/rejected changes
+
+        # Second query gets total count
+        total_count_result = Mock()
+        total_count_result.scalar.return_value = 5
+
+        db.execute = AsyncMock(
+            side_effect=[approved_rejected_result, total_count_result]
+        )
 
         # Finalize the plan
         await plan_manager.finalize_plan(plan.id, db)
