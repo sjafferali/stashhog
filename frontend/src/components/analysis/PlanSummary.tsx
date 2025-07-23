@@ -78,17 +78,23 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       : 0;
 
   const getStatusColor = () => {
-    if (!plan.active) return 'default';
-    if (completionRate === 100) return 'success';
-    if (completionRate > 0) return 'processing';
-    return 'warning';
+    switch (plan.status) {
+      case 'applied':
+        return 'success';
+      case 'cancelled':
+        return 'error';
+      case 'reviewing':
+        return 'warning';
+      case 'pending':
+        return 'processing';
+      case 'draft':
+      default:
+        return 'default';
+    }
   };
 
   const getStatusText = () => {
-    if (!plan.active) return 'Inactive';
-    if (completionRate === 100) return 'Complete';
-    if (completionRate > 0) return 'In Progress';
-    return 'Not Started';
+    return plan.status.toUpperCase();
   };
 
   const fieldIcons = {

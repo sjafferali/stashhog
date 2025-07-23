@@ -162,15 +162,11 @@ class TestApplicationLifecycle:
         # Set test environment
         os.environ["PYTEST_CURRENT_TEST"] = "test"
 
-        with patch("app.main.get_task_queue") as mock_queue:
-            mock_queue.return_value.start = AsyncMock()
+        with patch("app.main.register_all_jobs") as mock_register:
+            await _startup_tasks()
 
-            with patch("app.main.register_all_jobs") as mock_register:
-                await _startup_tasks()
-
-                # Should not run migrations
-                mock_queue.assert_called_once()
-                mock_register.assert_called_once()
+            # Should not run migrations or start task queue in test environment
+            mock_register.assert_called_once()
 
         # Clean up
         del os.environ["PYTEST_CURRENT_TEST"]
@@ -204,22 +200,30 @@ class TestApplicationLifecycle:
         """Test successful application lifespan."""
         mock_app = MagicMock()
 
-        with patch("app.main._startup_tasks") as mock_startup:
-            mock_startup.return_value = None
+        # Clear test environment to test normal flow
+        pytest_test = os.environ.pop("PYTEST_CURRENT_TEST", None)
 
-            with patch("app.main.get_task_queue") as mock_queue:
-                mock_queue.return_value.stop = AsyncMock()
+        try:
+            with patch("app.main._startup_tasks") as mock_startup:
+                mock_startup.return_value = None
 
-                with patch("app.main.close_db") as mock_close_db:
-                    mock_close_db.return_value = None
+                with patch("app.main.get_task_queue") as mock_queue:
+                    mock_queue.return_value.stop = AsyncMock()
 
-                    async with lifespan(mock_app):
-                        # Startup should be called
-                        mock_startup.assert_called_once()
+                    with patch("app.main.close_db") as mock_close_db:
+                        mock_close_db.return_value = None
 
-                    # Shutdown should be called
-                    mock_queue.return_value.stop.assert_called_once()
-                    mock_close_db.assert_called_once()
+                        async with lifespan(mock_app):
+                            # Startup should be called
+                            mock_startup.assert_called_once()
+
+                        # Shutdown should be called
+                        mock_queue.return_value.stop.assert_called_once()
+                        mock_close_db.assert_called_once()
+        finally:
+            # Restore test environment
+            if pytest_test:
+                os.environ["PYTEST_CURRENT_TEST"] = pytest_test
 
     @pytest.mark.asyncio
     async def test_lifespan_startup_failure(self):
@@ -240,27 +244,37 @@ class TestApplicationLifecycle:
         """Test application lifespan with shutdown error."""
         mock_app = MagicMock()
 
-        with patch("app.main._startup_tasks") as mock_startup:
-            mock_startup.return_value = None
+        # Clear test environment to test normal flow
+        pytest_test = os.environ.pop("PYTEST_CURRENT_TEST", None)
 
-            with patch("app.main.get_task_queue") as mock_queue:
-                # Create a queue mock that will fail on stop
-                queue_instance = MagicMock()
-                queue_instance.stop = AsyncMock(side_effect=Exception("Stop failed"))
-                mock_queue.return_value = queue_instance
+        try:
+            with patch("app.main._startup_tasks") as mock_startup:
+                mock_startup.return_value = None
 
-                with patch("app.main.close_db") as mock_close_db:
-                    mock_close_db.return_value = None
+                with patch("app.main.get_task_queue") as mock_queue:
+                    # Create a queue mock that will fail on stop
+                    queue_instance = MagicMock()
+                    queue_instance.stop = AsyncMock(
+                        side_effect=Exception("Stop failed")
+                    )
+                    mock_queue.return_value = queue_instance
 
-                    # Should not raise exception on shutdown error
-                    async with lifespan(mock_app):
-                        pass
+                    with patch("app.main.close_db") as mock_close_db:
+                        mock_close_db.return_value = None
 
-                    # Stop should be called
-                    queue_instance.stop.assert_called_once()
-                    # Close DB should not be called because stop() failed and exception is caught early
-                    # The try block stops executing after the first exception
-                    mock_close_db.assert_not_called()
+                        # Should not raise exception on shutdown error
+                        async with lifespan(mock_app):
+                            pass
+
+                        # Stop should be called
+                        queue_instance.stop.assert_called_once()
+                        # Close DB should NOT be called because stop() failed
+                        # and the exception causes the try block to exit early
+                        mock_close_db.assert_not_called()
+        finally:
+            # Restore test environment
+            if pytest_test:
+                os.environ["PYTEST_CURRENT_TEST"] = pytest_test
 
 
 class TestStaticFileServing:

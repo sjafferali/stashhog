@@ -88,7 +88,8 @@ class TaskQueue:
             worker.cancel()
 
         # Wait for workers to finish
-        await asyncio.gather(*self.workers, return_exceptions=True)
+        if self.workers:
+            await asyncio.gather(*self.workers, return_exceptions=True)
         self.workers.clear()
 
     async def _worker(self, worker_id: str) -> None:

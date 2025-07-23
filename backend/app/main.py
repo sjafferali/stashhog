@@ -80,9 +80,13 @@ async def _startup_tasks() -> None:
         await _run_migrations_with_retry()
 
     # Initialize background task queue
-    logger.info("Starting background workers...")
-    task_queue = get_task_queue()
-    await task_queue.start()
+    # Skip starting workers in test environment to avoid SQLite concurrency issues
+    if not os.getenv("PYTEST_CURRENT_TEST"):
+        logger.info("Starting background workers...")
+        task_queue = get_task_queue()
+        await task_queue.start()
+    else:
+        logger.info("Skipping background workers in test environment")
 
     # Register job handlers
     logger.info("Registering job handlers...")
@@ -125,10 +129,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Shutting down {settings.app.name}")
 
     try:
-        # Stop background workers
-        logger.info("Stopping background workers...")
-        task_queue = get_task_queue()
-        await task_queue.stop()
+        # Stop background workers (if they were started)
+        if not os.getenv("PYTEST_CURRENT_TEST"):
+            logger.info("Stopping background workers...")
+            task_queue = get_task_queue()
+            await task_queue.stop()
+        else:
+            logger.info("Skipping worker shutdown in test environment")
 
         # Close database connections
         logger.info("Closing database connections...")

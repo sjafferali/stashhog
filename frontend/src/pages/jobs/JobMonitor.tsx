@@ -246,19 +246,28 @@ const JobMonitor: React.FC = () => {
                 <AnalysisJobResult
                   result={record.result as unknown as AnalysisJobResultData}
                 />
-                {record.result &&
+                {((record.result &&
                   'plan_id' in record.result &&
-                  record.result.plan_id && (
-                    <div style={{ marginTop: 16 }}>
-                      <Link
-                        to={`/analysis/plans/${record.result.plan_id as string}`}
-                      >
-                        <Button type="primary" icon={<FileTextOutlined />}>
-                          View Created Analysis Plan
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
+                  record.result.plan_id) ||
+                  (record.metadata &&
+                    'plan_id' in record.metadata &&
+                    record.metadata.plan_id)) && (
+                  <div style={{ marginTop: 16 }}>
+                    <Link
+                      to={`/analysis/plans/${
+                        (record.result && 'plan_id' in record.result
+                          ? record.result.plan_id
+                          : record.metadata?.plan_id) as string
+                      }`}
+                    >
+                      <Button type="primary" icon={<FileTextOutlined />}>
+                        View{' '}
+                        {record.status === 'running' ? 'Current' : 'Created'}{' '}
+                        Analysis Plan
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </>
             ) : (
               <pre style={{ maxHeight: 200, overflow: 'auto' }}>
@@ -413,13 +422,23 @@ const JobMonitor: React.FC = () => {
             />
           </Tooltip>
 
-          {record.status === 'completed' &&
-          (record.type === 'scene_analysis' || record.type === 'analysis') &&
-          record.result &&
-          'plan_id' in record.result &&
-          record.result.plan_id ? (
+          {(record.type === 'scene_analysis' || record.type === 'analysis') &&
+          ((record.status === 'completed' &&
+            record.result &&
+            'plan_id' in record.result &&
+            record.result.plan_id) ||
+            (record.status === 'running' &&
+              record.metadata &&
+              'plan_id' in record.metadata &&
+              record.metadata.plan_id)) ? (
             <Tooltip title="View Plan">
-              <Link to={`/analysis/plans/${record.result.plan_id as string}`}>
+              <Link
+                to={`/analysis/plans/${
+                  (record.result && 'plan_id' in record.result
+                    ? record.result.plan_id
+                    : record.metadata?.plan_id) as string
+                }`}
+              >
                 <Button
                   type="text"
                   icon={<FileTextOutlined />}
@@ -679,22 +698,31 @@ const JobMonitor: React.FC = () => {
                           selectedJob.result as unknown as AnalysisJobResultData
                         }
                       />
-                      {selectedJob.result &&
+                      {((selectedJob.result &&
                         'plan_id' in selectedJob.result &&
-                        selectedJob.result.plan_id && (
-                          <div style={{ marginTop: 16 }}>
-                            <Link
-                              to={`/analysis/plans/${selectedJob.result.plan_id as string}`}
-                            >
-                              <Button
-                                type="primary"
-                                icon={<FileTextOutlined />}
-                              >
-                                View Created Analysis Plan
-                              </Button>
-                            </Link>
-                          </div>
-                        )}
+                        selectedJob.result.plan_id) ||
+                        (selectedJob.metadata &&
+                          'plan_id' in selectedJob.metadata &&
+                          selectedJob.metadata.plan_id)) && (
+                        <div style={{ marginTop: 16 }}>
+                          <Link
+                            to={`/analysis/plans/${
+                              (selectedJob.result &&
+                              'plan_id' in selectedJob.result
+                                ? selectedJob.result.plan_id
+                                : selectedJob.metadata?.plan_id) as string
+                            }`}
+                          >
+                            <Button type="primary" icon={<FileTextOutlined />}>
+                              View{' '}
+                              {selectedJob.status === 'running'
+                                ? 'Current'
+                                : 'Created'}{' '}
+                              Analysis Plan
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <pre className={styles.codeBlock}>

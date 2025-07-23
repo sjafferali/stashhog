@@ -544,19 +544,20 @@ class TestAnalysisServiceHelpers:
         completed = 5
         total = 10
 
-        # Mock _update_job_progress
-        mock_service._update_job_progress = AsyncMock()
-
         # Mock progress callback
         progress_callback = AsyncMock()
+
+        # Set tracking attributes that _on_progress uses
+        mock_service._current_batch_index = 0
+        mock_service._total_batches = 0
 
         await mock_service._on_progress(
             job_id, completed, total, completed * 10, total * 10, progress_callback
         )
 
-        # Verify
-        mock_service._update_job_progress.assert_called_once()
-        progress_callback.assert_called_once()
+        # Verify that batch tracking was updated
+        assert mock_service._current_batch_index == completed
+        assert mock_service._total_batches == total
 
     @pytest.mark.asyncio
     async def test_get_scenes_from_database(self, mock_service):

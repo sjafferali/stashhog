@@ -227,6 +227,7 @@ export interface Job {
   completed_at?: string;
   metadata?: Record<string, string | number | boolean | null> & {
     last_message?: string;
+    plan_id?: number;
   };
 }
 

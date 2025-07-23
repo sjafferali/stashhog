@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { usePlanDetail } from './hooks/usePlanDetail';
 import { useChangeManager } from './hooks/useChangeManager';
+import { useJob } from './hooks/useJob';
 import { SceneChangesList, PlanSummary } from '@/components/analysis';
 import ApplyPlanModal from './components/ApplyPlanModal';
 import BulkActions from './components/BulkActions';
@@ -64,6 +65,9 @@ const PlanDetail: React.FC = () => {
     getStatistics,
     getFieldCounts,
   } = usePlanDetail(planId);
+
+  // Fetch job details if plan has a job_id
+  const { job } = useJob(plan?.job_id);
 
   // Flatten all changes for change manager
   const allChanges = useMemo(() => {
@@ -528,8 +532,14 @@ const PlanDetail: React.FC = () => {
               }}
               statistics={{
                 totalScenes: plan.total_scenes,
-                analyzedScenes: plan.total_scenes,
-                pendingScenes: 0,
+                analyzedScenes: job
+                  ? Math.round((job.progress / 100) * plan.total_scenes)
+                  : plan.total_scenes,
+                pendingScenes:
+                  job && job.status === 'running'
+                    ? plan.total_scenes -
+                      Math.round((job.progress / 100) * plan.total_scenes)
+                    : 0,
                 totalChanges: stats.totalChanges,
                 acceptedChanges: stats.acceptedChanges,
                 rejectedChanges: stats.rejectedChanges,

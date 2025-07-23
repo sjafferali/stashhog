@@ -25,6 +25,7 @@ cyclonedx-python-lib==9.1.0
 defusedxml==0.7.1
 distro==1.9.0
 dparse==0.6.4
+execnet==2.1.1
 factory-boy==3.3.0
 Faker==20.1.0
 fastapi==0.116.1
@@ -86,6 +87,7 @@ pyparsing==3.2.3
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
+pytest-xdist==3.8.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-multipart==0.0.18

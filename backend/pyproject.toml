@@ -39,14 +39,19 @@ addopts = [
     "--cov-report=xml",
     "-v",
     "--tb=short",
-    "--strict-markers"
+    "--strict-markers",
+    "-n=auto"
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "unit: marks tests as unit tests"
 ]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:'crypt' is deprecated:DeprecationWarning",
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning"
+]
 
 [tool.coverage.run]
 source = ["app"]

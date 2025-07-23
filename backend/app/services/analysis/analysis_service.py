@@ -582,6 +582,19 @@ class AnalysisService:
                 await db.commit()
                 logger.info(f"Committed scene {scene.id} changes to database")
 
+            # Update progress after each scene
+            self._scenes_processed_in_current_batch += 1
+            if self._current_progress_callback:
+                progress = int(
+                    (
+                        self._scenes_processed_in_current_batch
+                        / self._total_scenes_in_all_batches
+                    )
+                    * 100
+                )
+                message = f"Processed {self._scenes_processed_in_current_batch}/{self._total_scenes_in_all_batches} scenes"
+                await self._current_progress_callback(progress, message)
+
             return scene_changes
 
         except Exception as e:
@@ -663,6 +676,10 @@ class AnalysisService:
                 plan_id: int = plan.id  # type: ignore[assignment]
                 self._current_plan_id = plan_id
                 logger.info(f"Created plan {plan_id} for job {job_id}")
+
+                # Update job metadata with plan_id
+                if job_id and self._current_job_id:
+                    await self._update_job_with_plan_id(job_id, plan_id)
             else:
                 # Add to existing plan
                 logger.info(f"Adding changes to existing plan {self._current_plan_id}")
@@ -2136,6 +2153,34 @@ class AnalysisService:
         # TODO: Implement actual job progress update
         logger.info(f"Job {job_id}: {progress}% - {message}")
 
+    async def _update_job_with_plan_id(self, job_id: str, plan_id: int) -> None:
+        """Update job metadata with plan_id.
+
+        Args:
+            job_id: Job ID
+            plan_id: Plan ID
+        """
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.repositories.job_repository import job_repository
+
+            async with AsyncSessionLocal() as db:
+                job = await job_repository.get_job(job_id, db)
+                if job:
+                    # Update job metadata with plan_id
+                    if not job.job_metadata:
+                        job.job_metadata = {"plan_id": plan_id}  # type: ignore[assignment]
+                    else:
+                        job.job_metadata["plan_id"] = plan_id
+                    await db.commit()
+                    logger.info(f"Updated job {job_id} metadata with plan_id {plan_id}")
+                else:
+                    logger.warning(
+                        f"Job {job_id} not found when trying to update plan_id"
+                    )
+        except Exception as e:
+            logger.error(f"Failed to update job {job_id} with plan_id {plan_id}: {e}")
+
     def _generate_ai_status_tag_changes(
         self,
         scene_data: dict,
@@ -2246,20 +2291,14 @@ class AnalysisService:
             progress_callback: Optional external progress callback
         """
         # Update tracking for video tag detection progress
-        self._scenes_processed_in_current_batch = processed_scenes
         self._current_batch_index = completed_batches
         self._total_batches = total_batches
 
-        progress = int((completed_batches / total_batches) * 100)
-        message = f"Processed {processed_scenes}/{total_scenes} scenes ({completed_batches}/{total_batches} batches)"
-
-        # Update job progress
-        if job_id:
-            await self._update_job_progress(job_id, progress, message)
-
-        # Call external progress callback
-        if progress_callback:
-            await progress_callback(progress, message)
+        # Don't update progress here since we're updating it per-scene
+        # Just log the batch completion
+        logger.debug(
+            f"Batch {completed_batches}/{total_batches} completed with {processed_scenes}/{total_scenes} scenes total"
+        )
 
     async def apply_plan(
         self,
