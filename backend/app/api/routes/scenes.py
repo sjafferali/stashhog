@@ -430,11 +430,8 @@ async def bulk_update_scenes(
             detail=f"Invalid fields for bulk update: {invalid_fields}. Allowed fields: {allowed_fields}",
         )
 
-    # Convert scene IDs to integers
-    scene_ids_int = [int(scene_id) for scene_id in scene_ids]
-
-    # Update scenes in database
-    update_stmt = update(Scene).where(Scene.id.in_(scene_ids_int)).values(**updates)
+    # Update scenes in database (scene IDs are strings in the database)
+    update_stmt = update(Scene).where(Scene.id.in_(scene_ids)).values(**updates)
 
     result = await db.execute(update_stmt)
     await db.commit()
