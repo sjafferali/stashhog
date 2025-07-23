@@ -20,12 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add job_id column to analysis_plans table
-    op.add_column("analysis_plans", sa.Column("job_id", sa.String(), nullable=True))
+    # Add job_id column to analysis_plan table
+    op.add_column("analysis_plan", sa.Column("job_id", sa.String(), nullable=True))
 
     # Create index on job_id for faster lookups
     op.create_index(
-        op.f("ix_analysis_plans_job_id"), "analysis_plans", ["job_id"], unique=False
+        op.f("ix_analysis_plan_job_id"), "analysis_plan", ["job_id"], unique=False
     )
 
     # Add PENDING to the PlanStatus enum if it doesn't exist
@@ -34,10 +34,10 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Remove index
-    op.drop_index(op.f("ix_analysis_plans_job_id"), table_name="analysis_plans")
+    op.drop_index(op.f("ix_analysis_plan_job_id"), table_name="analysis_plan")
 
     # Remove job_id column
-    op.drop_column("analysis_plans", "job_id")
+    op.drop_column("analysis_plan", "job_id")
 
     # Note: We cannot remove the PENDING value from the enum in PostgreSQL
     # This would require recreating the entire enum type
