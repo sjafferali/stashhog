@@ -9,6 +9,25 @@ const api: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  paramsSerializer: {
+    serialize: (params) => {
+      // Custom serializer to handle arrays properly for FastAPI
+      const searchParams = new URLSearchParams();
+
+      Object.entries(params).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          // For arrays, add multiple params with the same key
+          value.forEach((item) => {
+            searchParams.append(key, String(item));
+          });
+        } else if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+
+      return searchParams.toString();
+    },
+  },
 });
 
 // Request interceptor

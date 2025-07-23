@@ -17,10 +17,19 @@ export function useScenes(params: SceneQueryParams) {
   return useQuery<PaginatedResponse<Scene>, Error>({
     queryKey: ['scenes', params],
     queryFn: async () => {
-      // Filter out empty date strings before sending to API
+      // Filter out empty values before sending to API
       const filteredParams = Object.entries(params).reduce(
         (acc, [key, value]) => {
+          // Remove empty dates
           if ((key === 'date_from' || key === 'date_to') && value === '') {
+            return acc;
+          }
+          // Remove empty arrays
+          if (Array.isArray(value) && value.length === 0) {
+            return acc;
+          }
+          // Remove undefined/null values
+          if (value === undefined || value === null) {
             return acc;
           }
           return { ...acc, [key]: value };
