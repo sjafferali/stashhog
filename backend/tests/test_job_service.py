@@ -345,6 +345,9 @@ class TestJobService:
             JobType.SYNC_PERFORMERS,
             JobType.SYNC_TAGS,
             JobType.SYNC_STUDIOS,
+            JobType.ANALYSIS,
+            JobType.APPLY_PLAN,
+            JobType.GENERATE_DETAILS,
         }
 
         assert job_service.sync_job_types == expected_sync_types
@@ -388,3 +391,75 @@ class TestJobService:
             limit=None,
             offset=None,
         )
+
+    @pytest.mark.asyncio
+    @patch("app.services.job_service.job_repository")
+    @patch("app.services.job_service.get_task_queue")
+    @patch("app.core.database.AsyncSessionLocal")
+    async def test_analysis_job_locking(
+        self, mock_async_session, mock_get_task_queue, mock_job_repo, job_service
+    ):
+        """Test that analysis jobs use locking and queue properly."""
+        # Setup
+        job_type = JobType.ANALYSIS
+        handler = AsyncMock(return_value={"status": "completed"})
+        job_service.register_handler(job_type, handler)
+
+        # Create mock database sessions
+        mock_db1 = MagicMock()
+        mock_db1.commit = AsyncMock()
+        mock_db1.__aenter__ = AsyncMock(return_value=mock_db1)
+        mock_db1.__aexit__ = AsyncMock(return_value=None)
+
+        mock_db2 = MagicMock()
+        mock_db2.commit = AsyncMock()
+        mock_db2.__aenter__ = AsyncMock(return_value=mock_db2)
+        mock_db2.__aexit__ = AsyncMock(return_value=None)
+
+        # Make AsyncSessionLocal return our mock sessions
+        mock_async_session.side_effect = [mock_db1, mock_db2]
+
+        # Create two mock jobs
+        mock_job1 = Mock(spec=Job)
+        mock_job1.id = "job1"
+        mock_job1.type = JobType.ANALYSIS
+        mock_job1.status = JobStatus.PENDING
+        mock_job1.job_metadata = {}
+
+        mock_job2 = Mock(spec=Job)
+        mock_job2.id = "job2"
+        mock_job2.type = JobType.ANALYSIS
+        mock_job2.status = JobStatus.PENDING
+        mock_job2.job_metadata = {}
+
+        mock_job_repo.create_job = AsyncMock(side_effect=[mock_job1, mock_job2])
+        mock_job_repo.update_job_status = AsyncMock()
+
+        # Mock task queue
+        captured_tasks = []
+
+        async def capture_task(func, name):
+            captured_tasks.append(func)
+            return f"task_{len(captured_tasks)}"
+
+        mock_task_queue = Mock()
+        mock_task_queue.submit = AsyncMock(side_effect=capture_task)
+        mock_get_task_queue.return_value = mock_task_queue
+
+        # Create two analysis jobs
+        job1 = await job_service.create_job(job_type=job_type, db=mock_db1)
+        job2 = await job_service.create_job(job_type=job_type, db=mock_db2)
+
+        # Verify both jobs were created
+        assert job1.id == "job1"
+        assert job2.id == "job2"
+
+        # Verify task queue received both tasks
+        assert len(captured_tasks) == 2
+
+        # Verify that analysis jobs now have locks (they're in sync_job_types)
+        assert JobType.ANALYSIS in job_service.sync_job_types
+
+        # When first task executes, it should acquire the lock
+        # When second task tries to execute while first is running,
+        # it should wait for the lock

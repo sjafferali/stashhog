@@ -368,3 +368,21 @@ export interface CostResponse {
   currency: string;
   message?: string;
 }
+
+export interface SyncLogEntry {
+  id: number;
+  sync_type: 'full' | 'incremental' | 'specific';
+  had_changes: boolean;
+  change_type: 'created' | 'updated' | 'skipped' | 'failed' | null;
+  error_message: string | null;
+  created_at: string;
+  sync_history: {
+    job_id: string;
+    started_at: string;
+    completed_at: string | null;
+    status: string;
+    items_synced: number;
+    items_created: number;
+    items_updated: number;
+  };
+}

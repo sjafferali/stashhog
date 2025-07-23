@@ -24,6 +24,7 @@ from app.models.scheduled_task import ScheduledTask
 from app.models.setting import Setting
 from app.models.studio import Studio
 from app.models.sync_history import SyncHistory
+from app.models.sync_log import SyncLog
 from app.models.tag import Tag
 
 # Export all models and enums
@@ -47,6 +48,7 @@ __all__ = [
     "Setting",
     "ScheduledTask",
     "SyncHistory",
+    "SyncLog",
     # Enums
     "PlanStatus",
     "ChangeAction",

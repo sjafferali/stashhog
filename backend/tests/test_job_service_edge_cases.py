@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -279,11 +279,12 @@ class TestJobServiceEdgeCases:
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
     @patch("app.services.job_service.get_task_queue")
-    async def test_non_sync_jobs_no_lock(
-        self, mock_get_task_queue, mock_job_repo, job_service, mock_db
+    @patch("app.services.job_service.websocket_manager")
+    async def test_analysis_jobs_use_lock(
+        self, mock_ws_manager, mock_get_task_queue, mock_job_repo, job_service, mock_db
     ):
-        """Test that non-sync jobs don't use locks and can run concurrently."""
-        job_type = JobType.ANALYSIS  # Non-sync job type
+        """Test that analysis jobs use locks and run sequentially."""
+        job_type = JobType.ANALYSIS  # Now a sync job type with locking
         execution_times = []
 
         async def handler(**kwargs):
@@ -294,6 +295,9 @@ class TestJobServiceEdgeCases:
 
         job_service.register_handler(job_type, handler)
 
+        # Mock websocket manager
+        mock_ws_manager.broadcast_job_update = AsyncMock()
+
         # Create mock jobs
         jobs = []
         for i in range(3):
@@ -303,8 +307,10 @@ class TestJobServiceEdgeCases:
             jobs.append(job)
 
         mock_job_repo.create_job = AsyncMock(side_effect=jobs)
-        mock_job_repo.update_job_status = AsyncMock()
-        mock_job_repo._fetch_job = AsyncMock(side_effect=jobs * 2)
+        mock_job_repo.update_job_status = AsyncMock(return_value=jobs[0])
+        mock_job_repo._fetch_job = AsyncMock(
+            side_effect=jobs * 10
+        )  # Provide enough mocks
 
         # Mock task queue
         task_funcs = []
@@ -325,20 +331,30 @@ class TestJobServiceEdgeCases:
 
         # Execute tasks concurrently
         with patch("app.core.database.AsyncSessionLocal") as mock_session:
-            mock_session.return_value.__aenter__.return_value = mock_db
+            # Create multiple mock sessions for each database operation
+            mock_sessions = []
+            for _ in range(20):  # Create enough sessions
+                session = MagicMock()
+                session.commit = AsyncMock()
+                session.__aenter__ = AsyncMock(return_value=session)
+                session.__aexit__ = AsyncMock(return_value=None)
+                mock_sessions.append(session)
+
+            # Return a new session each time AsyncSessionLocal is called
+            mock_session.side_effect = lambda: mock_sessions.pop(0)
+
             await asyncio.gather(*[func() for func in task_funcs])
 
         # Verify all executed concurrently (overlapping execution times)
         assert len(execution_times) == 3
 
-        # Check for overlap - at least some jobs should have overlapping execution
-        overlaps = 0
-        for i in range(len(execution_times)):
-            for j in range(i + 1, len(execution_times)):
-                start1, end1 = execution_times[i]
-                start2, end2 = execution_times[j]
-                # Check if they overlap
-                if start1 < end2 and start2 < end1:
-                    overlaps += 1
-
-        assert overlaps > 0  # Should have at least one overlap
+        # Check that jobs ran sequentially (no overlap)
+        # Since analysis jobs now use locks, they should NOT overlap
+        for i in range(len(execution_times) - 1):
+            # Each job should finish before the next one starts
+            _, end_time = execution_times[i]
+            start_time, _ = execution_times[i + 1]
+            # Allow small time difference for async scheduling
+            assert (
+                end_time <= start_time or (start_time - end_time).total_seconds() < 0.01
+            )

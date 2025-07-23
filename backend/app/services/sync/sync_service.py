@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Job, JobStatus, Scene
+from app.models import Job, JobStatus, Scene, SyncLog
 from app.services.stash_service import StashService
 
 from .conflicts import ConflictResolver
@@ -235,7 +235,19 @@ class SyncService:
             result.complete()
 
             # Record sync history for "all" type
-            await self._update_last_sync_time("all", result)
+            sync_history_id = await self._update_last_sync_time("all", result)
+
+            # Create sync log entry for full sync (affects all scenes)
+            await self._create_sync_log(
+                sync_history_id=sync_history_id,
+                entity_type="scene",
+                entity_id=None,  # NULL for full sync
+                sync_type="full",
+                had_changes=result.stats.scenes_created > 0
+                or result.stats.scenes_updated > 0,
+                change_type="full_sync",
+            )
+            await self.db.commit()
 
             await self._update_job_status(
                 job_id,
@@ -342,19 +354,58 @@ class SyncService:
     ) -> SyncResult:
         """Sync specific scenes by their IDs"""
         logger.debug(f"_sync_specific_scenes started for {len(scene_ids)} scenes")
+        sync_history_id = None
+
         try:
             # Initialize sync
             self._initialize_sync_result(result, scene_ids, job_id)
+
+            # Create sync history record for specific scene sync
+            from app.models.sync_history import SyncHistory
+
+            sync_record = SyncHistory(
+                entity_type="scene",
+                job_id=job_id,
+                started_at=result.started_at,
+                status="running",
+                items_synced=0,
+                items_created=0,
+                items_updated=0,
+                items_failed=0,
+            )
+            self.db.add(sync_record)
+            await self.db.flush()  # Flush to get the ID
+            sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
 
             # Process each scene ID
             for idx, scene_id in enumerate(scene_ids):
                 await self._check_cancellation(cancellation_token)
                 await self._sync_single_scene_by_id(
-                    scene_id, idx, len(scene_ids), result, progress_callback
+                    scene_id,
+                    idx,
+                    len(scene_ids),
+                    result,
+                    progress_callback,
+                    sync_history_id,
                 )
 
             # Finalize sync
             await self._finalize_sync(result, progress_callback)
+
+            # Update the sync history record with final stats
+            # MyPy has issues with SQLAlchemy hybrid properties, so we ignore these
+            sync_record.completed_at = result.completed_at or datetime.utcnow()  # type: ignore[assignment]
+            sync_record.status = "completed" if result.status == SyncStatus.SUCCESS else "failed"  # type: ignore[assignment]
+            sync_record.items_synced = result.processed_items  # type: ignore[assignment]
+            sync_record.items_created = result.created_items  # type: ignore[assignment]
+            sync_record.items_updated = result.updated_items  # type: ignore[assignment]
+            sync_record.items_failed = result.failed_items  # type: ignore[assignment]
+            if result.errors:
+                sync_record.error_details = {  # type: ignore[assignment]
+                    "errors": [e.to_dict() for e in result.errors]
+                }
+
+            await self.db.commit()
 
         except Exception as e:
             logger.error(f"Specific scene sync failed: {str(e)}")
@@ -383,6 +434,7 @@ class SyncService:
         total_scenes: int,
         result: SyncResult,
         progress_callback: Optional[Any],
+        sync_history_id: Optional[int] = None,
     ) -> None:
         """Sync a single scene by its ID."""
         logger.debug(f"Syncing scene {idx + 1}/{total_scenes} - id: {scene_id}")
@@ -392,15 +444,41 @@ class SyncService:
             scene_data = await self.stash_service.get_scene_raw(scene_id)
             if scene_data:
                 # Process the scene
-                await self._process_single_scene(scene_data, result, progress_callback)
+                await self._process_single_scene(
+                    scene_data, result, progress_callback, sync_history_id, "specific"
+                )
             else:
                 logger.warning(f"Scene {scene_id} not found in Stash")
                 result.failed_items += 1
                 result.add_error("sync", scene_id, "Scene not found in Stash")
+
+                # Create sync log entry for missing scene
+                if sync_history_id:
+                    await self._create_sync_log(
+                        sync_history_id=sync_history_id,
+                        entity_type="scene",
+                        entity_id=scene_id,
+                        sync_type="specific",
+                        had_changes=False,
+                        change_type="failed",
+                        error_message="Scene not found in Stash",
+                    )
         except Exception as e:
             logger.error(f"Failed to sync scene {scene_id}: {str(e)}")
             result.failed_items += 1
             result.add_error("sync", scene_id, str(e))
+
+            # Create sync log entry for error
+            if sync_history_id:
+                await self._create_sync_log(
+                    sync_history_id=sync_history_id,
+                    entity_type="scene",
+                    entity_id=scene_id,
+                    sync_type="specific",
+                    had_changes=False,
+                    change_type="failed",
+                    error_message=str(e),
+                )
 
         # Update progress
         await self._report_sync_progress(idx, total_scenes, progress_callback)
@@ -428,7 +506,7 @@ class SyncService:
         if self._progress:
             await self._progress.complete(result)
 
-    async def _batch_sync_scenes(
+    async def _batch_sync_scenes(  # noqa: C901
         self,
         since: Optional[datetime],
         job_id: str,
@@ -441,6 +519,9 @@ class SyncService:
         logger.debug(
             f"_batch_sync_scenes started - since: {since}, job_id: {job_id}, batch_size: {batch_size}"
         )
+        sync_history_id = None  # Track sync history ID for sync logs
+        sync_type = "incremental" if since else "full"
+
         try:
             # Initialize sync state
             logger.debug("Getting stats from stash service...")
@@ -487,6 +568,24 @@ class SyncService:
                 result.total_items = total_scenes
                 self._progress = SyncProgress(job_id, total_scenes)
 
+            # Create sync history record first so we can track individual scene syncs
+            # We'll update it later with final stats
+            from app.models.sync_history import SyncHistory
+
+            sync_record = SyncHistory(
+                entity_type="scene",
+                job_id=job_id,
+                started_at=result.started_at,
+                status="running",
+                items_synced=0,
+                items_created=0,
+                items_updated=0,
+                items_failed=0,
+            )
+            self.db.add(sync_record)
+            await self.db.flush()  # Flush to get the ID
+            sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
+
             # Process batches
             offset = 0
             batch_num = 0
@@ -502,6 +601,8 @@ class SyncService:
                     result,
                     progress_callback,
                     cancellation_token,
+                    sync_history_id,
+                    sync_type,
                 )
                 logger.debug(f"Batch {batch_num} complete: {batch_complete}")
                 if batch_complete:
@@ -518,7 +619,26 @@ class SyncService:
                 )
 
             result.complete()
-            await self._update_last_sync_time("scene", result)
+
+            # Update the sync history record with final stats
+            # MyPy has issues with SQLAlchemy hybrid properties, so we ignore these
+            sync_record.completed_at = result.completed_at or datetime.utcnow()  # type: ignore[assignment]
+            sync_record.status = "completed" if result.status == SyncStatus.SUCCESS else "failed"  # type: ignore[assignment]
+            sync_record.items_synced = result.processed_items  # type: ignore[assignment]
+            sync_record.items_created = result.created_items  # type: ignore[assignment]
+            sync_record.items_updated = result.updated_items  # type: ignore[assignment]
+            sync_record.items_failed = result.failed_items  # type: ignore[assignment]
+            if result.errors:
+                sync_record.error_details = {  # type: ignore[assignment]
+                    "errors": [e.to_dict() for e in result.errors]
+                }
+
+            await self.db.commit()
+
+            # Store sync_history_id in result for use in sync logs
+            if hasattr(result, "sync_history_id"):
+                result.sync_history_id = sync_history_id
+
             if self._progress:
                 await self._progress.complete(result)
 
@@ -546,6 +666,8 @@ class SyncService:
         result: SyncResult,
         progress_callback: Optional[Any],
         cancellation_token: Optional[Any] = None,
+        sync_history_id: Optional[int] = None,
+        sync_type: str = "full",
     ) -> bool:
         """Process a single batch of scenes. Returns True if done."""
         # Fetch batch
@@ -580,7 +702,9 @@ class SyncService:
             logger.debug(
                 f"Processing scene {idx + 1}/{len(batch_scenes)} - id: {scene_id}"
             )
-            await self._process_single_scene(scene_data, result, progress_callback)
+            await self._process_single_scene(
+                scene_data, result, progress_callback, sync_history_id, sync_type
+            )
 
         # Check if done
         return (
@@ -639,16 +763,30 @@ class SyncService:
         scene_data: Dict[str, Any],
         result: SyncResult,
         progress_callback: Optional[Any],
+        sync_history_id: Optional[int] = None,
+        sync_type: str = "full",
     ) -> None:
         """Process a single scene"""
         scene_id = scene_data.get("id", "unknown")
         logger.debug(f"_process_single_scene - scene_id: {scene_id}")
         try:
             logger.debug(f"About to sync single scene {scene_id}")
-            await self._sync_single_scene(scene_data, result)
-            logger.debug(f"Successfully synced scene {scene_id}")
+            outcome = await self._sync_single_scene(scene_data, result)
+            logger.debug(f"Successfully synced scene {scene_id}, outcome: {outcome}")
             result.processed_items += 1
             result.stats.scenes_processed += 1
+
+            # Create sync log entry if we have a sync_history_id
+            if sync_history_id:
+                await self._create_sync_log(
+                    sync_history_id=sync_history_id,
+                    entity_type="scene",
+                    entity_id=scene_id,
+                    sync_type=sync_type,
+                    had_changes=outcome["had_changes"],
+                    change_type=outcome["change_type"],
+                    error_message=outcome["error_message"],
+                )
 
             # Update progress
             if self._progress:
@@ -666,6 +804,18 @@ class SyncService:
             logger.error(f"Failed to sync scene {scene_data.get('id')}: {str(e)}")
             logger.debug(f"Scene sync error type: {type(e).__name__}")
             logger.debug(f"Scene sync error value: {repr(e)}")
+
+            # Create sync log entry for failure if we have a sync_history_id
+            if sync_history_id:
+                await self._create_sync_log(
+                    sync_history_id=sync_history_id,
+                    entity_type="scene",
+                    entity_id=scene_id,
+                    sync_type=sync_type,
+                    had_changes=False,
+                    change_type="failed",
+                    error_message=str(e),
+                )
             logger.debug(
                 f"Scene sync error args: {e.args if hasattr(e, 'args') else 'No args'}"
             )
@@ -954,8 +1104,14 @@ class SyncService:
 
     async def _sync_single_scene(
         self, scene_data: Dict[str, Any], result: SyncResult
-    ) -> None:
-        """Sync a single scene with conflict resolution"""
+    ) -> Dict[str, Any]:
+        """Sync a single scene with conflict resolution
+
+        Returns a dict with:
+        - had_changes: bool
+        - change_type: 'created', 'updated', 'skipped', 'failed'
+        - error_message: str or None
+        """
         scene_id = scene_data.get("id")
 
         try:
@@ -971,7 +1127,11 @@ class SyncService:
             if not should_sync:
                 result.skipped_items += 1
                 result.stats.scenes_skipped += 1
-                return
+                return {
+                    "had_changes": False,
+                    "change_type": "skipped",
+                    "error_message": None,
+                }
 
             # Log scene data for debugging
             logger.debug(f"Scene data keys for {scene_id}: {list(scene_data.keys())}")
@@ -984,12 +1144,23 @@ class SyncService:
             if existing_scene:
                 result.updated_items += 1
                 result.stats.scenes_updated += 1
+                outcome = {
+                    "had_changes": True,
+                    "change_type": "updated",
+                    "error_message": None,
+                }
             else:
                 result.created_items += 1
                 result.stats.scenes_created += 1
+                outcome = {
+                    "had_changes": True,
+                    "change_type": "created",
+                    "error_message": None,
+                }
 
             await self.db.commit()
             logger.debug(f"Scene {scene_id} committed to database")
+            return outcome
 
         except Exception as e:
             logger.error(f"Error in _sync_single_scene for scene {scene_id}: {str(e)}")
@@ -1218,8 +1389,8 @@ class SyncService:
 
     async def _update_last_sync_time(
         self, entity_type: str, result: Optional[SyncResult] = None
-    ) -> None:
-        """Update the last sync time for an entity type"""
+    ) -> int:
+        """Update the last sync time for an entity type and return the sync history ID"""
         from app.models.sync_history import SyncHistory
 
         logger.debug(f"Recording successful sync for entity type: {entity_type}")
@@ -1257,6 +1428,8 @@ class SyncService:
             )
 
         self.db.add(sync_record)
+        await self.db.flush()  # Flush to get the ID before commit
+        sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
         await self.db.commit()
 
         logger.info(f"✓ Recorded successful sync completion for {entity_type}")
@@ -1273,6 +1446,36 @@ class SyncService:
         logger.info(
             f"  Verification: Total {entity_type} sync records now: {verify_count}"
         )
+
+        return sync_history_id  # type: ignore[return-value]
+
+    async def _create_sync_log(
+        self,
+        sync_history_id: Optional[int],
+        entity_type: str,
+        entity_id: Optional[str],
+        sync_type: str,
+        had_changes: bool = False,
+        change_type: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Create a sync log entry for tracking individual entity syncs."""
+        # Only create sync log if we have a valid sync_history_id
+        if sync_history_id is None:
+            logger.warning("Skipping sync log creation - no sync_history_id available")
+            return
+
+        sync_log = SyncLog(
+            sync_history_id=sync_history_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            sync_type=sync_type,
+            had_changes=had_changes,
+            change_type=change_type,
+            error_message=error_message,
+        )
+        self.db.add(sync_log)
+        # Note: Don't commit here, let the parent transaction handle it
 
     async def _update_job_status(
         self, job_id: str, status: JobStatus, message: str

@@ -33,7 +33,7 @@ import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import apiClient from '@/services/apiClient';
-import { Scene, AnalysisResult } from '@/types/models';
+import { Scene, AnalysisResult, SyncLogEntry } from '@/types/models';
 import useAppStore from '@/store';
 import { SceneEditModal } from '@/components/scenes/SceneEditModal';
 import {
@@ -127,6 +127,19 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     },
     {
       enabled: visible,
+    }
+  );
+
+  // Fetch sync logs for the scene
+  const { data: syncLogs } = useQuery<SyncLogEntry[]>(
+    ['scene-sync-logs', scene.id],
+    async () => {
+      const response = await api.get(`/scenes/${scene.id}/sync-logs`);
+      return response.data;
+    },
+    {
+      enabled: visible && activeTab === 'history',
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     }
   );
 
@@ -665,49 +678,98 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     );
   };
 
-  const renderHistoryTab = () => (
-    <Timeline>
-      <Timeline.Item color="green">
-        <Text strong>Scene Created in Stash</Text>
-        <br />
-        <Text type="secondary">
-          {fullScene?.stash_created_at
-            ? dayjs(fullScene.stash_created_at).format('YYYY-MM-DD HH:mm:ss')
-            : 'N/A'}
-        </Text>
-      </Timeline.Item>
+  const renderHistoryTab = () => {
+    // Combine all history items and sort by date
+    const historyItems: Array<{
+      type: string;
+      date: string;
+      color: string;
+      title: string;
+      subtitle?: string;
+      error?: string;
+      jobId?: string;
+    }> = [];
 
-      {fullScene?.analyzed && (
-        <Timeline.Item color="blue">
-          <Text strong>Scene Analyzed</Text>
-          <br />
-          <Text type="secondary">Yes</Text>
-        </Timeline.Item>
-      )}
+    // Add scene creation
+    if (fullScene?.stash_created_at) {
+      historyItems.push({
+        type: 'created',
+        date: fullScene.stash_created_at,
+        color: 'green',
+        title: 'Scene Created in Stash',
+      });
+    }
 
-      {analysisResults?.map((result, index) => (
-        <Timeline.Item key={result.id}>
-          <Text strong>Analysis #{index + 1}</Text>
-          <br />
-          <Text type="secondary">
-            {dayjs(result.created_at).format('YYYY-MM-DD HH:mm:ss')}
-          </Text>
-          <br />
-          <Text type="secondary">Plan: {result.plan?.name || 'Unknown'}</Text>
-        </Timeline.Item>
-      ))}
+    // Add sync logs
+    syncLogs?.forEach((log) => {
+      const syncTypeLabel =
+        {
+          full: 'Full Sync (All Scenes)',
+          incremental: 'Incremental Sync',
+          specific: 'Scene Sync',
+        }[log.sync_type] || log.sync_type;
 
-      <Timeline.Item>
-        <Text strong>Last Updated in Stash</Text>
-        <br />
-        <Text type="secondary">
-          {fullScene?.stash_updated_at
-            ? dayjs(fullScene.stash_updated_at).format('YYYY-MM-DD HH:mm:ss')
-            : 'N/A'}
-        </Text>
-      </Timeline.Item>
-    </Timeline>
-  );
+      const color =
+        log.change_type === 'failed'
+          ? 'red'
+          : log.had_changes
+            ? 'blue'
+            : 'gray';
+
+      historyItems.push({
+        type: 'sync',
+        date: log.created_at,
+        color,
+        title: syncTypeLabel,
+        subtitle: log.change_type ? `Status: ${log.change_type}` : undefined,
+        error: log.error_message || undefined,
+        jobId: log.sync_history.job_id,
+      });
+    });
+
+    // Add analysis results
+    analysisResults?.forEach((result, index) => {
+      historyItems.push({
+        type: 'analysis',
+        date: result.created_at,
+        color: 'purple',
+        title: `Analysis #${index + 1}`,
+        subtitle: `Plan: ${result.plan?.name || 'Unknown'}`,
+      });
+    });
+
+    // Sort by date descending
+    historyItems.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+
+    // Render timeline
+    return (
+      <Timeline>
+        {historyItems.map((item, index) => (
+          <Timeline.Item key={`${item.type}-${index}`} color={item.color}>
+            <Text strong>{item.title}</Text>
+            {item.subtitle && (
+              <>
+                <br />
+                <Text type="secondary">{item.subtitle}</Text>
+              </>
+            )}
+            {item.error && (
+              <>
+                <br />
+                <Text type="danger">Error: {item.error}</Text>
+              </>
+            )}
+            <br />
+            <Text type="secondary">
+              {dayjs(item.date).format('YYYY-MM-DD HH:mm:ss')}
+            </Text>
+          </Timeline.Item>
+        ))}
+      </Timeline>
+    );
+  };
 
   return (
     <>

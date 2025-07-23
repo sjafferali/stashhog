@@ -22,8 +22,9 @@ from app.api.schemas import (
     TagResponse,
 )
 from app.core.dependencies import get_db, get_job_service, get_sync_service
-from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, Tag
+from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, SyncLog, Tag
 from app.models.job import JobType as ModelJobType
+from app.models.sync_history import SyncHistory
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
@@ -586,3 +587,55 @@ async def get_scene_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
         "total_studios": total_studios,
         "scenes_by_studio": scenes_by_studio,
     }
+
+
+@router.get("/{scene_id}/sync-logs", response_model=List[Dict[str, Any]])
+async def get_scene_sync_logs(
+    scene_id: str,
+    limit: int = Query(50, description="Maximum number of logs to return"),
+    db: AsyncSession = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    """
+    Get sync history logs for a specific scene.
+
+    Returns sync logs where:
+    - The scene was specifically synced (entity_id matches)
+    - A full sync was performed (entity_id is NULL)
+    """
+    # Query sync logs for this scene
+    query = (
+        select(SyncLog, SyncHistory)
+        .join(SyncHistory, SyncLog.sync_history_id == SyncHistory.id)
+        .where(
+            or_(
+                SyncLog.entity_id == scene_id,
+                and_(SyncLog.entity_id.is_(None), SyncLog.sync_type == "full"),
+            )
+        )
+        .order_by(SyncLog.created_at.desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    sync_logs = result.all()
+
+    return [
+        {
+            "id": log.SyncLog.id,
+            "sync_type": log.SyncLog.sync_type,
+            "had_changes": log.SyncLog.had_changes,
+            "change_type": log.SyncLog.change_type,
+            "error_message": log.SyncLog.error_message,
+            "created_at": log.SyncLog.created_at,
+            "sync_history": {
+                "job_id": log.SyncHistory.job_id,
+                "started_at": log.SyncHistory.started_at,
+                "completed_at": log.SyncHistory.completed_at,
+                "status": log.SyncHistory.status,
+                "items_synced": log.SyncHistory.items_synced,
+                "items_created": log.SyncHistory.items_created,
+                "items_updated": log.SyncHistory.items_updated,
+            },
+        }
+        for log in sync_logs
+    ]

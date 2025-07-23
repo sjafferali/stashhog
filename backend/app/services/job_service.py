@@ -30,6 +30,9 @@ class JobService:
             JobType.SYNC_PERFORMERS,
             JobType.SYNC_TAGS,
             JobType.SYNC_STUDIOS,
+            JobType.ANALYSIS,
+            JobType.APPLY_PLAN,
+            JobType.GENERATE_DETAILS,
         }
 
     def register_handler(self, job_type: JobType, handler: Callable) -> None:
