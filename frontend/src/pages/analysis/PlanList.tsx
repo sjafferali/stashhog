@@ -5,6 +5,7 @@ import {
   CloseOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
@@ -17,6 +18,7 @@ const PlanList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   useEffect(() => {
     void fetchPlans();
@@ -174,6 +176,39 @@ const PlanList: React.FC = () => {
     });
   };
 
+  const handleApplyApprovedChanges = async () => {
+    Modal.confirm({
+      title: 'Apply Approved Changes',
+      content:
+        'This will run a job to apply all approved plan changes that have not been applied yet. Continue?',
+      onOk: async () => {
+        try {
+          setCleanupLoading(true);
+          const result = await apiClient.applyAllApprovedChanges();
+
+          if (result.job_id) {
+            void message.success(`Job started with ID: ${result.job_id}`);
+            void message.info(
+              `Applying ${result.total_changes} changes across ${result.plans_affected} plans`
+            );
+          } else {
+            void message.info(result.message);
+          }
+
+          // Refresh the plans after a short delay to show updated statuses
+          setTimeout(() => {
+            void fetchPlans();
+          }, 2000);
+        } catch (error) {
+          console.error('Failed to start apply job:', error);
+          void message.error('Failed to apply approved changes');
+        } finally {
+          setCleanupLoading(false);
+        }
+      },
+    });
+  };
+
   const handleBulkReject = async () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.includes(plan.id)
@@ -258,6 +293,18 @@ const PlanList: React.FC = () => {
       .reduce((sum, plan) => sum + (plan.total_changes || 0), 0);
   }, [plans]);
 
+  const hasApprovedChanges = useMemo(() => {
+    // Check if any plans have approved but not applied changes
+    return plans.some((plan) => {
+      const status = plan.status.toLowerCase();
+      // Plans in 'reviewing' status with accepted changes can be applied
+      // Also check for plans marked as 'draft' that may have approved changes
+      return (
+        status === 'reviewing' || (status === 'draft' && plan.total_changes > 0)
+      );
+    });
+  }, [plans]);
+
   const filteredAndSortedPlans = useMemo(() => {
     let filtered = [...plans];
 
@@ -309,6 +356,21 @@ const PlanList: React.FC = () => {
         activeFilter={statusFilter}
         onFilterChange={setStatusFilter}
       />
+
+      {hasApprovedChanges && (
+        <div style={{ marginBottom: 16, textAlign: 'right' }}>
+          <Button
+            type="primary"
+            icon={<SyncOutlined />}
+            loading={cleanupLoading}
+            onClick={() => {
+              void handleApplyApprovedChanges();
+            }}
+          >
+            Apply All Approved Changes
+          </Button>
+        </div>
+      )}
 
       <div
         style={{

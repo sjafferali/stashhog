@@ -355,8 +355,8 @@ const ApplyPlanModal: React.FC<ApplyPlanModalProps> = ({
             : 'Application Complete'
       }
       visible={visible}
-      onCancel={stage === 'confirm' ? onCancel : undefined}
-      closable={stage !== 'progress'}
+      onCancel={handleClose}
+      closable={true}
       maskClosable={false}
       width={600}
       footer={
@@ -375,8 +375,8 @@ const ApplyPlanModal: React.FC<ApplyPlanModalProps> = ({
             ]
           : stage === 'progress'
             ? [
-                <Button key="background" disabled>
-                  Running in Background...
+                <Button key="close" onClick={handleClose}>
+                  Close (Continue in Background)
                 </Button>,
               ]
             : null

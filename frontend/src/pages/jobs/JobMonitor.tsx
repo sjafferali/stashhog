@@ -195,8 +195,24 @@ const JobMonitor: React.FC = () => {
   };
 
   const expandedRowRender = (record: Job) => {
+    const hasLargeContent =
+      record.result && JSON.stringify(record.result).length > 1000;
+
     return (
       <div className={styles.expandedContent}>
+        {hasLargeContent && (
+          <div
+            style={{
+              textAlign: 'right',
+              marginBottom: 8,
+              fontSize: 12,
+              color: '#8c8c8c',
+              fontStyle: 'italic',
+            }}
+          >
+            Scroll to see more content ↓
+          </div>
+        )}
         <Row gutter={[16, 16]}>
           <Col span={12}>
             <Card size="small" title="Job Information">
@@ -301,7 +317,7 @@ const JobMonitor: React.FC = () => {
                 )}
               </>
             ) : (
-              <pre style={{ maxHeight: 200, overflow: 'auto' }}>
+              <pre className={styles.resultPreview}>
                 {JSON.stringify(record.result, null, 2)}
               </pre>
             )}

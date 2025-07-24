@@ -183,6 +183,21 @@ class ApiClient {
     return response.data;
   }
 
+  async runManualCleanup(): Promise<{ job_id: string }> {
+    const response = await api.post('/jobs/cleanup');
+    return response.data;
+  }
+
+  async applyAllApprovedChanges(): Promise<{
+    job_id?: string;
+    plans_affected: number;
+    total_changes: number;
+    message: string;
+  }> {
+    const response = await api.post('/analysis/apply-all-approved');
+    return response.data;
+  }
+
   // Settings
   async getSettings(): Promise<Settings> {
     const response = await api.get('/settings');
