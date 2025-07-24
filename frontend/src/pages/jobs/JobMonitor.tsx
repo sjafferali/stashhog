@@ -14,10 +14,10 @@ import {
   Col,
   Alert,
   Badge,
-  Divider,
   message,
   Empty,
   Select,
+  Collapse,
 } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
@@ -656,160 +656,165 @@ const JobMonitor: React.FC = () => {
           </Button>,
         ]}
         width={800}
+        bodyStyle={{
+          maxHeight: 'calc(80vh - 108px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          position: 'relative',
+        }}
+        className={styles.jobDetailModalWrapper}
       >
         {selectedJob && (
           <div className={styles.jobDetailModal}>
-            <Descriptions
-              bordered
-              column={2}
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
-              <Descriptions.Item label="Job ID" span={2}>
-                <Text copyable>{selectedJob.id}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Type">
-                <Tag color={getJobTypeColor(selectedJob.type)}>
-                  {getJobTypeLabel(selectedJob.type)}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Space>
-                  {getStatusIcon(selectedJob.status)}
-                  <Tag
-                    color={
-                      selectedJob.status === 'completed'
-                        ? 'success'
-                        : selectedJob.status === 'failed'
-                          ? 'error'
-                          : selectedJob.status === 'running'
-                            ? 'processing'
-                            : 'default'
-                    }
-                  >
-                    {selectedJob.status.toUpperCase()}
-                  </Tag>
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="Progress" span={2}>
-                <Progress
-                  percent={selectedJob.progress}
-                  status={
-                    selectedJob.status === 'failed'
-                      ? 'exception'
-                      : selectedJob.status === 'completed'
-                        ? 'success'
-                        : 'active'
-                  }
-                />
-              </Descriptions.Item>
-              <Descriptions.Item label="Created">
-                {new Date(selectedJob.created_at).toLocaleString()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Duration">
-                {formatDuration(
-                  selectedJob.started_at,
-                  selectedJob.completed_at
-                )}
-              </Descriptions.Item>
-            </Descriptions>
-
-            {selectedJob.metadata?.last_message && (
-              <>
-                <Divider orientation="left">Last Message</Divider>
-                <Alert
-                  message={selectedJob.metadata.last_message}
-                  type="info"
-                  showIcon
-                />
-              </>
-            )}
-
-            {selectedJob.error && (
-              <>
-                <Divider orientation="left">Error Details</Divider>
-                <Alert
-                  message="Job Failed"
-                  description={selectedJob.error}
-                  type="error"
-                  showIcon
-                />
-              </>
-            )}
-
-            {selectedJob.parameters &&
-              Object.keys(selectedJob.parameters).length > 0 && (
-                <>
-                  <Divider orientation="left">Parameters</Divider>
-                  <pre className={styles.codeBlock}>
-                    {JSON.stringify(selectedJob.parameters, null, 2)}
-                  </pre>
-                </>
-              )}
-
-            {selectedJob.result &&
-              Object.keys(selectedJob.result).length > 0 && (
-                <>
-                  <Divider orientation="left">Result</Divider>
-                  {selectedJob.type === 'scene_analysis' ||
-                  selectedJob.type === 'analysis' ? (
-                    <>
-                      <AnalysisJobResult
-                        result={
-                          selectedJob.result as unknown as AnalysisJobResultData
+            <Collapse defaultActiveKey={['basic', 'result']}>
+              <Collapse.Panel header="Basic Information" key="basic">
+                <Descriptions bordered column={2} size="small">
+                  <Descriptions.Item label="Job ID" span={2}>
+                    <Text copyable>{selectedJob.id}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Type">
+                    <Tag color={getJobTypeColor(selectedJob.type)}>
+                      {getJobTypeLabel(selectedJob.type)}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Status">
+                    <Space>
+                      {getStatusIcon(selectedJob.status)}
+                      <Tag
+                        color={
+                          selectedJob.status === 'completed'
+                            ? 'success'
+                            : selectedJob.status === 'failed'
+                              ? 'error'
+                              : selectedJob.status === 'running'
+                                ? 'processing'
+                                : 'default'
                         }
-                      />
-                      {((selectedJob.result &&
-                        'plan_id' in selectedJob.result &&
-                        selectedJob.result.plan_id) ||
-                        (selectedJob.metadata &&
-                          'plan_id' in selectedJob.metadata &&
-                          selectedJob.metadata.plan_id)) && (
-                        <div style={{ marginTop: 16 }}>
-                          <Link
-                            to={`/analysis/plans/${
-                              (selectedJob.result &&
-                              'plan_id' in selectedJob.result
-                                ? selectedJob.result.plan_id
-                                : selectedJob.metadata?.plan_id) as string
-                            }`}
-                          >
-                            <Button type="primary" icon={<FileTextOutlined />}>
-                              View{' '}
-                              {selectedJob.status === 'running'
-                                ? 'Current'
-                                : 'Created'}{' '}
-                              Analysis Plan
-                            </Button>
-                          </Link>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <pre className={styles.codeBlock}>
-                      {JSON.stringify(selectedJob.result, null, 2)}
-                    </pre>
-                  )}
-                </>
-              )}
-
-            {selectedJob.metadata &&
-              Object.keys(selectedJob.metadata).length > 1 && (
-                <>
-                  <Divider orientation="left">Metadata</Divider>
-                  <pre className={styles.codeBlock}>
-                    {JSON.stringify(
-                      Object.fromEntries(
-                        Object.entries(selectedJob.metadata).filter(
-                          ([key]) => key !== 'last_message'
-                        )
-                      ),
-                      null,
-                      2
+                      >
+                        {selectedJob.status.toUpperCase()}
+                      </Tag>
+                    </Space>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Progress" span={2}>
+                    <Progress
+                      percent={selectedJob.progress}
+                      status={
+                        selectedJob.status === 'failed'
+                          ? 'exception'
+                          : selectedJob.status === 'completed'
+                            ? 'success'
+                            : 'active'
+                      }
+                    />
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Created">
+                    {new Date(selectedJob.created_at).toLocaleString()}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Duration">
+                    {formatDuration(
+                      selectedJob.started_at,
+                      selectedJob.completed_at
                     )}
-                  </pre>
-                </>
-              )}
+                  </Descriptions.Item>
+                </Descriptions>
+
+                {selectedJob.metadata?.last_message && (
+                  <div style={{ marginTop: 16 }}>
+                    <Alert
+                      message="Last Message"
+                      description={selectedJob.metadata.last_message}
+                      type="info"
+                      showIcon
+                    />
+                  </div>
+                )}
+
+                {selectedJob.error && (
+                  <div style={{ marginTop: 16 }}>
+                    <Alert
+                      message="Job Failed"
+                      description={selectedJob.error}
+                      type="error"
+                      showIcon
+                    />
+                  </div>
+                )}
+              </Collapse.Panel>
+
+              {selectedJob.parameters &&
+                Object.keys(selectedJob.parameters).length > 0 && (
+                  <Collapse.Panel header="Parameters" key="parameters">
+                    <pre className={styles.codeBlock}>
+                      {JSON.stringify(selectedJob.parameters, null, 2)}
+                    </pre>
+                  </Collapse.Panel>
+                )}
+
+              {selectedJob.result &&
+                Object.keys(selectedJob.result).length > 0 && (
+                  <Collapse.Panel header="Result" key="result">
+                    {selectedJob.type === 'scene_analysis' ||
+                    selectedJob.type === 'analysis' ? (
+                      <>
+                        <AnalysisJobResult
+                          result={
+                            selectedJob.result as unknown as AnalysisJobResultData
+                          }
+                        />
+                        {((selectedJob.result &&
+                          'plan_id' in selectedJob.result &&
+                          selectedJob.result.plan_id) ||
+                          (selectedJob.metadata &&
+                            'plan_id' in selectedJob.metadata &&
+                            selectedJob.metadata.plan_id)) && (
+                          <div style={{ marginTop: 16 }}>
+                            <Link
+                              to={`/analysis/plans/${
+                                (selectedJob.result &&
+                                'plan_id' in selectedJob.result
+                                  ? selectedJob.result.plan_id
+                                  : selectedJob.metadata?.plan_id) as string
+                              }`}
+                            >
+                              <Button
+                                type="primary"
+                                icon={<FileTextOutlined />}
+                              >
+                                View{' '}
+                                {selectedJob.status === 'running'
+                                  ? 'Current'
+                                  : 'Created'}{' '}
+                                Analysis Plan
+                              </Button>
+                            </Link>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <pre className={styles.codeBlock}>
+                        {JSON.stringify(selectedJob.result, null, 2)}
+                      </pre>
+                    )}
+                  </Collapse.Panel>
+                )}
+
+              {selectedJob.metadata &&
+                Object.keys(selectedJob.metadata).length > 1 && (
+                  <Collapse.Panel header="Metadata" key="metadata">
+                    <pre className={styles.codeBlock}>
+                      {JSON.stringify(
+                        Object.fromEntries(
+                          Object.entries(selectedJob.metadata).filter(
+                            ([key]) => key !== 'last_message'
+                          )
+                        ),
+                        null,
+                        2
+                      )}
+                    </pre>
+                  </Collapse.Panel>
+                )}
+            </Collapse>
           </div>
         )}
       </Modal>

@@ -156,6 +156,41 @@
     }
   }
 
+  .jobDetailModalWrapper {
+    :global {
+      .ant-modal-body {
+        // Add scroll shadows
+        background:
+          linear-gradient(white 30%, rgba(255,255,255,0)),
+          linear-gradient(rgba(255,255,255,0), white 70%) 0 100%,
+          radial-gradient(50% 0, farthest-side, rgba(0,0,0,.1), rgba(0,0,0,0)),
+          radial-gradient(50% 100%, farthest-side, rgba(0,0,0,.1), rgba(0,0,0,0)) 0 100%;
+        background-repeat: no-repeat;
+        background-size: 100% 40px, 100% 40px, 100% 14px, 100% 14px;
+        background-attachment: local, local, scroll, scroll;
+        
+        // Custom scrollbar
+        &::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          background: #888;
+          border-radius: 4px;
+          
+          &:hover {
+            background: #555;
+          }
+        }
+      }
+    }
+  }
+
   .jobDetailModal {
     :global {
       .ant-descriptions {
@@ -165,6 +200,32 @@
       .ant-divider-inner-text {
         font-weight: 500;
         font-size: 14px;
+      }
+    }
+
+    :global {
+      .ant-collapse {
+        margin-bottom: 0;
+        
+        .ant-collapse-header {
+          font-weight: 500;
+          font-size: 14px;
+        }
+
+        .ant-collapse-content-box {
+          padding: 16px;
+        }
+
+        .ant-collapse-item {
+          border-radius: 4px;
+          margin-bottom: 8px;
+          border: 1px solid #f0f0f0;
+          overflow: hidden;
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
       }
     }
 
