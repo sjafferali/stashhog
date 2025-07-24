@@ -22,7 +22,41 @@ class TestSyncService:
         db.add = Mock()
         db.commit = AsyncMock()
         db.rollback = AsyncMock()
-        db.execute = AsyncMock()
+
+        # Create a proper mock sync history instance
+        from app.models.sync_history import SyncHistory
+
+        mock_sync_history = Mock(spec=SyncHistory)
+        mock_sync_history.id = 1
+        mock_sync_history.completed_at = datetime.utcnow()
+        mock_sync_history.status = "completed"
+        mock_sync_history.items_synced = 0
+        mock_sync_history.items_created = 0
+        mock_sync_history.items_updated = 0
+        mock_sync_history.items_failed = 0
+
+        # Mock the execute method to return proper result object
+        mock_result = Mock()
+        # Make sure scalar_one returns the mock object, not a coroutine
+        mock_result.scalar_one = lambda: mock_sync_history
+        mock_result.scalar_one_or_none = lambda: mock_sync_history
+        mock_result.scalars = lambda: Mock(all=lambda: [mock_sync_history])
+        db.execute = AsyncMock(return_value=mock_result)
+
+        # Mock flush to set ID on added objects
+        def mock_flush_side_effect():
+            # Set ID on any SyncHistory objects that were added
+            if db.add.call_args and db.add.call_args[0]:
+                obj = db.add.call_args[0][0]
+                if (
+                    hasattr(obj, "__class__")
+                    and obj.__class__.__name__ == "SyncHistory"
+                ):
+                    obj.id = 1
+            return None
+
+        db.flush = AsyncMock(side_effect=mock_flush_side_effect)
+
         return db
 
     @pytest.fixture
@@ -77,7 +111,7 @@ class TestSyncService:
 
         sync_service._update_job_status = AsyncMock(side_effect=mock_update_job_status)
         # Mock _update_last_sync_time to avoid database queries
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         # Mock job in database
         mock_job = Mock(spec=Job)
@@ -129,10 +163,9 @@ class TestSyncService:
         mock_stash_service.get_all_tags = AsyncMock(return_value=[])
         mock_stash_service.get_all_studios = AsyncMock(return_value=[])
 
-        # Mock database execute for scene lookups
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        # Don't override the execute mock - it's already set up in the fixture
+        # Just ensure scalar_one_or_none returns None for scene lookups
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -157,7 +190,7 @@ class TestSyncService:
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
         # Mock _update_last_sync_time to avoid database queries
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         # Mock scene data
         mock_scenes = [
@@ -191,10 +224,9 @@ class TestSyncService:
             }
         )
 
-        # Mock database queries
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        # Don't override the execute mock - it's already set up in the fixture
+        # Just ensure scalar_one_or_none returns None for scene lookups
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -219,10 +251,7 @@ class TestSyncService:
         # Mock stash service
         mock_stash_service.get_scene = AsyncMock(return_value=scene_data)
 
-        # Mock database - mock execute to return no existing scene
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        # Don't override the execute mock - it's already set up in the fixture
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -326,7 +355,7 @@ class TestSyncService:
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
         # Mock _update_last_sync_time to avoid database queries
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         progress_updates = []
 
@@ -399,10 +428,11 @@ class TestSyncService:
         existing_scene.id = "123"
         existing_scene.title = "Old Title"
 
-        # Mock database - mock execute to return existing scene
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=existing_scene)
-        mock_db.execute.return_value = mock_result
+        # Don't override the execute mock - it's already set up in the fixture
+        # But we need to return the existing scene for lookups
+        mock_db.execute.return_value.scalar_one_or_none = Mock(
+            return_value=existing_scene
+        )
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock(return_value=existing_scene)
@@ -426,10 +456,7 @@ class TestSyncService:
         """Test skipping a scene based on strategy."""
         scene_data = {"id": "123", "title": "Scene"}
 
-        # Mock database - mock execute to return no existing scene
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        # Don't override the execute mock - it's already set up in the fixture
 
         # Mock strategy to skip
         sync_service.strategy.should_sync = AsyncMock(return_value=False)

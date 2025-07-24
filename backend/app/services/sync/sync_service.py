@@ -377,6 +377,10 @@ class SyncService:
             await self.db.flush()  # Flush to get the ID
             sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
 
+            # Commit the sync_history record immediately to ensure it persists
+            # even if subsequent operations fail
+            await self.db.commit()
+
             # Process each scene ID
             for idx, scene_id in enumerate(scene_ids):
                 await self._check_cancellation(cancellation_token)
@@ -393,6 +397,15 @@ class SyncService:
             await self._finalize_sync(result, progress_callback)
 
             # Update the sync history record with final stats
+            # Need to refetch the record since we committed earlier
+            from sqlalchemy import select
+
+            from app.models.sync_history import SyncHistory
+
+            stmt = select(SyncHistory).where(SyncHistory.id == sync_history_id)
+            result_db = await self.db.execute(stmt)
+            sync_record = result_db.scalar_one()
+
             # MyPy has issues with SQLAlchemy hybrid properties, so we ignore these
             sync_record.completed_at = result.completed_at or datetime.utcnow()  # type: ignore[assignment]
             sync_record.status = "completed" if result.status == SyncStatus.SUCCESS else "failed"  # type: ignore[assignment]
@@ -586,6 +599,10 @@ class SyncService:
             await self.db.flush()  # Flush to get the ID
             sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
 
+            # Commit the sync_history record immediately to ensure it persists
+            # even if subsequent operations fail
+            await self.db.commit()
+
             # Process batches
             offset = 0
             batch_num = 0
@@ -621,6 +638,15 @@ class SyncService:
             result.complete()
 
             # Update the sync history record with final stats
+            # Need to refetch the record since we committed earlier
+            from sqlalchemy import select
+
+            from app.models.sync_history import SyncHistory
+
+            stmt = select(SyncHistory).where(SyncHistory.id == sync_history_id)
+            result_db = await self.db.execute(stmt)
+            sync_record = result_db.scalar_one()
+
             # MyPy has issues with SQLAlchemy hybrid properties, so we ignore these
             sync_record.completed_at = result.completed_at or datetime.utcnow()  # type: ignore[assignment]
             sync_record.status = "completed" if result.status == SyncStatus.SUCCESS else "failed"  # type: ignore[assignment]
@@ -1475,7 +1501,8 @@ class SyncService:
             error_message=error_message,
         )
         self.db.add(sync_log)
-        # Note: Don't commit here, let the parent transaction handle it
+        # Commit immediately to avoid batching issues with foreign key constraints
+        await self.db.commit()
 
     async def _update_job_status(
         self, job_id: str, status: JobStatus, message: str

@@ -24,7 +24,39 @@ class TestSyncServiceComprehensive:
         db.add = Mock()
         db.commit = AsyncMock()
         db.rollback = AsyncMock()
-        db.execute = AsyncMock()
+
+        # Create a proper mock sync history instance
+        mock_sync_history = Mock(spec=SyncHistory)
+        mock_sync_history.id = 1
+        mock_sync_history.completed_at = datetime.utcnow()
+        mock_sync_history.status = "completed"
+        mock_sync_history.items_synced = 0
+        mock_sync_history.items_created = 0
+        mock_sync_history.items_updated = 0
+        mock_sync_history.items_failed = 0
+
+        # Mock the execute method to return proper result object
+        mock_result = Mock()
+        # Make sure scalar_one returns the mock object, not a coroutine
+        mock_result.scalar_one = lambda: mock_sync_history
+        mock_result.scalar_one_or_none = lambda: mock_sync_history
+        mock_result.scalars = lambda: Mock(all=lambda: [mock_sync_history])
+        db.execute = AsyncMock(return_value=mock_result)
+
+        # Mock flush to set ID on added objects
+        def mock_flush_side_effect():
+            # Set ID on any SyncHistory objects that were added
+            if db.add.call_args and db.add.call_args[0]:
+                obj = db.add.call_args[0][0]
+                if (
+                    hasattr(obj, "__class__")
+                    and obj.__class__.__name__ == "SyncHistory"
+                ):
+                    obj.id = 1
+            return None
+
+        db.flush = AsyncMock(side_effect=mock_flush_side_effect)
+
         return db
 
     @pytest.fixture
@@ -91,7 +123,7 @@ class TestSyncServiceComprehensive:
         """Test sync_all with force=True."""
         # Mock sync history
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
         sync_service._update_job_status = AsyncMock()
 
         # Setup mock responses for full sync
@@ -123,10 +155,8 @@ class TestSyncServiceComprehensive:
             ]
         )
 
-        # Mock database scene lookup
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        # Mock database scene lookup - preserve the fixture's scalar_one method
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -166,7 +196,7 @@ class TestSyncServiceComprehensive:
         """Test sync_all error handling."""
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
         sync_service._update_job_status = AsyncMock()
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         # Make entity sync fail by causing _sync_entities to raise
         # We need to mock the entire _sync_entities method to ensure proper exception propagation
@@ -200,9 +230,9 @@ class TestSyncServiceComprehensive:
         ]
 
         # Mock database - also set on sync_service since it uses self.db
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        sync_service.db.execute.return_value = mock_result
+        sync_service.db.execute.return_value.scalar_one_or_none = Mock(
+            return_value=None
+        )
 
         # Mock handlers
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -402,13 +432,15 @@ class TestSyncServiceComprehensive:
         mock_history.started_at = datetime(2024, 1, 15, 10, 0)
 
         # Setup database mocks
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=mock_history)
-        mock_result.scalar_one = Mock(side_effect=[10, 5])  # counts
-        mock_result.scalars = Mock()
-        mock_result.scalars.return_value.all = Mock(return_value=[mock_history])
-
-        mock_db.execute.return_value = mock_result
+        # Update the existing mock result from fixture
+        mock_db.execute.return_value.scalar_one_or_none = Mock(
+            return_value=mock_history
+        )
+        mock_db.execute.return_value.scalar_one = Mock(side_effect=[10, 5])  # counts
+        mock_db.execute.return_value.scalars = Mock()
+        mock_db.execute.return_value.scalars.return_value.all = Mock(
+            return_value=[mock_history]
+        )
 
         # Get last sync time
         last_sync = await sync_service._get_last_sync_time("scene")
@@ -421,10 +453,8 @@ class TestSyncServiceComprehensive:
     async def test_get_last_sync_time_no_history(self, sync_service, mock_db):
         """Test retrieving last sync time with no history."""
         # Mock empty sync history
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_result.scalar_one = Mock(return_value=0)  # no records
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
+        mock_db.execute.return_value.scalar_one = Mock(return_value=0)  # no records
 
         # Get last sync time
         last_sync = await sync_service._get_last_sync_time("performer")
@@ -466,9 +496,7 @@ class TestSyncServiceComprehensive:
         mock_job.id = "job123"
         mock_job.job_metadata = {"existing": "data"}
 
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=mock_job)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=mock_job)
 
         # Update job status
         await sync_service._update_job_status(
@@ -489,9 +517,7 @@ class TestSyncServiceComprehensive:
         mock_job.id = "job456"
         mock_job.message = ""
 
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=mock_job)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=mock_job)
 
         # Update to completed
         await sync_service._update_job_status(
@@ -650,9 +676,7 @@ class TestSyncServiceComprehensive:
         )
 
         # Mock database
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         sync_service.strategy.should_sync = AsyncMock(return_value=True)
 
@@ -685,14 +709,12 @@ class TestSyncServiceComprehensive:
         ]
 
         # Mock database - use the mock_db parameter
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         # Mock handlers
         sync_service.scene_handler.sync_scene = AsyncMock()
         sync_service.strategy.should_sync = AsyncMock(return_value=True)
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         # Create initial result with total_items set
         initial_result = SyncResult(
@@ -745,7 +767,7 @@ class TestSyncServiceComprehensive:
 
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
         sync_service._update_job_status = AsyncMock()
-        sync_service._update_last_sync_time = AsyncMock()
+        sync_service._update_last_sync_time = AsyncMock(return_value=1)
 
         # Mock get_stats to return scene count
         mock_stash_service.get_stats.return_value = {
@@ -759,9 +781,7 @@ class TestSyncServiceComprehensive:
         mock_stash_service.get_scenes.side_effect = Exception("Cancelled by user")
 
         # Mock database for scene lookups
-        mock_result = AsyncMock()
-        mock_result.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
 
         # Run sync
         with pytest.raises(Exception) as exc_info:
