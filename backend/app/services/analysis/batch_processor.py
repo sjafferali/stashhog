@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from app.models.scene import Scene
 
@@ -54,73 +54,62 @@ class BatchProcessor:
 
         logger.info(f"Processing {len(scenes)} scenes in {total_batches} batches")
 
-        # Process batches concurrently
+        # Process batches with cancellation checks
         results = []
         completed = 0
 
-        # Create tasks for all batches
-        tasks = []
+        # Process batches in controlled concurrency with cancellation checks
+        batch_tasks = []
+        batch_indices = []
+
         for batch_idx, batch in enumerate(batches):
-            # Check for cancellation before creating each batch task
+            # Check for cancellation before processing each batch
             if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
                 await cancellation_token.check_cancellation()
 
+            # Create task for this batch
             task = self._process_batch_with_progress(
-                batch, batch_idx, analyzer, progress_callback, error_callback
+                batch,
+                batch_idx,
+                analyzer,
+                progress_callback,
+                error_callback,
+                cancellation_token,
             )
-            tasks.append(task)
+            batch_tasks.append(task)
+            batch_indices.append(batch_idx)
 
-        # Wait for all tasks to complete
-        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Collect results
-        for batch_idx, batch_result in enumerate(batch_results):
-            if isinstance(batch_result, BaseException):
-                logger.error(f"Batch {batch_idx} failed: {batch_result}")
-                if error_callback:
-                    await error_callback(batch_idx, batch_result)
-                # Add empty results for failed batch
-                for scene in batches[batch_idx]:
-                    # Handle both Scene objects and dictionaries
-                    if isinstance(scene, dict):
-                        scene_id = str(scene.get("id", ""))
-                        scene_title = str(scene.get("title", "Untitled"))
-                        scene_path = scene.get(
-                            "path", scene.get("file", {}).get("path", "")
-                        )
-                    else:
-                        # Handle Scene-like objects
-                        scene_id = str(getattr(scene, "id", ""))
-                        scene_title = str(
-                            getattr(scene, "title", "Untitled") or "Untitled"
-                        )
-                        scene_path = (
-                            getattr(
-                                scene,
-                                "get_primary_path",
-                                lambda: getattr(scene, "path", ""),
-                            )()
-                            if hasattr(scene, "get_primary_path")
-                            else getattr(scene, "path", "")
-                        )
-
-                    results.append(
-                        SceneChanges(
-                            scene_id=scene_id,
-                            scene_title=scene_title,
-                            scene_path=scene_path,
-                            changes=[],
-                            error=str(batch_result),
-                        )
-                    )
-            else:
-                results.extend(batch_result)
-
-            completed += 1
-            if progress_callback:
-                await progress_callback(
-                    completed, total_batches, len(results), len(scenes)
+            # Process batches in groups to allow cancellation checks
+            if len(batch_tasks) >= self.max_concurrent or batch_idx == len(batches) - 1:
+                # Wait for current group of tasks
+                batch_results = await asyncio.gather(
+                    *batch_tasks, return_exceptions=True
                 )
+
+                # Process results
+                for task_idx, batch_result in enumerate(batch_results):
+                    actual_batch_idx = batch_indices[task_idx]
+                    if isinstance(batch_result, BaseException):
+                        logger.error(f"Batch {actual_batch_idx} failed: {batch_result}")
+                        if error_callback:
+                            await error_callback(actual_batch_idx, batch_result)
+                        # Add empty results for failed batch
+                        error_results = self._create_error_results(
+                            batches[actual_batch_idx], str(batch_result)
+                        )
+                        results.extend(error_results)
+                    else:
+                        results.extend(batch_result)
+
+                    completed += 1
+                    if progress_callback:
+                        await progress_callback(
+                            completed, total_batches, len(results), len(scenes)
+                        )
+
+                # Clear for next group
+                batch_tasks = []
+                batch_indices = []
 
         logger.info(f"Completed processing {len(results)} scenes")
         return results
@@ -250,42 +239,13 @@ class BatchProcessor:
             result = await analyzer(batch_data)
             return result  # type: ignore[no-any-return]
 
+        except asyncio.CancelledError:
+            # Re-raise cancellation without logging
+            raise
         except Exception as e:
             logger.error(f"Batch processing error: {e}")
             # Return error results for all scenes in batch
-            results = []
-            for scene in batch:
-                # Handle both Scene objects and dictionaries
-                if isinstance(scene, dict):
-                    scene_id = str(scene.get("id", ""))
-                    scene_title = str(scene.get("title", "Untitled"))
-                    scene_path = scene.get(
-                        "path", scene.get("file", {}).get("path", "")
-                    )
-                else:
-                    # Handle Scene-like objects
-                    scene_id = str(getattr(scene, "id", ""))
-                    scene_title = str(getattr(scene, "title", "Untitled") or "Untitled")
-                    scene_path = (
-                        getattr(
-                            scene,
-                            "get_primary_path",
-                            lambda: getattr(scene, "path", ""),
-                        )()
-                        if hasattr(scene, "get_primary_path")
-                        else getattr(scene, "path", "")
-                    )
-
-                results.append(
-                    SceneChanges(
-                        scene_id=scene_id,
-                        scene_title=scene_title,
-                        scene_path=scene_path,
-                        changes=[],
-                        error=str(e),
-                    )
-                )
-            return results
+            return self._create_error_results(batch, str(e))
 
     async def _process_batch_with_progress(
         self,
@@ -294,6 +254,7 @@ class BatchProcessor:
         analyzer: Callable,
         progress_callback: Optional[Callable],
         error_callback: Optional[Callable],
+        cancellation_token: Optional[Any] = None,
     ) -> List[SceneChanges]:
         """Process a batch with semaphore control and progress tracking.
 
@@ -311,6 +272,12 @@ class BatchProcessor:
             start_time = datetime.utcnow()
 
             try:
+                # Check for cancellation at the start of batch processing
+                if cancellation_token and hasattr(
+                    cancellation_token, "check_cancellation"
+                ):
+                    await cancellation_token.check_cancellation()
+
                 logger.debug(
                     f"Processing batch {batch_idx + 1} with {len(batch)} scenes"
                 )
@@ -343,3 +310,59 @@ class BatchProcessor:
             batch = scenes[i : i + self.batch_size]
             batches.append(batch)
         return batches
+
+    def _create_error_results(
+        self, batch: List[Union[Scene, Dict[str, Any], Any]], error_message: str
+    ) -> List[SceneChanges]:
+        """Create error results for all scenes in a failed batch.
+
+        Args:
+            batch: Batch of scenes that failed
+            error_message: Error message to include
+
+        Returns:
+            List of SceneChanges with error information
+        """
+        results = []
+        for scene in batch:
+            scene_id, scene_title, scene_path = self._extract_scene_info(scene)
+            results.append(
+                SceneChanges(
+                    scene_id=scene_id,
+                    scene_title=scene_title,
+                    scene_path=scene_path,
+                    changes=[],
+                    error=error_message,
+                )
+            )
+        return results
+
+    def _extract_scene_info(
+        self, scene: Union[Scene, Dict[str, Any], Any]
+    ) -> Tuple[str, str, str]:
+        """Extract scene ID, title, and path from scene object or dictionary.
+
+        Args:
+            scene: Scene object or dictionary
+
+        Returns:
+            Tuple of (scene_id, scene_title, scene_path)
+        """
+        if isinstance(scene, dict):
+            scene_id = str(scene.get("id", ""))
+            scene_title = str(scene.get("title", "Untitled"))
+            scene_path = scene.get("path", scene.get("file", {}).get("path", ""))
+        else:
+            # Handle Scene-like objects
+            scene_id = str(getattr(scene, "id", ""))
+            scene_title = str(getattr(scene, "title", "Untitled") or "Untitled")
+            scene_path = (
+                getattr(
+                    scene,
+                    "get_primary_path",
+                    lambda: getattr(scene, "path", ""),
+                )()
+                if hasattr(scene, "get_primary_path")
+                else getattr(scene, "path", "")
+            )
+        return scene_id, scene_title, scene_path

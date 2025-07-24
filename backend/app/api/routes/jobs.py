@@ -406,3 +406,49 @@ async def retry_job(
         "message": f"Job {job_id} retried as new job {new_job.id}",
         "new_job_id": new_job.id,
     }
+
+
+@router.post("/cleanup")
+async def trigger_cleanup(
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Trigger a cleanup job manually.
+
+    This will:
+    - Find and update stale jobs (stuck in RUNNING/PENDING state)
+    - Delete old completed jobs (older than 30 days)
+    - Reset stuck PENDING plans to DRAFT status
+    """
+    # Check if there's already a cleanup job running
+    query = select(Job).where(
+        Job.type == "cleanup", Job.status.in_(["pending", "running"])
+    )
+    result = await db.execute(query)
+    existing_job = result.scalar_one_or_none()
+
+    if existing_job:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cleanup job already {existing_job.status}: {existing_job.id}",
+        )
+
+    # Import JobType from models to use the enum
+    from app.models.job import JobType as ModelJobType
+
+    # Create a new cleanup job
+    new_job = await job_service.create_job(
+        job_type=ModelJobType.CLEANUP,
+        metadata={"triggered_by": "manual", "source": "api"},
+        db=db,
+    )
+
+    # Refresh the job object to ensure all attributes are loaded
+    await db.refresh(new_job)
+
+    return {
+        "success": True,
+        "message": "Cleanup job started successfully",
+        "job_id": str(new_job.id),
+    }

@@ -218,7 +218,7 @@ class AnalysisService:
         return await self.batch_processor.process_scenes(
             scenes=scenes_for_processing,
             analyzer=lambda batch: self._analyze_batch_with_plan(
-                batch, options, db, job_id
+                batch, options, db, job_id, cancellation_token
             ),
             progress_callback=lambda c, t, p, s: (
                 self._on_progress(job_id or "", c, t, p, s, progress_callback)
@@ -524,6 +524,7 @@ class AnalysisService:
         options: AnalysisOptions,
         db: Optional[AsyncSession],
         job_id: Optional[str],
+        cancellation_token: Optional[Any] = None,
     ) -> list[SceneChanges]:
         """Analyze a batch of scenes with incremental plan updates.
 
@@ -539,6 +540,10 @@ class AnalysisService:
         results = []
 
         for scene_data in batch_data:
+            # Check for cancellation before processing each scene
+            if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+                await cancellation_token.check_cancellation()
+
             # Analyze the scene
             scene_changes = await self._analyze_single_scene_with_plan(
                 scene_data, options, db, job_id

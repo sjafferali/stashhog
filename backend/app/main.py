@@ -92,19 +92,13 @@ async def _startup_tasks() -> None:
     logger.info("Registering job handlers...")
     register_all_jobs(job_service)
 
-    # Start scheduler and schedule cleanup job
+    # Start scheduler
     if not os.getenv("PYTEST_CURRENT_TEST"):
         logger.info("Starting scheduler...")
         from app.services.sync.scheduler import sync_scheduler
 
         sync_scheduler.start()
-
-        # Schedule cleanup job to run every 30 minutes
-        try:
-            sync_scheduler.schedule_cleanup_job(interval_minutes=30)
-            logger.info("Scheduled cleanup job to run every 30 minutes")
-        except Exception as e:
-            logger.warning(f"Failed to schedule cleanup job: {e}")
+        logger.info("Scheduler started successfully")
 
     # TODO: Test external connections
     # logger.info("Testing external connections...")

@@ -11,8 +11,14 @@ import {
   message,
   Spin,
   Alert,
+  Tooltip,
 } from 'antd';
-import { SaveOutlined, ApiOutlined, LoadingOutlined } from '@ant-design/icons';
+import {
+  SaveOutlined,
+  ApiOutlined,
+  LoadingOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 // import { apiClient } from '@/services/apiClient';
 import api from '@/services/api';
 import useAppStore from '@/store';
@@ -57,6 +63,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testingStash, setTestingStash] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
+  const [runningCleanup, setRunningCleanup] = useState(false);
   const [fieldPlaceholders, setFieldPlaceholders] = useState<
     Record<string, string>
   >({});
@@ -242,6 +249,35 @@ const Settings: React.FC = () => {
       void message.error('Failed to test OpenAI connection');
     } finally {
       setTestingOpenAI(false);
+    }
+  };
+
+  const handleRunCleanup = async () => {
+    try {
+      setRunningCleanup(true);
+      const response = await api.post('/jobs/cleanup');
+
+      if (response.data.success) {
+        void message.success('Cleanup job started successfully');
+        // Optionally navigate to jobs page to see progress
+        // navigate(`/jobs/${response.data.job_id}`);
+      } else {
+        void message.error('Failed to start cleanup job');
+      }
+    } catch (error) {
+      console.error('Failed to run cleanup:', error);
+      if (error instanceof Error && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 409) {
+          void message.warning('A cleanup job is already running');
+        } else {
+          void message.error('Failed to start cleanup job');
+        }
+      } else {
+        void message.error('Failed to start cleanup job');
+      }
+    } finally {
+      setRunningCleanup(false);
     }
   };
 
@@ -465,7 +501,6 @@ const Settings: React.FC = () => {
             label="Create Scene Markers"
             name="analysis_create_markers"
             tooltip="Create scene markers from video AI detections"
-            valuePropName="checked"
           >
             <Select
               style={{ width: 120 }}
@@ -474,6 +509,40 @@ const Settings: React.FC = () => {
                 { value: false, label: 'No' },
               ]}
             />
+          </Form.Item>
+
+          <Divider orientation="left">Maintenance</Divider>
+
+          <Alert
+            message="Database Cleanup"
+            description={
+              <div>
+                <p>The cleanup operation will:</p>
+                <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                  <li>
+                    Find and update stale jobs stuck in RUNNING/PENDING state
+                  </li>
+                  <li>Delete old completed jobs (older than 30 days)</li>
+                  <li>Reset stuck PENDING plans to DRAFT status</li>
+                </ul>
+              </div>
+            }
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+
+          <Form.Item>
+            <Tooltip title="Run a one-time cleanup job to maintain database health">
+              <Button
+                icon={runningCleanup ? <LoadingOutlined /> : <DeleteOutlined />}
+                onClick={() => void handleRunCleanup()}
+                loading={runningCleanup}
+                danger
+              >
+                Run Cleanup Job
+              </Button>
+            </Tooltip>
           </Form.Item>
 
           <Form.Item>

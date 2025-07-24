@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Optional
 
@@ -6,6 +7,7 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.settings_loader import load_settings_with_db_overrides
 from app.models import AnalysisPlan, PlanChange
+from app.models.analysis_plan import PlanStatus
 from app.models.job import JobType
 from app.services.analysis.analysis_service import AnalysisService
 from app.services.analysis.models import AnalysisOptions
@@ -27,6 +29,7 @@ async def analyze_scenes_job(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Execute scene analysis as a background job."""
+    plan_id: Optional[int] = None  # Track plan ID for cancellation handling
     try:
         logger.info(
             f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
@@ -114,7 +117,7 @@ async def analyze_scenes_job(
                     # We need to re-fetch it in our current session to access its relationships
 
                     # Store the plan ID before any potential session issues
-                    plan_id = plan.id
+                    plan_id = int(plan.id)  # This updates the outer scope plan_id
 
                     # Re-fetch the plan in our current session to avoid cross-session issues
                     plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
@@ -146,7 +149,7 @@ async def analyze_scenes_job(
                     )
 
                     result = {
-                        "plan_id": int(plan_id),
+                        "plan_id": plan_id,  # Already an int from line 120
                         "total_changes": total_changes,
                         "scenes_analyzed": scenes_analyzed,
                         "summary": summary,
@@ -164,6 +167,34 @@ async def analyze_scenes_job(
 
             logger.info(f"Job {job_id} completed successfully with result: {result}")
             return result
+
+    except asyncio.CancelledError:
+        logger.info(f"Job {job_id} was cancelled")
+        # If a plan was created, update its status to DRAFT before cancelling
+        if plan_id is not None:
+            logger.info(
+                f"Setting plan {plan_id} status to DRAFT due to job cancellation"
+            )
+            async with AsyncSessionLocal() as cancel_db:
+                # Import here to avoid circular imports
+                from app.services.analysis.plan_manager import PlanManager
+
+                plan_manager = PlanManager()
+
+                # Get the plan and update its status
+                cancelled_plan: Optional[AnalysisPlan] = await plan_manager.get_plan(
+                    plan_id, cancel_db
+                )
+                if (
+                    cancelled_plan is not None
+                    and cancelled_plan.status == PlanStatus.PENDING
+                ):
+                    cancelled_plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
+                    await cancel_db.commit()
+                    logger.info(f"Successfully updated plan {plan_id} status to DRAFT")
+
+        # Re-raise to let the job service handle the cancellation
+        raise
 
     except Exception as e:
         logger.error(f"Job {job_id} failed with error: {str(e)}", exc_info=True)
