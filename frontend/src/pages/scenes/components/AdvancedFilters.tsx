@@ -11,6 +11,7 @@ import {
   Spin,
   Row,
   Col,
+  Input,
 } from 'antd';
 import {
   UserOutlined,
@@ -19,6 +20,7 @@ import {
   CalendarOutlined,
   ClearOutlined,
   CheckCircleOutlined,
+  NumberOutlined,
   // FileTextOutlined,
 } from '@ant-design/icons';
 import { useQuery } from 'react-query';
@@ -34,6 +36,7 @@ export const AdvancedFilters: React.FC = () => {
   const { filters, updateFilter, updateFilters, resetFilters } =
     useSceneFilters();
   const [expandedPanels, setExpandedPanels] = useState<string[]>([
+    'scene_ids',
     'performers',
     'tags',
   ]);
@@ -130,6 +133,43 @@ export const AdvancedFilters: React.FC = () => {
           }
           ghost
         >
+          {/* Scene IDs Filter */}
+          <Panel
+            header={
+              <Space>
+                <NumberOutlined />
+                Scene IDs
+                {renderFilterCount(
+                  Array.isArray(filters.scene_ids)
+                    ? filters.scene_ids.length
+                    : 0
+                )}
+              </Space>
+            }
+            key="scene_ids"
+          >
+            <Input
+              placeholder="Enter comma-separated scene IDs (e.g., 123,456,789)"
+              value={
+                Array.isArray(filters.scene_ids)
+                  ? filters.scene_ids.join(',')
+                  : ''
+              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.trim() === '') {
+                  updateFilter('scene_ids', []);
+                } else {
+                  const ids = value
+                    .split(',')
+                    .map((id) => id.trim())
+                    .filter(Boolean);
+                  updateFilter('scene_ids', ids);
+                }
+              }}
+            />
+          </Panel>
+
           {/* Performers Filter */}
           <Panel
             header={

@@ -9,6 +9,7 @@ export type SceneFilters = Omit<
 
 const DEFAULT_FILTERS: SceneFilters = {
   search: '',
+  scene_ids: [],
   performer_ids: [],
   tag_ids: [],
   studio_id: undefined,
@@ -48,6 +49,11 @@ export function useSceneFilters() {
     }
 
     // Array filters (comma-separated IDs)
+    const sceneIds = searchParams.get('scene_ids');
+    if (sceneIds) {
+      params.scene_ids = sceneIds.split(',').filter(Boolean);
+    }
+
     const performerIds = searchParams.get('performer_ids');
     if (performerIds) {
       params.performer_ids = performerIds.split(',').filter(Boolean);
@@ -137,6 +143,12 @@ export function useSceneFilters() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.search) count++;
+    if (
+      filters.scene_ids &&
+      Array.isArray(filters.scene_ids) &&
+      filters.scene_ids.length > 0
+    )
+      count++;
     if (
       filters.performer_ids &&
       Array.isArray(filters.performer_ids) &&

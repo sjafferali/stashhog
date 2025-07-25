@@ -28,6 +28,7 @@ export function buildFilterQuery(filters: SceneFilters): URLSearchParams {
 export function parseFilterQuery(params: URLSearchParams): SceneFilters {
   const filters: SceneFilters = {
     search: params.get('search') || '',
+    scene_ids: [],
     performer_ids: [],
     tag_ids: [],
     studio_id: undefined,
@@ -39,6 +40,11 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
   };
 
   // Parse array values
+  const sceneIds = params.get('scene_ids');
+  if (sceneIds) {
+    filters.scene_ids = sceneIds.split(',').filter(Boolean);
+  }
+
   const performerIds = params.get('performer_ids');
   if (performerIds) {
     filters.performer_ids = performerIds.split(',').filter(Boolean);
@@ -79,6 +85,12 @@ export function getActiveFilterCount(filters: SceneFilters): number {
 
   if (filters.search) count++;
   if (
+    filters.scene_ids &&
+    Array.isArray(filters.scene_ids) &&
+    filters.scene_ids.length > 0
+  )
+    count++;
+  if (
     filters.performer_ids &&
     Array.isArray(filters.performer_ids) &&
     filters.performer_ids.length > 0
@@ -103,6 +115,7 @@ export function getActiveFilterCount(filters: SceneFilters): number {
 export function getDefaultFilters(): SceneFilters {
   return {
     search: '',
+    scene_ids: [],
     performer_ids: [],
     tag_ids: [],
     studio_id: undefined,
@@ -122,6 +135,7 @@ export function mergeWithQueryParams(
     ...filters,
     ...queryParams,
     // Ensure arrays are properly merged
+    scene_ids: Array.isArray(filters.scene_ids) ? filters.scene_ids : [],
     performer_ids: Array.isArray(filters.performer_ids)
       ? filters.performer_ids
       : [],
@@ -133,6 +147,7 @@ export function mergeWithQueryParams(
 export function getFilterDisplayName(key: string | number): string {
   const displayNames: Record<string, string> = {
     search: 'Search',
+    scene_ids: 'Scene IDs',
     performer_ids: 'Performers',
     tag_ids: 'Tags',
     studio_id: 'Studio',

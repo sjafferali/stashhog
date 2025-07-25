@@ -33,6 +33,7 @@ import {
   ExpandOutlined,
   FileTextOutlined,
   BugOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
@@ -192,6 +193,59 @@ const JobMonitor: React.FC = () => {
     } else {
       return `${seconds}s`;
     }
+  };
+
+  const getJobSceneIds = (job: Job): string[] | null => {
+    // Check different places where scene IDs might be stored
+
+    // 1. Check metadata.scene_ids (for sync jobs)
+    if (job.metadata?.scene_ids && Array.isArray(job.metadata.scene_ids)) {
+      return job.metadata.scene_ids as string[];
+    }
+
+    // 2. Check parameters.scene_ids (for some sync jobs)
+    if (job.parameters?.scene_ids && Array.isArray(job.parameters.scene_ids)) {
+      return job.parameters.scene_ids as string[];
+    }
+
+    // 3. For analysis jobs, check if we have analyzed_scene_ids in result
+    if (
+      job.result?.analyzed_scene_ids &&
+      Array.isArray(job.result.analyzed_scene_ids)
+    ) {
+      return job.result.analyzed_scene_ids as string[];
+    }
+
+    // 4. For analysis jobs with scenes_analyzed count but no explicit IDs
+    // We can't determine specific scene IDs in this case
+    if (job.type === 'scene_analysis' || job.type === 'analysis') {
+      // Check if there's a way to get scene IDs from the result
+      if (job.result?.scene_ids && Array.isArray(job.result.scene_ids)) {
+        return job.result.scene_ids as string[];
+      }
+    }
+
+    return null;
+  };
+
+  const shouldShowViewScenesButton = (job: Job): boolean => {
+    // Check if this is a qualifying job type
+    const qualifyingTypes = [
+      'sync',
+      'sync_scenes',
+      'scene_sync',
+      'analysis',
+      'scene_analysis',
+      'apply_plan',
+    ];
+
+    if (!qualifyingTypes.includes(job.type)) {
+      return false;
+    }
+
+    // Check if we can extract scene IDs
+    const sceneIds = getJobSceneIds(job);
+    return sceneIds !== null && sceneIds.length > 0;
   };
 
   const expandedRowRender = (record: Job) => {
@@ -478,6 +532,21 @@ const JobMonitor: React.FC = () => {
               </Link>
             </Tooltip>
           ) : null}
+
+          {shouldShowViewScenesButton(record) && (
+            <Tooltip title="View Impacted Scenes">
+              <Link
+                to={`/scenes?scene_ids=${getJobSceneIds(record)?.join(',') || ''}`}
+              >
+                <Button
+                  type="text"
+                  icon={<VideoCameraOutlined />}
+                  size="small"
+                  style={{ color: '#52c41a' }}
+                />
+              </Link>
+            </Tooltip>
+          )}
 
           {record.status === 'running' && (
             <Tooltip title="Cancel Job">

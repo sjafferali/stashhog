@@ -203,10 +203,168 @@ async def analyze_scenes_job(
         raise
 
 
+async def _create_analysis_service() -> AnalysisService:
+    """Create and return an AnalysisService instance."""
+    settings = await load_settings_with_db_overrides()
+    stash_service = StashService(
+        stash_url=settings.stash.url,
+        api_key=settings.stash.api_key,
+        timeout=settings.stash.timeout,
+        max_retries=settings.stash.max_retries,
+    )
+    openai_client = (
+        OpenAIClient(
+            api_key=settings.openai.api_key,
+            model=settings.openai.model,
+            base_url=settings.openai.base_url,
+            max_tokens=settings.openai.max_tokens,
+            temperature=settings.openai.temperature,
+            timeout=settings.openai.timeout,
+        )
+        if settings.openai.api_key
+        else None
+    )
+
+    if openai_client is None:
+        raise ValueError("OpenAI client is required for analysis")
+
+    return AnalysisService(
+        openai_client=openai_client, stash_service=stash_service, settings=settings
+    )
+
+
+async def _apply_single_plan_in_bulk(
+    analysis_service: AnalysisService,
+    plan_id: int,
+    job_id: str,
+) -> tuple[int, list[dict], Optional[Exception]]:
+    """Apply a single plan and return results."""
+    try:
+        result = await analysis_service.apply_plan(
+            plan_id=str(plan_id),
+            auto_approve=True,  # Bulk apply assumes all changes are approved
+            job_id=f"{job_id}_plan_{plan_id}",
+        )
+
+        errors = []
+        if result.errors:
+            errors = [{**error, "plan_id": plan_id} for error in result.errors]
+
+        return result.applied_changes, errors, None
+    except Exception as e:
+        logger.error(f"Failed to apply plan {plan_id}: {str(e)}", exc_info=True)
+        return 0, [], e
+
+
+async def _trigger_incremental_sync_for_bulk(
+    job_id: str, plan_ids: list[int], total_applied: int
+) -> Optional[dict]:
+    """Trigger incremental sync after bulk apply."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.models.job import JobType
+        from app.services.job_service import job_service
+
+        async with AsyncSessionLocal() as db:
+            sync_job = await job_service.create_job(
+                job_type=JobType.SYNC,
+                db=db,
+                metadata={
+                    "incremental": True,
+                    "triggered_by": f"bulk_apply_{job_id}",
+                    "plans_applied": plan_ids[:total_applied],
+                },
+            )
+            await db.commit()
+            logger.info(f"Created incremental sync job {sync_job.id} after bulk apply")
+            return None
+    except Exception as sync_error:
+        logger.error(
+            f"Failed to trigger incremental sync after bulk apply: {str(sync_error)}",
+            exc_info=True,
+        )
+        return {
+            "error": f"Failed to trigger incremental sync: {str(sync_error)}",
+            "type": "sync_trigger_failure",
+        }
+
+
+async def _apply_bulk_plans(
+    job_id: str,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    plan_ids: list[int],
+    cancellation_token: Optional[Any] = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Apply multiple analysis plans in bulk."""
+    total_plans = len(plan_ids)
+    total_applied = 0
+    total_failed = 0
+    total_changes_applied = 0
+    all_errors = []
+
+    # Create service instances
+    analysis_service = await _create_analysis_service()
+
+    # Process each plan
+    for idx, plan_id in enumerate(plan_ids):
+        if cancellation_token and cancellation_token.is_cancelled:
+            logger.info(f"Bulk apply job {job_id} cancelled")
+            break
+
+        progress = int((idx / total_plans) * 90)  # Reserve last 10% for sync
+        await progress_callback(progress, f"Applying plan {idx + 1} of {total_plans}")
+
+        applied_changes, errors, exception = await _apply_single_plan_in_bulk(
+            analysis_service, plan_id, job_id
+        )
+
+        if exception:
+            total_failed += 1
+            all_errors.append(
+                {
+                    "plan_id": plan_id,
+                    "error": str(exception),
+                    "type": "plan_application_failure",
+                }
+            )
+        else:
+            if applied_changes > 0:
+                total_applied += 1
+                total_changes_applied += applied_changes
+            all_errors.extend(errors)
+
+    # If any changes were applied, trigger an incremental sync
+    if total_changes_applied > 0:
+        logger.info(
+            f"Bulk apply job {job_id} applied {total_changes_applied} changes, "
+            f"triggering incremental sync"
+        )
+        await progress_callback(95, "Starting incremental sync...")
+
+        sync_error = await _trigger_incremental_sync_for_bulk(
+            job_id, plan_ids, total_applied
+        )
+        if sync_error:
+            all_errors.append(sync_error)
+
+    await progress_callback(100, "Bulk apply completed")
+
+    return {
+        "job_type": "bulk_apply",
+        "total_plans": total_plans,
+        "plans_applied": total_applied,
+        "plans_failed": total_failed,
+        "total_changes_applied": total_changes_applied,
+        "errors": all_errors,
+        "success_rate": ((total_applied / total_plans * 100) if total_plans > 0 else 0),
+    }
+
+
 async def apply_analysis_plan_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
-    plan_id: str,
+    plan_id: Optional[str] = None,
     cancellation_token: Optional[Any] = None,
     auto_approve: bool = False,
     change_ids: Optional[list[int]] = None,
@@ -214,6 +372,21 @@ async def apply_analysis_plan_job(
 ) -> dict[str, Any]:
     """Apply an analysis plan as a background job."""
     try:
+        # Check if this is a bulk apply operation
+        bulk_apply = kwargs.get("bulk_apply", False)
+        plans_to_apply = kwargs.get("plans_to_apply", [])
+
+        if bulk_apply and plans_to_apply:
+            logger.info(
+                f"Starting bulk apply job {job_id} for {len(plans_to_apply)} plans"
+            )
+            return await _apply_bulk_plans(
+                job_id, progress_callback, plans_to_apply, cancellation_token, **kwargs
+            )
+
+        if not plan_id:
+            raise ValueError("plan_id is required for single plan application")
+
         logger.info(f"Starting apply_analysis_plan job {job_id} for plan {plan_id}")
 
         # Create service instances
@@ -251,6 +424,55 @@ async def apply_analysis_plan_job(
             progress_callback=progress_callback,
             change_ids=change_ids,
         )
+
+        # If changes were successfully applied, trigger an incremental sync
+        if result.applied_changes > 0:
+            logger.info(
+                f"Plan {plan_id} applied {result.applied_changes} changes, triggering incremental sync"
+            )
+            await progress_callback(
+                95,
+                f"Applied {result.applied_changes} changes, starting incremental sync...",
+            )
+
+            try:
+                from app.core.database import AsyncSessionLocal
+                from app.models.job import JobType
+                from app.services.job_service import job_service
+
+                async with AsyncSessionLocal() as db:
+                    # Create an incremental sync job
+                    sync_job = await job_service.create_job(
+                        job_type=JobType.SYNC,
+                        db=db,
+                        metadata={
+                            "incremental": True,
+                            "triggered_by": f"apply_plan_{plan_id}",
+                        },
+                    )
+                    await db.commit()
+                    logger.info(
+                        f"Created incremental sync job {sync_job.id} after applying plan {plan_id}"
+                    )
+
+            except Exception as sync_error:
+                # Log the error but don't fail the whole job
+                logger.error(
+                    f"Failed to trigger incremental sync after applying plan {plan_id}: {str(sync_error)}",
+                    exc_info=True,
+                )
+                # Add to errors but continue
+                result.errors.append(
+                    {
+                        "error": f"Failed to trigger incremental sync: {str(sync_error)}",
+                        "type": "sync_trigger_failure",
+                    }
+                )
+
+            await progress_callback(
+                100, f"Plan applied successfully with {result.applied_changes} changes"
+            )
+
     except Exception as e:
         logger.error(f"Failed to apply plan {plan_id}: {str(e)}", exc_info=True)
         # Return error result instead of re-raising

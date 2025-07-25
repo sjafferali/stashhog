@@ -71,3 +71,37 @@ export const getJobTypeColor = (type: string): string => {
 
   return 'default';
 };
+
+export const formatJobProgress = (
+  type: string,
+  processed: number | undefined,
+  total: number | undefined,
+  progress: number
+): string => {
+  if (total !== undefined && processed !== undefined) {
+    // Determine the unit based on job type
+    let unit = '';
+    if (
+      type === 'sync' ||
+      type === 'sync_all' ||
+      type === 'sync_scenes' ||
+      type === 'scene_sync' ||
+      type === 'analysis' ||
+      type === 'scene_analysis'
+    ) {
+      unit = ' scenes';
+    } else if (type === 'apply_plan') {
+      unit = ' changes';
+    } else if (type === 'sync_performers') {
+      unit = ' performers';
+    } else if (type === 'sync_tags') {
+      unit = ' tags';
+    } else if (type === 'sync_studios') {
+      unit = ' studios';
+    }
+
+    return `${processed} / ${total}${unit}`;
+  }
+
+  return `${Math.round(progress)}%`;
+};

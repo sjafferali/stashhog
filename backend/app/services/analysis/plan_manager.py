@@ -483,8 +483,9 @@ class PlanManager:
             # Report progress after each change
             if progress_callback and total_changes > 0:
                 progress = 10 + int((i + 1) / total_changes * 85)  # 10-95%
-                scene_info = f"Scene {change.scene_id}: {change.field}"
-                await progress_callback(progress, scene_info)
+                await progress_callback(
+                    progress, f"Applied {i + 1}/{total_changes} changes"
+                )
 
         return {
             "total_changes": total_changes,

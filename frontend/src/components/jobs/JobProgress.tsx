@@ -21,7 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
-import { getJobTypeLabel } from '@/utils/jobUtils';
+import { getJobTypeLabel, formatJobProgress } from '@/utils/jobUtils';
 // import { useWebSocketStore } from '@/store/websocket';
 import styles from './JobProgress.module.scss';
 
@@ -214,9 +214,12 @@ export const JobProgress: React.FC<JobProgressProps> = ({
         <div className={styles.progressInfo}>
           <Text>
             Progress:{' '}
-            {job.total && job.processed_items !== undefined
-              ? `${job.processed_items} / ${job.total}`
-              : `${Math.round(job.progress)}%`}
+            {formatJobProgress(
+              job.type,
+              job.processed_items,
+              job.total,
+              job.progress
+            )}
           </Text>
           <Text type="secondary">{progressPercent.toFixed(0)}%</Text>
         </div>

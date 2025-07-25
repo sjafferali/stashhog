@@ -30,6 +30,7 @@ const { Panel } = Collapse;
 
 export interface SceneFilterValues {
   search?: string;
+  sceneIds?: string;
   performers?: string[];
   tags?: string[];
   studios?: string[];
@@ -152,6 +153,16 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                 placeholder="Search scenes..."
                 allowClear
               />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12} lg={8}>
+            <Form.Item
+              name="sceneIds"
+              label="Scene IDs"
+              tooltip="Enter comma-separated scene IDs (e.g., 123,456,789)"
+            >
+              <Input placeholder="e.g., 123,456,789" allowClear />
             </Form.Item>
           </Col>
 

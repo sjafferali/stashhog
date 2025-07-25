@@ -21,7 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
-import { getJobTypeLabel } from '@/utils/jobUtils';
+import { getJobTypeLabel, formatJobProgress } from '@/utils/jobUtils';
 import styles from './JobCard.module.scss';
 
 const { Text, Title } = Typography;
@@ -175,9 +175,12 @@ export const JobCard: React.FC<JobCardProps> = ({
             percent={progressPercent}
             size="small"
             format={() =>
-              job.total
-                ? `${job.progress}/${job.total}`
-                : `${Math.round(job.progress)}%`
+              formatJobProgress(
+                job.type,
+                job.processed_items,
+                job.total,
+                job.progress
+              )
             }
           />
         )}
@@ -204,9 +207,12 @@ export const JobCard: React.FC<JobCardProps> = ({
           <div className={styles.progressInfo}>
             <Text type="secondary">Progress</Text>
             <Text>
-              {job.total
-                ? `${job.progress} / ${job.total}`
-                : `${Math.round(job.progress)}%`}
+              {formatJobProgress(
+                job.type,
+                job.processed_items,
+                job.total,
+                job.progress
+              )}
             </Text>
           </div>
           <Progress
