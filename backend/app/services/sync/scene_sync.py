@@ -80,9 +80,7 @@ class SceneSyncHandler:
         stmt = (
             select(Scene)
             .where(Scene.id == scene_id)
-            .options(
-                selectinload(Scene.markers).selectinload(SceneMarker.tags)
-            )
+            .options(selectinload(Scene.markers).selectinload(SceneMarker.tags))
         )
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
@@ -516,7 +514,7 @@ class SceneSyncHandler:
             await db.refresh(existing_marker)
         else:
             db.refresh(existing_marker)
-        
+
         # Update marker fields
         existing_marker.title = marker_data.get("title", "")
         existing_marker.seconds = marker_data.get("seconds", 0)
