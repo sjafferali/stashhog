@@ -17,6 +17,9 @@ from app.core.database import Base
 from app.core.dependencies import get_db
 from app.main import app
 
+# Explicitly import SyncLog to ensure it's registered
+from app.models.sync_log import SyncLog  # noqa: F401
+
 # Test database URL
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_SYNC_DATABASE_URL = "sqlite:///:memory:"
