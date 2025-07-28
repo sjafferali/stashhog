@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, Tag
 from app.services.stash_service import StashService
@@ -77,7 +77,13 @@ class SceneSyncHandler:
     ) -> Scene:
         """Find existing scene or create new one"""
         logger.debug(f"Querying database for scene {scene_id}")
-        stmt = select(Scene).where(Scene.id == scene_id)
+        stmt = (
+            select(Scene)
+            .where(Scene.id == scene_id)
+            .options(
+                selectinload(Scene.markers).selectinload(SceneMarker.tags)
+            )
+        )
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
             scene = result.scalar_one_or_none()
@@ -505,6 +511,12 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Update an existing marker with new data"""
+        # Refresh the marker in the current session to avoid greenlet errors
+        if isinstance(db, AsyncSession):
+            await db.refresh(existing_marker)
+        else:
+            db.refresh(existing_marker)
+        
         # Update marker fields
         existing_marker.title = marker_data.get("title", "")
         existing_marker.seconds = marker_data.get("seconds", 0)
