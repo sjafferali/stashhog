@@ -6,7 +6,7 @@ from unittest.mock import ANY, AsyncMock, Mock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Job, JobStatus
+from app.models import JobStatus
 from app.models.sync_history import SyncHistory
 from app.services.sync.models import SyncResult, SyncStatus
 from app.services.sync.strategies import SmartSyncStrategy
@@ -431,36 +431,44 @@ class TestSyncServiceComprehensive:
         mock_history.items_synced = 50
         mock_history.started_at = datetime(2024, 1, 15, 10, 0)
 
-        # Setup database mocks
-        # Update the existing mock result from fixture
-        mock_db.execute.return_value.scalar_one_or_none = Mock(
-            return_value=mock_history
+        # Mock AsyncSessionLocal since _get_last_sync_time now creates its own session
+        mock_new_db = AsyncMock(spec=AsyncSession)
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=mock_history)
+        mock_result.scalar_one = Mock(side_effect=[10, 5])  # counts
+        mock_result.scalars = Mock(
+            return_value=Mock(all=Mock(return_value=[mock_history]))
         )
-        mock_db.execute.return_value.scalar_one = Mock(side_effect=[10, 5])  # counts
-        mock_db.execute.return_value.scalars = Mock()
-        mock_db.execute.return_value.scalars.return_value.all = Mock(
-            return_value=[mock_history]
-        )
+        mock_new_db.execute = AsyncMock(return_value=mock_result)
 
-        # Get last sync time
-        last_sync = await sync_service._get_last_sync_time("scene")
+        with patch("app.core.database.AsyncSessionLocal") as mock_session_local:
+            mock_session_local.return_value.__aenter__.return_value = mock_new_db
 
-        # Verify
-        assert last_sync == datetime(2024, 1, 15, 10, 30)
-        assert mock_db.execute.call_count >= 1
+            # Get last sync time
+            last_sync = await sync_service._get_last_sync_time("scene")
+
+            # Verify
+            assert last_sync == datetime(2024, 1, 15, 10, 30)
+            assert mock_new_db.execute.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_get_last_sync_time_no_history(self, sync_service, mock_db):
         """Test retrieving last sync time with no history."""
-        # Mock empty sync history
-        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
-        mock_db.execute.return_value.scalar_one = Mock(return_value=0)  # no records
+        # Mock AsyncSessionLocal since _get_last_sync_time now creates its own session
+        mock_new_db = AsyncMock(spec=AsyncSession)
+        mock_result = Mock()
+        mock_result.scalar_one_or_none = Mock(return_value=None)
+        mock_result.scalar_one = Mock(return_value=0)  # no records
+        mock_new_db.execute = AsyncMock(return_value=mock_result)
 
-        # Get last sync time
-        last_sync = await sync_service._get_last_sync_time("performer")
+        with patch("app.core.database.AsyncSessionLocal") as mock_session_local:
+            mock_session_local.return_value.__aenter__.return_value = mock_new_db
 
-        # Verify
-        assert last_sync is None
+            # Get last sync time
+            last_sync = await sync_service._get_last_sync_time("performer")
+
+            # Verify
+            assert last_sync is None
 
     @pytest.mark.asyncio
     async def test_update_last_sync_time(self, sync_service, mock_db):
@@ -473,62 +481,64 @@ class TestSyncServiceComprehensive:
         result.failed_items = 0
         result.complete()
 
-        # Update sync time
-        await sync_service._update_last_sync_time("scene", result)
+        # Mock AsyncSessionLocal since _update_last_sync_time now creates its own session
+        mock_new_db = AsyncMock(spec=AsyncSession)
+        mock_new_db.add = Mock()
+        mock_new_db.flush = AsyncMock()
+        mock_new_db.commit = AsyncMock()
+        mock_new_db.execute = AsyncMock(
+            return_value=Mock(scalar_one=Mock(return_value=5))
+        )
 
-        # Verify database operations
-        assert mock_db.add.called
-        assert mock_db.commit.called
+        with patch("app.core.database.AsyncSessionLocal") as mock_session_local:
+            mock_session_local.return_value.__aenter__.return_value = mock_new_db
 
-        # Check the sync history record
-        sync_record = mock_db.add.call_args[0][0]
-        assert isinstance(sync_record, SyncHistory)
-        assert sync_record.entity_type == "scene"
-        assert sync_record.job_id == "test_update"
-        assert sync_record.status == "completed"
-        assert sync_record.items_synced == 100
+            # Update sync time
+            await sync_service._update_last_sync_time("scene", result)
+
+            # Verify database operations
+            assert mock_new_db.add.called
+            assert mock_new_db.commit.called
+
+            # Check the sync history record
+            sync_record = mock_new_db.add.call_args[0][0]
+            assert isinstance(sync_record, SyncHistory)
+            assert sync_record.entity_type == "scene"
+            assert sync_record.job_id == "test_update"
+            assert sync_record.status == "completed"
+            assert sync_record.items_synced == 100
 
     @pytest.mark.asyncio
     async def test_update_job_status_with_metadata(self, sync_service, mock_db):
         """Test updating job status with metadata."""
-        # Mock job with metadata
-        mock_job = Mock(spec=Job)
-        mock_job.id = "job123"
-        mock_job.job_metadata = {"existing": "data"}
+        # Since _update_job_status now only logs (to prevent greenlet errors),
+        # we need to patch the logger and verify it was called
+        with patch("app.services.sync.sync_service.logger") as mock_logger:
+            # Update job status
+            await sync_service._update_job_status(
+                "job123", JobStatus.RUNNING, "Processing scenes"
+            )
 
-        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=mock_job)
-
-        # Update job status
-        await sync_service._update_job_status(
-            "job123", JobStatus.RUNNING, "Processing scenes"
-        )
-
-        # Verify
-        assert mock_job.status == JobStatus.RUNNING
-        assert mock_job.job_metadata["message"] == "Processing scenes"
-        assert mock_job.job_metadata["existing"] == "data"
-        assert mock_db.commit.called
+            # Verify it logged the request
+            mock_logger.debug.assert_called_once_with(
+                "Job status update requested: job123 -> JobStatus.RUNNING: Processing scenes"
+            )
 
     @pytest.mark.asyncio
     async def test_update_job_status_completed(self, sync_service, mock_db):
         """Test updating job status to completed."""
-        # Mock job
-        mock_job = Mock(spec=Job)
-        mock_job.id = "job456"
-        mock_job.message = ""
+        # Since _update_job_status now only logs (to prevent greenlet errors),
+        # we need to patch the logger and verify it was called
+        with patch("app.services.sync.sync_service.logger") as mock_logger:
+            # Update to completed
+            await sync_service._update_job_status(
+                "job456", JobStatus.COMPLETED, "All done!"
+            )
 
-        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=mock_job)
-
-        # Update to completed
-        await sync_service._update_job_status(
-            "job456", JobStatus.COMPLETED, "All done!"
-        )
-
-        # Verify
-        assert mock_job.status == JobStatus.COMPLETED
-        assert mock_job.message == "All done!"
-        assert hasattr(mock_job, "completed_at")
-        assert mock_job.completed_at is not None
+            # Verify it logged the request
+            mock_logger.debug.assert_called_once_with(
+                "Job status update requested: job456 -> JobStatus.COMPLETED: All done!"
+            )
 
     @pytest.mark.asyncio
     async def test_sync_entities_incremental_with_errors(self, sync_service):

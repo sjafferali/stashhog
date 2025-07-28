@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models import Job, JobStatus, Scene, SyncLog
+from app.models import JobStatus, Scene, SyncLog
 from app.services.stash_service import StashService
 
 from .conflicts import ConflictResolver
@@ -247,7 +247,7 @@ class SyncService:
                 or result.stats.scenes_updated > 0,
                 change_type="full_sync",
             )
-            await self.db.commit()
+            # DO NOT commit here - _create_sync_log handles its own transaction
 
             await self._update_job_status(
                 job_id,
@@ -1336,142 +1336,160 @@ class SyncService:
         return results
 
     async def _get_last_sync_time(self, entity_type: str) -> Optional[datetime]:
-        """Get the last successful sync time for an entity type"""
+        """Get the last successful sync time for an entity type
+
+        IMPORTANT: This method creates its own database session to prevent greenlet errors.
+        DO NOT modify to use self.db without understanding the greenlet error documentation.
+        See: /plans/greenlet_error.md and /plans/greenlet_error2.md
+        """
         from sqlalchemy import and_, desc, func, select
 
+        from app.core.database import AsyncSessionLocal
         from app.models.sync_history import SyncHistory
 
         logger.info(f"=== Getting last sync time for entity type: {entity_type} ===")
 
-        # First, let's see what sync history records exist
-        count_stmt = select(func.count(SyncHistory.id)).where(
-            SyncHistory.entity_type == entity_type
-        )
-        count_result = await self.db.execute(count_stmt)
-        total_count = count_result.scalar_one()
-        logger.info(f"Total sync history records for {entity_type}: {total_count}")
-
-        # Also check completed ones
-        completed_count_stmt = select(func.count(SyncHistory.id)).where(
-            and_(
-                SyncHistory.entity_type == entity_type,
-                SyncHistory.status == "completed",
+        # Create a new session for this operation to avoid greenlet errors
+        async with AsyncSessionLocal() as db:
+            # First, let's see what sync history records exist
+            count_stmt = select(func.count(SyncHistory.id)).where(
+                SyncHistory.entity_type == entity_type
             )
-        )
-        completed_result = await self.db.execute(completed_count_stmt)
-        completed_count = completed_result.scalar_one()
-        logger.info(
-            f"Completed sync history records for {entity_type}: {completed_count}"
-        )
+            count_result = await db.execute(count_stmt)
+            total_count = count_result.scalar_one()
+            logger.info(f"Total sync history records for {entity_type}: {total_count}")
 
-        # If we have records, let's see what's in them
-        if total_count > 0:
-            sample_stmt = (
-                select(SyncHistory)
-                .where(SyncHistory.entity_type == entity_type)
-                .order_by(desc(SyncHistory.id))
-                .limit(3)
-            )
-            sample_result = await self.db.execute(sample_stmt)
-            samples = sample_result.scalars().all()
-            for sample in samples:
-                logger.debug(
-                    f"  Sample record - ID: {sample.id}, Status: {sample.status}, "
-                    f"Completed: {sample.completed_at}, Items: {sample.items_synced}"
-                )
-
-        # Query the sync history table for the last successful sync
-        stmt = (
-            select(SyncHistory)
-            .where(
+            # Also check completed ones
+            completed_count_stmt = select(func.count(SyncHistory.id)).where(
                 and_(
                     SyncHistory.entity_type == entity_type,
                     SyncHistory.status == "completed",
                 )
             )
-            .order_by(desc(SyncHistory.completed_at))
-            .limit(1)
-        )
-
-        logger.debug(
-            f"Executing query for sync history: entity_type={entity_type}, status=completed"
-        )
-        result = await self.db.execute(stmt)
-        last_sync = result.scalar_one_or_none()
-
-        if last_sync and last_sync.completed_at:
-            completed_at: datetime = last_sync.completed_at  # type: ignore[assignment]
+            completed_result = await db.execute(completed_count_stmt)
+            completed_count = completed_result.scalar_one()
             logger.info(
-                f"✓ Found last successful {entity_type} sync at: {completed_at}"
+                f"Completed sync history records for {entity_type}: {completed_count}"
             )
-            logger.info(f"  - Sync ID: {last_sync.id}")
-            logger.info(f"  - Items synced: {last_sync.items_synced}")
-            logger.info(f"  - Started at: {last_sync.started_at}")
-            return completed_at
-        else:
-            logger.warning(f"✗ No previous successful sync found for {entity_type}")
-            logger.info("  This will trigger a FULL SYNC")
-            return None
+
+            # If we have records, let's see what's in them
+            if total_count > 0:
+                sample_stmt = (
+                    select(SyncHistory)
+                    .where(SyncHistory.entity_type == entity_type)
+                    .order_by(desc(SyncHistory.id))
+                    .limit(3)
+                )
+                sample_result = await db.execute(sample_stmt)
+                samples = sample_result.scalars().all()
+                for sample in samples:
+                    logger.debug(
+                        f"  Sample record - ID: {sample.id}, Status: {sample.status}, "
+                        f"Completed: {sample.completed_at}, Items: {sample.items_synced}"
+                    )
+
+            # Query the sync history table for the last successful sync
+            stmt = (
+                select(SyncHistory)
+                .where(
+                    and_(
+                        SyncHistory.entity_type == entity_type,
+                        SyncHistory.status == "completed",
+                    )
+                )
+                .order_by(desc(SyncHistory.completed_at))
+                .limit(1)
+            )
+
+            logger.debug(
+                f"Executing query for sync history: entity_type={entity_type}, status=completed"
+            )
+            result = await db.execute(stmt)
+            last_sync = result.scalar_one_or_none()
+
+            if last_sync and last_sync.completed_at:
+                completed_at: datetime = last_sync.completed_at  # type: ignore[assignment]
+                logger.info(
+                    f"✓ Found last successful {entity_type} sync at: {completed_at}"
+                )
+                logger.info(f"  - Sync ID: {last_sync.id}")
+                logger.info(f"  - Items synced: {last_sync.items_synced}")
+                logger.info(f"  - Started at: {last_sync.started_at}")
+                return completed_at
+            else:
+                logger.warning(f"✗ No previous successful sync found for {entity_type}")
+                logger.info("  This will trigger a FULL SYNC")
+                return None
 
     async def _update_last_sync_time(
         self, entity_type: str, result: Optional[SyncResult] = None
     ) -> int:
-        """Update the last sync time for an entity type and return the sync history ID"""
+        """Update the last sync time for an entity type and return the sync history ID
+
+        IMPORTANT: This method creates its own database session to prevent greenlet errors.
+        DO NOT modify to use self.db without understanding the greenlet error documentation.
+        See: /plans/greenlet_error.md and /plans/greenlet_error2.md
+        """
+        from app.core.database import AsyncSessionLocal
         from app.models.sync_history import SyncHistory
 
         logger.debug(f"Recording successful sync for entity type: {entity_type}")
 
-        # Use provided result or create basic record
-        if result:
-            sync_record = SyncHistory(
-                entity_type=entity_type,
-                job_id=result.job_id,
-                started_at=result.started_at,
-                completed_at=result.completed_at or datetime.utcnow(),
-                status="completed" if result.status == SyncStatus.SUCCESS else "failed",
-                items_synced=result.processed_items,
-                items_created=result.created_items,
-                items_updated=result.updated_items,
-                items_failed=result.failed_items,
-                error_details=(
-                    {"errors": [e.to_dict() for e in result.errors]}
-                    if result.errors
-                    else None
-                ),
+        # Create a new session for this operation to avoid greenlet errors
+        async with AsyncSessionLocal() as db:
+            # Use provided result or create basic record
+            if result:
+                sync_record = SyncHistory(
+                    entity_type=entity_type,
+                    job_id=result.job_id,
+                    started_at=result.started_at,
+                    completed_at=result.completed_at or datetime.utcnow(),
+                    status=(
+                        "completed" if result.status == SyncStatus.SUCCESS else "failed"
+                    ),
+                    items_synced=result.processed_items,
+                    items_created=result.created_items,
+                    items_updated=result.updated_items,
+                    items_failed=result.failed_items,
+                    error_details=(
+                        {"errors": [e.to_dict() for e in result.errors]}
+                        if result.errors
+                        else None
+                    ),
+                )
+            else:
+                # Fallback for basic record
+                sync_record = SyncHistory(
+                    entity_type=entity_type,
+                    job_id=self._progress.job_id if self._progress else None,
+                    started_at=datetime.utcnow(),
+                    completed_at=datetime.utcnow(),
+                    status="completed",
+                    items_synced=self._progress.total_items if self._progress else 0,
+                    items_created=0,
+                    items_updated=0,
+                    items_failed=0,
+                )
+
+            db.add(sync_record)
+            await db.flush()  # Flush to get the ID before commit
+            sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
+            await db.commit()
+
+            logger.info(f"✓ Recorded successful sync completion for {entity_type}")
+            logger.info(f"  Completed at: {sync_record.completed_at}")
+
+            # Verify it was saved
+            from sqlalchemy import func, select
+
+            verify_stmt = select(func.count(SyncHistory.id)).where(
+                SyncHistory.entity_type == entity_type
             )
-        else:
-            # Fallback for basic record
-            sync_record = SyncHistory(
-                entity_type=entity_type,
-                job_id=self._progress.job_id if self._progress else None,
-                started_at=datetime.utcnow(),
-                completed_at=datetime.utcnow(),
-                status="completed",
-                items_synced=self._progress.total_items if self._progress else 0,
-                items_created=0,
-                items_updated=0,
-                items_failed=0,
+            verify_result = await db.execute(verify_stmt)
+            verify_count = verify_result.scalar_one()
+            logger.info(
+                f"  Verification: Total {entity_type} sync records now: {verify_count}"
             )
-
-        self.db.add(sync_record)
-        await self.db.flush()  # Flush to get the ID before commit
-        sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
-        await self.db.commit()
-
-        logger.info(f"✓ Recorded successful sync completion for {entity_type}")
-        logger.info(f"  Completed at: {sync_record.completed_at}")
-
-        # Verify it was saved
-        from sqlalchemy import func, select
-
-        verify_stmt = select(func.count(SyncHistory.id)).where(
-            SyncHistory.entity_type == entity_type
-        )
-        verify_result = await self.db.execute(verify_stmt)
-        verify_count = verify_result.scalar_one()
-        logger.info(
-            f"  Verification: Total {entity_type} sync records now: {verify_count}"
-        )
 
         return sync_history_id  # type: ignore[return-value]
 
@@ -1485,45 +1503,54 @@ class SyncService:
         change_type: Optional[str] = None,
         error_message: Optional[str] = None,
     ) -> None:
-        """Create a sync log entry for tracking individual entity syncs."""
+        """Create a sync log entry for tracking individual entity syncs.
+
+        IMPORTANT: This method creates its own database session to prevent greenlet errors.
+        DO NOT modify to use self.db without understanding the greenlet error documentation.
+        See: /plans/greenlet_error.md and /plans/greenlet_error2.md
+        """
         # Only create sync log if we have a valid sync_history_id
         if sync_history_id is None:
             logger.warning("Skipping sync log creation - no sync_history_id available")
             return
 
-        sync_log = SyncLog(
-            sync_history_id=sync_history_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            sync_type=sync_type,
-            had_changes=had_changes,
-            change_type=change_type,
-            error_message=error_message,
-        )
-        self.db.add(sync_log)
-        # Commit immediately to avoid batching issues with foreign key constraints
-        await self.db.commit()
+        # Create a new session for this operation to avoid greenlet errors
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            sync_log = SyncLog(
+                sync_history_id=sync_history_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                sync_type=sync_type,
+                had_changes=had_changes,
+                change_type=change_type,
+                error_message=error_message,
+            )
+            db.add(sync_log)
+            # Commit immediately to avoid batching issues with foreign key constraints
+            await db.commit()
 
     async def _update_job_status(
         self, job_id: str, status: JobStatus, message: str
     ) -> None:
-        """Update job status in database"""
-        from sqlalchemy import select
+        """Update job status in database
 
-        stmt = select(Job).where(Job.id == job_id)
-        result = await self.db.execute(stmt)
-        job = result.scalar_one_or_none()
-        if job:
-            job.status = status  # type: ignore[assignment]
-            if hasattr(job, "message"):
-                job.message = message
-            elif hasattr(job, "job_metadata"):
-                if job.job_metadata is None:
-                    job.job_metadata = {}
-                job.job_metadata = {**job.job_metadata, "message": message}  # type: ignore[assignment]
-            if status in [JobStatus.COMPLETED, JobStatus.FAILED]:
-                job.completed_at = datetime.utcnow()  # type: ignore[assignment]
-            await self.db.commit()
+        IMPORTANT: This method has been modified to prevent greenlet errors.
+        DO NOT revert this change without understanding the greenlet error documentation.
+
+        Previous implementation used self.db which caused cross-session SQLAlchemy errors
+        when the sync service's session was created in a different async context than
+        where it was being used.
+
+        The job service's progress callback already handles job status updates with
+        proper session isolation, so this method now just logs the request.
+
+        See: /plans/greenlet_error.md and /plans/greenlet_error2.md for context.
+        """
+        # DO NOT use self.db here - it causes greenlet errors!
+        # The job service's progress callback will handle the actual status update
+        logger.debug(f"Job status update requested: {job_id} -> {status}: {message}")
 
     async def sync_single_scene(self, scene_id: str, db: Session) -> bool:
         """Sync a single scene by ID - compatibility method for tests"""
