@@ -1423,7 +1423,7 @@ class SyncService:
 
     async def _update_last_sync_time(
         self, entity_type: str, result: Optional[SyncResult] = None
-    ) -> int:
+    ) -> Optional[int]:
         """Update the last sync time for an entity type and return the sync history ID
 
         IMPORTANT: This method creates its own database session to prevent greenlet errors.
@@ -1436,62 +1436,70 @@ class SyncService:
         logger.debug(f"Recording successful sync for entity type: {entity_type}")
 
         # Create a new session for this operation to avoid greenlet errors
-        async with AsyncSessionLocal() as db:
-            # Use provided result or create basic record
-            if result:
-                sync_record = SyncHistory(
-                    entity_type=entity_type,
-                    job_id=result.job_id,
-                    started_at=result.started_at,
-                    completed_at=result.completed_at or datetime.utcnow(),
-                    status=(
-                        "completed" if result.status == SyncStatus.SUCCESS else "failed"
-                    ),
-                    items_synced=result.processed_items,
-                    items_created=result.created_items,
-                    items_updated=result.updated_items,
-                    items_failed=result.failed_items,
-                    error_details=(
-                        {"errors": [e.to_dict() for e in result.errors]}
-                        if result.errors
-                        else None
-                    ),
+        try:
+            async with AsyncSessionLocal() as db:
+                # Use provided result or create basic record
+                if result:
+                    sync_record = SyncHistory(
+                        entity_type=entity_type,
+                        job_id=result.job_id,
+                        started_at=result.started_at,
+                        completed_at=result.completed_at or datetime.utcnow(),
+                        status=(
+                            "completed"
+                            if result.status == SyncStatus.SUCCESS
+                            else "failed"
+                        ),
+                        items_synced=result.processed_items,
+                        items_created=result.created_items,
+                        items_updated=result.updated_items,
+                        items_failed=result.failed_items,
+                        error_details=(
+                            {"errors": [e.to_dict() for e in result.errors]}
+                            if result.errors
+                            else None
+                        ),
+                    )
+                else:
+                    # Fallback for basic record
+                    sync_record = SyncHistory(
+                        entity_type=entity_type,
+                        job_id=self._progress.job_id if self._progress else None,
+                        started_at=datetime.utcnow(),
+                        completed_at=datetime.utcnow(),
+                        status="completed",
+                        items_synced=(
+                            self._progress.total_items if self._progress else 0
+                        ),
+                        items_created=0,
+                        items_updated=0,
+                        items_failed=0,
+                    )
+
+                db.add(sync_record)
+                await db.flush()  # Flush to get the ID before commit
+                sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
+                await db.commit()
+
+                logger.info(f"✓ Recorded successful sync completion for {entity_type}")
+                logger.info(f"  Completed at: {sync_record.completed_at}")
+
+                # Verify it was saved
+                from sqlalchemy import func, select
+
+                verify_stmt = select(func.count(SyncHistory.id)).where(
+                    SyncHistory.entity_type == entity_type
                 )
-            else:
-                # Fallback for basic record
-                sync_record = SyncHistory(
-                    entity_type=entity_type,
-                    job_id=self._progress.job_id if self._progress else None,
-                    started_at=datetime.utcnow(),
-                    completed_at=datetime.utcnow(),
-                    status="completed",
-                    items_synced=self._progress.total_items if self._progress else 0,
-                    items_created=0,
-                    items_updated=0,
-                    items_failed=0,
+                verify_result = await db.execute(verify_stmt)
+                verify_count = verify_result.scalar_one()
+                logger.info(
+                    f"  Verification: Total {entity_type} sync records now: {verify_count}"
                 )
 
-            db.add(sync_record)
-            await db.flush()  # Flush to get the ID before commit
-            sync_history_id = int(sync_record.id) if sync_record.id is not None else None  # type: ignore[arg-type]
-            await db.commit()
-
-            logger.info(f"✓ Recorded successful sync completion for {entity_type}")
-            logger.info(f"  Completed at: {sync_record.completed_at}")
-
-            # Verify it was saved
-            from sqlalchemy import func, select
-
-            verify_stmt = select(func.count(SyncHistory.id)).where(
-                SyncHistory.entity_type == entity_type
-            )
-            verify_result = await db.execute(verify_stmt)
-            verify_count = verify_result.scalar_one()
-            logger.info(
-                f"  Verification: Total {entity_type} sync records now: {verify_count}"
-            )
-
-        return sync_history_id  # type: ignore[return-value]
+            return sync_history_id  # type: ignore[return-value]
+        except Exception as e:
+            logger.error(f"Failed to update last sync time: {str(e)}")
+            return None
 
     async def _create_sync_log(
         self,

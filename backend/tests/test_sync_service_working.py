@@ -1,7 +1,7 @@
 """Working tests for sync service that match actual implementation."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -13,6 +13,16 @@ from app.services.sync.sync_service import SyncService
 
 class TestSyncService:
     """Test sync service functionality."""
+
+    @pytest.fixture
+    def mock_async_session_local(self, mock_db):
+        """Mock AsyncSessionLocal to return the mock_db."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("app.core.database.AsyncSessionLocal", return_value=mock_session):
+            yield mock_session
 
     @pytest.fixture
     def mock_db(self):
@@ -99,7 +109,9 @@ class TestSyncService:
         assert isinstance(service.strategy, SmartSyncStrategy)
 
     @pytest.mark.asyncio
-    async def test_sync_all(self, sync_service, mock_stash_service, mock_db):
+    async def test_sync_all(
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
+    ):
         """Test full sync functionality."""
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
@@ -185,7 +197,9 @@ class TestSyncService:
         assert mock_job.status == JobStatus.COMPLETED
 
     @pytest.mark.asyncio
-    async def test_sync_scenes(self, sync_service, mock_stash_service, mock_db):
+    async def test_sync_scenes(
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
+    ):
         """Test scene sync functionality."""
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
@@ -243,7 +257,9 @@ class TestSyncService:
         assert result.status == SyncStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_sync_scene_by_id(self, sync_service, mock_stash_service, mock_db):
+    async def test_sync_scene_by_id(
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
+    ):
         """Test syncing a single scene by ID."""
         scene_id = "scene123"
         scene_data = {"id": scene_id, "title": "Test Scene", "path": "/test/scene.mp4"}
@@ -272,7 +288,9 @@ class TestSyncService:
         sync_service.scene_handler.sync_scene.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_sync_performers(self, sync_service, mock_stash_service):
+    async def test_sync_performers(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test performer sync functionality."""
         # Mock get_all_performers to return transformed data
         mock_stash_service.get_all_performers = AsyncMock(
@@ -298,7 +316,9 @@ class TestSyncService:
         assert result.status == SyncStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_sync_tags(self, sync_service, mock_stash_service):
+    async def test_sync_tags(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test tag sync functionality."""
         # Mock get_all_tags to return transformed data
         mock_stash_service.get_all_tags = AsyncMock(
@@ -324,7 +344,9 @@ class TestSyncService:
         assert result.status == SyncStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_sync_studios(self, sync_service, mock_stash_service):
+    async def test_sync_studios(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test studio sync functionality."""
         # Mock get_all_studios to return transformed data
         mock_stash_service.get_all_studios = AsyncMock(
@@ -350,7 +372,9 @@ class TestSyncService:
         assert result.status == SyncStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_sync_with_progress_callback(self, sync_service, mock_stash_service):
+    async def test_sync_with_progress_callback(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test sync with progress reporting."""
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
@@ -398,7 +422,9 @@ class TestSyncService:
         assert len(progress_updates) > 0
 
     @pytest.mark.asyncio
-    async def test_sync_error_handling(self, sync_service, mock_stash_service, mock_db):
+    async def test_sync_error_handling(
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
+    ):
         """Test error handling during sync."""
         # Configure the existing mock_stash_service methods
         mock_stash_service.get_all_performers.return_value = []
@@ -415,7 +441,9 @@ class TestSyncService:
         assert "Network error" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_sync_single_scene_with_existing(self, sync_service, mock_db):
+    async def test_sync_single_scene_with_existing(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test syncing a scene that already exists."""
         scene_data = {
             "id": "123",
@@ -452,7 +480,9 @@ class TestSyncService:
         assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_sync_single_scene_skip(self, sync_service, mock_db):
+    async def test_sync_single_scene_skip(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test skipping a scene based on strategy."""
         scene_data = {"id": "123", "title": "Scene"}
 
@@ -473,7 +503,9 @@ class TestSyncService:
         assert not sync_service.scene_handler.sync_scene.called
 
     @pytest.mark.asyncio
-    async def test_sync_entities_error_handling(self, sync_service, mock_stash_service):
+    async def test_sync_entities_error_handling(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test error handling in entity sync."""
         # Mock _get_last_sync_time to avoid database queries
         sync_service._get_last_sync_time = AsyncMock(return_value=None)

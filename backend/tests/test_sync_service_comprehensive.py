@@ -17,6 +17,16 @@ class TestSyncServiceComprehensive:
     """Comprehensive test suite for sync service functionality."""
 
     @pytest.fixture
+    def mock_async_session_local(self, mock_db):
+        """Mock AsyncSessionLocal to return the mock_db."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("app.core.database.AsyncSessionLocal", return_value=mock_session):
+            yield mock_session
+
+    @pytest.fixture
     def mock_db(self):
         """Create mock database session."""
         db = AsyncMock(spec=AsyncSession)
@@ -118,7 +128,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_sync_all_with_force_flag(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test sync_all with force=True."""
         # Mock sync history
@@ -191,7 +201,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_sync_all_failure_handling(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test sync_all error handling."""
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
@@ -217,7 +227,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_sync_scenes_with_specific_ids(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test syncing specific scenes by ID list."""
         scene_ids = ["scene1", "scene2", "scene3"]
@@ -255,7 +265,9 @@ class TestSyncServiceComprehensive:
         assert result.created_items == 2  # scene1 and scene2 were created
 
     @pytest.mark.asyncio
-    async def test_sync_scenes_with_filters(self, sync_service, mock_db):
+    async def test_sync_scenes_with_filters(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test sync_scenes with filters."""
         filters = {"tag_id": "tag123", "performer_id": "perf456"}
 
@@ -296,7 +308,9 @@ class TestSyncServiceComprehensive:
         sync_service.scene_syncer.sync_scenes_with_filters = original_method
 
     @pytest.mark.asyncio
-    async def test_sync_scenes_full_sync_mode(self, sync_service, mock_db):
+    async def test_sync_scenes_full_sync_mode(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test sync_scenes with full_sync=True."""
         # Mock scene_syncer behavior
         mock_result = SyncResult(
@@ -320,7 +334,9 @@ class TestSyncServiceComprehensive:
         assert result.processed_items == 50
 
     @pytest.mark.asyncio
-    async def test_sync_scenes_full_sync_failure(self, sync_service, mock_db):
+    async def test_sync_scenes_full_sync_failure(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test sync_scenes full_sync mode with failure."""
         # Make scene_syncer fail
         sync_service.scene_syncer.sync_all_scenes = AsyncMock(
@@ -338,7 +354,9 @@ class TestSyncServiceComprehensive:
         assert "Full sync failed" in result.errors[0].message
 
     @pytest.mark.asyncio
-    async def test_sync_incremental(self, sync_service, mock_stash_service, mock_db):
+    async def test_sync_incremental(
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
+    ):
         """Test incremental sync functionality."""
         # Set up last sync time
         last_sync = datetime.utcnow() - timedelta(hours=2)
@@ -381,7 +399,9 @@ class TestSyncServiceComprehensive:
         assert result.updated_items == 9  # 1 + 2 + 1 + 5
 
     @pytest.mark.asyncio
-    async def test_sync_incremental_no_history(self, sync_service):
+    async def test_sync_incremental_no_history(
+        self, sync_service, mock_async_session_local
+    ):
         """Test incremental sync with no sync history."""
         # No previous sync
         sync_service._get_last_sync_time = AsyncMock(return_value=None)
@@ -422,7 +442,9 @@ class TestSyncServiceComprehensive:
         sync_service.sync_scenes = original_sync_scenes
 
     @pytest.mark.asyncio
-    async def test_get_last_sync_time_with_history(self, sync_service, mock_db):
+    async def test_get_last_sync_time_with_history(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test retrieving last sync time from history."""
         # Mock sync history query
         mock_history = Mock(spec=SyncHistory)
@@ -452,7 +474,9 @@ class TestSyncServiceComprehensive:
             assert mock_new_db.execute.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_get_last_sync_time_no_history(self, sync_service, mock_db):
+    async def test_get_last_sync_time_no_history(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test retrieving last sync time with no history."""
         # Mock AsyncSessionLocal since _get_last_sync_time now creates its own session
         mock_new_db = AsyncMock(spec=AsyncSession)
@@ -471,7 +495,9 @@ class TestSyncServiceComprehensive:
             assert last_sync is None
 
     @pytest.mark.asyncio
-    async def test_update_last_sync_time(self, sync_service, mock_db):
+    async def test_update_last_sync_time(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test updating last sync time."""
         # Create a sync result
         result = SyncResult(job_id="test_update", started_at=datetime.utcnow())
@@ -509,7 +535,9 @@ class TestSyncServiceComprehensive:
             assert sync_record.items_synced == 100
 
     @pytest.mark.asyncio
-    async def test_update_job_status_with_metadata(self, sync_service, mock_db):
+    async def test_update_job_status_with_metadata(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test updating job status with metadata."""
         # Since _update_job_status now only logs (to prevent greenlet errors),
         # we need to patch the logger and verify it was called
@@ -525,7 +553,9 @@ class TestSyncServiceComprehensive:
             )
 
     @pytest.mark.asyncio
-    async def test_update_job_status_completed(self, sync_service, mock_db):
+    async def test_update_job_status_completed(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test updating job status to completed."""
         # Since _update_job_status now only logs (to prevent greenlet errors),
         # we need to patch the logger and verify it was called
@@ -541,7 +571,9 @@ class TestSyncServiceComprehensive:
             )
 
     @pytest.mark.asyncio
-    async def test_sync_entities_incremental_with_errors(self, sync_service):
+    async def test_sync_entities_incremental_with_errors(
+        self, sync_service, mock_async_session_local
+    ):
         """Test incremental entity sync with errors."""
         since = datetime.utcnow() - timedelta(hours=1)
 
@@ -581,7 +613,9 @@ class TestSyncServiceComprehensive:
         sync_service.entity_handler.resolve_studio_hierarchy.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_sync_entities_incremental_hierarchy_failure(self, sync_service):
+    async def test_sync_entities_incremental_hierarchy_failure(
+        self, sync_service, mock_async_session_local
+    ):
         """Test entity sync when hierarchy resolution fails."""
         since = datetime.utcnow() - timedelta(hours=1)
 
@@ -625,7 +659,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_process_scene_batch_with_cancellation(
-        self, sync_service, mock_stash_service
+        self, sync_service, mock_stash_service, mock_async_session_local
     ):
         """Test scene batch processing with cancellation token."""
         # Mock cancellation token
@@ -665,7 +699,9 @@ class TestSyncServiceComprehensive:
         assert cancellation_token.check_cancellation.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_sync_scene_by_id_not_found(self, sync_service, mock_stash_service):
+    async def test_sync_scene_by_id_not_found(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test syncing a scene that doesn't exist."""
         mock_stash_service.get_scene = AsyncMock(return_value=None)
 
@@ -676,7 +712,9 @@ class TestSyncServiceComprehensive:
         assert "Scene nonexistent_scene not found" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_sync_single_scene_error_handling(self, sync_service, mock_db):
+    async def test_sync_single_scene_error_handling(
+        self, sync_service, mock_db, mock_async_session_local
+    ):
         """Test error handling in _sync_single_scene."""
         scene_data = {"id": "error_scene", "title": "Error Test"}
 
@@ -702,7 +740,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_batch_sync_scenes_incremental(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test batch scene sync with incremental mode."""
         since = datetime.utcnow() - timedelta(hours=1)
@@ -753,7 +791,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_fetch_scene_batch_error_handling(
-        self, sync_service, mock_stash_service
+        self, sync_service, mock_stash_service, mock_async_session_local
     ):
         """Test error handling in _fetch_scene_batch."""
         # Make get_scenes fail
@@ -769,7 +807,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_sync_all_with_cancellation_token(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test sync_all with cancellation."""
         # Mock cancellation token
@@ -808,7 +846,9 @@ class TestSyncServiceComprehensive:
         )
 
     @pytest.mark.asyncio
-    async def test_sync_entity_type_helper(self, sync_service, mock_stash_service):
+    async def test_sync_entity_type_helper(
+        self, sync_service, mock_stash_service, mock_async_session_local
+    ):
         """Test _sync_entity_type helper method."""
         # Setup mocks
         get_all_func = AsyncMock(
@@ -854,7 +894,9 @@ class TestSyncServiceComprehensive:
         get_since_func.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_sync_entity_type_error_handling(self, sync_service):
+    async def test_sync_entity_type_error_handling(
+        self, sync_service, mock_async_session_local
+    ):
         """Test _sync_entity_type error handling."""
         # Setup failing mocks
         get_all_func = AsyncMock(side_effect=Exception("API Error"))
@@ -914,7 +956,7 @@ class TestSyncServiceComprehensive:
 
     @pytest.mark.asyncio
     async def test_compatibility_methods(
-        self, sync_service, mock_stash_service, mock_db
+        self, sync_service, mock_stash_service, mock_db, mock_async_session_local
     ):
         """Test backward compatibility methods."""
         # Test sync_single_scene
