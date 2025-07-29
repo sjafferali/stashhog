@@ -38,6 +38,7 @@ def map_job_type_to_schema(model_type: str) -> str:
         "sync_scenes": "scene_sync",
         "analysis": "scene_analysis",
         "batch_analysis": "batch_analysis",
+        "stash_scan": "stash_scan",
     }
     return mapping.get(model_type, model_type)
 
@@ -452,6 +453,94 @@ async def trigger_cleanup(
         "success": True,
         "message": "Cleanup job started successfully",
         "job_id": str(new_job.id),
+    }
+
+
+@router.post("/stash-scan")
+async def trigger_stash_scan(
+    paths: Optional[List[str]] = Body(
+        None, description="Paths to scan (default: ['/data'])"
+    ),
+    rescan: bool = Body(
+        False,
+        description="Forces a rescan on files even if modification time is unchanged",
+    ),
+    scan_generate_covers: bool = Body(True, description="Generate covers during scan"),
+    scan_generate_previews: bool = Body(
+        True, description="Generate previews during scan"
+    ),
+    scan_generate_image_previews: bool = Body(
+        False, description="Generate image previews during scan"
+    ),
+    scan_generate_sprites: bool = Body(
+        True, description="Generate sprites during scan"
+    ),
+    scan_generate_phashes: bool = Body(
+        True, description="Generate phashes during scan"
+    ),
+    scan_generate_thumbnails: bool = Body(
+        False, description="Generate image thumbnails during scan"
+    ),
+    scan_generate_clip_previews: bool = Body(
+        False, description="Generate image clip previews during scan"
+    ),
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Trigger a Stash metadata scan job.
+
+    This will start a metadata scan in Stash with the specified settings.
+    The job will poll the Stash job status and report progress in real-time.
+    """
+    # Check if there's already a stash scan job running
+    query = select(Job).where(
+        Job.type == "stash_scan", Job.status.in_(["pending", "running"])
+    )
+    result = await db.execute(query)
+    existing_job = result.scalar_one_or_none()
+
+    if existing_job:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Stash scan job already {existing_job.status}: {existing_job.id}",
+        )
+
+    # Import JobType from models to use the enum
+    from app.models.job import JobType as ModelJobType
+
+    # Prepare metadata with scan settings
+    job_metadata = {
+        "triggered_by": "manual",
+        "source": "api",
+        "rescan": rescan,
+        "scanGenerateCovers": scan_generate_covers,
+        "scanGeneratePreviews": scan_generate_previews,
+        "scanGenerateImagePreviews": scan_generate_image_previews,
+        "scanGenerateSprites": scan_generate_sprites,
+        "scanGeneratePhashes": scan_generate_phashes,
+        "scanGenerateThumbnails": scan_generate_thumbnails,
+        "scanGenerateClipPreviews": scan_generate_clip_previews,
+    }
+
+    if paths:
+        job_metadata["paths"] = paths
+
+    # Create a new stash scan job
+    new_job = await job_service.create_job(
+        job_type=ModelJobType.STASH_SCAN,
+        metadata=job_metadata,
+        db=db,
+    )
+
+    # Refresh the job object to ensure all attributes are loaded
+    await db.refresh(new_job)
+
+    return {
+        "success": True,
+        "message": "Stash scan job started successfully",
+        "job_id": str(new_job.id),
+        "stash_scan_settings": job_metadata,
     }
 
 

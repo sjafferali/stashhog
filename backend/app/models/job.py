@@ -41,6 +41,7 @@ class JobType(str, enum.Enum):
     IMPORT = "import"
     CLEANUP = "cleanup"
     PROCESS_DOWNLOADS = "process_downloads"
+    STASH_SCAN = "stash_scan"
 
 
 class Job(BaseModel):
@@ -75,6 +76,7 @@ class Job(BaseModel):
             "IMPORT",
             "CLEANUP",
             "PROCESS_DOWNLOADS",
+            "STASH_SCAN",
             name="jobtype",
             create_type=False,  # Don't try to create the type, it already exists
         ),

@@ -229,7 +229,13 @@ export interface Job {
     | 'sync_tags'
     | 'sync_studios'
     | 'analysis'
-    | 'apply_plan';
+    | 'apply_plan'
+    | 'stash_scan'
+    | 'process_downloads'
+    | 'cleanup'
+    | 'generate_details'
+    | 'export'
+    | 'import';
   status:
     | 'pending'
     | 'running'

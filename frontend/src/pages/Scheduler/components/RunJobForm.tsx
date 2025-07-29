@@ -280,6 +280,80 @@ const jobDefinitions: JobDefinition[] = [
     category: 'Downloads',
     parameters: [],
   },
+  {
+    type: 'stash_scan',
+    name: 'Stash Metadata Scan',
+    description:
+      'Scan the Stash library to update metadata, generate covers, previews, and other media assets',
+    icon: <DatabaseOutlined />,
+    category: 'Maintenance',
+    parameters: [
+      {
+        name: 'paths',
+        type: 'array',
+        required: false,
+        description:
+          'Paths to scan (comma-separated). Leave empty to scan default paths.',
+        placeholder: 'e.g., /data/videos,/data/images',
+      },
+      {
+        name: 'rescan',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Force rescan even if modification time is unchanged',
+      },
+      {
+        name: 'scanGenerateCovers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate covers during scan',
+      },
+      {
+        name: 'scanGeneratePreviews',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate video previews during scan',
+      },
+      {
+        name: 'scanGenerateImagePreviews',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate image previews during scan',
+      },
+      {
+        name: 'scanGenerateSprites',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate sprites during scan',
+      },
+      {
+        name: 'scanGeneratePhashes',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate perceptual hashes during scan',
+      },
+      {
+        name: 'scanGenerateThumbnails',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate image thumbnails during scan',
+      },
+      {
+        name: 'scanGenerateClipPreviews',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate image clip previews during scan',
+      },
+    ],
+  },
 ];
 
 const RunJobForm: React.FC<RunJobFormProps> = ({ onSuccess, onClose }) => {

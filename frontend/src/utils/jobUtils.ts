@@ -13,7 +13,9 @@ export type JobType =
   | 'cleanup'
   | 'settings_test'
   | 'scene_sync'
-  | 'scene_analysis';
+  | 'scene_analysis'
+  | 'stash_scan'
+  | 'process_downloads';
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
   sync: 'Sync',
@@ -31,6 +33,8 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   import: 'Import',
   cleanup: 'Cleanup',
   settings_test: 'Settings Test',
+  stash_scan: 'Stash Metadata Scan',
+  process_downloads: 'Process Downloads',
 };
 
 export const JOB_TYPE_COLORS: Record<string, string> = {
@@ -49,6 +53,8 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   import: 'cyan',
   cleanup: 'magenta',
   settings_test: 'purple',
+  stash_scan: 'volcano',
+  process_downloads: 'geekblue',
 };
 
 export const getJobTypeLabel = (type: string): string => {
@@ -98,10 +104,38 @@ export const formatJobProgress = (
       unit = ' tags';
     } else if (type === 'sync_studios') {
       unit = ' studios';
+    } else if (type === 'stash_scan') {
+      unit = ' files';
+    } else if (type === 'process_downloads') {
+      unit = ' downloads';
     }
 
     return `${processed} / ${total}${unit}`;
   }
 
   return `${Math.round(progress)}%`;
+};
+
+export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
+  sync: 'Synchronize all data with Stash',
+  sync_all: 'Full synchronization of all entities with Stash',
+  sync_scenes: 'Synchronize scenes with Stash',
+  sync_performers: 'Synchronize performers with Stash',
+  sync_tags: 'Synchronize tags with Stash',
+  sync_studios: 'Synchronize studios with Stash',
+  analysis: 'Analyze scenes with AI',
+  scene_analysis: 'Analyze scenes with AI',
+  scene_sync: 'Synchronize scenes with Stash',
+  apply_plan: 'Apply analysis plan changes',
+  generate_details: 'Generate scene details with AI',
+  export: 'Export data',
+  import: 'Import data',
+  cleanup: 'Clean up old jobs and data',
+  settings_test: 'Test system settings',
+  stash_scan: 'Scan and update metadata in Stash library',
+  process_downloads: 'Process downloaded content',
+};
+
+export const getJobTypeDescription = (type: string): string => {
+  return JOB_TYPE_DESCRIPTIONS[type] || 'Unknown job type';
 };
