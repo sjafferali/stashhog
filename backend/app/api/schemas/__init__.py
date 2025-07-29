@@ -137,6 +137,7 @@ class JobType(str, Enum):
     PROCESS_DOWNLOADS = "process_downloads"
     STASH_SCAN = "stash_scan"
     STASH_GENERATE = "stash_generate"
+    CHECK_STASH_GENERATE = "check_stash_generate"
 
 
 class JobCreate(BaseSchema):

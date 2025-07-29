@@ -16,6 +16,7 @@ export type JobType =
   | 'scene_analysis'
   | 'stash_scan'
   | 'stash_generate'
+  | 'check_stash_generate'
   | 'process_downloads';
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
@@ -36,6 +37,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   settings_test: 'Settings Test',
   stash_scan: 'Stash Metadata Scan',
   stash_generate: 'Stash Generate Metadata',
+  check_stash_generate: 'Check Resource Generation',
   process_downloads: 'Process Downloads',
 };
 
@@ -57,6 +59,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   settings_test: 'purple',
   stash_scan: 'volcano',
   stash_generate: 'geekblue',
+  check_stash_generate: 'orange',
   process_downloads: 'geekblue',
 };
 
@@ -111,6 +114,8 @@ export const formatJobProgress = (
       unit = ' files';
     } else if (type === 'stash_generate') {
       unit = ' items';
+    } else if (type === 'check_stash_generate') {
+      unit = ' resources';
     } else if (type === 'process_downloads') {
       unit = ' downloads';
     }
@@ -140,6 +145,7 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   stash_scan: 'Scan and update metadata in Stash library',
   stash_generate:
     'Generate preview images, sprites, and metadata for media files',
+  check_stash_generate: 'Check for resources requiring generation in Stash',
   process_downloads: 'Process downloaded content',
 };
 

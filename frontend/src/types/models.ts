@@ -232,6 +232,7 @@ export interface Job {
     | 'apply_plan'
     | 'stash_scan'
     | 'stash_generate'
+    | 'check_stash_generate'
     | 'process_downloads'
     | 'cleanup'
     | 'generate_details'

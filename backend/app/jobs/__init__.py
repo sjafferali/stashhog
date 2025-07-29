@@ -1,4 +1,5 @@
 from app.jobs.analysis_jobs import register_analysis_jobs
+from app.jobs.check_stash_generate_job import register_check_stash_generate_jobs
 from app.jobs.cleanup_jobs import register_cleanup_jobs
 from app.jobs.download_jobs import register_download_jobs
 from app.jobs.stash_generate_jobs import register_stash_generate_jobs
@@ -19,6 +20,7 @@ def register_all_jobs(job_service: JobService) -> None:
     register_download_jobs(job_service)
     register_stash_scan_jobs(job_service)
     register_stash_generate_jobs(job_service)
+    register_check_stash_generate_jobs(job_service)
 
 
 __all__ = ["register_all_jobs"]
