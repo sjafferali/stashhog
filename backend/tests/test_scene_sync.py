@@ -1157,7 +1157,7 @@ class TestSceneMarkerSync:
         """Test syncing scene with no markers."""
         scene = create_test_scene(id="scene123", title="Test Scene")
         scene.markers = []
-        
+
         # Mock the database query for existing markers
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
@@ -1187,11 +1187,11 @@ class TestSceneMarkerSync:
         # Mock the database query for existing markers (empty)
         mock_markers_result = MagicMock()
         mock_markers_result.scalars.return_value.all.return_value = []
-        
+
         # Mock tag exists check
         mock_tag_result = MagicMock()
         mock_tag_result.scalar_one_or_none.return_value = None
-        
+
         # Set up execute to return different results based on the query
         def execute_side_effect(stmt):
             stmt_str = str(stmt)
@@ -1199,7 +1199,7 @@ class TestSceneMarkerSync:
                 return mock_markers_result
             else:
                 return mock_tag_result
-        
+
         mock_async_session.execute.side_effect = execute_side_effect
 
         await sync_handler._sync_scene_markers(scene, [marker_data], mock_async_session)
@@ -1233,7 +1233,7 @@ class TestSceneMarkerSync:
         )
         existing_marker.tags = []
         scene.markers = [existing_marker]
-        
+
         # Mock the database query for existing markers
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [existing_marker]
@@ -1264,7 +1264,7 @@ class TestSceneMarkerSync:
         marker1 = SceneMarker(id="marker1", scene_id="scene123", primary_tag_id="tag1")
         marker2 = SceneMarker(id="marker2", scene_id="scene123", primary_tag_id="tag2")
         scene.markers = [marker1, marker2]
-        
+
         # Mock the database query for existing markers
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [marker1, marker2]
@@ -1292,7 +1292,7 @@ class TestSceneMarkerSync:
         """Test skipping markers without primary tag."""
         scene = create_test_scene(id="scene123", title="Test Scene")
         scene.markers = []
-        
+
         # Mock the database query for existing markers
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []

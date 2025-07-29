@@ -471,14 +471,18 @@ class SceneSyncHandler:
             logger.debug(f"First marker data: {markers_data[0]}")
 
         # Get existing markers from database
-        stmt = select(SceneMarker).where(SceneMarker.scene_id == scene.id).options(selectinload(SceneMarker.tags))
+        stmt = (
+            select(SceneMarker)
+            .where(SceneMarker.scene_id == scene.id)
+            .options(selectinload(SceneMarker.tags))
+        )
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
             existing_markers = result.scalars().all()
         else:
             result = db.execute(stmt)
             existing_markers = result.scalars().all()
-        
+
         existing_marker_ids = {marker.id for marker in existing_markers}
         new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
 
