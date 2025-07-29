@@ -75,6 +75,10 @@ def mock_base_settings():
     settings.analysis.ai_video_threshold = 0.3
     settings.analysis.server_timeout = 3700
     settings.analysis.create_markers = True
+    settings.qbittorrent.host = "localhost"
+    settings.qbittorrent.port = 8080
+    settings.qbittorrent.username = "admin"
+    settings.qbittorrent.password = None
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
     return settings
@@ -95,6 +99,10 @@ def mock_overridden_settings():
     settings.analysis.ai_video_threshold = 0.3
     settings.analysis.server_timeout = 3700
     settings.analysis.create_markers = True
+    settings.qbittorrent.host = "localhost"
+    settings.qbittorrent.port = 8080
+    settings.qbittorrent.username = "admin"
+    settings.qbittorrent.password = None
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
     return settings
@@ -329,6 +337,47 @@ class TestSettingsRoutes:
         assert response.status_code == 400
         data = response.json()
         assert "Unknown setting key: invalid_key" in data["detail"]
+
+    def test_update_qbittorrent_settings(self, client, mock_db):
+        """Test updating qBittorrent settings."""
+        # Mock existing settings
+        mock_settings = {
+            "qbittorrent_host": Mock(
+                spec=Setting, key="qbittorrent_host", value="localhost"
+            ),
+            "qbittorrent_port": Mock(spec=Setting, key="qbittorrent_port", value=8080),
+        }
+
+        async def mock_execute(query):
+            result = Mock()
+            query_str = str(query)
+            if "qbittorrent_host" in query_str:
+                result.scalar_one_or_none.return_value = mock_settings[
+                    "qbittorrent_host"
+                ]
+            elif "qbittorrent_port" in query_str:
+                result.scalar_one_or_none.return_value = mock_settings[
+                    "qbittorrent_port"
+                ]
+            else:
+                result.scalar_one_or_none.return_value = None
+            return result
+
+        mock_db.execute = AsyncMock(side_effect=mock_execute)
+
+        update_data = {
+            "qbittorrent_host": "192.168.1.10",
+            "qbittorrent_port": 9090,
+            "qbittorrent_username": "newuser",  # New setting
+            "qbittorrent_password": "newpass",  # New setting
+        }
+
+        response = client.put("/api/settings/", json=update_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert len(data["updated_fields"]) == 4
+        assert all(field in data["updated_fields"] for field in update_data.keys())
 
     @patch("app.services.stash_service.StashService")
     def test_test_stash_connection_success(
@@ -585,6 +634,107 @@ class TestSettingsRoutes:
             assert data["success"] is False
             assert "Invalid API key" in data["message"]
             assert "Invalid API key" in data["details"]["error"]
+        finally:
+            app.dependency_overrides.pop(get_settings_with_overrides, None)
+
+    @patch("qbittorrentapi.Client")
+    def test_test_qbittorrent_connection_success(
+        self, mock_qbittorrent_class, client, mock_overridden_settings
+    ):
+        """Test successful qBittorrent connection test."""
+        # Mock qBittorrent client
+        mock_qbittorrent_instance = Mock()
+        mock_qbittorrent_instance.auth_log_in = Mock()
+        mock_qbittorrent_instance.app_version.return_value = "v4.5.0"
+        mock_qbittorrent_instance.app_preferences.return_value = {
+            "save_path": "/downloads"
+        }
+        mock_qbittorrent_class.return_value = mock_qbittorrent_instance
+
+        # Mock dependencies
+        from app.core.dependencies import get_settings_with_overrides
+
+        app.dependency_overrides[get_settings_with_overrides] = (
+            lambda: mock_overridden_settings
+        )
+
+        try:
+            response = client.post(
+                "/api/settings/test-qbittorrent",
+                json={
+                    "host": "localhost",
+                    "port": 8080,
+                    "username": "admin",
+                    "password": "adminpass",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["service"] == "qbittorrent"
+            assert data["success"] is True
+            assert "Successfully connected" in data["message"]
+            assert data["details"]["version"] == "v4.5.0"
+            assert data["details"]["save_path"] == "/downloads"
+
+            # Verify qBittorrent client was created with test credentials
+            mock_qbittorrent_class.assert_called_with(
+                host="localhost", port=8080, username="admin", password="adminpass"
+            )
+        finally:
+            app.dependency_overrides.pop(get_settings_with_overrides, None)
+
+    @patch("qbittorrentapi.Client")
+    def test_test_qbittorrent_connection_failure(
+        self, mock_qbittorrent_class, client, mock_overridden_settings
+    ):
+        """Test failed qBittorrent connection test."""
+        # Mock qBittorrent client that fails
+        mock_qbittorrent_instance = Mock()
+        mock_qbittorrent_instance.auth_log_in.side_effect = Exception(
+            "Failed to connect"
+        )
+        mock_qbittorrent_class.return_value = mock_qbittorrent_instance
+
+        # Mock dependencies
+        from app.core.dependencies import get_settings_with_overrides
+
+        app.dependency_overrides[get_settings_with_overrides] = (
+            lambda: mock_overridden_settings
+        )
+
+        try:
+            response = client.post(
+                "/api/settings/test-qbittorrent",
+                json={"host": "badhost", "port": 9999},
+            )
+            assert response.status_code == 200  # Endpoint returns 200 even on failure
+            data = response.json()
+            assert data["service"] == "qbittorrent"
+            assert data["success"] is False
+            assert "Failed to connect" in data["message"]
+            assert "Failed to connect" in data["details"]["error"]
+        finally:
+            app.dependency_overrides.pop(get_settings_with_overrides, None)
+
+    def test_test_qbittorrent_connection_no_host(self, client):
+        """Test qBittorrent connection test with no host configured."""
+        # Mock settings with no host
+        mock_settings = Mock()
+        mock_settings.qbittorrent.host = None
+        mock_settings.qbittorrent.port = 8080
+        mock_settings.qbittorrent.username = "admin"
+        mock_settings.qbittorrent.password = None
+
+        from app.core.dependencies import get_settings_with_overrides
+
+        app.dependency_overrides[get_settings_with_overrides] = lambda: mock_settings
+
+        try:
+            response = client.post("/api/settings/test-qbittorrent", json={})
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is False
+            assert "No qBittorrent host configured" in data["message"]
         finally:
             app.dependency_overrides.pop(get_settings_with_overrides, None)
 

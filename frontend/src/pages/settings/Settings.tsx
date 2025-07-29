@@ -54,6 +54,10 @@ interface SettingsFormValues {
   analysis_create_markers?: boolean;
   sync_incremental?: boolean;
   sync_batch_size?: number;
+  qbittorrent_host?: string;
+  qbittorrent_port?: number;
+  qbittorrent_username?: string;
+  qbittorrent_password?: string;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -63,6 +67,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testingStash, setTestingStash] = useState(false);
   const [testingOpenAI, setTestingOpenAI] = useState(false);
+  const [testingQBittorrent, setTestingQBittorrent] = useState(false);
   const [runningCleanup, setRunningCleanup] = useState(false);
   const [fieldPlaceholders, setFieldPlaceholders] = useState<
     Record<string, string>
@@ -249,6 +254,36 @@ const Settings: React.FC = () => {
       void message.error('Failed to test OpenAI connection');
     } finally {
       setTestingOpenAI(false);
+    }
+  };
+
+  const handleTestQBittorrentConnection = async () => {
+    try {
+      setTestingQBittorrent(true);
+      const values = form.getFieldsValue([
+        'qbittorrent_host',
+        'qbittorrent_port',
+        'qbittorrent_username',
+        'qbittorrent_password',
+      ]);
+
+      const response = await api.post('/settings/test-qbittorrent', {
+        host: values.qbittorrent_host,
+        port: values.qbittorrent_port,
+        username: values.qbittorrent_username,
+        password: values.qbittorrent_password,
+      });
+
+      if (response.data.success) {
+        void message.success(response.data.message);
+      } else {
+        void message.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Failed to test qBittorrent connection:', error);
+      void message.error('Failed to test qBittorrent connection');
+    } finally {
+      setTestingQBittorrent(false);
     }
   };
 
@@ -509,6 +544,66 @@ const Settings: React.FC = () => {
                 { value: false, label: 'No' },
               ]}
             />
+          </Form.Item>
+
+          <Divider orientation="left">qBittorrent Settings</Divider>
+
+          <Form.Item
+            label="Host"
+            name="qbittorrent_host"
+            tooltip="qBittorrent server host"
+          >
+            <Input
+              placeholder={fieldPlaceholders.qbittorrent_host || 'localhost'}
+              allowClear
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Port"
+            name="qbittorrent_port"
+            tooltip="qBittorrent server port"
+          >
+            <InputNumber
+              min={1}
+              max={65535}
+              style={{ width: '100%' }}
+              placeholder={fieldPlaceholders.qbittorrent_port || '8080'}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Username"
+            name="qbittorrent_username"
+            tooltip="qBittorrent username"
+          >
+            <Input
+              placeholder={fieldPlaceholders.qbittorrent_username || 'admin'}
+              allowClear
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Password"
+            name="qbittorrent_password"
+            tooltip="qBittorrent password"
+          >
+            <Input.Password
+              placeholder={
+                fieldPlaceholders.qbittorrent_password || 'Enter password'
+              }
+              allowClear
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Button
+              icon={testingQBittorrent ? <LoadingOutlined /> : <ApiOutlined />}
+              onClick={() => void handleTestQBittorrentConnection()}
+              loading={testingQBittorrent}
+            >
+              Test qBittorrent Connection
+            </Button>
           </Form.Item>
 
           <Divider orientation="left">Maintenance</Divider>

@@ -152,6 +152,17 @@ class AnalysisSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ANALYSIS_")
 
 
+class QBittorrentSettings(BaseSettings):
+    """qBittorrent configuration settings."""
+
+    host: str = Field("localhost", description="qBittorrent host")
+    port: int = Field(8080, description="qBittorrent port")
+    username: str = Field("admin", description="qBittorrent username")
+    password: Optional[str] = Field(None, description="qBittorrent password")
+
+    model_config = SettingsConfigDict(env_prefix="QBITTORRENT_")
+
+
 class Settings(BaseSettings):
     """Main settings class combining all configuration sections."""
 
@@ -164,6 +175,7 @@ class Settings(BaseSettings):
     cors: CORSSettings = Field(default_factory=lambda: CORSSettings())  # type: ignore[call-arg]
     logging: LoggingSettings = Field(default_factory=lambda: LoggingSettings())  # type: ignore[call-arg]
     analysis: AnalysisSettings = Field(default_factory=lambda: AnalysisSettings())  # type: ignore[call-arg]
+    qbittorrent: QBittorrentSettings = Field(default_factory=lambda: QBittorrentSettings())  # type: ignore[call-arg]
 
     # Redis settings (optional, for future use)
     redis_url: Optional[str] = Field(None, description="Redis connection URL")

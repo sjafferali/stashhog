@@ -131,23 +131,27 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.includes(plan.id)
     );
-    const reviewingPlans = selectedPlans.filter(
-      (plan) => plan.status.toLowerCase() === 'reviewing'
+    const eligiblePlans = selectedPlans.filter(
+      (plan) =>
+        plan.status.toLowerCase() === 'reviewing' ||
+        plan.status.toLowerCase() === 'draft'
     );
 
-    if (reviewingPlans.length === 0) {
-      void message.warning('Please select plans that are in reviewing status');
+    if (eligiblePlans.length === 0) {
+      void message.warning(
+        'Please select plans that are in reviewing or draft status'
+      );
       return;
     }
 
     Modal.confirm({
       title: 'Accept All Changes',
-      content: `Are you sure you want to accept all changes for ${reviewingPlans.length} plan(s)?`,
+      content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
       onOk: async () => {
         let successCount = 0;
         let errorCount = 0;
 
-        for (const plan of reviewingPlans) {
+        for (const plan of eligiblePlans) {
           try {
             await apiClient.bulkUpdateAnalysisPlan(plan.id, 'accept_all');
             successCount++;
@@ -213,23 +217,27 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.includes(plan.id)
     );
-    const reviewingPlans = selectedPlans.filter(
-      (plan) => plan.status.toLowerCase() === 'reviewing'
+    const eligiblePlans = selectedPlans.filter(
+      (plan) =>
+        plan.status.toLowerCase() === 'reviewing' ||
+        plan.status.toLowerCase() === 'draft'
     );
 
-    if (reviewingPlans.length === 0) {
-      void message.warning('Please select plans that are in reviewing status');
+    if (eligiblePlans.length === 0) {
+      void message.warning(
+        'Please select plans that are in reviewing or draft status'
+      );
       return;
     }
 
     Modal.confirm({
       title: 'Reject All Changes',
-      content: `Are you sure you want to reject all changes for ${reviewingPlans.length} plan(s)? This will cancel the plans.`,
+      content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
       onOk: async () => {
         let successCount = 0;
         let errorCount = 0;
 
-        for (const plan of reviewingPlans) {
+        for (const plan of eligiblePlans) {
           try {
             await apiClient.bulkUpdateAnalysisPlan(plan.id, 'reject_all');
             successCount++;

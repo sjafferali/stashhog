@@ -146,6 +146,39 @@ async def list_settings(
             "Create scene markers from video AI",
             False,
         ),
+        # qBittorrent settings
+        (
+            "qbittorrent_host",
+            "qbittorrent.host",
+            base_settings.qbittorrent.host,
+            overridden_settings.qbittorrent.host,
+            "qBittorrent host",
+            False,
+        ),
+        (
+            "qbittorrent_port",
+            "qbittorrent.port",
+            base_settings.qbittorrent.port,
+            overridden_settings.qbittorrent.port,
+            "qBittorrent port",
+            False,
+        ),
+        (
+            "qbittorrent_username",
+            "qbittorrent.username",
+            base_settings.qbittorrent.username,
+            overridden_settings.qbittorrent.username,
+            "qBittorrent username",
+            False,
+        ),
+        (
+            "qbittorrent_password",
+            "qbittorrent.password",
+            base_settings.qbittorrent.password,
+            overridden_settings.qbittorrent.password,
+            "qBittorrent password",
+            True,
+        ),
     ]
 
     settings_list: list[dict[str, Any]] = []
@@ -290,6 +323,11 @@ async def update_settings(
         "analysis_ai_video_threshold",
         "analysis_server_timeout",
         "analysis_create_markers",
+        # qBittorrent settings
+        "qbittorrent_host",
+        "qbittorrent_port",
+        "qbittorrent_username",
+        "qbittorrent_password",
     }
 
     for key, value in settings_update.items():
@@ -438,5 +476,65 @@ async def test_openai_connection(
             "details": {
                 "error": str(e),
                 "model_attempted": model or settings.openai.model,
+            },
+        }
+
+
+@router.post("/test-qbittorrent")
+async def test_qbittorrent_connection(
+    host: Optional[str] = Body(None, description="qBittorrent host to test"),
+    port: Optional[int] = Body(None, description="qBittorrent port to test"),
+    username: Optional[str] = Body(None, description="qBittorrent username to test"),
+    password: Optional[str] = Body(None, description="qBittorrent password to test"),
+    settings: Settings = Depends(get_settings_with_overrides),
+) -> dict[str, Any]:
+    """
+    Test qBittorrent connection.
+    """
+    try:
+        import qbittorrentapi
+
+        # Use provided credentials or defaults
+        test_host = host or settings.qbittorrent.host
+        test_port = port or settings.qbittorrent.port
+        test_username = username or settings.qbittorrent.username
+        test_password = password or settings.qbittorrent.password
+
+        if not test_host:
+            raise ValueError("No qBittorrent host configured")
+
+        # Create qBittorrent client
+        client = qbittorrentapi.Client(
+            host=test_host,
+            port=test_port,
+            username=test_username,
+            password=test_password,
+        )
+
+        # Try to authenticate
+        client.auth_log_in()
+
+        # Get some basic info to verify connection
+        version = client.app_version()
+        preferences = client.app_preferences()
+
+        return {
+            "service": "qbittorrent",
+            "success": True,
+            "message": "Successfully connected to qBittorrent",
+            "details": {
+                "version": version,
+                "host": f"{test_host}:{test_port}",
+                "save_path": preferences.get("save_path", "Unknown"),
+            },
+        }
+    except Exception as e:
+        return {
+            "service": "qbittorrent",
+            "success": False,
+            "message": f"Failed to connect to qBittorrent: {str(e)}",
+            "details": {
+                "error": str(e),
+                "host_attempted": f"{host or settings.qbittorrent.host}:{port or settings.qbittorrent.port}",
             },
         }
