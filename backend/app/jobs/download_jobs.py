@@ -42,6 +42,9 @@ def _process_single_torrent(
 ) -> None:
     """Process a single torrent."""
     logger.info(f"Processing torrent: {torrent.name}")
+    logger.debug(
+        f"Torrent details - Hash: {torrent.hash}, Content path: {torrent.content_path}"
+    )
 
     # Get the torrent's content path
     content_path = Path(torrent.content_path)
@@ -65,8 +68,16 @@ def _process_single_torrent(
     _copy_torrent_content(content_path, dest_path)
 
     # Add "synced" tag to torrent
-    torrent.add_tags("synced")
-    logger.info(f"Successfully synced torrent: {torrent.name}")
+    try:
+        logger.debug(f"Adding 'synced' tag to torrent: {torrent.name}")
+        torrent.add_tags("synced")
+        logger.info(f"Successfully synced torrent: {torrent.name}")
+    except Exception as e:
+        logger.error(
+            f"Failed to add 'synced' tag to torrent '{torrent.name}': {str(e)}"
+        )
+        # Don't fail the whole process just because we couldn't add a tag
+        logger.warning("Continuing despite tag addition failure")
 
     result["synced_items"] += 1
     result["processed_items"] += 1
@@ -74,10 +85,48 @@ def _process_single_torrent(
 
 async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
     """Get all completed torrents with category 'xxx' that don't have 'synced' tag."""
-    # Get all completed torrents in xxx category
-    torrents = qbt_client.torrents_info(status_filter=["completed"], category="xxx")
-    # Filter out torrents that already have the "synced" tag
-    return [t for t in torrents if "synced" not in t.tags]
+    try:
+        # Get all completed torrents in xxx category
+        logger.info("Fetching completed torrents with category 'xxx'")
+        torrents = qbt_client.torrents_info(status_filter=["completed"], category="xxx")
+        logger.info(f"Found {len(torrents)} completed torrents in category 'xxx'")
+
+        # Filter out torrents that already have the "synced" tag
+        filtered_torrents = []
+        for t in torrents:
+            logger.debug(
+                f"Torrent '{t.name}' has tags: {t.tags} (type: {type(t.tags)})"
+            )
+
+            # Handle different possible types for tags
+            if isinstance(t.tags, str):
+                # If tags is a comma-separated string
+                tags_list = [tag.strip() for tag in t.tags.split(",") if tag.strip()]
+                has_synced = "synced" in tags_list
+            elif isinstance(t.tags, list):
+                # If tags is already a list
+                has_synced = "synced" in t.tags
+            else:
+                # If tags is None or some other type
+                logger.warning(
+                    f"Unexpected tags type for torrent '{t.name}': {type(t.tags)}"
+                )
+                has_synced = False
+
+            if not has_synced:
+                filtered_torrents.append(t)
+                logger.debug(f"Including torrent '{t.name}' (no 'synced' tag)")
+            else:
+                logger.debug(f"Skipping torrent '{t.name}' (has 'synced' tag)")
+
+        logger.info(
+            f"Filtered to {len(filtered_torrents)} torrents without 'synced' tag"
+        )
+        return filtered_torrents
+
+    except Exception as e:
+        logger.error(f"Error getting completed torrents: {str(e)}", exc_info=True)
+        raise
 
 
 async def _connect_to_qbittorrent() -> Any:
@@ -152,9 +201,11 @@ async def process_downloads_job(
 
     try:
         # Connect to qBittorrent
+        logger.debug("Connecting to qBittorrent...")
         qbt_client = await _connect_to_qbittorrent()
 
         # Get completed torrents without 'synced' tag
+        logger.debug("Getting completed torrents...")
         completed_torrents = await _get_completed_torrents(qbt_client)
         logger.info(
             f"Found {len(completed_torrents)} completed torrents with category 'xxx' to process"
