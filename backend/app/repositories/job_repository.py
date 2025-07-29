@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from sqlalchemy import and_, desc, select
+from sqlalchemy import String, and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -254,13 +254,12 @@ class JobRepository:
             return {}
 
         # Query for jobs that are active and have scene_ids in their metadata
-        # Use JSONB containment operator to check if metadata contains scene_ids key
+        # Use JSON cast to check if metadata contains scene_ids key
         query = select(Job).filter(
             and_(
                 Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
-                Job.job_metadata.op("?")(
-                    "scene_ids"
-                ),  # Check if 'scene_ids' key exists
+                # Cast JSON to text and check if it contains "scene_ids"
+                func.cast(Job.job_metadata, String).contains('"scene_ids"'),
             )
         )
 
@@ -297,9 +296,8 @@ class JobRepository:
             and_(
                 Job.status == JobStatus.COMPLETED.value,
                 Job.completed_at >= cutoff_time,
-                Job.job_metadata.op("?")(
-                    "scene_ids"
-                ),  # Check if 'scene_ids' key exists
+                # Cast JSON to text and check if it contains "scene_ids"
+                func.cast(Job.job_metadata, String).contains('"scene_ids"'),
             )
         )
 
