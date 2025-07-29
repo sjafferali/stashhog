@@ -310,6 +310,13 @@ export const ListView: React.FC<ListViewProps> = ({
         width: 100,
         render: (_: unknown, record: Scene) => (
           <Space>
+            {record.active_jobs && record.active_jobs.length > 0 && (
+              <Tooltip title={`Active job: ${record.active_jobs[0].type}`}>
+                <ClockCircleOutlined
+                  style={{ color: '#faad14', fontSize: 16 }}
+                />
+              </Tooltip>
+            )}
             {record.analyzed && (
               <Tooltip title="Analyzed">
                 <CheckCircleOutlined
@@ -484,6 +491,13 @@ export const ListView: React.FC<ListViewProps> = ({
 
           <div className={styles.cardFooter}>
             <div className={styles.cardStatus}>
+              {scene.active_jobs && scene.active_jobs.length > 0 && (
+                <Tooltip title={`Active job: ${scene.active_jobs[0].type}`}>
+                  <ClockCircleOutlined
+                    style={{ color: '#faad14', fontSize: 16 }}
+                  />
+                </Tooltip>
+              )}
               {scene.analyzed && (
                 <Tooltip title="Analyzed">
                   <CheckCircleOutlined

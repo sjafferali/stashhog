@@ -246,6 +246,30 @@ class JobRepository:
             db.commit()
         return deleted_count
 
+    async def get_all_active_job_scene_ids(self, db: AsyncSession) -> List[str]:
+        """Get all scene IDs that have active jobs."""
+        # Query for jobs that are active and have scene_ids in their metadata
+        query = select(Job).filter(
+            and_(
+                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
+                # Cast JSON to text and check if it contains "scene_ids"
+                func.cast(Job.job_metadata, String).contains('"scene_ids"'),
+            )
+        )
+
+        result = await db.execute(query)
+        jobs = result.scalars().all()
+
+        # Collect all unique scene IDs from active jobs
+        all_scene_ids = set()
+        for job in jobs:
+            if job.job_metadata and "scene_ids" in job.job_metadata:
+                job_scene_ids = job.job_metadata.get("scene_ids", [])
+                if isinstance(job_scene_ids, list):
+                    all_scene_ids.update(job_scene_ids)
+
+        return list(all_scene_ids)
+
     async def get_active_jobs_for_scenes(
         self, scene_ids: List[str], db: AsyncSession
     ) -> Dict[str, List[Job]]:

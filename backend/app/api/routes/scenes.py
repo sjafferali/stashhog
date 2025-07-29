@@ -313,6 +313,24 @@ async def list_scenes(
 
     # Apply filters
     query, conditions = _build_scene_filter_conditions(filters, query)
+
+    # Handle has_active_jobs filter at database level
+    if filters.has_active_jobs is not None:
+        # Get all scene IDs that have active jobs
+        jobs_with_scenes = await job_repository.get_all_active_job_scene_ids(db)
+
+        if filters.has_active_jobs:
+            # Include only scenes that have active jobs
+            if jobs_with_scenes:
+                conditions.append(Scene.id.in_(jobs_with_scenes))
+            else:
+                # No active jobs exist, so return empty result
+                conditions.append(Scene.id.is_(None))  # This will match no scenes
+        else:
+            # Exclude scenes that have active jobs
+            if jobs_with_scenes:
+                conditions.append(~Scene.id.in_(jobs_with_scenes))
+
     if conditions:
         query = query.where(and_(*conditions))
 
@@ -357,18 +375,6 @@ async def list_scenes(
         if scene_ids
         else {}
     )
-
-    # If filtering by has_active_jobs, filter the results
-    if filters.has_active_jobs is not None:
-        if filters.has_active_jobs:
-            # Only include scenes that have active jobs
-            scenes = [scene for scene in scenes if str(scene.id) in active_jobs]  # type: ignore[attr-defined]
-        else:
-            # Only include scenes that don't have active jobs
-            scenes = [scene for scene in scenes if str(scene.id) not in active_jobs]  # type: ignore[attr-defined]
-
-        # Update total count after filtering
-        total = len(scenes)
 
     # Transform to response models with job information
     scene_responses = []

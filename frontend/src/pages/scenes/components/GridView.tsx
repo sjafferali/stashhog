@@ -10,7 +10,7 @@ import {
   Tooltip,
 } from 'antd';
 import {
-  // ClockCircleOutlined,
+  ClockCircleOutlined,
   FolderOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
@@ -162,6 +162,14 @@ export const GridView: React.FC<GridViewProps> = ({
                     </Space>
 
                     <Space size="small" className={styles.metadata}>
+                      {scene.active_jobs && scene.active_jobs.length > 0 && (
+                        <Tooltip
+                          title={`Active job: ${scene.active_jobs[0].type}`}
+                        >
+                          <ClockCircleOutlined style={{ color: '#faad14' }} />
+                        </Tooltip>
+                      )}
+
                       {scene.analyzed && (
                         <Tooltip title="Analyzed">
                           <CheckCircleOutlined style={{ color: '#52c41a' }} />
