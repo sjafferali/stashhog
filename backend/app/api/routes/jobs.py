@@ -39,6 +39,7 @@ def map_job_type_to_schema(model_type: str) -> str:
         "analysis": "scene_analysis",
         "batch_analysis": "batch_analysis",
         "stash_scan": "stash_scan",
+        "stash_generate": "stash_generate",
     }
     return mapping.get(model_type, model_type)
 

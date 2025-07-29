@@ -231,6 +231,7 @@ export interface Job {
     | 'analysis'
     | 'apply_plan'
     | 'stash_scan'
+    | 'stash_generate'
     | 'process_downloads'
     | 'cleanup'
     | 'generate_details'

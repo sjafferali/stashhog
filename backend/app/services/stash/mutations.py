@@ -161,3 +161,17 @@ mutation SceneMarkerDestroy($id: ID!) {
     sceneMarkerDestroy(id: $id)
 }
 """
+
+# Generate metadata
+METADATA_GENERATE = """
+mutation GenerateMetadata($input: GenerateMetadataInput!) {
+    metadataGenerate(input: $input)
+}
+"""
+
+# Stop job
+STOP_JOB = """
+mutation StopJob($job_id: ID!) {
+    stopJob(job_id: $job_id)
+}
+"""

@@ -354,6 +354,123 @@ const jobDefinitions: JobDefinition[] = [
       },
     ],
   },
+  {
+    type: 'stash_generate',
+    name: 'Generate Metadata',
+    description:
+      'Generate preview images, sprites, thumbnails, and other metadata for media files in Stash',
+    icon: <ExperimentOutlined />,
+    category: 'Maintenance',
+    parameters: [
+      {
+        name: 'sceneIDs',
+        type: 'array',
+        required: false,
+        description:
+          'Comma-separated list of scene IDs to generate metadata for. Leave empty for all scenes.',
+        placeholder: 'e.g., 123,456,789',
+      },
+      {
+        name: 'markerIDs',
+        type: 'array',
+        required: false,
+        description:
+          'Comma-separated list of marker IDs to generate metadata for. Leave empty for all markers.',
+        placeholder: 'e.g., 123,456,789',
+      },
+      {
+        name: 'covers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate cover images',
+      },
+      {
+        name: 'sprites',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate sprite sheets for video timeline',
+      },
+      {
+        name: 'previews',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate video preview clips',
+      },
+      {
+        name: 'imagePreviews',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate image previews',
+      },
+      {
+        name: 'markers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate marker-related metadata',
+      },
+      {
+        name: 'markerImagePreviews',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate image previews for markers',
+      },
+      {
+        name: 'markerScreenshots',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate screenshots for markers',
+      },
+      {
+        name: 'transcodes',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate transcoded versions of videos',
+      },
+      {
+        name: 'phashes',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate perceptual hashes for duplicate detection',
+      },
+      {
+        name: 'interactiveHeatmapsSpeeds',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Generate interactive heatmap speed data',
+      },
+      {
+        name: 'clipPreviews',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate clip previews',
+      },
+      {
+        name: 'imageThumbnails',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Generate image thumbnails',
+      },
+      {
+        name: 'overwrite',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Overwrite existing generated files',
+      },
+    ],
+  },
 ];
 
 const RunJobForm: React.FC<RunJobFormProps> = ({ onSuccess, onClose }) => {

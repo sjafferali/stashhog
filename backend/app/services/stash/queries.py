@@ -373,3 +373,33 @@ query FindStudios($filter: StudioFilterType!) {
     }
 }
 """
+
+# Find job by ID
+FIND_JOB = """
+query FindJob($input: FindJobInput!) {
+    findJob(input: $input) {
+        id
+        status
+        progress
+        description
+        startTime
+        endTime
+        error
+    }
+}
+"""
+
+# Get job queue
+JOB_QUEUE = """
+query JobQueue {
+    jobQueue {
+        id
+        status
+        progress
+        description
+        startTime
+        endTime
+        error
+    }
+}
+"""
