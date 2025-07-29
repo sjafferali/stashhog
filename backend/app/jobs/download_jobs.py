@@ -1,7 +1,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import qbittorrentapi
 
@@ -164,11 +164,11 @@ async def _connect_to_qbittorrent() -> Any:
     return qbt_client
 
 
-def _process_torrents(
+async def _process_torrents(
     completed_torrents: List[Any],
     dest_base: Path,
     result: Dict[str, Any],
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any],
 ) -> None:
     """Process all completed torrents."""
@@ -180,7 +180,10 @@ def _process_torrents(
 
         # Update progress
         progress = int((idx / len(completed_torrents)) * 100)
-        progress_callback(progress, f"Processing torrent: {torrent.name}")
+        await progress_callback(
+            progress,
+            f"Processing torrent {idx + 1}/{len(completed_torrents)}: {torrent.name}",
+        )
 
         try:
             _process_single_torrent(torrent, dest_base, result)
@@ -192,7 +195,7 @@ def _process_torrents(
 
 async def process_downloads_job(
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], None],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
@@ -201,12 +204,17 @@ async def process_downloads_job(
     qbt_client = None
 
     try:
+        # Initial progress
+        await progress_callback(0, "Starting download processing job")
+
         # Connect to qBittorrent
         logger.debug("Connecting to qBittorrent...")
+        await progress_callback(5, "Connecting to qBittorrent...")
         qbt_client = await _connect_to_qbittorrent()
 
         # Get completed torrents without 'synced' tag
         logger.debug("Getting completed torrents...")
+        await progress_callback(10, "Fetching completed torrents...")
         completed_torrents = await _get_completed_torrents(qbt_client)
         logger.info(
             f"Found {len(completed_torrents)} completed torrents with category 'xxx' to process"
@@ -221,12 +229,12 @@ async def process_downloads_job(
         dest_base.mkdir(parents=True, exist_ok=True)
 
         # Process all torrents
-        _process_torrents(
+        await _process_torrents(
             completed_torrents, dest_base, result, progress_callback, cancellation_token
         )
 
         # Final updates
-        progress_callback(100, "Download processing complete")
+        await progress_callback(100, "Download processing complete")
         if result["failed_items"] > 0:
             result["status"] = "completed_with_errors"
 
@@ -240,7 +248,9 @@ async def process_downloads_job(
         return result
 
     except Exception as e:
-        logger.error(f"Download processing job failed: {str(e)}")
+        error_msg = f"Download processing job failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await progress_callback(100, error_msg)
         raise
     finally:
         # Clean up qBittorrent client connection
