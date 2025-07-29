@@ -69,6 +69,7 @@ def mock_async_session():
     session.execute = AsyncMock()
     session.flush = AsyncMock()
     session.add = MagicMock()
+    session.delete = MagicMock()
     return session
 
 
@@ -1156,6 +1157,11 @@ class TestSceneMarkerSync:
         """Test syncing scene with no markers."""
         scene = create_test_scene(id="scene123", title="Test Scene")
         scene.markers = []
+        
+        # Mock the database query for existing markers
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_async_session.execute.return_value = mock_result
 
         await sync_handler._sync_scene_markers(scene, [], mock_async_session)
 
@@ -1178,10 +1184,23 @@ class TestSceneMarkerSync:
             "updated_at": "2024-01-01T12:00:00Z",
         }
 
+        # Mock the database query for existing markers (empty)
+        mock_markers_result = MagicMock()
+        mock_markers_result.scalars.return_value.all.return_value = []
+        
         # Mock tag exists check
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_async_session.execute.return_value = mock_result
+        mock_tag_result = MagicMock()
+        mock_tag_result.scalar_one_or_none.return_value = None
+        
+        # Set up execute to return different results based on the query
+        def execute_side_effect(stmt):
+            stmt_str = str(stmt)
+            if "scene_marker" in stmt_str:
+                return mock_markers_result
+            else:
+                return mock_tag_result
+        
+        mock_async_session.execute.side_effect = execute_side_effect
 
         await sync_handler._sync_scene_markers(scene, [marker_data], mock_async_session)
 
@@ -1214,6 +1233,11 @@ class TestSceneMarkerSync:
         )
         existing_marker.tags = []
         scene.markers = [existing_marker]
+        
+        # Mock the database query for existing markers
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [existing_marker]
+        mock_async_session.execute.return_value = mock_result
 
         marker_data = {
             "id": "marker1",
@@ -1240,6 +1264,11 @@ class TestSceneMarkerSync:
         marker1 = SceneMarker(id="marker1", scene_id="scene123", primary_tag_id="tag1")
         marker2 = SceneMarker(id="marker2", scene_id="scene123", primary_tag_id="tag2")
         scene.markers = [marker1, marker2]
+        
+        # Mock the database query for existing markers
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [marker1, marker2]
+        mock_async_session.execute.return_value = mock_result
 
         # Only marker1 remains
         markers_data = [
@@ -1251,9 +1280,10 @@ class TestSceneMarkerSync:
 
         await sync_handler._sync_scene_markers(scene, markers_data, mock_async_session)
 
-        # Verify marker2 was removed
-        assert len(scene.markers) == 1
-        assert scene.markers[0].id == "marker1"
+        # Verify marker2 was deleted
+        mock_async_session.delete.assert_called_once()
+        deleted_marker = mock_async_session.delete.call_args[0][0]
+        assert deleted_marker.id == "marker2"
 
     @pytest.mark.asyncio
     async def test_sync_scene_markers_skip_without_primary_tag(
@@ -1262,6 +1292,11 @@ class TestSceneMarkerSync:
         """Test skipping markers without primary tag."""
         scene = create_test_scene(id="scene123", title="Test Scene")
         scene.markers = []
+        
+        # Mock the database query for existing markers
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_async_session.execute.return_value = mock_result
 
         marker_data = {
             "id": "marker1",
