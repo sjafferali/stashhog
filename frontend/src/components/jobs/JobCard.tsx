@@ -69,7 +69,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const getStatusColor = () => {
     switch (job.status) {
       case 'pending':
-        return 'default';
+        return 'orange';
       case 'running':
         return 'processing';
       case 'completed':

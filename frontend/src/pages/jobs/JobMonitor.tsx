@@ -402,9 +402,11 @@ const JobMonitor: React.FC = () => {
                     ? 'error'
                     : status === 'running'
                       ? 'processing'
-                      : status === 'cancelled'
-                        ? 'warning'
-                        : 'default'
+                      : status === 'pending'
+                        ? 'orange'
+                        : status === 'cancelled'
+                          ? 'warning'
+                          : 'default'
               }
             >
               {status.toUpperCase()}
@@ -757,7 +759,11 @@ const JobMonitor: React.FC = () => {
                               ? 'error'
                               : selectedJob.status === 'running'
                                 ? 'processing'
-                                : 'default'
+                                : selectedJob.status === 'pending'
+                                  ? 'orange'
+                                  : selectedJob.status === 'cancelled'
+                                    ? 'warning'
+                                    : 'default'
                         }
                       >
                         {selectedJob.status.toUpperCase()}
