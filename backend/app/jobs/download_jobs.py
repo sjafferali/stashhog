@@ -217,7 +217,7 @@ async def process_downloads_job(
 
         # Initialize result and destination
         result = _initialize_result(job_id, len(completed_torrents))
-        dest_base = Path("/opt/media/downloads/avideos/")
+        dest_base = Path("/downloads/avideos/")
         dest_base.mkdir(parents=True, exist_ok=True)
 
         # Process all torrents

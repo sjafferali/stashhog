@@ -750,7 +750,7 @@ async def process_downloads(
 
     This creates a background job to:
     1. Check for completed torrents with category "xxx"
-    2. Copy files to /opt/media/downloads/avideos/
+    2. Copy files to /downloads/avideos/
     3. Add "synced" tag to processed torrents
 
     Returns:
