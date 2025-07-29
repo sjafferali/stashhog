@@ -544,12 +544,21 @@ class SyncService:
             if since:
                 logger.info("=== INCREMENTAL SYNC MODE ===")
                 logger.info(f"Getting count of scenes updated since {since}")
-                logger.info(f"Filter will use: updated_at > {since.isoformat()}")
+                logger.info(f"Filter will use: updated_at > {since.isoformat()} (UTC)")
 
                 # Get first page to determine actual count
+                # Format timestamp the same way as pending scenes detection
+                # Convert to Pacific timezone with Z suffix for Stash compatibility
+                import pytz
+
+                pacific_tz = pytz.timezone("America/Los_Angeles")
+                since_no_microseconds = since.replace(microsecond=0)
+                since_pacific = since_no_microseconds.astimezone(pacific_tz)
+                formatted_timestamp = since_pacific.strftime("%Y-%m-%dT%H:%M:%SZ")
+
                 filter_dict = {
                     "updated_at": {
-                        "value": since.isoformat(),
+                        "value": formatted_timestamp,
                         "modifier": "GREATER_THAN",
                     }
                 }
@@ -764,14 +773,23 @@ class SyncService:
         )
         filter_dict = None
         if since:
+            # Format timestamp the same way as pending scenes detection
+            # Convert to Pacific timezone with Z suffix for Stash compatibility
+            import pytz
+
+            pacific_tz = pytz.timezone("America/Los_Angeles")
+            since_no_microseconds = since.replace(microsecond=0)
+            since_pacific = since_no_microseconds.astimezone(pacific_tz)
+            formatted_timestamp = since_pacific.strftime("%Y-%m-%dT%H:%M:%SZ")
+
             filter_dict = {
                 "updated_at": {
-                    "value": since.isoformat(),
+                    "value": formatted_timestamp,
                     "modifier": "GREATER_THAN",
                 }
             }
             logger.info(
-                f"📋 Fetching batch with INCREMENTAL filter: updated_at > {since.isoformat()}"
+                f"📋 Fetching batch with INCREMENTAL filter: updated_at > {formatted_timestamp} (converted from {since.isoformat()})"
             )
             logger.debug(f"Full filter dict: {filter_dict}")
         else:
