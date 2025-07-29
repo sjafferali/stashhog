@@ -268,6 +268,23 @@ async def list_plans(
         change_result = await db.execute(change_count_query)
         total_changes = change_result.scalar_one()
 
+        # Count approved changes (not yet applied)
+        approved_count_query = select(func.count(PlanChange.id)).where(
+            PlanChange.plan_id == plan.id,  # type: ignore[attr-defined]
+            PlanChange.status == ChangeStatus.APPROVED,
+            PlanChange.applied.is_(False),
+        )
+        approved_result = await db.execute(approved_count_query)
+        approved_changes = approved_result.scalar_one()
+
+        # Count rejected changes
+        rejected_count_query = select(func.count(PlanChange.id)).where(
+            PlanChange.plan_id == plan.id,  # type: ignore[attr-defined]
+            PlanChange.status == ChangeStatus.REJECTED,
+        )
+        rejected_result = await db.execute(rejected_count_query)
+        rejected_changes = rejected_result.scalar_one()
+
         # Count scenes
         scene_count_query = select(
             func.count(func.distinct(PlanChange.scene_id))
@@ -287,6 +304,8 @@ async def list_plans(
                 created_at=plan.created_at,  # type: ignore[attr-defined]
                 total_scenes=total_scenes,
                 total_changes=total_changes,
+                approved_changes=approved_changes,
+                rejected_changes=rejected_changes,
                 metadata=plan.plan_metadata or {},  # type: ignore[attr-defined]
                 job_id=plan.job_id,  # type: ignore[attr-defined]
             )
@@ -363,6 +382,23 @@ async def get_plan(
     change_count_result = await db.execute(change_count_query)
     total_changes_from_db = change_count_result.scalar() or 0
 
+    # Count approved changes (not yet applied)
+    approved_count_query = select(func.count(PlanChange.id)).where(
+        PlanChange.plan_id == plan_id,
+        PlanChange.status == ChangeStatus.APPROVED,
+        PlanChange.applied.is_(False),
+    )
+    approved_result = await db.execute(approved_count_query)
+    approved_changes = approved_result.scalar_one()
+
+    # Count rejected changes
+    rejected_count_query = select(func.count(PlanChange.id)).where(
+        PlanChange.plan_id == plan_id,
+        PlanChange.status == ChangeStatus.REJECTED,
+    )
+    rejected_result = await db.execute(rejected_count_query)
+    rejected_changes = rejected_result.scalar_one()
+
     return PlanDetailResponse(
         id=int(plan.id),
         name=str(plan.name),
@@ -370,6 +406,8 @@ async def get_plan(
         created_at=plan.created_at,  # type: ignore[arg-type]
         total_scenes=len(scenes),
         total_changes=total_changes_from_db,
+        approved_changes=approved_changes,
+        rejected_changes=rejected_changes,
         metadata=dict(plan.plan_metadata) if plan.plan_metadata else {},
         scenes=scenes,
         job_id=plan.job_id,
@@ -1014,7 +1052,7 @@ async def apply_all_approved_changes(
             PlanChange.applied.is_(False),
             AnalysisPlan.status != "cancelled",
         )
-        .distinct()
+        .distinct(AnalysisPlan.id)
     )
     result = await db.execute(query)
     plans_to_apply: list[AnalysisPlan] = list(result.scalars().all())

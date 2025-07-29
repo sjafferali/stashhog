@@ -106,7 +106,8 @@ const PlanList: React.FC = () => {
             }}
             disabled={
               record.status.toLowerCase() === 'applied' ||
-              record.status.toLowerCase() === 'cancelled'
+              record.status.toLowerCase() === 'cancelled' ||
+              record.status.toLowerCase() === 'pending'
             }
           >
             Cancel
@@ -304,12 +305,8 @@ const PlanList: React.FC = () => {
   const hasApprovedChanges = useMemo(() => {
     // Check if any plans have approved but not applied changes
     return plans.some((plan) => {
-      const status = plan.status.toLowerCase();
-      // Plans in 'reviewing' status with accepted changes can be applied
-      // Also check for plans marked as 'draft' that may have approved changes
-      return (
-        status === 'reviewing' || (status === 'draft' && plan.total_changes > 0)
-      );
+      // Check if there are approved changes that haven't been applied yet
+      return plan.approved_changes > 0;
     });
   }, [plans]);
 
@@ -365,20 +362,19 @@ const PlanList: React.FC = () => {
         onFilterChange={setStatusFilter}
       />
 
-      {hasApprovedChanges && (
-        <div style={{ marginBottom: 16, textAlign: 'right' }}>
-          <Button
-            type="primary"
-            icon={<SyncOutlined />}
-            loading={cleanupLoading}
-            onClick={() => {
-              void handleApplyApprovedChanges();
-            }}
-          >
-            Apply All Approved Changes
-          </Button>
-        </div>
-      )}
+      <div style={{ marginBottom: 16, textAlign: 'right' }}>
+        <Button
+          type="primary"
+          icon={<SyncOutlined />}
+          loading={cleanupLoading}
+          disabled={!hasApprovedChanges}
+          onClick={() => {
+            void handleApplyApprovedChanges();
+          }}
+        >
+          Apply All Approved Changes
+        </Button>
+      </div>
 
       <div
         style={{

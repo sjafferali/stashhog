@@ -41,12 +41,6 @@ def _process_single_torrent(
     torrent: Any, dest_base: Path, result: Dict[str, Any]
 ) -> None:
     """Process a single torrent."""
-    # Check if torrent already has "synced" tag
-    if "synced" in torrent.tags:
-        logger.info(f"Torrent '{torrent.name}' already synced, skipping")
-        result["skipped_items"] += 1
-        return
-
     logger.info(f"Processing torrent: {torrent.name}")
 
     # Get the torrent's content path
@@ -79,9 +73,11 @@ def _process_single_torrent(
 
 
 async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
-    """Get all completed torrents with category 'xxx'."""
-    torrents = qbt_client.torrents_info(category="xxx")
-    return [t for t in torrents if t.state_enum.is_complete]
+    """Get all completed torrents with category 'xxx' that don't have 'synced' tag."""
+    # Get all completed torrents in xxx category
+    torrents = qbt_client.torrents_info(status_filter=["completed"], category="xxx")
+    # Filter out torrents that already have the "synced" tag
+    return [t for t in torrents if "synced" not in t.tags]
 
 
 async def _connect_to_qbittorrent() -> Any:
@@ -144,10 +140,10 @@ async def process_downloads_job(
         # Connect to qBittorrent
         qbt_client = await _connect_to_qbittorrent()
 
-        # Get completed torrents
+        # Get completed torrents without 'synced' tag
         completed_torrents = await _get_completed_torrents(qbt_client)
         logger.info(
-            f"Found {len(completed_torrents)} completed torrents with category 'xxx'"
+            f"Found {len(completed_torrents)} completed torrents with category 'xxx' to process"
         )
 
         if not completed_torrents:

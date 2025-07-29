@@ -47,6 +47,8 @@ export interface PlanDetailData {
   applied_at?: string;
   total_scenes: number;
   total_changes: number;
+  approved_changes?: number;
+  rejected_changes?: number;
   metadata: {
     model?: string;
     temperature?: number;

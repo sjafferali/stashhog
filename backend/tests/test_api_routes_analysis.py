@@ -234,16 +234,30 @@ class TestAnalysisRoutes:
         mock_count_result = Mock()
         mock_count_result.scalar.return_value = 2
 
-        async def async_execute(query):
-            query_str = str(query).lower()
-            if "count" in query_str:
-                return mock_count_result
-            elif "analysis_plan" in query_str and "id" in query_str:
-                return mock_plan_result
-            else:
-                return mock_changes_result
+        # Try a simpler approach - since we know the order of calls,
+        # let's use a list of return values
 
-        mock_db.execute = async_execute
+        # Create mock results for each query in order
+        approved_result = Mock()
+        approved_result.scalar_one = Mock(return_value=1)  # approved count
+
+        rejected_result = Mock()
+        rejected_result.scalar_one = Mock(return_value=0)  # rejected count
+
+        # Set up the mock to return different results for each call
+        # The order should be:
+        # 1. Get plan by ID
+        # 2. Get changes for plan
+        # 3. Get total count
+        # 4. Get approved count
+        # 5. Get rejected count
+        mock_db.execute.side_effect = [
+            mock_plan_result,  # plan query
+            mock_changes_result,  # changes query
+            mock_count_result,  # total count
+            approved_result,  # approved count
+            rejected_result,  # rejected count
+        ]
 
         response = client.get(f"/api/analysis/plans/{plan_id}")
 

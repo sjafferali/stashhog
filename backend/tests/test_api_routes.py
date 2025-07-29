@@ -453,6 +453,14 @@ class TestAnalysisRoutes:
         mock_change_count_result = Mock()
         mock_change_count_result.scalar_one.return_value = 3
 
+        # Mock approved count query
+        mock_approved_count_result = Mock()
+        mock_approved_count_result.scalar_one.return_value = 1
+
+        # Mock rejected count query
+        mock_rejected_count_result = Mock()
+        mock_rejected_count_result.scalar_one.return_value = 1
+
         # Mock scene count query
         mock_scene_count_result = Mock()
         mock_scene_count_result.scalar_one.return_value = 2
@@ -461,7 +469,9 @@ class TestAnalysisRoutes:
         mock_db.execute.side_effect = [
             mock_count_result,  # total count
             mock_plans_result,  # plans list
-            mock_change_count_result,  # changes for plan
+            mock_change_count_result,  # total changes for plan
+            mock_approved_count_result,  # approved changes for plan
+            mock_rejected_count_result,  # rejected changes for plan
             mock_scene_count_result,  # scenes for plan
         ]
 
@@ -497,11 +507,21 @@ class TestAnalysisRoutes:
         mock_count_result = Mock()
         mock_count_result.scalar.return_value = 0
 
+        # Mock approved changes count
+        mock_approved_count_result = Mock()
+        mock_approved_count_result.scalar_one.return_value = 0
+
+        # Mock rejected changes count
+        mock_rejected_count_result = Mock()
+        mock_rejected_count_result.scalar_one.return_value = 0
+
         # Set up execute to return different results
         mock_db.execute.side_effect = [
             mock_plan_result,  # plan query
             mock_changes_result,  # changes query
             mock_count_result,  # count query for total changes
+            mock_approved_count_result,  # approved changes count
+            mock_rejected_count_result,  # rejected changes count
         ]
 
         response = client.get("/api/analysis/plans/1")

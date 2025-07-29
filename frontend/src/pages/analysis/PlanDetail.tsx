@@ -556,6 +556,8 @@ const PlanDetail: React.FC = () => {
                 status: plan.status,
                 total_scenes: plan.total_scenes,
                 total_changes: plan.total_changes,
+                approved_changes: plan.approved_changes || 0,
+                rejected_changes: plan.rejected_changes || 0,
                 model: plan.metadata.model || 'gpt-4',
                 temperature: plan.metadata.temperature || 0.7,
                 active: plan.status !== 'cancelled',

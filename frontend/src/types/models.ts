@@ -160,6 +160,8 @@ export interface AnalysisPlan {
   updated_at?: string;
   total_scenes: number;
   total_changes: number;
+  approved_changes: number;
+  rejected_changes: number;
   metadata?: Record<string, unknown> & {
     api_usage?: ApiUsage;
     scenes_analyzed?: number;

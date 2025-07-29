@@ -601,9 +601,13 @@ class TestAnalysisRoutes:
         side_effects = [
             mock_count_result,  # Total count
             mock_plan_result,  # Plans list
-            Mock(scalar_one=Mock(return_value=10)),  # Changes count for plan 1
+            Mock(scalar_one=Mock(return_value=10)),  # Total changes count for plan 1
+            Mock(scalar_one=Mock(return_value=3)),  # Approved changes count for plan 1
+            Mock(scalar_one=Mock(return_value=2)),  # Rejected changes count for plan 1
             Mock(scalar_one=Mock(return_value=5)),  # Scenes count for plan 1
-            Mock(scalar_one=Mock(return_value=5)),  # Changes count for plan 2
+            Mock(scalar_one=Mock(return_value=5)),  # Total changes count for plan 2
+            Mock(scalar_one=Mock(return_value=2)),  # Approved changes count for plan 2
+            Mock(scalar_one=Mock(return_value=1)),  # Rejected changes count for plan 2
             Mock(scalar_one=Mock(return_value=3)),  # Scenes count for plan 2
         ]
         mock_db.execute = AsyncMock(side_effect=side_effects)
@@ -660,8 +664,22 @@ class TestAnalysisRoutes:
         mock_count_result = Mock()
         mock_count_result.scalar = Mock(return_value=1)
 
+        # Mock approved changes count
+        mock_approved_count_result = Mock()
+        mock_approved_count_result.scalar_one = Mock(return_value=0)
+
+        # Mock rejected changes count
+        mock_rejected_count_result = Mock()
+        mock_rejected_count_result.scalar_one = Mock(return_value=0)
+
         mock_db.execute = AsyncMock(
-            side_effect=[mock_plan_result, mock_changes_result, mock_count_result]
+            side_effect=[
+                mock_plan_result,
+                mock_changes_result,
+                mock_count_result,
+                mock_approved_count_result,
+                mock_rejected_count_result,
+            ]
         )
 
         response = client.get("/api/analysis/plans/1")

@@ -442,6 +442,8 @@ class PlanResponse(BaseSchema):
     created_at: datetime = Field(..., description="Creation timestamp")
     total_scenes: int = Field(..., description="Total scenes analyzed")
     total_changes: int = Field(..., description="Total proposed changes")
+    approved_changes: int = Field(0, description="Total approved changes")
+    rejected_changes: int = Field(0, description="Total rejected changes")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Plan metadata")
     job_id: Optional[str] = Field(None, description="Job ID that created this plan")
 
