@@ -470,8 +470,16 @@ class SceneSyncHandler:
         if markers_data:
             logger.debug(f"First marker data: {markers_data[0]}")
 
-        # Get existing markers
-        existing_marker_ids = {marker.id for marker in scene.markers}
+        # Get existing markers from database
+        stmt = select(SceneMarker).where(SceneMarker.scene_id == scene.id).options(selectinload(SceneMarker.tags))
+        if isinstance(db, AsyncSession):
+            result = await db.execute(stmt)
+            existing_markers = result.scalars().all()
+        else:
+            result = db.execute(stmt)
+            existing_markers = result.scalars().all()
+        
+        existing_marker_ids = {marker.id for marker in existing_markers}
         new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
 
         logger.debug(f"Existing marker IDs: {existing_marker_ids}")
@@ -481,7 +489,9 @@ class SceneSyncHandler:
         markers_to_remove = existing_marker_ids - new_marker_ids
         if markers_to_remove:
             logger.debug(f"Removing {len(markers_to_remove)} obsolete markers")
-            scene.markers = [m for m in scene.markers if m.id not in markers_to_remove]
+            for marker in existing_markers:
+                if marker.id in markers_to_remove:
+                    db.delete(marker)
 
         # Add or update markers
         for marker_data in markers_data:
@@ -492,7 +502,7 @@ class SceneSyncHandler:
 
             # Check if marker already exists
             existing_marker = next(
-                (m for m in scene.markers if m.id == marker_id), None
+                (m for m in existing_markers if m.id == marker_id), None
             )
 
             if existing_marker:
@@ -509,11 +519,7 @@ class SceneSyncHandler:
         db: Union[Session, AsyncSession],
     ) -> None:
         """Update an existing marker with new data"""
-        # Refresh the marker in the current session to avoid greenlet errors
-        if isinstance(db, AsyncSession):
-            await db.refresh(existing_marker)
-        else:
-            db.refresh(existing_marker)
+        # The marker should already be loaded with tags from the initial query
 
         # Update marker fields
         existing_marker.title = marker_data.get("title", "")
