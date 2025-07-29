@@ -51,6 +51,8 @@ class TestSyncServiceComprehensive:
         mock_result.scalar_one = lambda: mock_sync_history
         mock_result.scalar_one_or_none = lambda: mock_sync_history
         mock_result.scalars = lambda: Mock(all=lambda: [mock_sync_history])
+        # Make the result iterable for orphaned scenes query
+        mock_result.__iter__ = Mock(return_value=iter([]))
         db.execute = AsyncMock(return_value=mock_result)
 
         # Mock flush to set ID on added objects

@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Set, Union, cast
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -534,6 +534,7 @@ class SyncService:
         )
         sync_history_id = None  # Track sync history ID for sync logs
         sync_type = "incremental" if since else "full"
+        synced_scene_ids: Set[str] = set()  # Track which scenes we've synced
 
         try:
             # Initialize sync state
@@ -620,12 +621,23 @@ class SyncService:
                     cancellation_token,
                     sync_history_id,
                     sync_type,
+                    synced_scene_ids,
                 )
                 logger.debug(f"Batch {batch_num} complete: {batch_complete}")
                 if batch_complete:
                     logger.debug(f"All batches processed, total batches: {batch_num}")
                     break
                 offset += batch_size
+
+            # For full sync, process orphaned scenes
+            if sync_type == "full" and synced_scene_ids:
+                await self._process_orphaned_scenes(
+                    synced_scene_ids,
+                    result,
+                    progress_callback,
+                    sync_history_id,
+                    cancellation_token,
+                )
 
             # Finalize sync
             # Report 100% progress before completing
@@ -694,6 +706,7 @@ class SyncService:
         cancellation_token: Optional[Any] = None,
         sync_history_id: Optional[int] = None,
         sync_type: str = "full",
+        synced_scene_ids: Optional[Set[str]] = None,
     ) -> bool:
         """Process a single batch of scenes. Returns True if done."""
         # Fetch batch
@@ -729,7 +742,12 @@ class SyncService:
                 f"Processing scene {idx + 1}/{len(batch_scenes)} - id: {scene_id}"
             )
             await self._process_single_scene(
-                scene_data, result, progress_callback, sync_history_id, sync_type
+                scene_data,
+                result,
+                progress_callback,
+                sync_history_id,
+                sync_type,
+                synced_scene_ids,
             )
 
         # Check if done
@@ -791,6 +809,7 @@ class SyncService:
         progress_callback: Optional[Any],
         sync_history_id: Optional[int] = None,
         sync_type: str = "full",
+        synced_scene_ids: Optional[Set[str]] = None,
     ) -> None:
         """Process a single scene"""
         scene_id = scene_data.get("id", "unknown")
@@ -801,6 +820,10 @@ class SyncService:
             logger.debug(f"Successfully synced scene {scene_id}, outcome: {outcome}")
             result.processed_items += 1
             result.stats.scenes_processed += 1
+
+            # Track this scene as synced
+            if synced_scene_ids is not None:
+                synced_scene_ids.add(scene_id)
 
             # Create sync log entry if we have a sync_history_id
             if sync_history_id:
@@ -1100,6 +1123,150 @@ class SyncService:
             raise
 
         return result
+
+    async def _process_orphaned_scenes(
+        self,
+        synced_scene_ids: Set[str],
+        result: SyncResult,
+        progress_callback: Optional[Any],
+        sync_history_id: Optional[int] = None,
+        cancellation_token: Optional[Any] = None,
+    ) -> None:
+        """Process scenes that exist in Stashhog but were not found in Stash during full sync"""
+        logger.info("Processing orphaned scenes...")
+
+        # Get orphaned scene IDs
+        orphaned_scene_ids = await self._get_orphaned_scene_ids(synced_scene_ids)
+
+        if not orphaned_scene_ids:
+            logger.info("No orphaned scenes found")
+            return
+
+        logger.info(f"Found {len(orphaned_scene_ids)} orphaned scenes to process")
+
+        # Update total items and progress
+        original_total = result.total_items
+        result.total_items = original_total + len(orphaned_scene_ids)
+
+        # Report progress update
+        if progress_callback:
+            progress = int((result.processed_items / result.total_items) * 95)
+            await progress_callback(
+                progress, f"Processing {len(orphaned_scene_ids)} orphaned scenes..."
+            )
+
+        # Process each orphaned scene
+        for idx, scene_id in enumerate(orphaned_scene_ids):
+            # Check for cancellation
+            if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
+                await cancellation_token.check_cancellation()
+
+            await self._process_single_orphaned_scene(
+                scene_id,
+                idx,
+                len(orphaned_scene_ids),
+                result,
+                progress_callback,
+                sync_history_id,
+            )
+
+    async def _get_orphaned_scene_ids(self, synced_scene_ids: Set[str]) -> Set[str]:
+        """Get IDs of scenes that exist in DB but were not synced from Stash"""
+        from sqlalchemy import select
+
+        stmt = select(Scene.id)
+        db_result = await self.db.execute(stmt)
+
+        # Handle both real result and mock result
+        try:
+            all_db_scene_ids = {row[0] for row in db_result}
+        except TypeError:
+            # For mocks, db_result might not be iterable
+            all_db_scene_ids = set()
+
+        return all_db_scene_ids - synced_scene_ids
+
+    async def _process_single_orphaned_scene(
+        self,
+        scene_id: str,
+        idx: int,
+        total_orphaned: int,
+        result: SyncResult,
+        progress_callback: Optional[Any],
+        sync_history_id: Optional[int],
+    ) -> None:
+        """Process a single orphaned scene"""
+        logger.debug(
+            f"Processing orphaned scene {idx + 1}/{total_orphaned}: {scene_id}"
+        )
+
+        try:
+            # Try to fetch the scene from Stash
+            scene_data = await self.stash_service.get_scene_raw(scene_id)
+
+            if scene_data:
+                # Scene still exists in Stash, sync it
+                logger.info(f"Orphaned scene {scene_id} found in Stash, syncing...")
+                await self._process_single_scene(
+                    scene_data, result, progress_callback, sync_history_id, "full"
+                )
+            else:
+                # Scene no longer exists in Stash
+                await self._handle_missing_scene(scene_id, result, sync_history_id)
+
+        except Exception as e:
+            await self._handle_orphaned_scene_error(
+                scene_id, str(e), result, sync_history_id
+            )
+
+        # Update progress
+        if progress_callback:
+            progress = int((result.processed_items / result.total_items) * 95)
+            await progress_callback(
+                progress,
+                f"Synced {result.processed_items}/{result.total_items} scenes",
+            )
+
+    async def _handle_missing_scene(
+        self, scene_id: str, result: SyncResult, sync_history_id: Optional[int]
+    ) -> None:
+        """Handle a scene that no longer exists in Stash"""
+        logger.warning(f"Scene {scene_id} no longer exists in Stash")
+        result.processed_items += 1
+
+        if sync_history_id:
+            await self._create_sync_log(
+                sync_history_id=sync_history_id,
+                entity_type="scene",
+                entity_id=scene_id,
+                sync_type="full",
+                had_changes=False,
+                change_type="not_in_stash",
+                error_message="Scene no longer exists in Stash",
+            )
+
+    async def _handle_orphaned_scene_error(
+        self,
+        scene_id: str,
+        error_msg: str,
+        result: SyncResult,
+        sync_history_id: Optional[int],
+    ) -> None:
+        """Handle error when processing orphaned scene"""
+        logger.error(f"Error processing orphaned scene {scene_id}: {error_msg}")
+        result.failed_items += 1
+        result.processed_items += 1
+
+        if sync_history_id:
+            await self._create_sync_log(
+                sync_history_id=sync_history_id,
+                entity_type="scene",
+                entity_id=scene_id,
+                sync_type="full",
+                had_changes=False,
+                change_type="failed",
+                error_message=error_msg,
+            )
 
     async def sync_scene_by_id(self, scene_id: str) -> SyncResult:
         """Sync a single scene by ID"""

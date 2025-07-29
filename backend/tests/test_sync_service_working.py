@@ -33,6 +33,13 @@ class TestSyncService:
         db.commit = AsyncMock()
         db.rollback = AsyncMock()
 
+        # Make execute return an iterable mock (for orphaned scenes query)
+        execute_result = Mock()
+        execute_result.__iter__ = Mock(return_value=iter([]))
+        execute_result.scalar_one_or_none = Mock(return_value=None)
+        execute_result.scalar_one = Mock(return_value=None)
+        db.execute = AsyncMock(return_value=execute_result)
+
         # Create a proper mock sync history instance
         from app.models.sync_history import SyncHistory
 
@@ -175,9 +182,7 @@ class TestSyncService:
         mock_stash_service.get_all_tags = AsyncMock(return_value=[])
         mock_stash_service.get_all_studios = AsyncMock(return_value=[])
 
-        # Don't override the execute mock - it's already set up in the fixture
-        # Just ensure scalar_one_or_none returns None for scene lookups
-        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
+        # The execute mock is already set up in the fixture to handle iteration
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
@@ -238,9 +243,7 @@ class TestSyncService:
             }
         )
 
-        # Don't override the execute mock - it's already set up in the fixture
-        # Just ensure scalar_one_or_none returns None for scene lookups
-        mock_db.execute.return_value.scalar_one_or_none = Mock(return_value=None)
+        # The execute mock is already set up in the fixture to handle iteration
 
         # Mock scene handler
         sync_service.scene_handler.sync_scene = AsyncMock()
