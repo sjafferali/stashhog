@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -26,15 +27,20 @@ def _initialize_result(job_id: str, total_items: int) -> Dict[str, Any]:
     }
 
 
-def _copy_torrent_content(content_path: Path, dest_path: Path) -> None:
-    """Copy torrent content to destination."""
+def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> None:
+    """Hardlink torrent content to destination."""
     if content_path.is_file():
         # Single file torrent
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(content_path, dest_path)
+        os.link(content_path, dest_path)
     else:
-        # Directory torrent
-        shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
+        # Directory torrent - hardlink each file individually
+        for src_file in content_path.rglob("*"):
+            if src_file.is_file():
+                rel_path = src_file.relative_to(content_path)
+                dst_file = dest_path / rel_path
+                dst_file.parent.mkdir(parents=True, exist_ok=True)
+                os.link(src_file, dst_file)
 
 
 def _process_single_torrent(
@@ -63,9 +69,25 @@ def _process_single_torrent(
     # Determine destination path
     dest_path = dest_base / torrent.name
 
-    # Copy files/directories recursively
-    logger.info(f"Copying from {content_path} to {dest_path}")
-    _copy_torrent_content(content_path, dest_path)
+    # Hardlink files/directories
+    logger.info(f"Hardlinking from {content_path} to {dest_path}")
+    try:
+        _hardlink_torrent_content(content_path, dest_path)
+        logger.debug(f"Successfully hardlinked {content_path} to {dest_path}")
+    except OSError as e:
+        if e.errno == 18:  # Cross-device link error
+            logger.warning(
+                f"Cross-filesystem hardlink failed, falling back to copy: {e}"
+            )
+            # Fall back to regular copy if hardlink fails (different filesystems)
+            if content_path.is_file():
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(content_path, dest_path)
+            else:
+                shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
+            logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
+        else:
+            raise
 
     # Add "synced" tag to torrent
     try:
