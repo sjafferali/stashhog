@@ -230,8 +230,15 @@ class TestAnalysisRoutes:
             (mock_change2, mock_scene),
         ]
 
+        # Mock count result for total changes
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 2
+
         async def async_execute(query):
-            if "analysis_plan" in str(query).lower() and "id" in str(query):
+            query_str = str(query).lower()
+            if "count" in query_str:
+                return mock_count_result
+            elif "analysis_plan" in query_str and "id" in query_str:
                 return mock_plan_result
             else:
                 return mock_changes_result
@@ -786,18 +793,40 @@ class TestAnalysisRoutes:
         """Test generating analysis in synchronous mode."""
         scene_ids = ["scene1", "scene2"]
 
-        # Mock empty result for filter query
-        mock_db.execute = AsyncMock(
-            return_value=Mock(__iter__=Mock(return_value=iter([])))
-        )
+        # Mock empty result for filter query and count query
+        mock_filter_result = Mock(__iter__=Mock(return_value=iter([])))
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=5)
+
+        # First call returns filter result, second call returns count
+        mock_db.execute = AsyncMock(side_effect=[mock_filter_result, mock_count_result])
 
         # Get mocked analysis service
         mock_analysis_service = app.dependency_overrides[get_analysis_service]()
 
-        # Create a mock plan
-        mock_plan = Mock()
-        mock_plan.id = "plan123"
-        mock_plan.total_changes = 5
+        # Create a mock plan that looks like a real AnalysisPlan object
+        from app.models.analysis_plan import AnalysisPlan
+
+        mock_plan = Mock(spec=AnalysisPlan)
+        mock_plan.id = 123
+        mock_plan.get_change_count = Mock(return_value=5)
+
+        # The endpoint also needs to execute a count query for changes
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=5)
+
+        # Update the execute mock to handle the count query
+        original_execute = mock_db.execute
+
+        async def execute_with_count(query):
+            # Check if this is a count query
+            query_str = str(query)
+            if "count" in query_str.lower() and "plan_change" in query_str.lower():
+                return mock_count_result
+            # Otherwise use the original side effect
+            return await original_execute(query)
+
+        mock_db.execute = AsyncMock(side_effect=execute_with_count)
         mock_analysis_service.analyze_scenes = AsyncMock(return_value=mock_plan)
 
         request_data = {
@@ -819,7 +848,7 @@ class TestAnalysisRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "completed"
-        assert data["plan_id"] == "plan123"
+        assert data["plan_id"] == 123
         assert data["total_scenes"] == 2
         assert data["total_changes"] == 5
 

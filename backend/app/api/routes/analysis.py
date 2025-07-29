@@ -144,6 +144,7 @@ async def _run_synchronous_analysis(
     scene_ids: list[str],
     request: AnalysisRequest,
     analysis_service: AnalysisService,
+    db: AsyncSession,
 ) -> dict[str, Any]:
     """Run analysis synchronously."""
     from app.services.analysis.models import AnalysisOptions as ServiceAnalysisOptions
@@ -174,11 +175,16 @@ async def _run_synchronous_analysis(
             "message": "Analysis completed - no changes found",
         }
 
+    # Get actual total changes from database
+    change_count_query = select(func.count()).where(PlanChange.plan_id == plan.id)
+    change_count_result = await db.execute(change_count_query)
+    total_changes = change_count_result.scalar() or 0
+
     return {
         "plan_id": plan.id,
         "status": "completed",
         "total_scenes": len(scene_ids),
-        "total_changes": getattr(plan, "total_changes", 0),
+        "total_changes": total_changes,
     }
 
 
@@ -217,7 +223,7 @@ async def generate_analysis(
     if background:
         return await _run_background_analysis(scene_ids, request, job_service, db)
     else:
-        return await _run_synchronous_analysis(scene_ids, request, analysis_service)
+        return await _run_synchronous_analysis(scene_ids, request, analysis_service, db)
 
 
 @router.get("/plans", response_model=PaginatedResponse[PlanResponse])
@@ -352,8 +358,10 @@ async def get_plan(
     # Convert to SceneChanges objects
     scenes = [SceneChanges(**scene_data) for scene_data in scenes_dict.values()]
 
-    # Count totals
-    total_changes = sum(len(s.changes) for s in scenes)
+    # Get actual total changes count from database
+    change_count_query = select(func.count()).where(PlanChange.plan_id == plan_id)
+    change_count_result = await db.execute(change_count_query)
+    total_changes_from_db = change_count_result.scalar() or 0
 
     return PlanDetailResponse(
         id=int(plan.id),
@@ -361,7 +369,7 @@ async def get_plan(
         status=plan.status.value if hasattr(plan.status, "value") else str(plan.status),
         created_at=plan.created_at,  # type: ignore[arg-type]
         total_scenes=len(scenes),
-        total_changes=total_changes,
+        total_changes=total_changes_from_db,
         metadata=dict(plan.plan_metadata) if plan.plan_metadata else {},
         scenes=scenes,
         job_id=plan.job_id,

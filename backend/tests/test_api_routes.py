@@ -493,10 +493,15 @@ class TestAnalysisRoutes:
         mock_changes_result = Mock()
         mock_changes_result.all.return_value = []
 
+        # Mock count result for total changes
+        mock_count_result = Mock()
+        mock_count_result.scalar.return_value = 0
+
         # Set up execute to return different results
         mock_db.execute.side_effect = [
             mock_plan_result,  # plan query
             mock_changes_result,  # changes query
+            mock_count_result,  # count query for total changes
         ]
 
         response = client.get("/api/analysis/plans/1")

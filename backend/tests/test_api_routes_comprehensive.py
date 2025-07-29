@@ -656,7 +656,13 @@ class TestAnalysisRoutes:
         mock_changes_result = Mock()
         mock_changes_result.all = Mock(return_value=[(change, scene)])
 
-        mock_db.execute = AsyncMock(side_effect=[mock_plan_result, mock_changes_result])
+        # Mock count result for total changes
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=1)
+
+        mock_db.execute = AsyncMock(
+            side_effect=[mock_plan_result, mock_changes_result, mock_count_result]
+        )
 
         response = client.get("/api/analysis/plans/1")
         assert response.status_code == 200

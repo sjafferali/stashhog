@@ -216,15 +216,15 @@ class PlanManager:
         )
         await self._add_scene_changes(plan_id, scene_changes, db)
 
-        # Update plan metadata
+        # Update plan metadata with actual count from database
         plan = await self.get_plan(plan_id, db)
         if plan:
-            current_changes = plan.get_metadata("total_changes", 0)
-            new_total = current_changes + len(scene_changes.changes)
-            plan.add_metadata("total_changes", new_total)
-            logger.info(
-                f"Updated plan {plan_id} total changes: {current_changes} -> {new_total}"
-            )
+            # Get actual count from database to ensure accuracy
+            count_query = select(func.count()).where(PlanChange.plan_id == plan_id)
+            result = await db.execute(count_query)
+            actual_total = result.scalar() or 0
+            plan.add_metadata("total_changes", actual_total)
+            logger.info(f"Updated plan {plan_id} total changes to: {actual_total}")
 
         await db.flush()
         logger.debug(f"Flushed changes for plan {plan_id} to database")
