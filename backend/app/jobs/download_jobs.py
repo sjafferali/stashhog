@@ -83,6 +83,11 @@ async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
 async def _connect_to_qbittorrent() -> Any:
     """Connect and authenticate to qBittorrent."""
     settings = await load_settings_with_db_overrides()
+
+    logger.info(
+        f"Attempting to connect to qBittorrent at {settings.qbittorrent.host}:{settings.qbittorrent.port}"
+    )
+
     qbt_client = qbittorrentapi.Client(
         host=settings.qbittorrent.host,
         port=settings.qbittorrent.port,
@@ -92,9 +97,18 @@ async def _connect_to_qbittorrent() -> Any:
 
     try:
         qbt_client.auth_log_in()
-    except qbittorrentapi.LoginFailed:
-        logger.error("Failed to authenticate with qBittorrent")
-        raise Exception("Failed to authenticate with qBittorrent")
+    except qbittorrentapi.LoginFailed as e:
+        logger.error(f"Failed to authenticate with qBittorrent: {str(e)}")
+        raise Exception(
+            f"Failed to authenticate with qBittorrent. Invalid credentials: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to connect to qBittorrent at {settings.qbittorrent.host}:{settings.qbittorrent.port}. Error: {str(e)}"
+        )
+        raise Exception(
+            f"Failed to connect to qBittorrent. Connection Error: {type(e).__name__}({str(e)})"
+        )
 
     logger.info("Successfully connected to qBittorrent")
     return qbt_client

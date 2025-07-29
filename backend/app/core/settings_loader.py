@@ -125,6 +125,7 @@ async def load_settings_with_db_overrides() -> Settings:
     _apply_openai_overrides(settings_dict, overrides)
     _apply_section_overrides(settings_dict, overrides, "analysis")
     _apply_section_overrides(settings_dict, overrides, "sync")
+    _apply_section_overrides(settings_dict, overrides, "qbittorrent")
 
     # Apply special video AI overrides
     _apply_video_ai_overrides(settings_dict, db_settings)

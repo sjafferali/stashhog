@@ -21,11 +21,21 @@ from .analysis_jobs_helpers import calculate_plan_summary
 
 def _format_summary(raw_summary: dict[str, int]) -> dict[str, Any]:
     """Format the raw summary into the expected structure."""
-    total = sum(raw_summary.values())
+    # Calculate total by summing only the actual changes, not metadata like scenes_with_detail_changes
+    total = (
+        raw_summary.get("performers_to_add", 0)
+        + raw_summary.get("tags_to_add", 0)
+        + raw_summary.get("tags_to_remove", 0)
+        + raw_summary.get("studios_to_set", 0)
+        + raw_summary.get("titles_to_update", 0)
+        + raw_summary.get("details_to_update", 0)
+        + raw_summary.get("markers_to_add", 0)
+    )
 
     by_field = {
         "performers": raw_summary.get("performers_to_add", 0),
-        "tags": raw_summary.get("tags_to_add", 0),
+        "tags": raw_summary.get("tags_to_add", 0)
+        + raw_summary.get("tags_to_remove", 0),
         "studio": raw_summary.get("studios_to_set", 0),
         "title": raw_summary.get("titles_to_update", 0),
         "details": raw_summary.get("details_to_update", 0),
@@ -38,6 +48,7 @@ def _format_summary(raw_summary: dict[str, int]) -> dict[str, Any]:
             + raw_summary.get("tags_to_add", 0)
             + raw_summary.get("markers_to_add", 0)
         ),
+        "remove": raw_summary.get("tags_to_remove", 0),
         "set": (
             raw_summary.get("studios_to_set", 0)
             + raw_summary.get("titles_to_update", 0)
