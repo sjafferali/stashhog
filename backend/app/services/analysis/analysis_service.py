@@ -239,6 +239,39 @@ class AnalysisService:
     ) -> AnalysisPlan:
         """Finalize the analysis and return the plan."""
         if db and self._current_plan_id:
+            # Check if we have no changes at all
+            has_any_changes = any(sc.has_changes() for sc in all_changes)
+
+            if not has_any_changes:
+                # No changes found but plan exists - finalize it as APPLIED
+                logger.info(
+                    f"No changes found but plan {self._current_plan_id} exists - finalizing as APPLIED"
+                )
+
+                plan = await self.plan_manager.get_plan(self._current_plan_id, db)
+                if plan and plan.status == PlanStatus.PENDING:
+                    plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
+                    plan.add_metadata("completed_at", datetime.utcnow().isoformat())
+                    plan.add_metadata("total_changes", 0)
+                    plan.add_metadata("reason", "No changes detected")
+                    plan.add_metadata("processing_time", round(processing_time, 2))
+                    plan.add_metadata("total_scenes", len(scenes))
+                    plan.add_metadata(
+                        "scenes_analyzed", plan.get_metadata("scenes_analyzed", 0)
+                    )
+                    await db.commit()
+
+                    # Update job as completed
+                    if job_id:
+                        await self._update_job_progress(
+                            job_id,
+                            100,
+                            "Analysis complete - no changes found",
+                            JobStatus.COMPLETED,
+                        )
+                    return plan
+
+            # Normal finalization when there are changes
             # Collect any errors from scene processing
             errors = [sc.error for sc in all_changes if sc.error]
 
