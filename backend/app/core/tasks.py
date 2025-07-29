@@ -43,6 +43,7 @@ class Task:
     completed_at: Optional[datetime] = None
     progress: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    asyncio_task: Optional[asyncio.Task] = field(default=None, init=False)
 
 
 class TaskQueue:
@@ -139,7 +140,10 @@ class TaskQueue:
                 raise ValueError("Task function is not defined")
 
             if asyncio.iscoroutinefunction(task.func):
-                result = await task.func(*task.args, **task.kwargs)
+                # Create and store the asyncio task
+                coro = task.func(*task.args, **task.kwargs)
+                task.asyncio_task = asyncio.create_task(coro)
+                result = await task.asyncio_task
             else:
                 # Run sync function in executor
                 loop = asyncio.get_event_loop()
@@ -242,6 +246,11 @@ class TaskQueue:
 
         if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
             return False
+
+        # Cancel the actual asyncio task if it's running
+        if task.asyncio_task and not task.asyncio_task.done():
+            task.asyncio_task.cancel()
+            logger.info(f"Cancelled asyncio task for {task_id}")
 
         task.status = TaskStatus.CANCELLED
         task.error = "Cancelled by user"

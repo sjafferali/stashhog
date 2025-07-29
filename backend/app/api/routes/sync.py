@@ -774,3 +774,47 @@ async def get_sync_stats(
             },
         ],
     }
+
+
+@router.post("/downloads", response_model=JobResponse)
+async def process_downloads(
+    db: AsyncDBSession = Depends(get_db),
+    job_service: JobService = Depends(get_job_service),
+) -> JobResponse:
+    """
+    Process completed downloads from qBittorrent.
+
+    This creates a background job to:
+    1. Check for completed torrents with category "xxx"
+    2. Copy files to /opt/media/downloads/avideos/
+    3. Add "synced" tag to processed torrents
+
+    Returns:
+        Job information
+    """
+    # Create job via job service
+    job = await job_service.create_job(
+        job_type=ModelJobType.PROCESS_DOWNLOADS, db=db, metadata={}
+    )
+
+    # Refresh the job object in the current session to ensure all attributes are loaded
+    await db.refresh(job)
+
+    # Now safely access all attributes
+    job_id = str(job.id)
+    job_created_at = job.created_at
+    job_updated_at = job.updated_at
+
+    return JobResponse(
+        id=job_id,
+        type=APIJobType.PROCESS_DOWNLOADS,
+        status=APIJobStatus.PENDING,
+        progress=0,
+        parameters={},
+        created_at=job_created_at,  # type: ignore[arg-type]
+        updated_at=job_updated_at,  # type: ignore[arg-type]
+        started_at=None,
+        completed_at=None,
+        result=None,
+        error=None,
+    )
