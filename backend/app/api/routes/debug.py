@@ -2,14 +2,119 @@
 Debug endpoints for development and troubleshooting.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
 
-from app.core.dependencies import get_stash_service
+from app.core.dependencies import get_db, get_stash_service
 from app.services.stash_service import StashService
 
 router = APIRouter()
+
+
+@router.get("/pending-scenes-debug")
+async def debug_pending_scenes(
+    stash_service: StashService = Depends(get_stash_service),
+    db: AsyncDBSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Debug endpoint to troubleshoot pending scenes detection."""
+    from sqlalchemy import select
+
+    from app.models import SyncHistory
+
+    # Get last scene sync
+    query = (
+        select(SyncHistory)
+        .where(
+            SyncHistory.entity_type == "scene",
+            SyncHistory.status == "completed",
+        )
+        .order_by(SyncHistory.completed_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(query)
+    last_sync = result.scalar_one_or_none()
+
+    debug_info: Dict[str, Union[None, int, List[Any], Dict[str, Any]]] = {
+        "last_sync": None,
+        "test_queries": [],
+        "all_scenes_count": 0,
+        "recent_scenes": [],
+    }
+
+    if last_sync:
+        debug_info["last_sync"] = {
+            "completed_at": (
+                last_sync.completed_at.isoformat() if last_sync.completed_at else None
+            ),
+            "completed_at_raw": str(last_sync.completed_at),
+            "timezone_info": (
+                str(last_sync.completed_at.tzinfo) if last_sync.completed_at else None
+            ),
+        }
+
+        # Test different timestamp formats
+        if last_sync.completed_at:
+            timestamp_variations = [
+                last_sync.completed_at.isoformat(),
+                last_sync.completed_at.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                last_sync.completed_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                last_sync.completed_at.isoformat().replace("+00:00", "Z"),
+            ]
+
+            for idx, ts_format in enumerate(timestamp_variations):
+                filter_dict = {
+                    "updated_at": {
+                        "value": ts_format,
+                        "modifier": "GREATER_THAN",
+                    }
+                }
+
+                try:
+                    _, count = await stash_service.get_scenes(
+                        page=1, per_page=1, filter=filter_dict
+                    )
+                    cast(List[Any], debug_info["test_queries"]).append(
+                        {
+                            "format_index": idx,
+                            "timestamp_format": ts_format,
+                            "filter": filter_dict,
+                            "count": count,
+                            "success": True,
+                        }
+                    )
+                except Exception as e:
+                    cast(List[Any], debug_info["test_queries"]).append(
+                        {
+                            "format_index": idx,
+                            "timestamp_format": ts_format,
+                            "filter": filter_dict,
+                            "error": str(e),
+                            "success": False,
+                        }
+                    )
+
+    # Get total scene count
+    _, total = await stash_service.get_scenes(page=1, per_page=1)
+    debug_info["all_scenes_count"] = total
+
+    # Get 5 most recent scenes
+    recent_scenes, _ = await stash_service.get_scenes(
+        page=1, per_page=5, sort="updated_at"
+    )
+    debug_info["recent_scenes"] = [
+        {
+            "id": s.get("id"),
+            "title": s.get("title", ""),
+            "updated_at": s.get("updated_at"),
+            "created_at": s.get("created_at"),
+        }
+        for s in recent_scenes
+    ]
+
+    return debug_info
+
 
 # Custom debug query for scenes
 DEBUG_SCENE_QUERY = """

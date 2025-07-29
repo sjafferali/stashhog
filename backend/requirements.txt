@@ -117,6 +117,7 @@ tomlkit==0.13.3
 tqdm==4.67.1
 typer==0.15.4
 types-croniter==6.0.0.20250626
+types-pytz==2025.2.0.20250516
 typing-inspection==0.4.1
 typing_extensions==4.14.1
 tzlocal==5.3.1

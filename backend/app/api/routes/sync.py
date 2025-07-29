@@ -450,27 +450,60 @@ async def get_sync_stats(
         if last_syncs.get("scene"):
             # Parse the last sync time - it's already in ISO format
             last_sync_iso = last_syncs["scene"]
+            logger.info(f"Last scene sync timestamp from DB: {last_sync_iso}")
+
+            # Remove microseconds from the timestamp as Stash might not handle them
+            # Convert to datetime, remove microseconds, and format back
+            from datetime import datetime
+
+            dt = datetime.fromisoformat(last_sync_iso.replace("Z", "+00:00"))
+            # Remove microseconds
+            dt_no_microseconds = dt.replace(microsecond=0)
+
+            # The issue seems to be timezone related
+            # Stash appears to expect timestamps in Pacific timezone but with Z suffix
+            # Convert UTC to Pacific time for the filter
+            import pytz
+
+            pacific_tz = pytz.timezone("America/Los_Angeles")
+            dt_pacific = dt_no_microseconds.astimezone(pacific_tz)
+            # Format as if it were UTC (with Z) but using Pacific time values
+            formatted_timestamp = dt_pacific.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            # Log both for debugging
+            logger.info(f"Original timestamp: {last_sync_iso}")
+            logger.info(f"Formatted timestamp for Stash: {formatted_timestamp}")
 
             # The database stores timezone-aware timestamps
-            # Just use the ISO string directly as Stash expects ISO format
             filter_dict = {
                 "updated_at": {
-                    "value": last_sync_iso,
+                    "value": formatted_timestamp,
                     "modifier": "GREATER_THAN",
                 }
             }
-            logger.info(f"Checking for scenes updated after: {last_sync_iso}")
-            logger.debug(f"Using filter: {filter_dict}")
+            logger.info(
+                f"Checking for scenes updated after: {formatted_timestamp} (original: {last_sync_iso})"
+            )
+            logger.info(f"Using scene_filter: {filter_dict}")
         else:
             # No previous sync, count all scenes as pending
             filter_dict = {}
             logger.info("No previous scene sync found, counting all scenes as pending")
 
-        _, total_count = await stash_service.get_scenes(
-            page=1, per_page=1, filter=filter_dict
+        # Log the actual GraphQL call
+        logger.info(f"Calling stash_service.get_scenes with scene_filter={filter_dict}")
+        scenes, total_count = await stash_service.get_scenes(
+            page=1,
+            per_page=1,
+            filter=filter_dict,  # This parameter is 'filter' but becomes 'scene_filter' in GraphQL
         )
         pending_scenes = total_count
+        logger.info(f"Stash returned total_count: {total_count}")
         logger.info(f"Found {pending_scenes} pending scenes")
+
+        # If we have scenes, log the first one for debugging
+        if scenes and len(scenes) > 0:
+            logger.info(f"First scene updated_at: {scenes[0].get('updated_at', 'N/A')}")
     except Exception as e:
         logger.error(f"Error getting pending scenes count: {str(e)}", exc_info=True)
         pending_scenes = 0
