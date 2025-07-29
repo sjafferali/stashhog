@@ -761,9 +761,11 @@ def _apply_bulk_action(changes: Sequence[PlanChange], action: str) -> int:
         if is_accept_action:
             change.accepted = True  # type: ignore[assignment]
             change.rejected = False  # type: ignore[assignment]
+            change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
         else:
             change.accepted = False  # type: ignore[assignment]
             change.rejected = True  # type: ignore[assignment]
+            change.status = ChangeStatus.REJECTED  # type: ignore[assignment]
         updated_count += 1
 
     return updated_count
@@ -942,11 +944,17 @@ async def update_change_status(
         change.accepted = accepted  # type: ignore[assignment]
         if accepted:
             change.rejected = False  # type: ignore[assignment]
+            change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
+        else:
+            change.status = ChangeStatus.PENDING  # type: ignore[assignment]
 
     if rejected is not None:
         change.rejected = rejected  # type: ignore[assignment]
         if rejected:
             change.accepted = False  # type: ignore[assignment]
+            change.status = ChangeStatus.REJECTED  # type: ignore[assignment]
+        else:
+            change.status = ChangeStatus.PENDING  # type: ignore[assignment]
 
     # Update plan status - commit the change first
     await db.commit()
@@ -1044,11 +1052,15 @@ async def apply_all_approved_changes(
     - Updates plan and change statuses appropriately
     """
     # Find all plans with approved but not applied changes
+    # Check both the new status field and the legacy accepted field for compatibility
     query = (
         select(AnalysisPlan)
         .join(PlanChange)
         .where(
-            PlanChange.status == ChangeStatus.APPROVED,
+            or_(
+                PlanChange.status == ChangeStatus.APPROVED,
+                PlanChange.accepted.is_(True),
+            ),
             PlanChange.applied.is_(False),
             AnalysisPlan.status != PlanStatus.CANCELLED,
             AnalysisPlan.status != PlanStatus.APPLIED,
@@ -1067,7 +1079,7 @@ async def apply_all_approved_changes(
 
     # Count total approved changes
     count_query = select(func.count(PlanChange.id)).where(
-        PlanChange.status == ChangeStatus.APPROVED,
+        or_(PlanChange.status == ChangeStatus.APPROVED, PlanChange.accepted.is_(True)),
         PlanChange.applied.is_(False),
     )
     count_result = await db.execute(count_query)
@@ -1102,7 +1114,10 @@ async def apply_all_approved_changes(
                 # Get approved changes for this plan
                 changes_query = select(PlanChange).where(
                     PlanChange.plan_id == plan.id,
-                    PlanChange.status == ChangeStatus.APPROVED,
+                    or_(
+                        PlanChange.status == ChangeStatus.APPROVED,
+                        PlanChange.accepted.is_(True),
+                    ),
                     PlanChange.applied.is_(False),
                 )
                 changes_result = await db.execute(changes_query)
