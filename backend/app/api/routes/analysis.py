@@ -1050,7 +1050,7 @@ async def apply_all_approved_changes(
         .where(
             PlanChange.status == ChangeStatus.APPROVED,
             PlanChange.applied.is_(False),
-            AnalysisPlan.status != "cancelled",
+            AnalysisPlan.status != PlanStatus.CANCELLED,
         )
         .distinct(AnalysisPlan.id)
     )
