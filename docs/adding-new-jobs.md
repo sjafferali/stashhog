@@ -39,7 +39,41 @@ type: Column = Column(
 )
 ```
 
-### 2. Create Job Implementation
+### 2. Create Database Migration
+
+**CRITICAL**: PostgreSQL enum types require a migration to add new values.
+
+Create a new Alembic migration:
+
+```bash
+cd backend
+alembic revision -m "add_your_new_job_to_jobtype_enum"
+```
+
+Edit the generated migration file:
+
+```python
+def upgrade() -> None:
+    # Add new enum values for your job type
+    op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'your_new_job'")
+    op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'YOUR_NEW_JOB'")  # Include uppercase for compatibility
+
+
+def downgrade() -> None:
+    # Note: PostgreSQL doesn't support removing enum values
+    # This would require recreating the enum type
+    pass
+```
+
+Run the migration:
+
+```bash
+alembic upgrade head
+```
+
+**Note**: Both lowercase and uppercase values are added for backward compatibility with existing database records.
+
+### 3. Create Job Implementation
 
 **File**: `backend/app/jobs/your_new_job.py`
 
@@ -147,7 +181,7 @@ def register_your_new_jobs(job_service: JobService) -> None:
     logger.info("Registered your new job handlers")
 ```
 
-### 3. Register Job Handler
+### 4. Register Job Handler
 
 **File**: `backend/app/jobs/__init__.py`
 
@@ -161,7 +195,7 @@ def register_all_jobs(job_service: JobService) -> None:
     register_your_new_jobs(job_service)
 ```
 
-### 4. Update API Schema
+### 5. Update API Schema
 
 **File**: `backend/app/api/schemas/__init__.py`
 
@@ -173,7 +207,7 @@ class JobType(str, Enum):
     YOUR_NEW_JOB = "your_new_job"
 ```
 
-### 5. Add Job Type Mapping (if needed)
+### 6. Add Job Type Mapping (if needed)
 
 **File**: `backend/app/api/routes/jobs.py`
 
@@ -188,7 +222,7 @@ def map_job_type_to_schema(model_type: str) -> str:
     return mapping.get(model_type, model_type)
 ```
 
-### 6. Create API Endpoint (Optional)
+### 7. Create API Endpoint (Optional)
 
 If you need a dedicated endpoint for your job:
 
@@ -657,6 +691,8 @@ This will display in the UI as:
 
 ### Backend Tests
 
+- [ ] Database migration runs successfully (`alembic upgrade head`)
+- [ ] Job type is recognized by PostgreSQL enum
 - [ ] Job handler executes successfully
 - [ ] Progress updates are reported correctly
 - [ ] Cancellation works properly
@@ -752,15 +788,16 @@ return {
 
 ## Common Pitfalls to Avoid
 
-1. **Don't share database sessions** between functions or store them as instance variables
-2. **Don't access model attributes** after their session has closed
-3. **Don't create your own progress updates** - use the provided callback
-4. **Don't forget to handle cancellation** - check the cancellation token regularly
-5. **Don't catch exceptions** without re-raising - let the job service handle final status
-6. **Don't return model objects** from functions that create their own sessions
-7. **Don't forget to refresh** objects returned from other services before accessing attributes
-8. **Don't initialize services inside database sessions** - do it before or after
-9. **Don't forget to close external service connections** in the finally block
+1. **Don't forget the database migration** - PostgreSQL enum types require ALTER TYPE to add new values
+2. **Don't share database sessions** between functions or store them as instance variables
+3. **Don't access model attributes** after their session has closed
+4. **Don't create your own progress updates** - use the provided callback
+5. **Don't forget to handle cancellation** - check the cancellation token regularly
+6. **Don't catch exceptions** without re-raising - let the job service handle final status
+7. **Don't return model objects** from functions that create their own sessions
+8. **Don't forget to refresh** objects returned from other services before accessing attributes
+9. **Don't initialize services inside database sessions** - do it before or after
+10. **Don't forget to close external service connections** in the finally block
 
 ## Type Hint Inconsistency Note
 
@@ -777,6 +814,30 @@ progress_callback: Callable[[int, Optional[str]], Awaitable[None]]
 3. **Test cancellation**: Use the job monitor to cancel jobs and verify cleanup
 4. **Monitor WebSocket updates**: Check that progress updates appear in real-time
 5. **Validate result structure**: Ensure your job returns expected fields
+
+## Troubleshooting Common Errors
+
+### PostgreSQL Enum Error
+
+**Error**: `invalid input value for enum jobtype: "your_new_job"`
+
+**Cause**: The new job type hasn't been added to the PostgreSQL enum type.
+
+**Solution**:
+1. Create and run the database migration (see step 2 in Backend Changes)
+2. Verify the migration ran: `alembic current`
+3. Check enum values in PostgreSQL:
+   ```sql
+   SELECT unnest(enum_range(NULL::jobtype));
+   ```
+
+### Greenlet Context Error
+
+**Error**: `greenlet_spawn has not been called; can't call await_only() here`
+
+**Cause**: Database operations outside proper async context or session reuse.
+
+**Solution**: Review the "Avoiding Greenlet Errors" section and ensure each database operation has its own session.
 
 ## Summary
 
