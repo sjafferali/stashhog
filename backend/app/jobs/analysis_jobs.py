@@ -313,7 +313,10 @@ async def _apply_bulk_plans(
             break
 
         progress = int((idx / total_plans) * 90)  # Reserve last 10% for sync
-        await progress_callback(progress, f"Applying plan {idx + 1} of {total_plans}")
+        await progress_callback(
+            progress,
+            f"Applied {total_changes_applied} changes from {idx}/{total_plans} plans",
+        )
 
         applied_changes, errors, exception = await _apply_single_plan_in_bulk(
             analysis_service, plan_id, job_id

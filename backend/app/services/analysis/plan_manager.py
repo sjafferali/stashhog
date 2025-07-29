@@ -466,7 +466,7 @@ class PlanManager:
 
         # Report initial progress
         if progress_callback and total_changes > 0:
-            await progress_callback(10, f"Applying {total_changes} changes")
+            await progress_callback(10, f"Applied 0/{total_changes} changes")
 
         for i, change in enumerate(changes_to_apply):
             try:

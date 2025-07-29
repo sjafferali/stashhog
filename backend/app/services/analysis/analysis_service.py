@@ -2422,7 +2422,7 @@ class AnalysisService:
                 total_changes = count_result.scalar() or 0
 
                 if progress_callback:
-                    await progress_callback(5, f"Applying {total_changes} changes")
+                    await progress_callback(5, f"Applied 0/{total_changes} changes")
 
                 # Apply the plan
                 result = await self.plan_manager.apply_plan(
