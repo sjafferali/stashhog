@@ -340,11 +340,11 @@ class JobService:
         processed_items = None
         total_items = None
 
-        if message and "Processed" in message and "/" in message:
-            # Parse messages like "Processed 4/6 scenes"
+        if message and "/" in message:
+            # Parse messages like "Processed 4/6 scenes" or "Synced 4/6 scenes"
             import re
 
-            match = re.search(r"Processed (\d+)/(\d+)", message)
+            match = re.search(r"(?:Processed|Synced) (\d+)/(\d+)", message)
             if match:
                 processed_items = int(match.group(1))
                 total_items = int(match.group(2))
