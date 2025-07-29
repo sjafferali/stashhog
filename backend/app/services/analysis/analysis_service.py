@@ -295,6 +295,9 @@ class AnalysisService:
                 self._current_plan_id, db, final_metadata
             )
 
+            # Commit the plan status change
+            await db.commit()
+
             plan = await self.plan_manager.get_plan(self._current_plan_id, db)
             if not plan:
                 raise ValueError(
@@ -1117,196 +1120,6 @@ class AnalysisService:
 
         return changes
 
-    async def _apply_tags_to_scene(
-        self,
-        scene_id: str,
-        scene_data: dict,
-        tags_to_add: list[str],
-        has_tagme: bool,
-    ) -> int:
-        """Apply tags to a scene using local database only."""
-        from sqlalchemy import select
-
-        from app.core.database import AsyncSessionLocal
-        from app.models import Scene, Tag
-
-        async with AsyncSessionLocal() as db:
-            # Get scene from database
-            result = await db.execute(select(Scene).where(Scene.id == scene_id))
-            scene = result.scalar_one_or_none()
-            if not scene:
-                logger.warning(f"Scene {scene_id} not found in database")
-                return 0
-
-            # Get existing tag IDs
-            existing_tag_ids = [tag.id for tag in scene.tags]
-
-            # Find tags in local database only
-            tags_added = 0
-            for tag_name in tags_to_add:
-                # Check if tag exists in local database
-                tag_result = await db.execute(select(Tag).where(Tag.name == tag_name))
-                tag = tag_result.scalar_one_or_none()
-
-                if tag and tag.id not in existing_tag_ids:
-                    scene.tags.append(tag)
-                    tags_added += 1
-                elif not tag:
-                    logger.debug(
-                        f"Tag '{tag_name}' not found in local database, skipping"
-                    )
-
-            # Handle status tags
-            if has_tagme:
-                # Remove AI_TagMe if present
-                tagme_result = await db.execute(
-                    select(Tag).where(Tag.name == "AI_TagMe")
-                )
-                tagme_tag = tagme_result.scalar_one_or_none()
-                if tagme_tag and tagme_tag in scene.tags:
-                    scene.tags.remove(tagme_tag)
-
-            # Add AI_Tagged if not present
-            tagged_result = await db.execute(select(Tag).where(Tag.name == "AI_Tagged"))
-            tagged_tag = tagged_result.scalar_one_or_none()
-            if tagged_tag and tagged_tag not in scene.tags:
-                scene.tags.append(tagged_tag)
-
-            # Mark scene as analyzed
-            scene.analyzed = True  # type: ignore[assignment]
-
-            await db.commit()
-            return tags_added
-
-    async def _apply_markers_to_scene(
-        self,
-        scene_id: str,
-        markers_to_add: list[dict],
-    ) -> int:
-        """Apply markers to a scene using local database only."""
-        from sqlalchemy import select
-
-        from app.core.database import AsyncSessionLocal
-        from app.models import Scene, Tag
-        from app.models.scene_marker import SceneMarker
-
-        async with AsyncSessionLocal() as db:
-            # Get scene from database
-            result = await db.execute(select(Scene).where(Scene.id == scene_id))
-            scene = result.scalar_one_or_none()
-            if not scene:
-                logger.warning(f"Scene {scene_id} not found in database")
-                return 0
-
-            markers_added = 0
-            for marker_data in markers_to_add:
-                # Find tags in local database
-                marker_tags = []
-                for tag_name in marker_data.get("tags", []):
-                    tag_result = await db.execute(
-                        select(Tag).where(Tag.name == tag_name)
-                    )
-                    tag = tag_result.scalar_one_or_none()
-                    if tag:
-                        marker_tags.append(tag)
-                    else:
-                        logger.debug(
-                            f"Tag '{tag_name}' not found in local database for marker"
-                        )
-
-                # Only create marker if we have at least one tag
-                if marker_tags:
-                    # Generate a unique ID for the marker
-                    import uuid
-
-                    marker = SceneMarker(
-                        id=str(uuid.uuid4()),
-                        scene_id=scene_id,
-                        seconds=marker_data["seconds"],
-                        title=marker_data.get("title", ""),
-                        primary_tag_id=marker_tags[0].id,
-                    )
-                    # Set the tags relationship
-                    marker.tags = marker_tags
-
-                    # Add end_seconds if provided
-                    if "end_seconds" in marker_data:
-                        marker.end_seconds = marker_data["end_seconds"]
-
-                    db.add(marker)
-                    markers_added += 1
-                else:
-                    logger.warning(
-                        f"Skipping marker at {marker_data['seconds']}s - no valid tags found"
-                    )
-
-            await db.commit()
-            return markers_added
-
-    async def _update_scene_status_tags(
-        self,
-        scene_id: str,
-        current_tags: list[dict],
-        has_tagme: bool,
-        is_error: bool = False,
-    ) -> None:
-        """Update scene status tags using local database only."""
-        from sqlalchemy import select
-
-        from app.core.database import AsyncSessionLocal
-        from app.models import Scene, Tag
-
-        async with AsyncSessionLocal() as db:
-            # Get scene from database
-            result = await db.execute(select(Scene).where(Scene.id == scene_id))
-            scene = result.scalar_one_or_none()
-            if not scene:
-                logger.warning(f"Scene {scene_id} not found in database")
-                return
-
-            if is_error:
-                # Add AI_Errored tag if it exists in database
-                error_result = await db.execute(
-                    select(Tag).where(Tag.name == "AI_Errored")
-                )
-                error_tag = error_result.scalar_one_or_none()
-                if error_tag and error_tag not in scene.tags:
-                    scene.tags.append(error_tag)
-            else:
-                # Add AI_Tagged tag if it exists in database
-                tagged_result = await db.execute(
-                    select(Tag).where(Tag.name == "AI_Tagged")
-                )
-                tagged_tag = tagged_result.scalar_one_or_none()
-                if tagged_tag and tagged_tag not in scene.tags:
-                    scene.tags.append(tagged_tag)
-
-            # Remove AI_TagMe if present
-            if has_tagme:
-                tagme_result = await db.execute(
-                    select(Tag).where(Tag.name == "AI_TagMe")
-                )
-                tagme_tag = tagme_result.scalar_one_or_none()
-                if tagme_tag and tagme_tag in scene.tags:
-                    scene.tags.remove(tagme_tag)
-
-            await db.commit()
-
-    async def _extract_changes_from_video_detection(
-        self, video_changes: list
-    ) -> tuple[list[str], list[dict]]:
-        """Extract tags and markers from video detection changes."""
-        tags_to_add = []
-        markers_to_add = []
-
-        for change in video_changes:
-            if change.field == "tags" and change.action == "add":
-                tags_to_add.append(change.proposed_value)
-            elif change.field == "markers" and change.action == "add":
-                markers_to_add.append(change.proposed_value)
-
-        return tags_to_add, markers_to_add
-
     async def _get_database_session(self) -> AsyncSession:
         """Get database session for analysis."""
         from app.core.database import get_async_db
@@ -1315,242 +1128,6 @@ class AnalysisService:
             return session
 
         raise RuntimeError("Failed to get database session")
-
-    def _build_empty_result(self) -> dict[str, Any]:
-        """Build empty result for no scenes."""
-        return {
-            "status": "completed",
-            "scenes_processed": 0,
-            "scenes_updated": 0,
-            "tags_added": 0,
-            "markers_added": 0,
-            "errors": [],
-            "message": "No scenes found to analyze",
-        }
-
-    async def _process_scene_for_video_tags(
-        self,
-        scene_data: dict,
-        scene_index: int,
-        total_scenes: int,
-        progress_callback: Optional[Any] = None,
-    ) -> dict[str, Any]:
-        """Process a single scene for video tag detection.
-
-        Returns dict with: scene_modified, tags_added, markers_added, error
-        """
-        logger.debug(
-            f"_process_scene_for_video_tags called for scene index {scene_index}"
-        )
-        logger.debug(f"scene_data type: {type(scene_data)}")
-
-        # Validate scene_data
-        if not isinstance(scene_data, dict):
-            logger.error(
-                f"Invalid scene_data at index {scene_index}: expected dict, got {type(scene_data).__name__}"
-            )
-            logger.error(f"scene_data value: {scene_data}")
-            return {
-                "scene_modified": False,
-                "tags_added": 0,
-                "markers_added": 0,
-                "error": f"Invalid scene data type: {type(scene_data).__name__}",
-            }
-
-        scene_id = scene_data.get("id", "")
-        logger.debug(f"Processing scene_id: {scene_id}")
-        logger.debug(f"scene_data keys: {list(scene_data.keys())}")
-        logger.debug(f"scene_data file_path: {scene_data.get('file_path')}")
-        logger.debug(f"scene_data path: {scene_data.get('path')}")
-
-        result: dict[str, Any] = {
-            "scene_modified": False,
-            "tags_added": 0,
-            "markers_added": 0,
-            "error": None,
-        }
-
-        # Get current tags early for error handling
-        current_tags = scene_data.get("tags", [])
-        logger.debug(
-            f"current_tags type: {type(current_tags)}, count: {len(current_tags)}"
-        )
-
-        current_tag_names = [
-            t.get("name", "") for t in current_tags if isinstance(t, dict)
-        ]
-        logger.debug(f"current_tag_names: {current_tag_names}")
-
-        has_tagme = "AI_TagMe" in current_tag_names
-        logger.debug(f"has_tagme: {has_tagme}")
-
-        try:
-            # Report progress
-            await self._report_scene_progress(
-                scene_index, total_scenes, scene_data, progress_callback, "processing"
-            )
-
-            # Get current markers and detect video tags
-            current_markers = scene_data.get("markers", [])
-            logger.debug(
-                f"current_markers type: {type(current_markers)}, count: {len(current_markers)}"
-            )
-
-            await self._report_scene_progress(
-                scene_index, total_scenes, scene_data, progress_callback, "analyzing"
-            )
-
-            logger.debug(f"Calling video_tag_detector.detect for scene {scene_id}...")
-            try:
-                video_changes, _ = await self.video_tag_detector.detect(
-                    scene_data=scene_data,
-                    existing_tags=current_tag_names,
-                    existing_markers=current_markers,
-                )
-                logger.debug(
-                    f"video_tag_detector.detect returned {len(video_changes) if video_changes else 0} changes"
-                )
-            except Exception as detect_error:
-                logger.error(
-                    f"video_tag_detector.detect failed for scene {scene_id}: {detect_error}"
-                )
-                raise  # Re-raise to be caught by the outer exception handler
-
-            # Apply changes if any
-            if video_changes:
-                result = await self._apply_video_changes(
-                    scene_id,
-                    scene_data,
-                    video_changes,
-                    has_tagme,
-                    scene_index,
-                    total_scenes,
-                    progress_callback,
-                    result,
-                )
-            else:
-                # No changes detected, just update status tags
-                if has_tagme:
-                    await self._update_scene_status_tags(
-                        scene_id, current_tags, has_tagme, is_error=False
-                    )
-
-        except Exception as e:
-            logger.error(
-                f"Exception in _process_scene_for_video_tags: {type(e).__name__}: {e}",
-                exc_info=True,
-            )
-            result = await self._handle_scene_processing_error(
-                scene_id, scene_data, current_tags, has_tagme, e, result
-            )
-
-        return result
-
-    async def _report_scene_progress(
-        self,
-        scene_index: int,
-        total_scenes: int,
-        scene_data: dict,
-        progress_callback: Optional[Any],
-        stage: str,
-    ) -> None:
-        """Report progress for scene processing."""
-        if not progress_callback:
-            return
-
-        if stage == "processing":
-            progress = int((scene_index / total_scenes) * 85)
-            message = f"Processing scene {scene_index + 1}/{total_scenes}: {scene_data.get('title', 'Untitled')}"
-        elif stage == "analyzing":
-            progress = int(((scene_index + 0.5) / total_scenes) * 85)
-            message = f"Analyzing video for scene {scene_index + 1}/{total_scenes}..."
-        elif stage == "applying":
-            progress = int(((scene_index + 0.7) / total_scenes) * 85)
-            message = f"Applying changes to scene {scene_index + 1}/{total_scenes}..."
-        else:
-            return
-
-        await progress_callback(progress, message)
-
-    async def _apply_video_changes(
-        self,
-        scene_id: str,
-        scene_data: dict,
-        video_changes: Any,
-        has_tagme: bool,
-        scene_index: int,
-        total_scenes: int,
-        progress_callback: Optional[Any],
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Apply video detection changes to a scene."""
-        # Extract changes
-        tags_to_add, markers_to_add = await self._extract_changes_from_video_detection(
-            video_changes
-        )
-
-        # Report applying changes
-        if progress_callback and (tags_to_add or markers_to_add):
-            await self._report_scene_progress(
-                scene_index, total_scenes, scene_data, progress_callback, "applying"
-            )
-
-        # Apply tag changes
-        if tags_to_add:
-            result["tags_added"] = await self._apply_tags_to_scene(
-                scene_id, scene_data, tags_to_add, has_tagme
-            )
-            result["scene_modified"] = True
-
-        # Apply marker changes
-        if markers_to_add:
-            result["markers_added"] = await self._apply_markers_to_scene(
-                scene_id, markers_to_add
-            )
-            result["scene_modified"] = True
-
-        return result
-
-    async def _handle_scene_processing_error(
-        self,
-        scene_id: str,
-        scene_data: dict,
-        current_tags: list,
-        has_tagme: bool,
-        error: Exception,
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Handle errors during scene processing."""
-        logger.error(f"Error processing scene {scene_id}: {error}")
-        error_message = str(error)
-        # Add more context for common errors
-        if "'str' object has no attribute 'get'" in error_message:
-            error_message = (
-                f"AI server returned invalid response format: {error_message}"
-            )
-        elif "Failed to connect to AI server" in error_message:
-            error_message = (
-                f"Could not connect to video analysis AI server: {error_message}"
-            )
-        elif "Timeout processing video" in error_message:
-            error_message = f"Video analysis timed out: {error_message}"
-
-        result["error"] = {
-            "scene_id": scene_id,
-            "title": scene_data.get("title", "Untitled"),
-            "error": error_message,
-            "error_type": type(error).__name__,
-        }
-
-        # Try to add error tag
-        try:
-            await self._update_scene_status_tags(
-                scene_id, current_tags, has_tagme, is_error=True
-            )
-        except Exception as tag_error:
-            logger.error(f"Failed to add error tag: {tag_error}")
-
-        return result
 
     async def _refresh_cache(self) -> None:
         """Refresh cached entities from local database."""
@@ -2295,14 +1872,9 @@ class AnalysisService:
         has_ai_tagged = "AI_Tagged" in current_tag_names
         has_ai_errored = "AI_Errored" in current_tag_names
 
-        # Check if video tag detection found any tags or markers
-        found_tags_or_markers = any(
-            change.field in ["tags", "markers"] for change in video_tag_changes
-        )
-
         # Handle error case
         if video_detection_error:
-            # Remove AI_TagMe if present
+            # Always remove AI_TagMe if present
             if has_ai_tagme:
                 changes.append(
                     ProposedChange(
@@ -2315,7 +1887,7 @@ class AnalysisService:
                     )
                 )
 
-            # Add AI_Errored if not present
+            # Always add AI_Errored if not present
             if not has_ai_errored:
                 changes.append(
                     ProposedChange(
@@ -2327,10 +1899,9 @@ class AnalysisService:
                         reason="Adding AI_Errored after failed analysis",
                     )
                 )
-
-        # Handle success case
-        elif found_tags_or_markers:
-            # Remove AI_TagMe if present
+        else:
+            # Handle success case - analysis completed without error
+            # Always remove AI_TagMe if present
             if has_ai_tagme:
                 changes.append(
                     ProposedChange(
@@ -2343,7 +1914,7 @@ class AnalysisService:
                     )
                 )
 
-            # Add AI_Tagged if not present
+            # Always add AI_Tagged if not present (regardless of whether tags/markers were found)
             if not has_ai_tagged:
                 changes.append(
                     ProposedChange(
