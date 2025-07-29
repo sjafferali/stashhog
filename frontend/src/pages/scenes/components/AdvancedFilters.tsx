@@ -423,11 +423,13 @@ export const AdvancedFilters: React.FC = () => {
                 Status
                 {(filters.organized !== undefined ||
                   filters.analyzed !== undefined ||
-                  filters.video_analyzed !== undefined) &&
+                  filters.video_analyzed !== undefined ||
+                  filters.has_active_jobs !== undefined) &&
                   renderFilterCount(
                     (filters.organized !== undefined ? 1 : 0) +
                       (filters.analyzed !== undefined ? 1 : 0) +
-                      (filters.video_analyzed !== undefined ? 1 : 0)
+                      (filters.video_analyzed !== undefined ? 1 : 0) +
+                      (filters.has_active_jobs !== undefined ? 1 : 0)
                   )}
               </Space>
             }
@@ -491,6 +493,28 @@ export const AdvancedFilters: React.FC = () => {
                     }
                     onChange={(value: boolean | undefined) =>
                       updateFilter('video_analyzed', value)
+                    }
+                    style={{ width: 120 }}
+                    placeholder="Any"
+                    allowClear
+                    options={[
+                      { value: true, label: 'Yes' },
+                      { value: false, label: 'No' },
+                    ]}
+                  />
+                </Space>
+              </Col>
+              <Col span={12}>
+                <Space>
+                  <span>Active Jobs:</span>
+                  <Select
+                    value={
+                      typeof filters.has_active_jobs === 'boolean'
+                        ? filters.has_active_jobs
+                        : undefined
+                    }
+                    onChange={(value: boolean | undefined) =>
+                      updateFilter('has_active_jobs', value)
                     }
                     style={{ width: 120 }}
                     placeholder="Any"

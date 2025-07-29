@@ -12,6 +12,25 @@ from app.models.job import JobStatus, JobType
 from tests.test_app import create_test_app
 
 
+# Mock job repository at module level to avoid import issues
+@pytest.fixture(autouse=True)
+def mock_job_repository():
+    """Mock job repository methods."""
+    with (
+        patch(
+            "app.api.routes.scenes.job_repository.get_active_jobs_for_scenes",
+            new_callable=AsyncMock,
+        ) as mock_active,
+        patch(
+            "app.api.routes.scenes.job_repository.get_recent_jobs_for_scenes",
+            new_callable=AsyncMock,
+        ) as mock_recent,
+    ):
+        mock_active.return_value = {}
+        mock_recent.return_value = {}
+        yield
+
+
 # Mock database session
 @pytest.fixture
 def mock_db():

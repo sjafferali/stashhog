@@ -1,7 +1,7 @@
 """Tests for API routes."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +10,25 @@ from app.core.dependencies import get_db, get_stash_client
 from app.main import app
 from app.models import AnalysisPlan, Job, Scene, Setting
 from app.models.job import JobStatus, JobType
+
+
+# Mock job repository at module level to avoid import issues
+@pytest.fixture(autouse=True)
+def mock_job_repository():
+    """Mock job repository methods."""
+    with (
+        patch(
+            "app.api.routes.scenes.job_repository.get_active_jobs_for_scenes",
+            new_callable=AsyncMock,
+        ) as mock_active,
+        patch(
+            "app.api.routes.scenes.job_repository.get_recent_jobs_for_scenes",
+            new_callable=AsyncMock,
+        ) as mock_recent,
+    ):
+        mock_active.return_value = {}
+        mock_recent.return_value = {}
+        yield
 
 
 # Mock dependencies

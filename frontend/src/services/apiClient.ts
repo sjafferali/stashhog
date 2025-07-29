@@ -188,6 +188,23 @@ class ApiClient {
     return response.data;
   }
 
+  async runJob(
+    jobType: string,
+    metadata?: Record<string, unknown>
+  ): Promise<{
+    success: boolean;
+    message: string;
+    job_id: string;
+    job_type: string;
+    metadata: Record<string, unknown>;
+  }> {
+    const response = await api.post('/jobs/run', {
+      job_type: jobType,
+      metadata,
+    });
+    return response.data;
+  }
+
   async applyAllApprovedChanges(): Promise<{
     job_id?: string;
     plans_affected: number;

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from sqlalchemy import desc, select
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -245,6 +245,80 @@ class JobRepository:
             )
             db.commit()
         return deleted_count
+
+    async def get_active_jobs_for_scenes(
+        self, scene_ids: List[str], db: AsyncSession
+    ) -> Dict[str, List[Job]]:
+        """Get active jobs (pending/running) for multiple scenes."""
+        if not scene_ids:
+            return {}
+
+        # Query for jobs that are active and have scene_ids in their metadata
+        # Use JSONB containment operator to check if metadata contains scene_ids key
+        query = select(Job).filter(
+            and_(
+                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
+                Job.job_metadata.op("?")(
+                    "scene_ids"
+                ),  # Check if 'scene_ids' key exists
+            )
+        )
+
+        result = await db.execute(query)
+        jobs = result.scalars().all()
+
+        # Group jobs by scene_id
+        scene_jobs: Dict[str, List[Job]] = {}
+        for job in jobs:
+            if job.job_metadata and "scene_ids" in job.job_metadata:
+                job_scene_ids = job.job_metadata.get("scene_ids", [])
+                if isinstance(job_scene_ids, list):
+                    for scene_id in job_scene_ids:
+                        if scene_id in scene_ids:
+                            if scene_id not in scene_jobs:
+                                scene_jobs[scene_id] = []
+                            scene_jobs[scene_id].append(job)
+
+        return scene_jobs
+
+    async def get_recent_jobs_for_scenes(
+        self, scene_ids: List[str], db: AsyncSession, hours: int = 24
+    ) -> Dict[str, List[Job]]:
+        """Get recently completed jobs for multiple scenes."""
+        if not scene_ids:
+            return {}
+
+        from datetime import timedelta
+
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+
+        # Query for completed jobs within the time window
+        query = select(Job).filter(
+            and_(
+                Job.status == JobStatus.COMPLETED.value,
+                Job.completed_at >= cutoff_time,
+                Job.job_metadata.op("?")(
+                    "scene_ids"
+                ),  # Check if 'scene_ids' key exists
+            )
+        )
+
+        result = await db.execute(query)
+        jobs = result.scalars().all()
+
+        # Group jobs by scene_id
+        scene_jobs: Dict[str, List[Job]] = {}
+        for job in jobs:
+            if job.job_metadata and "scene_ids" in job.job_metadata:
+                job_scene_ids = job.job_metadata.get("scene_ids", [])
+                if isinstance(job_scene_ids, list):
+                    for scene_id in job_scene_ids:
+                        if scene_id in scene_ids:
+                            if scene_id not in scene_jobs:
+                                scene_jobs[scene_id] = []
+                            scene_jobs[scene_id].append(job)
+
+        return scene_jobs
 
 
 # Global instance

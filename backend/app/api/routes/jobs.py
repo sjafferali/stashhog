@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     HTTPException,
     Query,
@@ -451,4 +452,77 @@ async def trigger_cleanup(
         "success": True,
         "message": "Cleanup job started successfully",
         "job_id": str(new_job.id),
+    }
+
+
+@router.post("/run")
+async def run_job(
+    job_type: str = Body(..., description="Type of job to run"),
+    metadata: Optional[Dict[str, Any]] = Body(
+        None, description="Job parameters and metadata"
+    ),
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Run a job immediately with the specified type and parameters.
+
+    This endpoint allows manual triggering of any registered job type.
+    """
+    # Import JobType from models to use the enum
+    from app.models.job import JobType as ModelJobType
+
+    # Validate job type
+    try:
+        model_job_type = ModelJobType(job_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid job type: {job_type}. Valid types are: {[jt.value for jt in ModelJobType]}",
+        )
+
+    # Check if there's already a job of this type running
+    query = select(Job).where(
+        Job.type == job_type, Job.status.in_(["pending", "running"])
+    )
+    result = await db.execute(query)
+    existing_job = result.scalar_one_or_none()
+
+    if existing_job and job_type not in [
+        "sync_scenes",
+        "analysis",
+        "apply_plan",
+        "generate_details",
+    ]:
+        # Some job types can have multiple instances running
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{job_type} job already {existing_job.status}: {existing_job.id}",
+        )
+
+    # Merge metadata with defaults
+    job_metadata = metadata or {}
+    job_metadata.update(
+        {
+            "triggered_by": "manual",
+            "source": "api",
+        }
+    )
+
+    # Create the job
+    new_job = await job_service.create_job(
+        job_type=model_job_type,
+        metadata=job_metadata,
+        db=db,
+    )
+
+    # Refresh the job object to ensure all attributes are loaded
+    await db.refresh(new_job)
+
+    return {
+        "success": True,
+        "message": f"{job_type} job started successfully",
+        "job_id": str(new_job.id),
+        "job_type": job_type,
+        "metadata": job_metadata,
     }

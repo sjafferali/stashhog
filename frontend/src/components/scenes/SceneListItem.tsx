@@ -10,9 +10,11 @@ import {
   ExperimentOutlined,
   MoreOutlined,
   StarFilled,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { SceneAction } from './SceneCard';
+import { Link } from 'react-router-dom';
 import styles from './SceneListItem.module.scss';
 
 export interface SceneListItemProps {
@@ -119,6 +121,18 @@ export const SceneListItem: React.FC<SceneListItemProps> = ({
         title={
           <div className={styles.title}>
             <span onClick={() => onClick?.(scene)}>{scene.title}</span>
+            {scene.active_jobs && scene.active_jobs.length > 0 && (
+              <Link to={`/jobs?highlight=${scene.active_jobs[0].id}`}>
+                <Tag color="processing" className={styles.jobIndicator}>
+                  <LoadingOutlined spin />
+                  {scene.active_jobs[0].type === 'sync_scenes'
+                    ? 'Syncing'
+                    : 'Analyzing'}
+                  {scene.active_jobs[0].progress > 0 &&
+                    ` ${scene.active_jobs[0].progress}%`}
+                </Tag>
+              </Link>
+            )}
             {scene.rating && (
               <span className={styles.rating}>
                 <StarFilled /> {scene.rating}

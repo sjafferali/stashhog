@@ -19,6 +19,7 @@ const DEFAULT_FILTERS: SceneFilters = {
   organized: undefined,
   analyzed: undefined,
   video_analyzed: undefined,
+  has_active_jobs: undefined,
   date_from: '',
   date_to: '',
 };
@@ -49,6 +50,11 @@ export function useSceneFilters() {
     const videoAnalyzed = searchParams.get('video_analyzed');
     if (videoAnalyzed !== null) {
       params.video_analyzed = videoAnalyzed === 'true';
+    }
+
+    const hasActiveJobs = searchParams.get('has_active_jobs');
+    if (hasActiveJobs !== null) {
+      params.has_active_jobs = hasActiveJobs === 'true';
     }
 
     // Array filters (comma-separated IDs)

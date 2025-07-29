@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.schemas import (
+    JobInfo,
     PaginatedResponse,
     PaginationParams,
     PerformerResponse,
@@ -25,6 +26,7 @@ from app.core.dependencies import get_db, get_job_service, get_sync_service
 from app.models import Performer, Scene, SceneFile, SceneMarker, Studio, SyncLog, Tag
 from app.models.job import JobType as ModelJobType
 from app.models.sync_history import SyncHistory
+from app.repositories.job_repository import job_repository
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
@@ -42,6 +44,7 @@ async def parse_scene_filters(
     video_analyzed: Optional[bool] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    has_active_jobs: Optional[bool] = Query(None),
 ) -> SceneFilter:
     """Parse scene filters from query parameters."""
     from datetime import datetime
@@ -71,6 +74,7 @@ async def parse_scene_filters(
         video_analyzed=video_analyzed,
         date_from=parsed_date_from,
         date_to=parsed_date_to,
+        has_active_jobs=has_active_jobs,
     )
 
 
@@ -176,6 +180,17 @@ def _apply_scene_sorting(query: Any, pagination: PaginationParams) -> Any:
     return query.order_by(Scene.stash_created_at.desc())
 
 
+def _transform_job_to_info(job) -> JobInfo:
+    """Transform Job model to JobInfo."""
+    return JobInfo(
+        id=job.id,
+        type=job.type,
+        status=job.status,
+        progress=job.progress,
+        started_at=job.started_at,
+    )
+
+
 def _transform_scene_to_response(scene: Scene) -> SceneResponse:
     """Transform Scene model to SceneResponse."""
     # Get primary file for metadata
@@ -278,6 +293,9 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         framerate=primary_file.frame_rate if primary_file else None,  # type: ignore[arg-type]
         bitrate=primary_file.bit_rate if primary_file else None,  # type: ignore[arg-type]
         video_codec=primary_file.video_codec if primary_file else None,  # type: ignore[arg-type]
+        # Job fields - will be populated later if needed
+        active_jobs=[],  # type: ignore[arg-type]
+        recent_jobs=[],  # type: ignore[arg-type]
     )
 
 
@@ -327,8 +345,43 @@ async def list_scenes(
     result = await db.execute(query)
     scenes = result.scalars().unique().all()
 
-    # Transform to response models
-    scene_responses = [_transform_scene_to_response(scene) for scene in scenes]  # type: ignore[arg-type]
+    # Fetch job information for all scenes
+    scene_ids = [str(scene.id) for scene in scenes]  # type: ignore[attr-defined]
+    active_jobs = (
+        await job_repository.get_active_jobs_for_scenes(scene_ids, db)
+        if scene_ids
+        else {}
+    )
+    recent_jobs = (
+        await job_repository.get_recent_jobs_for_scenes(scene_ids, db)
+        if scene_ids
+        else {}
+    )
+
+    # If filtering by has_active_jobs, filter the results
+    if filters.has_active_jobs is not None:
+        if filters.has_active_jobs:
+            # Only include scenes that have active jobs
+            scenes = [scene for scene in scenes if str(scene.id) in active_jobs]  # type: ignore[attr-defined]
+        else:
+            # Only include scenes that don't have active jobs
+            scenes = [scene for scene in scenes if str(scene.id) not in active_jobs]  # type: ignore[attr-defined]
+
+        # Update total count after filtering
+        total = len(scenes)
+
+    # Transform to response models with job information
+    scene_responses = []
+    for scene in scenes:
+        response = _transform_scene_to_response(scene)  # type: ignore[arg-type]
+        # Add job information
+        response.active_jobs = [
+            _transform_job_to_info(job) for job in active_jobs.get(str(scene.id), [])  # type: ignore[attr-defined]
+        ]
+        response.recent_jobs = [
+            _transform_job_to_info(job) for job in recent_jobs.get(str(scene.id), [])  # type: ignore[attr-defined]
+        ]
+        scene_responses.append(response)
 
     return PaginatedResponse.create(
         items=scene_responses,
@@ -365,8 +418,20 @@ async def get_scene(scene_id: str, db: AsyncSession = Depends(get_db)) -> SceneR
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Scene {scene_id} not found"
         )
 
+    # Get job information for this scene
+    active_jobs = await job_repository.get_active_jobs_for_scenes([scene_id], db)
+    recent_jobs = await job_repository.get_recent_jobs_for_scenes([scene_id], db)
+
     # Transform to response model
-    return _transform_scene_to_response(scene)
+    response = _transform_scene_to_response(scene)
+    response.active_jobs = [
+        _transform_job_to_info(job) for job in active_jobs.get(scene_id, [])
+    ]
+    response.recent_jobs = [
+        _transform_job_to_info(job) for job in recent_jobs.get(scene_id, [])
+    ]
+
+    return response
 
 
 @router.post("/sync")

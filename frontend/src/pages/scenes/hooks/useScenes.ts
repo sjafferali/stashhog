@@ -11,6 +11,7 @@ export interface SceneQueryParams extends FilterParams {
   organized?: boolean;
   analyzed?: boolean;
   video_analyzed?: boolean;
+  has_active_jobs?: boolean;
   date_from?: string;
   date_to?: string;
 }

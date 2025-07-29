@@ -294,6 +294,16 @@ class SceneUpdate(SceneBase):
     studio: Optional[str] = Field(None, description="Studio name")
 
 
+class JobInfo(BaseSchema):
+    """Minimal job information for scene display."""
+
+    id: str = Field(..., description="Job ID")
+    type: JobType = Field(..., description="Job type")
+    status: JobStatus = Field(..., description="Job status")
+    progress: int = Field(..., description="Progress percentage")
+    started_at: Optional[datetime] = Field(None, description="Start timestamp")
+
+
 class SceneResponse(SceneBase):
     """Scene response schema."""
 
@@ -323,6 +333,14 @@ class SceneResponse(SceneBase):
     bitrate: Optional[int] = Field(None, description="Bitrate in kbps")
     video_codec: Optional[str] = Field(None, description="Video codec")
 
+    # Job-related fields
+    active_jobs: list[JobInfo] = Field(
+        default_factory=list, description="Currently running jobs for this scene"
+    )
+    recent_jobs: list[JobInfo] = Field(
+        default_factory=list, description="Recently completed jobs (last 24 hours)"
+    )
+
 
 class SceneFilter(BaseSchema):
     """Scene filter parameters."""
@@ -343,6 +361,9 @@ class SceneFilter(BaseSchema):
     )
     date_from: Optional[datetime] = Field(None, description="Filter by date from")
     date_to: Optional[datetime] = Field(None, description="Filter by date to")
+    has_active_jobs: Optional[bool] = Field(
+        None, description="Filter scenes with running/pending jobs"
+    )
 
 
 class SceneSyncRequest(BaseSchema):

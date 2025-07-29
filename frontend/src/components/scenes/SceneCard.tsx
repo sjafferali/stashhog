@@ -9,8 +9,10 @@ import {
   ExperimentOutlined,
   MoreOutlined,
   StarFilled,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
+import { Link } from 'react-router-dom';
 import styles from './SceneCard.module.scss';
 
 export interface SceneAction {
@@ -119,6 +121,18 @@ export const SceneCard: React.FC<SceneCardProps> = ({
                 <div className={styles.title}>{scene.title}</div>
               </Tooltip>
               <div className={styles.titleMeta}>
+                {scene.active_jobs && scene.active_jobs.length > 0 && (
+                  <Link to={`/jobs?highlight=${scene.active_jobs[0].id}`}>
+                    <Tag color="processing" className={styles.jobIndicator}>
+                      <LoadingOutlined spin />
+                      {scene.active_jobs[0].type === 'sync_scenes'
+                        ? 'Syncing'
+                        : 'Analyzing'}
+                      {scene.active_jobs[0].progress > 0 &&
+                        ` ${scene.active_jobs[0].progress}%`}
+                    </Tag>
+                  </Link>
+                )}
                 {scene.duration && (
                   <span className={styles.duration}>
                     <ClockCircleOutlined /> {formatDuration(scene.duration)}

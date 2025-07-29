@@ -10,30 +10,36 @@ import {
   Statistic,
   Spin,
   Empty,
+  Modal,
 } from 'antd';
 import {
   PlusOutlined,
   CalendarOutlined,
   HistoryOutlined,
   ClockCircleOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import ScheduleList from './components/ScheduleList';
 import CreateScheduleModal from './components/CreateScheduleModal';
 import CalendarView from './components/CalendarView';
 import RunHistory from './components/RunHistory';
+import RunJobForm from './components/RunJobForm';
 import { useSchedules, useScheduleHistory } from './hooks/useSchedules';
 import { Schedule } from './types';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
 
 const Scheduler: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [runJobModalVisible, setRunJobModalVisible] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
     null
   );
   const [activeTab, setActiveTab] = useState('schedules');
 
+  const navigate = useNavigate();
   const { schedules, loading, refetch } = useSchedules();
   const { runs, stats } = useScheduleHistory();
 
@@ -56,6 +62,12 @@ const Scheduler: React.FC = () => {
     setActiveTab('history');
   };
 
+  const handleRunJobSuccess = (jobId: string) => {
+    setRunJobModalVisible(false);
+    // Navigate to jobs page to see the running job
+    void navigate(`/jobs?highlight=${jobId}`);
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -71,14 +83,23 @@ const Scheduler: React.FC = () => {
           <Title level={2}>Task Scheduler</Title>
         </Col>
         <Col>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setCreateModalVisible(true)}
-            size="large"
-          >
-            Create Schedule
-          </Button>
+          <Space>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreateModalVisible(true)}
+              size="large"
+            >
+              Create Schedule
+            </Button>
+            <Button
+              icon={<PlayCircleOutlined />}
+              onClick={() => setRunJobModalVisible(true)}
+              size="large"
+            >
+              Run Job Now
+            </Button>
+          </Space>
         </Col>
       </Row>
 
@@ -222,6 +243,19 @@ const Scheduler: React.FC = () => {
         onClose={() => setCreateModalVisible(false)}
         onSuccess={handleCreateSuccess}
       />
+
+      <Modal
+        title="Run Job Immediately"
+        open={runJobModalVisible}
+        onCancel={() => setRunJobModalVisible(false)}
+        footer={null}
+        width={700}
+      >
+        <RunJobForm
+          onSuccess={handleRunJobSuccess}
+          onClose={() => setRunJobModalVisible(false)}
+        />
+      </Modal>
     </div>
   );
 };

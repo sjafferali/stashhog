@@ -71,6 +71,10 @@ export interface Scene {
   rating?: number;
   created_at: string;
   updated_at: string;
+
+  // Job-related fields
+  active_jobs?: JobInfo[];
+  recent_jobs?: JobInfo[];
 }
 
 export interface Performer {
@@ -201,6 +205,14 @@ export interface AnalysisResult {
   processing_time: number;
   created_at: string;
   plan?: AnalysisPlan;
+}
+
+export interface JobInfo {
+  id: string;
+  type: string;
+  status: string;
+  progress: number;
+  started_at?: string;
 }
 
 export interface Job {
