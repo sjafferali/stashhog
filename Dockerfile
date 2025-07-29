@@ -52,26 +52,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser
-
 WORKDIR /app
 
-# Copy Python dependencies from builder
-COPY --from=backend-builder /root/.local /home/appuser/.local
+# Install Python dependencies globally so any user can access them
+COPY backend/requirements.txt ./
+RUN pip install --no-warn-script-location -r requirements.txt
 
 # Copy backend code
-COPY --chown=appuser:appuser backend/ ./
+COPY backend/ ./
 
 # Copy frontend build to static directory
-COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist ./static
+COPY --from=frontend-builder /app/frontend/dist ./static
+
+# Create a group for the app and set permissions
+RUN groupadd -g 1000 appgroup && \
+    chmod -R 755 /app && \
+    # Make the app directory writable for any user in the group
+    chmod -R 775 /app && \
+    # Ensure Python can write bytecode if needed
+    mkdir -p /app/__pycache__ && \
+    chmod 777 /app/__pycache__
 
 # Set up environment
-ENV PATH=/home/appuser/.local/bin:$PATH \
-    PYTHONPATH=/app
+ENV PYTHONPATH=/app
 
-# Switch to non-root user
-USER appuser
+# Don't switch to a specific user - let Docker Compose handle it
 
 # Expose port
 EXPOSE 8000
