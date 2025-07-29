@@ -88,7 +88,8 @@ async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
     try:
         # Get all completed torrents in xxx category
         logger.info("Fetching completed torrents with category 'xxx'")
-        torrents = qbt_client.torrents_info(status_filter=["completed"], category="xxx")
+        # Note: status_filter should be a string, not a list
+        torrents = qbt_client.torrents_info(status_filter="completed", category="xxx")
         logger.info(f"Found {len(torrents)} completed torrents in category 'xxx'")
 
         # Filter out torrents that already have the "synced" tag
