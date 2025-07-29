@@ -2,6 +2,7 @@
 Sync management endpoints.
 """
 
+import logging
 from datetime import timezone
 from typing import List, Optional
 
@@ -443,25 +444,36 @@ async def get_sync_stats(
 
     # Get pending scenes count
     pending_scenes = 0
-    if last_syncs.get("scene"):
-        try:
-            from datetime import datetime
+    logger = logging.getLogger(__name__)
 
-            last_sync_time = datetime.fromisoformat(
-                last_syncs["scene"].replace("Z", "+00:00")
-            )
+    try:
+        if last_syncs.get("scene"):
+            # Parse the last sync time - it's already in ISO format
+            last_sync_iso = last_syncs["scene"]
+
+            # The database stores timezone-aware timestamps
+            # Just use the ISO string directly as Stash expects ISO format
             filter_dict = {
                 "updated_at": {
-                    "value": last_sync_time.isoformat(),
+                    "value": last_sync_iso,
                     "modifier": "GREATER_THAN",
                 }
             }
-            _, total_count = await stash_service.get_scenes(
-                page=1, per_page=1, filter=filter_dict
-            )
-            pending_scenes = total_count
-        except Exception:
-            pending_scenes = 0
+            logger.info(f"Checking for scenes updated after: {last_sync_iso}")
+            logger.debug(f"Using filter: {filter_dict}")
+        else:
+            # No previous sync, count all scenes as pending
+            filter_dict = {}
+            logger.info("No previous scene sync found, counting all scenes as pending")
+
+        _, total_count = await stash_service.get_scenes(
+            page=1, per_page=1, filter=filter_dict
+        )
+        pending_scenes = total_count
+        logger.info(f"Found {pending_scenes} pending scenes")
+    except Exception as e:
+        logger.error(f"Error getting pending scenes count: {str(e)}", exc_info=True)
+        pending_scenes = 0
 
     # Check if sync is running
     is_syncing = False
