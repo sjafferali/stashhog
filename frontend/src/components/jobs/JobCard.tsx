@@ -59,6 +59,8 @@ export const JobCard: React.FC<JobCardProps> = ({
         return <CloseCircleOutlined />;
       case 'cancelled':
         return <CloseCircleOutlined />;
+      case 'cancelling':
+        return <PauseCircleOutlined />;
       default:
         return null;
     }
@@ -76,6 +78,8 @@ export const JobCard: React.FC<JobCardProps> = ({
         return 'error';
       case 'cancelled':
         return 'warning';
+      case 'cancelling':
+        return 'orange';
       default:
         return 'default';
     }
@@ -107,8 +111,8 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const actions = [];
 
-  if (job.status === 'running') {
-    if (onPause) {
+  if (job.status === 'running' || job.status === 'cancelling') {
+    if (onPause && job.status === 'running') {
       actions.push(
         <Tooltip key="pause" title="Pause">
           <Button
@@ -119,7 +123,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         </Tooltip>
       );
     }
-    if (onCancel) {
+    if (onCancel && job.status === 'running') {
       actions.push(
         <Tooltip key="cancel" title="Cancel">
           <Button
@@ -170,10 +174,11 @@ export const JobCard: React.FC<JobCardProps> = ({
           </Space>
           <Space>{actions}</Space>
         </div>
-        {job.status === 'running' && (
+        {(job.status === 'running' || job.status === 'cancelling') && (
           <Progress
             percent={progressPercent}
             size="small"
+            status={job.status === 'cancelling' ? 'exception' : 'active'}
             format={() =>
               formatJobProgress(
                 job.type,
@@ -220,9 +225,11 @@ export const JobCard: React.FC<JobCardProps> = ({
             status={
               job.status === 'failed'
                 ? 'exception'
-                : job.status === 'running'
-                  ? 'active'
-                  : undefined
+                : job.status === 'cancelling'
+                  ? 'exception'
+                  : job.status === 'running'
+                    ? 'active'
+                    : undefined
             }
           />
         </div>

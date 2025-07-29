@@ -108,6 +108,7 @@ class ApplyResult:
     applied_at: datetime = field(default_factory=datetime.utcnow)
     scenes_analyzed: int = 0
     skipped_changes: int = 0
+    modified_scene_ids: List[str] = field(default_factory=list)
 
     @property
     def success_rate(self) -> float:

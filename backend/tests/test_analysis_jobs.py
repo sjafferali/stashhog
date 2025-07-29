@@ -195,7 +195,8 @@ class TestAnalysisJobs:
         assert isinstance(call_args["options"], AnalysisOptions)
         assert call_args["job_id"] == job_id
         assert call_args["plan_name"] == "Test Plan"
-        assert call_args["progress_callback"] == mock_progress_callback
+        # The progress_callback is wrapped, so just check it's callable
+        assert callable(call_args["progress_callback"])
 
     @pytest.mark.asyncio
     @patch("app.jobs.analysis_jobs.AsyncSessionLocal")
@@ -264,6 +265,10 @@ class TestAnalysisJobs:
         apply_result.skipped_changes = 1
         apply_result.total_changes = 10
         apply_result.errors = []  # Add the errors attribute
+        apply_result.modified_scene_ids = [
+            "scene1",
+            "scene2",
+        ]  # Add the modified_scene_ids attribute
 
         # Mock services
         mock_analysis_service = Mock()

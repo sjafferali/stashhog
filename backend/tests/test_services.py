@@ -88,6 +88,7 @@ class TestJobService:
             mock_repo.get_job = AsyncMock(return_value=mock_job)
             mock_repo.cancel_job = AsyncMock(return_value=mock_job)
             mock_repo._fetch_job = AsyncMock(return_value=mock_job)
+            mock_repo.update_job_status = AsyncMock()
             mock_queue = Mock()
             mock_queue.cancel_task = AsyncMock()
             mock_get_queue.return_value = mock_queue
@@ -98,7 +99,12 @@ class TestJobService:
 
             assert result is True
             mock_repo.get_job.assert_called_once_with("job123", mock_db)
-            mock_repo.cancel_job.assert_called_once_with("job123", mock_db)
+            mock_repo.update_job_status.assert_called_once_with(
+                job_id="job123",
+                status=JobStatus.CANCELLING,
+                db=mock_db,
+                message="Cancellation requested",
+            )
             mock_queue.cancel_task.assert_called_once_with("task123")
 
     # retry_job method doesn't exist in JobService

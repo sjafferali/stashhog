@@ -6,6 +6,7 @@ export interface SceneQueryParams extends FilterParams {
   scene_ids?: string[];
   performer_ids?: string[];
   tag_ids?: string[];
+  exclude_tag_ids?: string[];
   studio_id?: string;
   organized?: boolean;
   analyzed?: boolean;

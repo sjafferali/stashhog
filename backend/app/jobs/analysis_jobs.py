@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable
+from typing import Any, Callable, Optional
 
 from sqlalchemy import select
 
@@ -17,6 +18,40 @@ from app.services.stash_service import StashService
 
 from .analysis_jobs_helpers import calculate_plan_summary
 
+
+def _format_summary(raw_summary: dict[str, int]) -> dict[str, Any]:
+    """Format the raw summary into the expected structure."""
+    total = sum(raw_summary.values())
+
+    by_field = {
+        "performers": raw_summary.get("performers_to_add", 0),
+        "tags": raw_summary.get("tags_to_add", 0),
+        "studio": raw_summary.get("studios_to_set", 0),
+        "title": raw_summary.get("titles_to_update", 0),
+        "details": raw_summary.get("details_to_update", 0),
+        "markers": raw_summary.get("markers_to_add", 0),
+    }
+
+    by_action = {
+        "add": (
+            raw_summary.get("performers_to_add", 0)
+            + raw_summary.get("tags_to_add", 0)
+            + raw_summary.get("markers_to_add", 0)
+        ),
+        "set": (
+            raw_summary.get("studios_to_set", 0)
+            + raw_summary.get("titles_to_update", 0)
+        ),
+        "update": raw_summary.get("details_to_update", 0),
+    }
+
+    return {
+        "total": total,
+        "by_field": by_field,
+        "by_action": by_action,
+    }
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,178 +64,277 @@ async def analyze_scenes_job(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Execute scene analysis as a background job."""
-    plan_id: Optional[int] = None  # Track plan ID for cancellation handling
+    plan_id: Optional[int] = None
+    scenes_processed: int = 0
+
+    # Create a wrapper to track progress
+    async def tracking_progress_callback(progress: int, message: str) -> None:
+        nonlocal scenes_processed
+        scenes_processed = _extract_scenes_processed(message, scenes_processed)
+        await progress_callback(progress, message)
+
     try:
-        logger.info(
-            f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
-        )
-        logger.debug(f"Scene IDs received in job: {scene_ids}")
+        # Initialize services
+        services = await _initialize_services(job_id, scene_ids)
 
-        # Create service instances
-        settings = await load_settings_with_db_overrides()
-        stash_service = StashService(
-            stash_url=settings.stash.url,
-            api_key=settings.stash.api_key,
-            timeout=settings.stash.timeout,
-            max_retries=settings.stash.max_retries,
-        )
-        openai_client = (
-            OpenAIClient(
-                api_key=settings.openai.api_key,
-                model=settings.openai.model,
-                base_url=settings.openai.base_url,
-                max_tokens=settings.openai.max_tokens,
-                temperature=settings.openai.temperature,
-                timeout=settings.openai.timeout,
-            )
-            if settings.openai.api_key
-            else None
+        # Execute analysis
+        plan = await _execute_analysis(
+            services,
+            job_id,
+            scene_ids,
+            options,
+            kwargs,
+            tracking_progress_callback,
+            cancellation_token,
         )
 
-        # Convert options dict to AnalysisOptions
-        analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
+        # Process results
+        result, plan_id = await _process_analysis_results(plan, job_id, scene_ids)
 
-        # Extract plan_name from kwargs if provided
-        plan_name = kwargs.get("plan_name")
-
-        # Execute analysis with progress callback
-        async with AsyncSessionLocal() as db:
-            if openai_client is None:
-                raise ValueError("OpenAI client is required for analysis")
-            analysis_service = AnalysisService(
-                openai_client=openai_client,
-                stash_service=stash_service,
-                settings=settings,
-            )
-
-            logger.info(
-                f"Creating analysis service and starting analysis for job {job_id}"
-            )
-
-            plan = await analysis_service.analyze_scenes(
-                scene_ids=scene_ids,
-                options=analysis_options,
-                job_id=job_id,
-                db=db,
-                progress_callback=progress_callback,
-                plan_name=plan_name,
-                cancellation_token=cancellation_token,
-            )
-
-            logger.info(
-                f"Analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
-            )
-
-            # Check if plan has an ID (was saved to database)
-            if not hasattr(plan, "id") or plan.id is None:
-                # Mock plan - no changes were found
-                logger.info(
-                    f"No changes found for job {job_id}, returning minimal result"
-                )
-                result: dict[str, Any] = {
-                    "plan_id": None,
-                    "total_changes": 0,
-                    "scenes_analyzed": len(scene_ids or []),
-                    "summary": {
-                        "total": 0,
-                        "by_field": {},
-                        "by_action": {},
-                    },
-                }
-            else:
-                # Calculate summary while still in session
-                try:
-                    logger.debug(f"Plan object session: {plan in db}")
-                    logger.debug(f"Current db session: {db}")
-
-                    # The plan object is bound to a different session context
-                    # We need to re-fetch it in our current session to access its relationships
-
-                    # Store the plan ID before any potential session issues
-                    plan_id = int(plan.id)  # This updates the outer scope plan_id
-
-                    # Re-fetch the plan in our current session to avoid cross-session issues
-                    plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
-                    plan_result = await db.execute(plan_query)
-                    fresh_plan = plan_result.scalar_one()
-
-                    # Now query changes directly (since it's a dynamic relationship)
-                    logger.debug(f"Querying changes for plan {plan_id}")
-                    changes_query = select(PlanChange).where(
-                        PlanChange.plan_id == plan_id
-                    )
-                    changes_result = await db.execute(changes_query)
-                    changes_list = list(changes_result.scalars().all())
-
-                    logger.debug(
-                        f"Loaded {len(changes_list)} changes for plan {plan_id}"
-                    )
-
-                    # Calculate summary with the loaded changes
-                    summary = calculate_plan_summary(changes_list)
-
-                    # Get total changes count and metadata while session is active
-                    total_changes = len(changes_list)
-                    # Use the fresh plan to access metadata safely
-                    scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
-
-                    logger.info(
-                        f"Summary calculated for job {job_id}: {total_changes} total changes"
-                    )
-
-                    result = {
-                        "plan_id": plan_id,  # Already an int from line 120
-                        "total_changes": total_changes,
-                        "scenes_analyzed": scenes_analyzed,
-                        "summary": summary,
-                    }
-
-                except Exception as e:
-                    logger.error(
-                        f"Error calculating summary for job {job_id}: {str(e)}",
-                        exc_info=True,
-                    )
-                    raise
-
-            # Commit the plan finalization changes (status update from PENDING to DRAFT/REVIEWING)
-            await db.commit()
-
-            logger.info(f"Job {job_id} completed successfully with result: {result}")
-            return result
+        return result
 
     except asyncio.CancelledError:
-        logger.info(f"Job {job_id} was cancelled")
-        # If a plan was created, update its status to DRAFT before cancelling
-        if plan_id is not None:
-            logger.info(
-                f"Setting plan {plan_id} status to DRAFT due to job cancellation"
-            )
-            async with AsyncSessionLocal() as cancel_db:
-                # Import here to avoid circular imports
-                from app.services.analysis.plan_manager import PlanManager
-
-                plan_manager = PlanManager()
-
-                # Get the plan and update its status
-                cancelled_plan: Optional[AnalysisPlan] = await plan_manager.get_plan(
-                    plan_id, cancel_db
-                )
-                if (
-                    cancelled_plan is not None
-                    and cancelled_plan.status == PlanStatus.PENDING
-                ):
-                    cancelled_plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
-                    await cancel_db.commit()
-                    logger.info(f"Successfully updated plan {plan_id} status to DRAFT")
-
-        # Re-raise to let the job service handle the cancellation
-        raise
-
+        return await _handle_job_cancellation(
+            job_id, plan_id, scenes_processed, scene_ids
+        )
     except Exception as e:
-        logger.error(f"Job {job_id} failed with error: {str(e)}", exc_info=True)
-        await progress_callback(100, f"Analysis failed: {str(e)}")
-        # For complete failures (initialization errors, etc.), re-raise
+        error_msg = f"Analysis failed: {str(e)}"
+        logger.error(f"Job {job_id} failed: {error_msg}", exc_info=True)
+        await progress_callback(100, error_msg)
         raise
+
+
+def _extract_scenes_processed(message: str, current_count: int) -> int:
+    """Extract scenes processed count from progress message."""
+    if "Processed" in message and "/" in message:
+        try:
+            processed_part = message.split("Processed")[1].split("scenes")[0]
+            return int(processed_part.split("/")[0].strip())
+        except (IndexError, ValueError):
+            pass
+    return current_count
+
+
+async def _initialize_services(
+    job_id: str, scene_ids: Optional[list[str]]
+) -> dict[str, Any]:
+    """Initialize required services for analysis."""
+    logger.info(
+        f"Starting analyze_scenes job {job_id} for {len(scene_ids or [])} scenes"
+    )
+    logger.debug(f"Scene IDs received in job: {scene_ids}")
+
+    settings = await load_settings_with_db_overrides()
+    stash_service = StashService(
+        stash_url=settings.stash.url,
+        api_key=settings.stash.api_key,
+        timeout=settings.stash.timeout,
+        max_retries=settings.stash.max_retries,
+    )
+    openai_client = (
+        OpenAIClient(
+            api_key=settings.openai.api_key,
+            model=settings.openai.model,
+            base_url=settings.openai.base_url,
+            max_tokens=settings.openai.max_tokens,
+            temperature=settings.openai.temperature,
+            timeout=settings.openai.timeout,
+        )
+        if settings.openai.api_key
+        else None
+    )
+
+    return {
+        "settings": settings,
+        "stash_service": stash_service,
+        "openai_client": openai_client,
+    }
+
+
+async def _execute_analysis(
+    services: dict[str, Any],
+    job_id: str,
+    scene_ids: Optional[list[str]],
+    options: Optional[dict[str, Any]],
+    kwargs: dict[str, Any],
+    progress_callback: Callable[[int, str], Awaitable[None]],
+    cancellation_token: Optional[Any],
+) -> Any:
+    """Execute the scene analysis."""
+    if services["openai_client"] is None:
+        raise ValueError("OpenAI client is required for analysis")
+
+    analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
+    plan_name = kwargs.get("plan_name")
+
+    async with AsyncSessionLocal() as db:
+        analysis_service = AnalysisService(
+            openai_client=services["openai_client"],
+            stash_service=services["stash_service"],
+            settings=services["settings"],
+        )
+
+        logger.info(f"Creating analysis service and starting analysis for job {job_id}")
+
+        plan = await analysis_service.analyze_scenes(
+            scene_ids=scene_ids,
+            options=analysis_options,
+            job_id=job_id,
+            db=db,
+            progress_callback=progress_callback,
+            plan_name=plan_name,
+            cancellation_token=cancellation_token,
+        )
+
+        logger.info(
+            f"Analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
+        )
+
+        return plan
+
+
+async def _process_analysis_results(
+    plan: Any, job_id: str, scene_ids: Optional[list[str]]
+) -> tuple[dict[str, Any], Optional[int]]:
+    """Process the analysis results and return formatted output."""
+    plan_id: Optional[int] = None
+
+    # Check if plan has an ID (was saved to database)
+    if not hasattr(plan, "id") or plan.id is None:
+        logger.info(f"No changes found for job {job_id}, returning minimal result")
+        result = {
+            "plan_id": None,
+            "total_changes": 0,
+            "scenes_analyzed": len(scene_ids or []),
+            "summary": {
+                "total": 0,
+                "by_field": {},
+                "by_action": {},
+            },
+        }
+    else:
+        async with AsyncSessionLocal() as db:
+            try:
+                plan_id = int(plan.id)
+
+                # Re-fetch the plan in our current session
+                plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
+                plan_result = await db.execute(plan_query)
+                fresh_plan = plan_result.scalar_one()
+
+                # Query changes directly
+                logger.debug(f"Querying changes for plan {plan_id}")
+                changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
+                changes_result = await db.execute(changes_query)
+                changes_list = list(changes_result.scalars().all())
+
+                logger.debug(f"Loaded {len(changes_list)} changes for plan {plan_id}")
+
+                # Calculate summary
+                raw_summary = calculate_plan_summary(changes_list)
+                summary = _format_summary(raw_summary)
+                total_changes = len(changes_list)
+                scenes_analyzed = fresh_plan.get_metadata("scene_count", 0)
+
+                logger.info(
+                    f"Summary calculated for job {job_id}: {total_changes} total changes"
+                )
+
+                result = {
+                    "plan_id": plan_id,
+                    "total_changes": total_changes,
+                    "scenes_analyzed": scenes_analyzed,
+                    "summary": summary,
+                }
+
+            except Exception as e:
+                logger.error(
+                    f"Error calculating summary for job {job_id}: {str(e)}",
+                    exc_info=True,
+                )
+                raise
+
+            # Commit the plan finalization changes
+            await db.commit()
+
+    logger.info(f"Job {job_id} completed successfully with result: {result}")
+    return result, plan_id
+
+
+async def _handle_job_cancellation(
+    job_id: str,
+    plan_id: Optional[int],
+    scenes_processed: int,
+    scene_ids: Optional[list[str]],
+) -> dict[str, Any]:
+    """Handle job cancellation and update plan status."""
+    logger.info(
+        f"Job {job_id} was cancelled after processing {scenes_processed} scenes"
+    )
+
+    cancellation_result: dict[str, Any] = {
+        "plan_id": plan_id,
+        "total_changes": 0,
+        "scenes_analyzed": scenes_processed,
+        "summary": {
+            "total": 0,
+            "by_field": {},
+            "by_action": {},
+        },
+        "cancelled": True,
+        "total_scenes": len(scene_ids or []),
+    }
+
+    # Update plan status if one was created
+    if plan_id is not None:
+        await _update_cancelled_plan_status(plan_id, cancellation_result)
+
+    # Store the partial result
+    await _store_cancellation_result(job_id, cancellation_result, scenes_processed)
+
+    raise
+
+
+async def _update_cancelled_plan_status(
+    plan_id: int, cancellation_result: dict[str, Any]
+) -> None:
+    """Update plan status to DRAFT and get actual change count."""
+    logger.info(f"Setting plan {plan_id} status to DRAFT due to job cancellation")
+
+    async with AsyncSessionLocal() as db:
+        from app.services.analysis.plan_manager import PlanManager
+
+        plan_manager = PlanManager()
+        cancelled_plan = await plan_manager.get_plan(plan_id, db)
+
+        if cancelled_plan is not None:
+            # Get actual change count
+            changes_query = select(PlanChange).where(PlanChange.plan_id == plan_id)
+            changes_result = await db.execute(changes_query)
+            changes_list = list(changes_result.scalars().all())
+
+            cancellation_result["total_changes"] = len(changes_list)
+            raw_summary = calculate_plan_summary(changes_list)
+            cancellation_result["summary"] = _format_summary(raw_summary)
+
+            if cancelled_plan.status == PlanStatus.PENDING:
+                cancelled_plan.status = PlanStatus.DRAFT  # type: ignore[assignment]
+                await db.commit()
+                logger.info(f"Successfully updated plan {plan_id} status to DRAFT")
+
+
+async def _store_cancellation_result(
+    job_id: str, cancellation_result: dict[str, Any], scenes_processed: int
+) -> None:
+    """Store the cancellation result in job metadata."""
+    async with AsyncSessionLocal() as db:
+        from app.repositories.job_repository import job_repository
+
+        job = await job_repository.get_job(job_id, db)
+        if job:
+            job.result = cancellation_result  # type: ignore[assignment]
+            job.processed_items = scenes_processed  # type: ignore[assignment]
+            await db.commit()
 
 
 async def _create_analysis_service() -> AnalysisService:
@@ -256,10 +390,10 @@ async def _apply_single_plan_in_bulk(
         return 0, [], e
 
 
-async def _trigger_incremental_sync_for_bulk(
-    job_id: str, plan_ids: list[int], total_applied: int
+async def _trigger_scene_sync_for_bulk(
+    job_id: str, modified_scene_ids: list[str]
 ) -> Optional[dict]:
-    """Trigger incremental sync after bulk apply."""
+    """Trigger scene sync after bulk apply."""
     try:
         from app.core.database import AsyncSessionLocal
         from app.models.job import JobType
@@ -267,24 +401,26 @@ async def _trigger_incremental_sync_for_bulk(
 
         async with AsyncSessionLocal() as db:
             sync_job = await job_service.create_job(
-                job_type=JobType.SYNC,
+                job_type=JobType.SYNC_SCENES,
                 db=db,
                 metadata={
-                    "incremental": True,
+                    "scene_ids": modified_scene_ids,
                     "triggered_by": f"bulk_apply_{job_id}",
-                    "plans_applied": plan_ids[:total_applied],
+                    "force": False,
                 },
             )
             await db.commit()
-            logger.info(f"Created incremental sync job {sync_job.id} after bulk apply")
+            logger.info(
+                f"Created scene sync job {sync_job.id} for {len(modified_scene_ids)} scenes after bulk apply"
+            )
             return None
     except Exception as sync_error:
         logger.error(
-            f"Failed to trigger incremental sync after bulk apply: {str(sync_error)}",
+            f"Failed to trigger scene sync after bulk apply: {str(sync_error)}",
             exc_info=True,
         )
         return {
-            "error": f"Failed to trigger incremental sync: {str(sync_error)}",
+            "error": f"Failed to trigger scene sync: {str(sync_error)}",
             "type": "sync_trigger_failure",
         }
 
@@ -297,14 +433,16 @@ async def _apply_bulk_plans(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Apply multiple analysis plans in bulk."""
-    total_plans = len(plan_ids)
-    total_applied = 0
-    total_failed = 0
-    total_changes_applied = 0
-    all_errors = []
+    # Initialize tracking variables
+    state = _BulkApplyState(plan_ids)
 
     # Create service instances
     analysis_service = await _create_analysis_service()
+
+    # Count total changes if needed
+    total_changes = await _count_total_changes_if_needed(
+        kwargs.get("total_changes", 0), plan_ids, progress_callback
+    )
 
     # Process each plan
     for idx, plan_id in enumerate(plan_ids):
@@ -312,56 +450,184 @@ async def _apply_bulk_plans(
             logger.info(f"Bulk apply job {job_id} cancelled")
             break
 
-        progress = int((idx / total_plans) * 90)  # Reserve last 10% for sync
-        await progress_callback(
-            progress,
-            f"Applied {total_changes_applied} changes from {idx}/{total_plans} plans",
+        await _process_single_plan(
+            analysis_service,
+            plan_id,
+            idx,
+            job_id,
+            state,
+            total_changes,
+            progress_callback,
         )
 
-        applied_changes, errors, exception = await _apply_single_plan_in_bulk(
-            analysis_service, plan_id, job_id
-        )
-
-        if exception:
-            total_failed += 1
-            all_errors.append(
-                {
-                    "plan_id": plan_id,
-                    "error": str(exception),
-                    "type": "plan_application_failure",
-                }
-            )
-        else:
-            if applied_changes > 0:
-                total_applied += 1
-                total_changes_applied += applied_changes
-            all_errors.extend(errors)
-
-    # If any changes were applied, trigger an incremental sync
-    if total_changes_applied > 0:
-        logger.info(
-            f"Bulk apply job {job_id} applied {total_changes_applied} changes, "
-            f"triggering incremental sync"
-        )
-        await progress_callback(95, "Starting incremental sync...")
-
-        sync_error = await _trigger_incremental_sync_for_bulk(
-            job_id, plan_ids, total_applied
-        )
-        if sync_error:
-            all_errors.append(sync_error)
+    # Trigger sync if needed
+    if state.total_changes_applied > 0 and state.all_modified_scene_ids:
+        await _trigger_sync_after_bulk_apply(job_id, state, progress_callback)
 
     await progress_callback(100, "Bulk apply completed")
 
     return {
         "job_type": "bulk_apply",
-        "total_plans": total_plans,
-        "plans_applied": total_applied,
-        "plans_failed": total_failed,
-        "total_changes_applied": total_changes_applied,
-        "errors": all_errors,
-        "success_rate": ((total_applied / total_plans * 100) if total_plans > 0 else 0),
+        "total_plans": len(plan_ids),
+        "plans_applied": state.total_applied,
+        "plans_failed": state.total_failed,
+        "total_changes_applied": state.total_changes_applied,
+        "errors": state.all_errors,
+        "success_rate": (
+            (state.total_applied / state.total_plans * 100)
+            if state.total_plans > 0
+            else 0
+        ),
     }
+
+
+class _BulkApplyState:
+    """Track state during bulk apply operation."""
+
+    def __init__(self, plan_ids: list[int]):
+        self.total_plans = len(plan_ids)
+        self.total_applied = 0
+        self.total_failed = 0
+        self.total_changes_applied = 0
+        self.all_errors: list[dict[str, Any]] = []
+        self.all_modified_scene_ids: set[str] = set()
+        self.changes_processed_so_far = 0
+
+
+async def _count_total_changes_if_needed(
+    existing_count: int,
+    plan_ids: list[int],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> int:
+    """Count total changes across all plans if not already provided."""
+    if existing_count > 0:
+        return existing_count
+
+    logger.info(f"Counting total changes across {len(plan_ids)} plans...")
+    await progress_callback(0, f"Counting changes across {len(plan_ids)} plans...")
+
+    total_changes = 0
+    async with AsyncSessionLocal() as db:
+        from sqlalchemy import func, or_, select
+
+        from app.models import PlanChange
+        from app.models.plan_change import ChangeStatus
+
+        for plan_id in plan_ids:
+            count_query = select(func.count(PlanChange.id)).where(
+                PlanChange.plan_id == plan_id,
+                or_(
+                    PlanChange.status == ChangeStatus.APPROVED,
+                    PlanChange.accepted.is_(True),
+                ),
+                PlanChange.applied.is_(False),
+            )
+            count_result = await db.execute(count_query)
+            plan_changes = count_result.scalar_one()
+            total_changes += plan_changes
+
+    logger.info(f"Found {total_changes} total changes to apply")
+    return total_changes
+
+
+async def _process_single_plan(
+    analysis_service: AnalysisService,
+    plan_id: int,
+    idx: int,
+    job_id: str,
+    state: _BulkApplyState,
+    total_changes: int,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> None:
+    """Process a single plan in the bulk apply operation."""
+    plan_progress_callback = _create_plan_progress_callback(
+        idx,
+        state.changes_processed_so_far,
+        state.total_plans,
+        total_changes,
+        progress_callback,
+    )
+
+    try:
+        result = await analysis_service.apply_plan(
+            plan_id=str(plan_id),
+            auto_approve=True,
+            job_id=f"{job_id}_plan_{plan_id}",
+            progress_callback=plan_progress_callback,
+        )
+
+        if result.errors:
+            for error in result.errors:
+                state.all_errors.append({**error, "plan_id": plan_id})
+
+        if result.applied_changes > 0:
+            state.total_applied += 1
+            state.total_changes_applied += result.applied_changes
+            state.all_modified_scene_ids.update(result.modified_scene_ids)
+
+        state.changes_processed_so_far = state.total_changes_applied
+
+    except Exception as e:
+        logger.error(f"Failed to apply plan {plan_id}: {str(e)}", exc_info=True)
+        state.total_failed += 1
+        state.all_errors.append(
+            {
+                "plan_id": plan_id,
+                "error": str(e),
+                "type": "plan_application_failure",
+            }
+        )
+
+
+def _create_plan_progress_callback(
+    current_idx: int,
+    current_changes_before: int,
+    total_plans: int,
+    total_changes: int,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> Callable[[int, str], Awaitable[None]]:
+    """Create a progress callback for individual plan processing."""
+
+    async def callback(plan_progress: int, message: str) -> None:
+        if total_changes > 0:
+            estimated_changes_per_plan = total_changes / total_plans
+            estimated_changes_in_progress = (
+                plan_progress / 100
+            ) * estimated_changes_per_plan
+            total_estimated_progress = (
+                current_changes_before + estimated_changes_in_progress
+            )
+            overall_progress = int((total_estimated_progress / total_changes) * 90)
+        else:
+            overall_progress = int(
+                ((current_idx + (plan_progress / 100)) / total_plans) * 90
+            )
+
+        await progress_callback(
+            min(overall_progress, 90),
+            f"Plan {current_idx + 1}/{total_plans}: {message}",
+        )
+
+    return callback
+
+
+async def _trigger_sync_after_bulk_apply(
+    job_id: str,
+    state: _BulkApplyState,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> None:
+    """Trigger scene sync after bulk apply completes."""
+    logger.info(
+        f"Bulk apply job {job_id} applied {state.total_changes_applied} changes "
+        f"to {len(state.all_modified_scene_ids)} scenes, triggering scene sync"
+    )
+    await progress_callback(95, "Starting scene sync...")
+
+    sync_error = await _trigger_scene_sync_for_bulk(
+        job_id, list(state.all_modified_scene_ids)
+    )
+    if sync_error:
+        state.all_errors.append(sync_error)
 
 
 async def apply_analysis_plan_job(
@@ -429,9 +695,9 @@ async def apply_analysis_plan_job(
         )
 
         # If changes were successfully applied, trigger an incremental sync
-        if result.applied_changes > 0:
+        if result.applied_changes > 0 and result.modified_scene_ids:
             logger.info(
-                f"Plan {plan_id} applied {result.applied_changes} changes, triggering incremental sync"
+                f"Plan {plan_id} applied {result.applied_changes} changes to {len(result.modified_scene_ids)} scenes, triggering incremental sync"
             )
             await progress_callback(
                 95,
@@ -444,30 +710,32 @@ async def apply_analysis_plan_job(
                 from app.services.job_service import job_service
 
                 async with AsyncSessionLocal() as db:
-                    # Create an incremental sync job
+                    # Create an incremental sync job for the modified scenes
                     sync_job = await job_service.create_job(
-                        job_type=JobType.SYNC,
+                        job_type=JobType.SYNC_SCENES,
                         db=db,
                         metadata={
+                            "scene_ids": result.modified_scene_ids,
                             "incremental": True,
                             "triggered_by": f"apply_plan_{plan_id}",
+                            "force": False,
                         },
                     )
                     await db.commit()
                     logger.info(
-                        f"Created incremental sync job {sync_job.id} after applying plan {plan_id}"
+                        f"Created incremental sync job {sync_job.id} for {len(result.modified_scene_ids)} scenes after applying plan {plan_id}"
                     )
 
             except Exception as sync_error:
                 # Log the error but don't fail the whole job
                 logger.error(
-                    f"Failed to trigger incremental sync after applying plan {plan_id}: {str(sync_error)}",
+                    f"Failed to trigger scene sync after applying plan {plan_id}: {str(sync_error)}",
                     exc_info=True,
                 )
                 # Add to errors but continue
                 result.errors.append(
                     {
-                        "error": f"Failed to trigger incremental sync: {str(sync_error)}",
+                        "error": f"Failed to trigger scene sync: {str(sync_error)}",
                         "type": "sync_trigger_failure",
                     }
                 )
@@ -508,7 +776,7 @@ async def generate_scene_details_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     scene_ids: Optional[list[str]] = None,
-    **kwargs: Any,
+    **kwargs: Any,  # noqa: ARG001
 ) -> dict[str, Any]:
     """Generate detailed information for scenes as a background job."""
     logger.info(

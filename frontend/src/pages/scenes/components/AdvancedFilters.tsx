@@ -236,7 +236,12 @@ export const AdvancedFilters: React.FC = () => {
                 <TagsOutlined />
                 Tags
                 {renderFilterCount(
-                  Array.isArray(filters.tag_ids) ? filters.tag_ids.length : 0
+                  (Array.isArray(filters.tag_ids)
+                    ? filters.tag_ids.length
+                    : 0) +
+                    (Array.isArray(filters.exclude_tag_ids)
+                      ? filters.exclude_tag_ids.length
+                      : 0)
                 )}
               </Space>
             }
@@ -248,35 +253,90 @@ export const AdvancedFilters: React.FC = () => {
                   Error loading tags: {(tagsError as Error).message}
                 </div>
               ) : null}
-              <Select
-                mode="multiple"
-                placeholder="Select tags..."
-                value={Array.isArray(filters.tag_ids) ? filters.tag_ids : []}
-                onChange={(value: string[]) => updateFilter('tag_ids', value)}
+              <Space
+                direction="vertical"
                 style={{ width: '100%' }}
-                showSearch
-                filterOption={(input, option) => {
-                  if (!option || !option.label) return false;
-                  return option.label
-                    .toString()
-                    .toLowerCase()
-                    .includes(input.toLowerCase());
-                }}
-                options={
-                  tags.map((t) => ({
-                    label: t.name,
-                    value: t.id.toString(),
-                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-                }
-                maxTagCount="responsive"
-                notFoundContent={
-                  loadingTags
-                    ? 'Loading...'
-                    : tags.length === 0
-                      ? 'No tags found'
-                      : 'No matching tags'
-                }
-              />
+                size="middle"
+              >
+                <div>
+                  <div style={{ marginBottom: 8, fontWeight: 500 }}>
+                    Include Tags:
+                  </div>
+                  <Select
+                    mode="multiple"
+                    placeholder="Select tags to include..."
+                    value={
+                      Array.isArray(filters.tag_ids) ? filters.tag_ids : []
+                    }
+                    onChange={(value: string[]) =>
+                      updateFilter('tag_ids', value)
+                    }
+                    style={{ width: '100%' }}
+                    showSearch
+                    filterOption={(input, option) => {
+                      if (!option || !option.label) return false;
+                      return option.label
+                        .toString()
+                        .toLowerCase()
+                        .includes(input.toLowerCase());
+                    }}
+                    options={
+                      tags.map((t) => ({
+                        label: t.name,
+                        value: t.id.toString(),
+                      })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                    }
+                    maxTagCount="responsive"
+                    notFoundContent={
+                      loadingTags
+                        ? 'Loading...'
+                        : tags.length === 0
+                          ? 'No tags found'
+                          : 'No matching tags'
+                    }
+                  />
+                </div>
+                <div>
+                  <div style={{ marginBottom: 8, fontWeight: 500 }}>
+                    Exclude Tags:
+                  </div>
+                  <Select
+                    mode="multiple"
+                    placeholder="Select tags to exclude..."
+                    value={
+                      Array.isArray(filters.exclude_tag_ids)
+                        ? filters.exclude_tag_ids
+                        : []
+                    }
+                    onChange={(value: string[]) =>
+                      updateFilter('exclude_tag_ids', value)
+                    }
+                    style={{ width: '100%' }}
+                    showSearch
+                    filterOption={(input, option) => {
+                      if (!option || !option.label) return false;
+                      return option.label
+                        .toString()
+                        .toLowerCase()
+                        .includes(input.toLowerCase());
+                    }}
+                    options={
+                      tags.map((t) => ({
+                        label: t.name,
+                        value: t.id.toString(),
+                      })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                    }
+                    maxTagCount="responsive"
+                    notFoundContent={
+                      loadingTags
+                        ? 'Loading...'
+                        : tags.length === 0
+                          ? 'No tags found'
+                          : 'No matching tags'
+                    }
+                  />
+                </div>
+              </Space>
             </Spin>
           </Panel>
 

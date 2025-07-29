@@ -333,6 +333,9 @@ class SceneFilter(BaseSchema):
         None, description="Filter by performer IDs"
     )
     tag_ids: Optional[list[str]] = Field(None, description="Filter by tag IDs")
+    exclude_tag_ids: Optional[list[str]] = Field(
+        None, description="Filter by tag IDs to exclude"
+    )
     organized: Optional[bool] = Field(None, description="Filter by organized status")
     analyzed: Optional[bool] = Field(None, description="Filter by analyzed status")
     video_analyzed: Optional[bool] = Field(

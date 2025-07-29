@@ -218,7 +218,13 @@ export interface Job {
     | 'sync_studios'
     | 'analysis'
     | 'apply_plan';
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status:
+    | 'pending'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'cancelling';
   progress: number;
   total?: number;
   processed_items?: number;

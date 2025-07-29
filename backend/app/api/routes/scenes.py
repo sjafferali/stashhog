@@ -36,6 +36,7 @@ async def parse_scene_filters(
     studio_id: Optional[str] = Query(None),
     performer_ids: Annotated[Optional[List[str]], Query()] = None,
     tag_ids: Annotated[Optional[List[str]], Query()] = None,
+    exclude_tag_ids: Annotated[Optional[List[str]], Query()] = None,
     organized: Optional[bool] = Query(None),
     analyzed: Optional[bool] = Query(None),
     video_analyzed: Optional[bool] = Query(None),
@@ -64,6 +65,7 @@ async def parse_scene_filters(
         studio_id=studio_id,
         performer_ids=performer_ids or [],
         tag_ids=tag_ids or [],
+        exclude_tag_ids=exclude_tag_ids or [],
         organized=organized,
         analyzed=analyzed,
         video_analyzed=video_analyzed,
@@ -76,11 +78,29 @@ def _build_scene_filter_conditions(
     filters: SceneFilter, query: Any
 ) -> tuple[Any, list[Any]]:
     """Build filter conditions for scene query."""
-    conditions = []
+    conditions: list[Any] = []
 
+    # Apply search filter
+    query, conditions = _apply_search_filter(filters, query, conditions)
+
+    # Apply ID-based filters
+    query, conditions = _apply_id_filters(filters, query, conditions)
+
+    # Apply boolean filters
+    conditions = _apply_boolean_filters(filters, conditions)
+
+    # Apply date filters
+    conditions = _apply_date_filters(filters, conditions)
+
+    return query, conditions
+
+
+def _apply_search_filter(
+    filters: SceneFilter, query: Any, conditions: list[Any]
+) -> tuple[Any, list[Any]]:
+    """Apply search filter to query."""
     if filters.search:
         search_term = f"%{filters.search}%"
-        # Join with files table to search file paths
         query = query.outerjoin(Scene.files)
         conditions.append(
             or_(
@@ -89,7 +109,13 @@ def _build_scene_filter_conditions(
                 SceneFile.path.ilike(search_term),
             )
         )
+    return query, conditions
 
+
+def _apply_id_filters(
+    filters: SceneFilter, query: Any, conditions: list[Any]
+) -> tuple[Any, list[Any]]:
+    """Apply ID-based filters to query."""
     if filters.studio_id:
         conditions.append(Scene.studio_id == filters.studio_id)
 
@@ -101,6 +127,20 @@ def _build_scene_filter_conditions(
         query = query.join(Scene.tags)
         conditions.append(Tag.id.in_(filters.tag_ids))
 
+    if filters.exclude_tag_ids:
+        excluded_scenes = (
+            select(Scene.id)
+            .join(Scene.tags)
+            .where(Tag.id.in_(filters.exclude_tag_ids))
+            .distinct()
+        )
+        conditions.append(~Scene.id.in_(excluded_scenes))
+
+    return query, conditions
+
+
+def _apply_boolean_filters(filters: SceneFilter, conditions: list[Any]) -> list[Any]:
+    """Apply boolean filters to conditions."""
     if filters.organized is not None:
         conditions.append(Scene.organized == filters.organized)
 
@@ -110,13 +150,18 @@ def _build_scene_filter_conditions(
     if filters.video_analyzed is not None:
         conditions.append(Scene.video_analyzed == filters.video_analyzed)
 
+    return conditions
+
+
+def _apply_date_filters(filters: SceneFilter, conditions: list[Any]) -> list[Any]:
+    """Apply date filters to conditions."""
     if filters.date_from:
         conditions.append(Scene.stash_date >= filters.date_from)
 
     if filters.date_to:
         conditions.append(Scene.stash_date <= filters.date_to)
 
-    return query, conditions
+    return conditions
 
 
 def _apply_scene_sorting(query: Any, pagination: PaginationParams) -> Any:

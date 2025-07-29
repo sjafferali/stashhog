@@ -5,13 +5,16 @@ import { SceneQueryParams } from './useScenes';
 export type SceneFilters = Omit<
   SceneQueryParams,
   'page' | 'per_page' | 'sort_by' | 'sort_order'
->;
+> & {
+  exclude_tag_ids?: string[];
+};
 
 const DEFAULT_FILTERS: SceneFilters = {
   search: '',
   scene_ids: [],
   performer_ids: [],
   tag_ids: [],
+  exclude_tag_ids: [],
   studio_id: undefined,
   organized: undefined,
   analyzed: undefined,
@@ -62,6 +65,11 @@ export function useSceneFilters() {
     const tagIds = searchParams.get('tag_ids');
     if (tagIds) {
       params.tag_ids = tagIds.split(',').filter(Boolean);
+    }
+
+    const excludeTagIds = searchParams.get('exclude_tag_ids');
+    if (excludeTagIds) {
+      params.exclude_tag_ids = excludeTagIds.split(',').filter(Boolean);
     }
 
     // Single studio ID
@@ -159,6 +167,12 @@ export function useSceneFilters() {
       filters.tag_ids &&
       Array.isArray(filters.tag_ids) &&
       filters.tag_ids.length > 0
+    )
+      count++;
+    if (
+      filters.exclude_tag_ids &&
+      Array.isArray(filters.exclude_tag_ids) &&
+      filters.exclude_tag_ids.length > 0
     )
       count++;
     if (filters.studio_id) count++;

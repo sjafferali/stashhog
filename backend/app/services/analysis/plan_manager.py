@@ -400,6 +400,7 @@ class PlanManager:
             applied_changes=result_data["applied_changes"],
             failed_changes=result_data["failed_changes"],
             errors=result_data["errors"],
+            modified_scene_ids=result_data.get("modified_scene_ids", []),
         )
 
     async def _validate_plan_for_apply(
@@ -455,6 +456,7 @@ class PlanManager:
         applied_changes = 0
         failed_changes = 0
         errors = []
+        modified_scene_ids = set()
 
         # Count changes to apply first
         changes_to_apply = [
@@ -473,6 +475,8 @@ class PlanManager:
                 success = await self.apply_single_change(change, db, stash_service)
                 if success:
                     applied_changes += 1
+                    # Track the scene ID that was modified
+                    modified_scene_ids.add(str(change.scene_id))
                 else:
                     failed_changes += 1
             except Exception as e:
@@ -492,6 +496,7 @@ class PlanManager:
             "applied_changes": applied_changes,
             "failed_changes": failed_changes,
             "errors": errors,
+            "modified_scene_ids": list(modified_scene_ids),
         }
 
     def _should_apply_change(

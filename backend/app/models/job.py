@@ -19,6 +19,7 @@ class JobStatus(str, enum.Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    CANCELLING = "cancelling"
 
     # Alias for compatibility
     IN_PROGRESS = "running"
@@ -90,6 +91,7 @@ class Job(BaseModel):
             "COMPLETED",
             "FAILED",
             "CANCELLED",
+            "CANCELLING",
             name="jobstatus",
             create_type=False,  # Don't try to create the type, it already exists
         ),
@@ -155,7 +157,13 @@ class Job(BaseModel):
         """
         self.status = JobStatus.COMPLETED  # type: ignore[assignment]
         self.completed_at = datetime.utcnow()  # type: ignore[assignment]
-        self.progress = 100  # type: ignore[assignment]
+        # Only set progress to 100 if job actually completed all items
+        if self.total_items and self.processed_items:
+            # Keep actual progress if we have item counts
+            self.progress = int((self.processed_items / self.total_items) * 100)  # type: ignore[assignment]
+        else:
+            # Default to 100 only if we don't have better information
+            self.progress = 100  # type: ignore[assignment]
         if result:
             self.result = result  # type: ignore[assignment]
 
@@ -170,10 +178,15 @@ class Job(BaseModel):
         self.completed_at = datetime.utcnow()  # type: ignore[assignment]
         self.error = error  # type: ignore[assignment]
 
+    def mark_cancelling(self) -> None:
+        """Mark job as cancelling (cancellation requested)."""
+        self.status = JobStatus.CANCELLING  # type: ignore[assignment]
+
     def mark_cancelled(self) -> None:
         """Mark job as cancelled."""
         self.status = JobStatus.CANCELLED  # type: ignore[assignment]
         self.completed_at = datetime.utcnow()  # type: ignore[assignment]
+        # Do NOT set progress to 100 for cancelled jobs
 
     def get_duration_seconds(self) -> Optional[float]:
         """Get job duration in seconds."""
@@ -198,7 +211,11 @@ class Job(BaseModel):
 
     def can_be_cancelled(self) -> bool:
         """Check if job can be cancelled."""
-        return self.status in [JobStatus.PENDING, JobStatus.RUNNING]
+        return self.status in [
+            JobStatus.PENDING,
+            JobStatus.RUNNING,
+            JobStatus.CANCELLING,
+        ]
 
     def add_result_data(self, key: str, value: Any) -> None:
         """Add data to job result."""

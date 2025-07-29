@@ -31,6 +31,7 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
     scene_ids: [],
     performer_ids: [],
     tag_ids: [],
+    exclude_tag_ids: [],
     studio_id: undefined,
     organized: undefined,
     analyzed: undefined,
@@ -53,6 +54,11 @@ export function parseFilterQuery(params: URLSearchParams): SceneFilters {
   const tagIds = params.get('tag_ids');
   if (tagIds) {
     filters.tag_ids = tagIds.split(',').filter(Boolean);
+  }
+
+  const excludeTagIds = params.get('exclude_tag_ids');
+  if (excludeTagIds) {
+    filters.exclude_tag_ids = excludeTagIds.split(',').filter(Boolean);
   }
 
   // Parse single studio ID
@@ -102,6 +108,12 @@ export function getActiveFilterCount(filters: SceneFilters): number {
     filters.tag_ids.length > 0
   )
     count++;
+  if (
+    filters.exclude_tag_ids &&
+    Array.isArray(filters.exclude_tag_ids) &&
+    filters.exclude_tag_ids.length > 0
+  )
+    count++;
   if (filters.studio_id) count++;
   if (filters.organized !== undefined) count++;
   if (filters.analyzed !== undefined) count++;
@@ -118,6 +130,7 @@ export function getDefaultFilters(): SceneFilters {
     scene_ids: [],
     performer_ids: [],
     tag_ids: [],
+    exclude_tag_ids: [],
     studio_id: undefined,
     organized: undefined,
     analyzed: undefined,
@@ -140,6 +153,9 @@ export function mergeWithQueryParams(
       ? filters.performer_ids
       : [],
     tag_ids: Array.isArray(filters.tag_ids) ? filters.tag_ids : [],
+    exclude_tag_ids: Array.isArray(filters.exclude_tag_ids)
+      ? filters.exclude_tag_ids
+      : [],
   };
 }
 
@@ -150,6 +166,7 @@ export function getFilterDisplayName(key: string | number): string {
     scene_ids: 'Scene IDs',
     performer_ids: 'Performers',
     tag_ids: 'Tags',
+    exclude_tag_ids: 'Exclude Tags',
     studio_id: 'Studio',
     organized: 'Organized',
     analyzed: 'Analyzed',

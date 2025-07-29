@@ -254,6 +254,20 @@ class JobService:
         if not job:
             return False
 
+        # First, mark job as CANCELLING
+        await job_repository.update_job_status(
+            job_id=job_id,
+            status=JobStatus.CANCELLING,
+            db=db,
+            message="Cancellation requested",
+        )
+
+        # Send WebSocket notification for CANCELLING status
+        await self._send_job_update(
+            job_id,
+            {"status": JobStatus.CANCELLING.value, "message": "Cancelling job..."},
+        )
+
         # Cancel using cancellation token
         cancellation_manager.cancel_job(job_id)
 
@@ -263,15 +277,9 @@ class JobService:
             task_queue = get_task_queue()
             await task_queue.cancel_task(task_id)
 
-        # Update job status
-        await job_repository.cancel_job(job_id, db)
+        # The actual CANCELLED status will be set by the job handler when it detects cancellation
 
-        # Send WebSocket notification
-        await self._send_job_update(
-            job_id, {"status": JobStatus.CANCELLED.value, "message": "Job cancelled"}
-        )
-
-        logger.info(f"Cancelled job {job_id}")
+        logger.info(f"Initiated cancellation for job {job_id}")
         return True
 
     async def _update_job_status_with_session(

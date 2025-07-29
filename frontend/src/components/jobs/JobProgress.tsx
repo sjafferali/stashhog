@@ -75,7 +75,12 @@ export const JobProgress: React.FC<JobProgressProps> = ({
 
     // Poll for updates as a temporary solution
     const interval = setInterval(() => {
-      if (job && (job.status === 'running' || job.status === 'pending')) {
+      if (
+        job &&
+        (job.status === 'running' ||
+          job.status === 'pending' ||
+          job.status === 'cancelling')
+      ) {
         void fetchJob();
       }
     }, 2000);
@@ -151,6 +156,8 @@ export const JobProgress: React.FC<JobProgressProps> = ({
         return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
       case 'running':
         return <SyncOutlined spin style={{ color: '#1890ff' }} />;
+      case 'cancelling':
+        return <ClockCircleOutlined style={{ color: '#faad14' }} />;
       default:
         return <ClockCircleOutlined style={{ color: '#faad14' }} />;
     }
@@ -196,7 +203,9 @@ export const JobProgress: React.FC<JobProgressProps> = ({
                 ? 'green'
                 : job.status === 'failed'
                   ? 'red'
-                  : 'blue'
+                  : job.status === 'cancelling'
+                    ? 'orange'
+                    : 'blue'
             }
           >
             {job.status.toUpperCase()}
@@ -208,6 +217,7 @@ export const JobProgress: React.FC<JobProgressProps> = ({
             Cancel
           </Button>
         )}
+        {job.status === 'cancelling' && <Button disabled>Cancelling...</Button>}
       </div>
 
       <div className={styles.progressSection}>
@@ -230,12 +240,16 @@ export const JobProgress: React.FC<JobProgressProps> = ({
               ? 'exception'
               : job.status === 'completed'
                 ? 'success'
-                : 'active'
+                : job.status === 'cancelling'
+                  ? 'exception'
+                  : 'active'
           }
           strokeColor={
             job.status === 'running'
               ? { '0%': '#108ee9', '100%': '#87d068' }
-              : undefined
+              : job.status === 'cancelling'
+                ? { '0%': '#ff7a45', '100%': '#ffa940' }
+                : undefined
           }
         />
       </div>

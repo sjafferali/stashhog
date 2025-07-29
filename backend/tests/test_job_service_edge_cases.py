@@ -77,6 +77,7 @@ class TestJobServiceEdgeCases:
         mock_job_repo.get_job = AsyncMock(return_value=mock_job)
         mock_job_repo.cancel_job = AsyncMock()
         mock_job_repo._fetch_job = AsyncMock(return_value=mock_job)
+        mock_job_repo.update_job_status = AsyncMock()
         mock_ws_manager.broadcast_job_update = AsyncMock()
 
         mock_task_queue = Mock()
@@ -87,7 +88,12 @@ class TestJobServiceEdgeCases:
         result = await job_service.cancel_job(job_id, mock_db)
 
         assert result is True
-        mock_job_repo.cancel_job.assert_called_once_with(job_id, mock_db)
+        mock_job_repo.update_job_status.assert_called_once_with(
+            job_id=job_id,
+            status=JobStatus.CANCELLING,
+            db=mock_db,
+            message="Cancellation requested",
+        )
 
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
@@ -106,6 +112,7 @@ class TestJobServiceEdgeCases:
         mock_job_repo.get_job = AsyncMock(return_value=mock_job)
         mock_job_repo.cancel_job = AsyncMock()
         mock_job_repo._fetch_job = AsyncMock(return_value=mock_job)
+        mock_job_repo.update_job_status = AsyncMock()
         mock_ws_manager.broadcast_job_update = AsyncMock()
 
         mock_task_queue = Mock()
@@ -116,7 +123,12 @@ class TestJobServiceEdgeCases:
         result = await job_service.cancel_job(job_id, mock_db)
 
         assert result is True
-        mock_job_repo.cancel_job.assert_called_once_with(job_id, mock_db)
+        mock_job_repo.update_job_status.assert_called_once_with(
+            job_id=job_id,
+            status=JobStatus.CANCELLING,
+            db=mock_db,
+            message="Cancellation requested",
+        )
 
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
@@ -134,12 +146,18 @@ class TestJobServiceEdgeCases:
         mock_job_repo.get_job = AsyncMock(return_value=mock_job)
         mock_job_repo.cancel_job = AsyncMock()
         mock_job_repo._fetch_job = AsyncMock(return_value=mock_job)
+        mock_job_repo.update_job_status = AsyncMock()
         mock_ws_manager.broadcast_job_update = AsyncMock()
 
         result = await job_service.cancel_job(job_id, mock_db)
 
         assert result is True
-        mock_job_repo.cancel_job.assert_called_once_with(job_id, mock_db)
+        mock_job_repo.update_job_status.assert_called_once_with(
+            job_id=job_id,
+            status=JobStatus.CANCELLING,
+            db=mock_db,
+            message="Cancellation requested",
+        )
 
     @pytest.mark.asyncio
     @patch("app.services.job_service.job_repository")
