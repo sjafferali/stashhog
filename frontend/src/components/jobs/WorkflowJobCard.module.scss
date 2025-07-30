@@ -1,0 +1,134 @@
+.workflowJobCard {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .cardHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    
+    h5 {
+      margin: 0;
+    }
+  }
+
+  .content {
+    .stepsSection {
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #fafafa;
+      border-radius: 8px;
+
+      .workflowSteps {
+        :global {
+          .ant-steps-item-title {
+            font-size: 13px;
+          }
+
+          .ant-steps-item-description {
+            font-size: 12px;
+          }
+
+          .ant-steps-item-process .ant-steps-item-icon {
+            background: #1890ff;
+          }
+
+          .ant-steps-item-error .ant-steps-item-icon {
+            background: #ff4d4f;
+          }
+        }
+      }
+    }
+
+    .progressSection {
+      margin-bottom: 16px;
+
+      .progressInfo {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+    }
+
+    .subJobCollapse {
+      margin-bottom: 16px;
+      background: #f5f7fa;
+      border-radius: 8px;
+
+      :global {
+        .ant-collapse-header {
+          font-weight: 500;
+        }
+
+        .ant-collapse-content {
+          background: transparent;
+        }
+      }
+
+      .subJobInfo {
+        .subJobHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+      }
+    }
+
+    .resultCollapse {
+      margin-top: 16px;
+      background: #f0f2f5;
+      border-radius: 8px;
+
+      :global {
+        .ant-collapse-header {
+          font-weight: 500;
+        }
+
+        .ant-collapse-content {
+          background: transparent;
+        }
+      }
+    }
+
+    .details {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .error {
+      margin-top: 16px;
+      padding: 12px;
+      background: #fff2e8;
+      border: 1px solid #ffbb96;
+      border-radius: 4px;
+
+      :global {
+        .ant-typography {
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+
+  :global {
+    .ant-card-head {
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ant-card-body {
+      padding: 20px;
+    }
+
+    .ant-badge-status-text {
+      font-size: 13px;
+    }
+  }
+}

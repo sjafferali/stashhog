@@ -125,7 +125,7 @@ class JobService:
         logger.info(f"Created job {job_id} of type {job_type.value}")
         return job
 
-    async def _execute_job_with_lock(
+    async def _execute_job_with_lock(  # noqa: C901
         self,
         job_id: str,
         job_type: JobType,
@@ -158,10 +158,20 @@ class JobService:
 
             # Create an async progress callback that uses its own session
             async def async_progress_callback(
-                progress: int, message: Optional[str] = None
+                progress: Optional[int], message: Optional[str] = None
             ) -> None:
                 # Use _update_job_progress which parses the message for counts
-                await self._update_job_progress(job_id, progress, message)
+                if progress is not None:
+                    await self._update_job_progress(job_id, progress, message)
+                elif message:
+                    # Just update the message without changing progress
+                    async with AsyncSessionLocal() as db:
+                        job = await self.get_job(job_id, db)
+                        if job and job.job_metadata:
+                            metadata = job.job_metadata
+                            metadata["message"] = message
+                            job.job_metadata = metadata
+                            await db.commit()
 
             # Execute handler with job context
             result = await handler(

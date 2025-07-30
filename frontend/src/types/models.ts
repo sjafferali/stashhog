@@ -256,9 +256,23 @@ export interface Job {
   updated_at: string;
   started_at?: string;
   completed_at?: string;
-  metadata?: Record<string, string | number | boolean | null> & {
+  metadata?: Record<
+    string,
+    string | number | boolean | null | Record<string, unknown>
+  > & {
     last_message?: string;
     plan_id?: number;
+    // Workflow job metadata
+    current_step?: number;
+    total_steps?: number;
+    step_name?: string;
+    active_sub_job?: {
+      id: string;
+      type: string;
+      status: string;
+      progress: number;
+    };
+    message?: string;
   };
 }
 

@@ -6,3 +6,6 @@ export type { JobProgressProps } from './JobProgress';
 
 export { JobList } from './JobList';
 export type { JobListProps } from './JobList';
+
+export { WorkflowJobCard } from './WorkflowJobCard';
+export type { WorkflowJobCardProps } from './WorkflowJobCard';

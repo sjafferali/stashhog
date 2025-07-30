@@ -22,6 +22,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
 import { getJobTypeLabel, formatJobProgress } from '@/utils/jobUtils';
+import { WorkflowJobCard } from './WorkflowJobCard';
 import styles from './JobCard.module.scss';
 
 const { Text, Title } = Typography;
@@ -47,6 +48,17 @@ export const JobCard: React.FC<JobCardProps> = ({
   compact = false,
   showDetails = true,
 }) => {
+  // Use WorkflowJobCard for workflow jobs
+  if (job.type === 'process_new_scenes' && !compact) {
+    return (
+      <WorkflowJobCard
+        job={job}
+        onCancel={onCancel}
+        onRetry={onRetry}
+        onDelete={onDelete}
+      />
+    );
+  }
   const getStatusIcon = () => {
     switch (job.status) {
       case 'pending':

@@ -24,14 +24,15 @@ from app.services.job_service import JobService
 logger = logging.getLogger(__name__)
 
 
-async def _create_and_run_subjob(
+async def _create_and_run_subjob(  # noqa: C901
     job_service: JobService,
     job_type: JobType,
     metadata: Dict[str, Any],
     parent_job_id: str,
     step_name: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
+    step_info: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Create and run a sub-job, polling until completion."""
     logger.info(f"Starting {step_name} for parent job {parent_job_id}")
@@ -47,6 +48,34 @@ async def _create_and_run_subjob(
         sub_job_id = str(sub_job.id)
 
     logger.info(f"Created sub-job {sub_job_id} for {step_name}")
+
+    # Update parent job metadata with current sub-job info
+    if step_info:
+        async with AsyncSessionLocal() as db:
+            parent_job = await job_service.get_job(parent_job_id, db)
+            if parent_job:
+                # Get current metadata or create new dict
+                raw_metadata: Any = parent_job.job_metadata or {}
+                current_metadata: Dict[str, Any] = (
+                    raw_metadata if isinstance(raw_metadata, dict) else {}
+                )
+                updated_metadata = current_metadata.copy()
+
+                updated_metadata.update(
+                    {
+                        "current_step": step_info.get("current_step", 1),
+                        "total_steps": step_info.get("total_steps", 6),
+                        "step_name": step_name,
+                        "active_sub_job": {
+                            "id": sub_job_id,
+                            "type": job_type.value,
+                            "status": "running",
+                            "progress": 0,
+                        },
+                    }
+                )
+                parent_job.job_metadata = updated_metadata  # type: ignore
+                await db.commit()
 
     # Poll for completion
     poll_interval = 2  # seconds
@@ -68,10 +97,39 @@ async def _create_and_run_subjob(
                 return None
             sub_job = sub_job_result
 
+            # Update parent job metadata with sub-job status
+            parent_job = await job_service.get_job(parent_job_id, db)
+            if parent_job and parent_job.job_metadata:
+                # Get current metadata
+                parent_metadata: Dict[str, Any] = (
+                    parent_job.job_metadata
+                    if isinstance(parent_job.job_metadata, dict)
+                    else {}
+                )
+                if "active_sub_job" in parent_metadata:
+                    updated_metadata = parent_metadata.copy()
+                    updated_metadata["active_sub_job"]["status"] = sub_job.status.value
+                    updated_metadata["active_sub_job"]["progress"] = sub_job.progress
+                    parent_job.job_metadata = updated_metadata  # type: ignore
+                    await db.commit()
+
             if sub_job.is_finished():
                 logger.info(
                     f"Sub-job {sub_job_id} finished with status: {sub_job.status}"
                 )
+                # Clear active sub-job from parent metadata
+                if parent_job and parent_job.job_metadata:
+                    job_metadata_for_clear: Dict[str, Any] = (
+                        parent_job.job_metadata
+                        if isinstance(parent_job.job_metadata, dict)
+                        else {}
+                    )
+                    if "active_sub_job" in job_metadata_for_clear:
+                        cleared_metadata = job_metadata_for_clear.copy()
+                        cleared_metadata["active_sub_job"] = None
+                        parent_job.job_metadata = cleared_metadata  # type: ignore
+                        await db.commit()
+
                 # Return the result
                 return {
                     "job_id": sub_job_id,
@@ -86,14 +144,16 @@ async def _create_and_run_subjob(
                 }
 
             # Update progress with sub-job progress
-            sub_progress = int(sub_job.progress or 0)
             # Handle job_metadata which could be None, dict, or SQLAlchemy Column
             raw_metadata = sub_job.job_metadata
             job_metadata: Dict[str, Any] = (
                 raw_metadata if isinstance(raw_metadata, dict) else {}
             )
+
+            # Don't update the parent progress directly here - let the main workflow handle it
+            # Just update the message
             await progress_callback(
-                sub_progress,
+                None,  # Don't change progress
                 f"{step_name}: {job_metadata.get('message', 'In progress...')}",
             )
 
@@ -133,7 +193,7 @@ async def _analyze_batch(
     batch_num: int,
     total_batches: int,
     parent_job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run analysis on a batch of scenes."""
@@ -157,6 +217,7 @@ async def _analyze_batch(
         f"Analysis batch {batch_num}/{total_batches}",
         progress_callback,
         cancellation_token,
+        {"current_step": 4, "total_steps": 6},
     )
 
 
@@ -196,7 +257,7 @@ async def _process_analysis_batch(
     batch_num: int,
     total_batches: int,
     parent_job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Process a batch of scenes through analysis and apply changes."""
@@ -252,6 +313,7 @@ async def _process_analysis_batch(
             f"Apply changes batch {batch_num}/{total_batches}",
             progress_callback,
             cancellation_token,
+            {"current_step": 4, "total_steps": 6},
         )
 
         if not apply_result or apply_result["status"] != "completed":
@@ -274,10 +336,11 @@ async def _run_workflow_step(
     metadata: Dict[str, Any],
     parent_job_id: str,
     step_name: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any],
     workflow_result: Dict[str, Any],
     result_key: str,
+    step_info: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run a workflow step and update results."""
     result = await _create_and_run_subjob(
@@ -288,6 +351,7 @@ async def _run_workflow_step(
         step_name,
         progress_callback,
         cancellation_token,
+        step_info,
     )
 
     workflow_result["steps"][result_key] = result
@@ -302,7 +366,7 @@ async def _run_workflow_step(
 async def _process_downloads_step(
     job_service: JobService,
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any],
     workflow_result: Dict[str, Any],
 ) -> Optional[int]:
@@ -319,6 +383,7 @@ async def _process_downloads_step(
         cancellation_token,
         workflow_result,
         "process_downloads",
+        {"current_step": 1, "total_steps": 6},
     )
 
     if not downloads_result or downloads_result["status"] != "completed":
@@ -332,9 +397,9 @@ async def _process_downloads_step(
     return int(synced_items)
 
 
-async def process_new_scenes_job(
+async def process_new_scenes_job(  # noqa: C901
     job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
@@ -358,9 +423,57 @@ async def process_new_scenes_job(
         },
     }
 
+    # Step weights for progress calculation
+    STEP_WEIGHTS = {
+        1: (0, 15),  # Process Downloads: 0-15%
+        2: (15, 30),  # Stash Scan: 15-30%
+        3: (30, 45),  # Incremental Sync: 30-45%
+        4: (45, 80),  # Batch Analysis: 45-80%
+        5: (80, 95),  # Stash Generate: 80-95%
+        6: (95, 100),  # Completion: 95-100%
+    }
+
+    # Track current step for weighted progress
+    current_step_info = {"step": 0, "step_start": 0, "step_end": 0}
+
+    # Create a weighted progress callback
+    async def weighted_progress_callback(
+        progress: Optional[int], message: Optional[str]
+    ) -> None:
+        """Update progress with weighted calculation based on current step."""
+        if progress is not None:
+            # Use the direct progress value (for manual progress setting)
+            await progress_callback(progress, message)
+        elif message:
+            # Just update the message without changing progress
+            await progress_callback(None, message)
+
+    def set_current_step(step_num: int) -> None:
+        """Set the current step for weighted progress calculation."""
+        if step_num in STEP_WEIGHTS:
+            current_step_info["step"] = step_num
+            current_step_info["step_start"], current_step_info["step_end"] = (
+                STEP_WEIGHTS[step_num]
+            )
+
+    async def step_progress_callback(
+        progress: Optional[int], message: Optional[str]
+    ) -> None:
+        """Calculate weighted progress based on current step."""
+        if progress is not None and current_step_info["step"] > 0:
+            # Calculate weighted progress within the current step's range
+            step_start = current_step_info["step_start"]
+            step_end = current_step_info["step_end"]
+            step_range = step_end - step_start
+            weighted_progress = int(step_start + (progress / 100.0) * step_range)
+            await progress_callback(weighted_progress, message)
+        else:
+            # Just pass through the message
+            await progress_callback(progress, message)
+
     try:
         # Initial progress
-        await progress_callback(0, "Starting process new scenes workflow")
+        await weighted_progress_callback(0, "Starting process new scenes workflow")
 
         # Create job service instance
         from app.core.dependencies import get_job_service
@@ -369,7 +482,11 @@ async def process_new_scenes_job(
 
         # Step 1: Process downloads
         synced_items = await _process_downloads_step(
-            job_service, job_id, progress_callback, cancellation_token, workflow_result
+            job_service,
+            job_id,
+            progress_callback,
+            cancellation_token,
+            workflow_result,
         )
 
         if synced_items is None:
@@ -377,11 +494,13 @@ async def process_new_scenes_job(
 
         if synced_items == 0:
             logger.info("No new items downloaded, ending workflow")
-            await progress_callback(100, "Workflow completed: No new items to process")
+            await weighted_progress_callback(
+                100, "Workflow completed: No new items to process"
+            )
             return workflow_result
 
         # Step 2: Stash metadata scan
-        await progress_callback(
+        await weighted_progress_callback(
             20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
         )
         await _run_workflow_step(
@@ -394,10 +513,11 @@ async def process_new_scenes_job(
             cancellation_token,
             workflow_result,
             "stash_scan",
+            {"current_step": 2, "total_steps": 6},
         )
 
         # Step 3: Incremental sync
-        await progress_callback(35, "Step 3/6: Running incremental sync")
+        await weighted_progress_callback(35, "Step 3/6: Running incremental sync")
         await _run_workflow_step(
             job_service,
             JobType.SYNC,
@@ -408,10 +528,11 @@ async def process_new_scenes_job(
             cancellation_token,
             workflow_result,
             "incremental_sync",
+            {"current_step": 3, "total_steps": 6},
         )
 
         # Step 4: Get unanalyzed scenes and process in batches
-        await progress_callback(50, "Step 4/6: Analyzing unanalyzed scenes")
+        await weighted_progress_callback(50, "Step 4/6: Analyzing unanalyzed scenes")
         scene_batches = await _get_unanalyzed_scenes()
 
         if scene_batches:
@@ -446,7 +567,7 @@ async def process_new_scenes_job(
             logger.info("No unanalyzed scenes found")
 
         # Step 5: Stash metadata generate
-        await progress_callback(85, "Step 5/6: Generating Stash metadata")
+        await weighted_progress_callback(85, "Step 5/6: Generating Stash metadata")
         await _run_workflow_step(
             job_service,
             JobType.STASH_GENERATE,
@@ -457,10 +578,11 @@ async def process_new_scenes_job(
             cancellation_token,
             workflow_result,
             "stash_generate",
+            {"current_step": 5, "total_steps": 6},
         )
 
         # Final progress
-        await progress_callback(100, "Workflow completed")
+        await weighted_progress_callback(100, "Workflow completed")
 
         logger.info(
             f"Process new scenes workflow completed: "
@@ -487,7 +609,7 @@ async def _process_all_batches(
     job_service: JobService,
     scene_batches: List[List[str]],
     parent_job_id: str,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Process all scene batches for analysis."""
