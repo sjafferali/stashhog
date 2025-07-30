@@ -355,6 +355,15 @@ const jobDefinitions: JobDefinition[] = [
     ],
   },
   {
+    type: 'check_stash_generate',
+    name: 'Check Stash Generation Status',
+    description:
+      'Check Stash for resources requiring generation (covers, phash, sprites, previews, markers)',
+    icon: <DatabaseOutlined />,
+    category: 'Maintenance',
+    parameters: [],
+  },
+  {
     type: 'stash_generate',
     name: 'Generate Metadata',
     description:

@@ -185,6 +185,7 @@ export function useSceneFilters() {
     if (filters.organized !== undefined) count++;
     if (filters.analyzed !== undefined) count++;
     if (filters.video_analyzed !== undefined) count++;
+    if (filters.has_active_jobs !== undefined) count++;
     if (filters.date_from) count++;
     if (filters.date_to) count++;
     return count;

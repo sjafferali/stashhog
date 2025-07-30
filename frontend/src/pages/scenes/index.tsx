@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
 // import { useSearchParams } from 'react-router-dom';
-// import { useSceneFilters } from './hooks/useSceneFilters';
+import { useSceneFilters } from './hooks/useSceneFilters';
 import { SearchBar } from './components/SearchBar';
 import { AdvancedFilters } from './components/AdvancedFilters';
 import { SceneListContainer } from './components/SceneListContainer';
@@ -21,7 +21,7 @@ type ViewMode = 'grid' | 'list';
 
 export function ScenesPage() {
   // const [searchParams] = useSearchParams();
-  // const filters = useSceneFilters();
+  const { activeFilterCount } = useSceneFilters();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
 
@@ -74,6 +74,7 @@ export function ScenesPage() {
         <SearchBar
           onToggleAdvancedFilters={handleToggleFilters}
           showingAdvancedFilters={showAdvancedFilters}
+          activeFilterCount={activeFilterCount}
         />
 
         {/* Advanced Filters */}
