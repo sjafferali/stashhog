@@ -29,6 +29,10 @@ class JobContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Add job context fields to the log record."""
+        # Always set job_context to avoid KeyError in formatters
+        # Initialize with empty string to ensure the attribute exists
+        record.job_context = ""  # type: ignore[attr-defined]
+
         context = _job_context.get()
 
         # Add job context fields to the record
@@ -45,7 +49,9 @@ class JobContextFilter(logging.Filter):
         if record.parent_job_id:  # type: ignore[attr-defined]
             job_parts.append(f"parent_job_id={record.parent_job_id}")  # type: ignore[attr-defined]
 
-        record.job_context = f"[{', '.join(job_parts)}]" if job_parts else ""  # type: ignore[attr-defined]
+        # Only set job_context if there are parts to include
+        if job_parts:
+            record.job_context = f"[{', '.join(job_parts)}] "  # type: ignore[attr-defined]
 
         return True
 
