@@ -614,7 +614,14 @@ class JobService:
             job.status.value if hasattr(job.status, "value") else job.status
         )
         parent_job.job_metadata = parent_metadata  # type: ignore
+
+        # Mark the JSON column as modified so SQLAlchemy tracks the change
+        from sqlalchemy.orm.attributes import flag_modified
+
+        flag_modified(parent_job, "job_metadata")
+
         await db.commit()
+        await db.refresh(parent_job)
 
         # Broadcast parent job update
         parent_job_data = {
