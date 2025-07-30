@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Table, Button, Space, Tag, message, Modal } from 'antd';
+import { Card, Table, Button, Space, Tag, message, Modal, Tooltip } from 'antd';
 import {
   EditOutlined,
   CloseOutlined,
@@ -363,17 +363,25 @@ const PlanList: React.FC = () => {
       />
 
       <div style={{ marginBottom: 16, textAlign: 'right' }}>
-        <Button
-          type="primary"
-          icon={<SyncOutlined />}
-          loading={cleanupLoading}
-          disabled={!hasApprovedChanges}
-          onClick={() => {
-            void handleApplyApprovedChanges();
-          }}
+        <Tooltip
+          title={
+            !hasApprovedChanges
+              ? 'No approved changes to apply'
+              : 'Apply all approved changes'
+          }
         >
-          Apply All Approved Changes
-        </Button>
+          <Button
+            type="primary"
+            icon={<SyncOutlined />}
+            loading={cleanupLoading}
+            disabled={!hasApprovedChanges || cleanupLoading}
+            onClick={() => {
+              void handleApplyApprovedChanges();
+            }}
+          >
+            Apply All Approved Changes
+          </Button>
+        </Tooltip>
       </div>
 
       <div
