@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -224,6 +225,8 @@ class JobService:
                     message="Job cancelled",
                     db=cancel_db,
                 )
+                # Clean up any pending plans associated with this job
+                await self._cleanup_pending_plans(job_id, cancel_db)
                 await cancel_db.commit()
             raise
         except Exception as e:
@@ -324,6 +327,51 @@ class JobService:
 
         logger.info(f"Initiated cancellation for job {job_id}")
         return True
+
+    async def _cleanup_pending_plans(self, job_id: str, db: AsyncSession) -> None:
+        """Clean up any pending plans associated with a cancelled job.
+
+        Transitions PENDING plans to DRAFT status when their parent job is cancelled.
+        """
+        from sqlalchemy import select, update
+
+        from app.models import AnalysisPlan
+        from app.models.analysis_plan import PlanStatus
+
+        try:
+            # Find any PENDING plans associated with this job
+            query = (
+                select(AnalysisPlan)
+                .where(AnalysisPlan.job_id == job_id)
+                .where(AnalysisPlan.status == PlanStatus.PENDING)
+            )
+            result = await db.execute(query)
+            pending_plans = result.scalars().all()
+
+            if pending_plans:
+                logger.info(
+                    f"Found {len(pending_plans)} pending plans for cancelled job {job_id}"
+                )
+
+                # Update all pending plans to DRAFT status
+                await db.execute(
+                    update(AnalysisPlan)
+                    .where(AnalysisPlan.job_id == job_id)
+                    .where(AnalysisPlan.status == PlanStatus.PENDING)
+                    .values(status=PlanStatus.DRAFT)
+                )
+
+                # Add metadata to indicate the plan was finalized due to job cancellation
+                for plan in pending_plans:
+                    plan.add_metadata("finalized_reason", "Job cancelled")
+                    plan.add_metadata("finalized_at", datetime.utcnow().isoformat())
+
+                logger.info(
+                    f"Transitioned {len(pending_plans)} pending plans to DRAFT status"
+                )
+        except Exception as e:
+            logger.error(f"Error cleaning up pending plans for job {job_id}: {e}")
+            # Don't fail the cancellation if cleanup fails
 
     async def _update_job_status_with_session(
         self,

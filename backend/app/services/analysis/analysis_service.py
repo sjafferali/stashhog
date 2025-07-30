@@ -1182,10 +1182,15 @@ class AnalysisService:
             List of Scene objects from database
         """
         from sqlalchemy import and_, select
+        from sqlalchemy.orm import selectinload
 
         from app.models import Scene
 
-        query = select(Scene)
+        query = select(Scene).options(
+            selectinload(Scene.studio),
+            selectinload(Scene.performers),
+            selectinload(Scene.tags),
+        )
 
         if scene_ids:
             logger.debug(f"Getting scenes by IDs from database: {scene_ids}")
@@ -1370,28 +1375,63 @@ class AnalysisService:
 
         return None
 
-    def _extract_scene_attributes(self, scenes: list[Scene]) -> tuple[set, set, set]:
+    def _extract_scene_attributes(
+        self, scenes: list[Scene]
+    ) -> tuple[set[str], set[str], set[str]]:
         """Extract common attributes from scenes."""
-        studios = set()
-        performers = set()
-        dates = set()
+        studios: set[str] = set()
+        performers: set[str] = set()
+        dates: set[str] = set()
 
         for scene in scenes:
-            if hasattr(scene, "studio") and scene.studio:
-                studios.add(scene.studio.name)
-            if hasattr(scene, "performers"):
-                for performer in scene.performers:
-                    performers.add(performer.name)
-            if hasattr(scene, "stash_date") and scene.stash_date:
-                try:
-                    year = scene.stash_date.year
-                    dates.add(str(year))
-                except Exception:
-                    pass
+            self._extract_studio_from_scene(scene, studios)
+            self._extract_performers_from_scene(scene, performers)
+            self._extract_date_from_scene(scene, dates)
 
         return studios, performers, dates
 
-    def _build_name_parts(self, studios: set, performers: set, dates: set) -> list[str]:
+    def _extract_studio_from_scene(self, scene: Scene, studios: set[str]) -> None:
+        """Extract studio information from a single scene."""
+        if hasattr(scene, "studio") and scene.studio:
+            try:
+                studio_name = getattr(scene.studio, "name", None)
+                if studio_name:
+                    studios.add(studio_name)
+            except Exception as e:
+                logger.debug(
+                    f"Error accessing studio for scene {getattr(scene, 'id', 'unknown')}: {e}"
+                )
+
+    def _extract_performers_from_scene(
+        self, scene: Scene, performers: set[str]
+    ) -> None:
+        """Extract performer information from a single scene."""
+        if hasattr(scene, "performers"):
+            try:
+                # Handle both loaded and unloaded relationships
+                performers_list = scene.performers
+                if performers_list:
+                    for performer in performers_list:
+                        performer_name = getattr(performer, "name", None)
+                        if performer_name:
+                            performers.add(performer_name)
+            except Exception as e:
+                logger.debug(
+                    f"Error accessing performers for scene {getattr(scene, 'id', 'unknown')}: {e}"
+                )
+
+    def _extract_date_from_scene(self, scene: Scene, dates: set[str]) -> None:
+        """Extract date information from a single scene."""
+        if hasattr(scene, "stash_date") and scene.stash_date:
+            try:
+                year = scene.stash_date.year
+                dates.add(str(year))
+            except Exception:
+                pass
+
+    def _build_name_parts(
+        self, studios: set[str], performers: set[str], dates: set[str]
+    ) -> list[str]:
         """Build name parts from extracted attributes."""
         name_parts = []
 

@@ -402,6 +402,11 @@ async def _run_workflow_step(
     step_info: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run a workflow step and update results."""
+    # Check if already cancelled before creating sub-job
+    if cancellation_token and cancellation_token.is_cancelled:
+        logger.info(f"Skipping {step_name} - workflow already cancelled")
+        return None
+
     result = await _create_and_run_subjob(
         job_service,
         job_type,
@@ -415,7 +420,14 @@ async def _run_workflow_step(
 
     workflow_result["steps"][result_key] = result
 
-    if not result or result["status"] != "completed":
+    if not result:
+        # Sub-job was cancelled or failed to create
+        if cancellation_token and cancellation_token.is_cancelled:
+            workflow_result["status"] = "cancelled"
+        else:
+            workflow_result["status"] = "completed_with_errors"
+            workflow_result["summary"]["total_errors"] += 1
+    elif result["status"] != "completed":
         workflow_result["status"] = "completed_with_errors"
         workflow_result["summary"]["total_errors"] += 1
 
@@ -475,10 +487,14 @@ async def _process_downloads_step(
         {"current_step": 1, "total_steps": 6},
     )
 
-    if not downloads_result or downloads_result["status"] != "completed":
-        await progress_callback(
-            100, "Workflow completed with errors in download processing"
-        )
+    # Check if cancelled
+    if not downloads_result:
+        # Sub-job was cancelled
+        return None
+
+    if downloads_result["status"] != "completed":
+        # Don't set progress to 100% here - let the main workflow handle it
+        logger.warning("Download processing step did not complete successfully")
         return None
 
     synced_items = downloads_result.get("result", {}).get("synced_items", 0)
@@ -600,6 +616,9 @@ async def process_new_scenes_job(  # noqa: C901
         )
 
         if synced_items is None:
+            # Check if cancelled
+            if cancellation_token and cancellation_token.is_cancelled:
+                raise asyncio.CancelledError()
             return workflow_result
 
         # Step 2: Stash metadata scan (skip if no new items)
@@ -608,7 +627,7 @@ async def process_new_scenes_job(  # noqa: C901
                 20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
             )
             await _update_parent_job_step(job_service, job_id, 2, "Scanning metadata")
-            await _run_workflow_step(
+            scan_result = await _run_workflow_step(
                 job_service,
                 JobType.STASH_SCAN,
                 {},
@@ -620,6 +639,13 @@ async def process_new_scenes_job(  # noqa: C901
                 "stash_scan",
                 {"current_step": 2, "total_steps": 6},
             )
+            # Check if cancelled
+            if (
+                not scan_result
+                and cancellation_token
+                and cancellation_token.is_cancelled
+            ):
+                raise asyncio.CancelledError()
         else:
             logger.info("No new items downloaded, skipping Stash metadata scan")
             await weighted_progress_callback(
@@ -630,6 +656,10 @@ async def process_new_scenes_job(  # noqa: C901
             )
 
         # Step 3: Incremental sync (only if there are pending scenes)
+        # Check cancellation before proceeding
+        if cancellation_token and cancellation_token.is_cancelled:
+            raise asyncio.CancelledError()
+
         await weighted_progress_callback(35, "Step 3/6: Checking for pending scenes")
         await _update_parent_job_step(
             job_service, job_id, 3, "Checking for pending scenes"
@@ -647,7 +677,7 @@ async def process_new_scenes_job(  # noqa: C901
                 3,
                 f"Running incremental sync ({pending_scenes} scenes)",
             )
-            await _run_workflow_step(
+            sync_result = await _run_workflow_step(
                 job_service,
                 JobType.SYNC,
                 {"force": False},
@@ -659,6 +689,13 @@ async def process_new_scenes_job(  # noqa: C901
                 "incremental_sync",
                 {"current_step": 3, "total_steps": 6},
             )
+            # Check if cancelled
+            if (
+                not sync_result
+                and cancellation_token
+                and cancellation_token.is_cancelled
+            ):
+                raise asyncio.CancelledError()
         else:
             logger.info("No pending scenes to sync, skipping incremental sync")
             await weighted_progress_callback(
@@ -673,6 +710,10 @@ async def process_new_scenes_job(  # noqa: C901
             }
 
         # Step 4: Analyze scenes (only if there are unanalyzed scenes)
+        # Check cancellation before proceeding
+        if cancellation_token and cancellation_token.is_cancelled:
+            raise asyncio.CancelledError()
+
         await weighted_progress_callback(50, "Step 4/6: Checking for unanalyzed scenes")
         await _update_parent_job_step(
             job_service, job_id, 4, "Checking for unanalyzed scenes"
@@ -729,9 +770,13 @@ async def process_new_scenes_job(  # noqa: C901
             }
 
         # Step 5: Stash metadata generate
+        # Check cancellation before proceeding
+        if cancellation_token and cancellation_token.is_cancelled:
+            raise asyncio.CancelledError()
+
         await weighted_progress_callback(85, "Step 5/6: Generating Stash metadata")
         await _update_parent_job_step(job_service, job_id, 5, "Generating metadata")
-        await _run_workflow_step(
+        generate_result = await _run_workflow_step(
             job_service,
             JobType.STASH_GENERATE,
             {},
@@ -743,10 +788,21 @@ async def process_new_scenes_job(  # noqa: C901
             "stash_generate",
             {"current_step": 5, "total_steps": 6},
         )
+        # Check if cancelled
+        if (
+            not generate_result
+            and cancellation_token
+            and cancellation_token.is_cancelled
+        ):
+            raise asyncio.CancelledError()
 
-        # Final progress
-        await weighted_progress_callback(100, "Workflow completed")
-        await _update_parent_job_step(job_service, job_id, 6, "Completed")
+        # Final progress - only set to 100% if we actually completed
+        if (
+            workflow_result["status"] == "completed"
+            or workflow_result["status"] == "completed_with_errors"
+        ):
+            await weighted_progress_callback(100, "Workflow completed")
+            await _update_parent_job_step(job_service, job_id, 6, "Completed")
 
         logger.info(
             f"Process new scenes workflow completed: "
@@ -760,6 +816,11 @@ async def process_new_scenes_job(  # noqa: C901
     except asyncio.CancelledError:
         logger.info(f"Job {job_id} was cancelled")
         workflow_result["status"] = "cancelled"
+        # Don't update progress to 100% - leave it at current position
+        # Update parent job status to show cancellation
+        await _update_parent_job_step(
+            job_service, job_id, current_step_info.get("step", 0), "Cancelled"
+        )
         raise
     except Exception as e:
         error_msg = f"Process new scenes workflow failed: {str(e)}"
@@ -790,6 +851,11 @@ async def _process_all_batches(
     }
 
     for i, batch in enumerate(scene_batches):
+        # Check cancellation before processing each batch
+        if cancellation_token and cancellation_token.is_cancelled:
+            logger.info("Batch processing cancelled")
+            break
+
         batch_num = i + 1
         # Calculate progress for this step (50-80% range)
         batch_progress = 50 + int((i / total_batches) * 30)

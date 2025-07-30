@@ -399,6 +399,10 @@ The `progress_callback` parameter is crucial for job status updates:
      - "Applied X/Y"
    - The parsing happens in `backend/app/services/job_service.py:_update_job_progress()`
    - Uses regex: `r"(?:Processed|Synced|Applied) (\d+)/(\d+)"`
+   - For workflow jobs, pass None as progress to keep current percentage:
+     ```python
+     await progress_callback(None, "Step 2: Processing batch 5/10")
+     ```
 
 ### Service Initialization Pattern
 
@@ -454,6 +458,22 @@ The job service uses the `status` field to determine final job status:
 - `"completed_with_errors"` → JobStatus.COMPLETED (with error count in message)
 - `"cancelled"` → JobStatus.CANCELLED
 - Default → JobStatus.COMPLETED
+
+### Plan Lifecycle Management
+
+If your job creates analysis plans, ensure proper lifecycle management:
+- Plans start in PENDING status during analysis
+- Transition to DRAFT when analysis completes (via finalize_plan)
+- On job cancellation, transition PENDING plans to DRAFT to prevent orphans
+
+```python
+except asyncio.CancelledError:
+    # Clean up any pending plans
+    async with AsyncSessionLocal() as db:
+        await _cleanup_pending_plans(job_id, db)
+        await db.commit()
+    raise
+```
 
 ### Progress Display in UI
 
@@ -595,6 +615,20 @@ async with AsyncSessionLocal() as db:
 
 # This will fail with greenlet error:
 performer_count = len(scene.performers)
+
+# ✅ CORRECT: Eager load relationships to avoid lazy loading issues
+async with AsyncSessionLocal() as db:
+    query = select(Scene).options(
+        selectinload(Scene.studio),
+        selectinload(Scene.performers),
+        selectinload(Scene.tags)
+    )
+    result = await db.execute(query)
+    scenes = result.scalars().all()
+    
+    # Access relationships while session is active
+    for scene in scenes:
+        performer_count = len(scene.performers)  # Safe
 ```
 
 ### 4. Error Handling

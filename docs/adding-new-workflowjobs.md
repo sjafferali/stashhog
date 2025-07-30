@@ -168,6 +168,11 @@ async def _create_and_run_subjob(
     """
     logger.info(f"Starting {step_name} for parent job {parent_job_id}")
     
+    # Check if already cancelled before creating sub-job
+    if cancellation_token and cancellation_token.is_cancelled:
+        logger.info(f"Skipping {step_name} - workflow already cancelled")
+        return None
+    
     # Create sub-job with its own session
     async with AsyncSessionLocal() as db:
         sub_job = await job_service.create_job(
@@ -272,6 +277,11 @@ async def _run_workflow_step(
     step_info: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run a workflow step and update results."""
+    # Check if already cancelled before creating sub-job
+    if cancellation_token and cancellation_token.is_cancelled:
+        logger.info(f"Skipping {step_name} - workflow already cancelled")
+        return None
+        
     result = await _create_and_run_subjob(
         job_service,
         job_type,
@@ -336,6 +346,13 @@ await progress_callback(100, "Workflow completed")
        None,  # Don't change progress
        f"{step_name}: {job_metadata.get('message', 'In progress...')}",
    )
+   ```
+
+4. **Avoid Setting 100% on Cancellation**: Only set progress to 100% when the workflow actually completes:
+   ```python
+   # Final progress - only set to 100% if we actually completed
+   if workflow_result["status"] == "completed" or workflow_result["status"] == "completed_with_errors":
+       await progress_callback(100, "Workflow completed")
    ```
 
 ## Metadata Requirements
@@ -448,6 +465,37 @@ await progress_callback(100, "Workflow completed")
    
    # Now safe to use metadata outside session
    process_metadata(metadata)
+   ```
+
+6. **Clean Up Resources on Cancellation**
+   ```python
+   # If your workflow creates pending resources (like analysis plans),
+   # clean them up in the cancellation handler:
+   except asyncio.CancelledError:
+       logger.info(f"Workflow {job_id} was cancelled")
+       workflow_result["status"] = "cancelled"
+       # Clean up any pending resources
+       await _cleanup_pending_plans(job_id)
+       raise
+   ```
+
+7. **Use Eager Loading for Relationships**
+   ```python
+   # When fetching entities with relationships, use eager loading to avoid
+   # lazy loading issues after session closes:
+   async with AsyncSessionLocal() as db:
+       scenes = await db.execute(
+           select(Scene).options(
+               selectinload(Scene.performers),
+               selectinload(Scene.studio),
+               selectinload(Scene.tags)
+           )
+       )
+       scenes_list = scenes.scalars().all()
+       
+       # Access relationships while session is active
+       for scene in scenes_list:
+           performer_count = len(scene.performers)  # Safe
    ```
 
 ### Common Greenlet Error Scenarios in Workflows

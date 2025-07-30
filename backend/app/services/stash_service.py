@@ -99,7 +99,10 @@ class StashService:
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     async def execute_graphql(
-        self, query: str, variables: Optional[Dict] = None
+        self,
+        query: str,
+        variables: Optional[Dict] = None,
+        timeout: Optional[int] = None,
     ) -> Dict:
         """
         Execute raw GraphQL query with retry logic.
@@ -107,6 +110,7 @@ class StashService:
         Args:
             query: GraphQL query string
             variables: Optional query variables
+            timeout: Optional timeout in seconds (overrides default timeout)
 
         Returns:
             GraphQL response data
@@ -128,8 +132,10 @@ class StashService:
         logger.debug(f"GraphQL Request Headers: {headers}")
 
         try:
+            # Use custom timeout if provided, otherwise use default
+            request_timeout = httpx.Timeout(timeout) if timeout else None
             response = await self._client.post(
-                self.graphql_url, json=payload, headers=headers
+                self.graphql_url, json=payload, headers=headers, timeout=request_timeout
             )
 
             if response.status_code == 401:

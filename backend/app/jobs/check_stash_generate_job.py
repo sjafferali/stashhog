@@ -196,8 +196,9 @@ async def _check_markers_with_plugin(
     details = cast(Dict[str, int], result["details"])
 
     try:
+        # Use 10-minute timeout for marker check plugin as it checks every marker
         marker_check_response = await stash_service.execute_graphql(
-            RUN_MARKER_CHECK_PLUGIN
+            RUN_MARKER_CHECK_PLUGIN, timeout=600
         )
         # The execute_graphql method already extracts the data portion
         plugin_result = marker_check_response.get("runPluginOperation", {})
