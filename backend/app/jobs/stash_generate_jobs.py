@@ -13,20 +13,7 @@ from app.services.stash_service import StashService
 logger = logging.getLogger(__name__)
 
 
-async def _handle_cancellation(stash_service: Any, stash_job_id: str) -> Dict[str, Any]:
-    """Handle job cancellation."""
-    logger.info(f"Stash generate job cancelled, stopping Stash job {stash_job_id}")
-    try:
-        await stash_service.execute_graphql(
-            mutations.STOP_JOB, {"job_id": stash_job_id}
-        )
-    except Exception as e:
-        logger.error(f"Failed to stop Stash job {stash_job_id}: {e}")
-    return {
-        "status": "cancelled",
-        "message": "Job cancelled by user",
-        "stash_job_id": stash_job_id,
-    }
+# _handle_cancellation function removed - cancellation is now handled inline in _poll_job_status
 
 
 async def _update_progress_if_changed(
@@ -84,10 +71,28 @@ async def _poll_job_status(
     """Poll Stash job status until completion."""
     last_progress: float = 0
     poll_interval = 2  # seconds
+    cancellation_requested = False
 
     while True:
-        if cancellation_token and cancellation_token.is_cancelled:
-            return await _handle_cancellation(stash_service, stash_job_id)
+        # If cancellation is requested but not yet sent to Stash
+        if (
+            cancellation_token
+            and cancellation_token.is_cancelled
+            and not cancellation_requested
+        ):
+            logger.info(f"Cancellation requested for Stash job {stash_job_id}")
+            try:
+                await stash_service.execute_graphql(
+                    mutations.STOP_JOB, {"job_id": stash_job_id}
+                )
+                cancellation_requested = True
+                logger.info(
+                    f"Sent cancellation request to Stash for job {stash_job_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to stop Stash job {stash_job_id}: {e}")
+                # Even if the stop request fails, mark as requested to avoid retrying
+                cancellation_requested = True
 
         try:
             result = await stash_service.execute_graphql(
