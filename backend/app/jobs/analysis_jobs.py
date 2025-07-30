@@ -78,6 +78,11 @@ async def analyze_scenes_job(
     plan_id: Optional[int] = None
     scenes_processed: int = 0
 
+    # Check if job was cancelled before starting
+    if cancellation_token and cancellation_token.is_cancelled:
+        logger.info(f"Job {job_id} was cancelled before starting analysis")
+        raise asyncio.CancelledError("Job cancelled before starting")
+
     # Create a wrapper to track progress
     async def tracking_progress_callback(progress: int, message: str) -> None:
         nonlocal scenes_processed

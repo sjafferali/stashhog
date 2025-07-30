@@ -249,12 +249,41 @@ class JobService:
         )
 
     async def cancel_job(self, job_id: str, db: Union[Session, AsyncSession]) -> bool:
-        """Cancel a running job."""
+        """Cancel a running or pending job."""
         job = await job_repository.get_job(job_id, db)
         if not job:
             return False
 
-        # First, mark job as CANCELLING
+        # Special handling for pending jobs - they can be cancelled immediately
+        if job.status == JobStatus.PENDING:
+            # Mark job as cancelled immediately
+            await job_repository.update_job_status(
+                job_id=job_id,
+                status=JobStatus.CANCELLED,
+                db=db,
+                message="Job cancelled before starting",
+                error="Cancelled by user",
+            )
+
+            # Send WebSocket notification for CANCELLED status
+            await self._send_job_update(
+                job_id,
+                {"status": JobStatus.CANCELLED.value, "message": "Job cancelled"},
+            )
+
+            # Remove cancellation token since job won't run
+            cancellation_manager.remove_token(job_id)
+
+            # Cancel task if queued
+            if job.job_metadata is not None and "task_id" in job.job_metadata:
+                task_id = str(job.job_metadata["task_id"])
+                task_queue = get_task_queue()
+                await task_queue.cancel_task(task_id)
+
+            logger.info(f"Cancelled pending job {job_id}")
+            return True
+
+        # For running jobs, mark as CANCELLING first
         await job_repository.update_job_status(
             job_id=job_id,
             status=JobStatus.CANCELLING,

@@ -61,14 +61,19 @@ async def list_jobs(
     # Get active jobs from queue
     active_jobs = await job_service.get_active_jobs(db)
 
+    # Get IDs of active jobs to exclude from DB query
+    active_job_ids = [str(job.id) for job in active_jobs]
+
     # Filter active jobs by status if status filter is provided
     if status:
         active_jobs = [job for job in active_jobs if job.status in status]
 
     # Build database query
     if status:
-        # If status filter is provided, only get jobs with those statuses
+        # Query DB for the requested statuses, but exclude jobs we already have from active_jobs
         query = select(Job).where(Job.status.in_(status))
+        if active_job_ids:
+            query = query.where(~Job.id.in_(active_job_ids))
     else:
         # Otherwise, exclude active jobs to avoid duplicates with queue
         query = select(Job).where(~Job.status.in_(["pending", "running"]))
@@ -200,7 +205,18 @@ async def cancel_job(
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """
-    Cancel running job.
+    Cancel a running or pending job.
+
+    This endpoint supports cancelling jobs in the following states:
+    - PENDING: Job is queued but not started - will be immediately cancelled
+    - RUNNING: Job is actively processing - will be marked for cancellation
+    - CANCELLING: Cancellation already in progress
+
+    Jobs in COMPLETED, FAILED, or CANCELLED states cannot be cancelled.
+
+    Example responses:
+    - Pending job: {"success": true, "message": "Job {job_id} cancelled successfully"}
+    - Running job: {"success": true, "message": "Job {job_id} cancellation initiated"}
     """
     # Check if job is active
     active_job = await job_service.get_job(job_id, db)

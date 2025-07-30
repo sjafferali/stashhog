@@ -550,7 +550,7 @@ const JobMonitor: React.FC = () => {
             </Tooltip>
           )}
 
-          {record.status === 'running' && (
+          {['running', 'pending'].includes(record.status) && (
             <Tooltip title="Cancel Job">
               <Button
                 type="text"

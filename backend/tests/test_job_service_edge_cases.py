@@ -152,11 +152,13 @@ class TestJobServiceEdgeCases:
         result = await job_service.cancel_job(job_id, mock_db)
 
         assert result is True
+        # For pending jobs, should be immediately cancelled
         mock_job_repo.update_job_status.assert_called_once_with(
             job_id=job_id,
-            status=JobStatus.CANCELLING,
+            status=JobStatus.CANCELLED,
             db=mock_db,
-            message="Cancellation requested",
+            message="Job cancelled before starting",
+            error="Cancelled by user",
         )
 
     @pytest.mark.asyncio
