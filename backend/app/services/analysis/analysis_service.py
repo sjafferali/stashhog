@@ -1395,8 +1395,8 @@ class AnalysisService:
         if hasattr(scene, "studio") and scene.studio:
             try:
                 studio_name = getattr(scene.studio, "name", None)
-                if studio_name:
-                    studios.add(studio_name)
+                if studio_name and studio_name.strip():  # Ensure non-empty string
+                    studios.add(studio_name.strip())
             except Exception as e:
                 logger.debug(
                     f"Error accessing studio for scene {getattr(scene, 'id', 'unknown')}: {e}"
@@ -1413,8 +1413,10 @@ class AnalysisService:
                 if performers_list:
                     for performer in performers_list:
                         performer_name = getattr(performer, "name", None)
-                        if performer_name:
-                            performers.add(performer_name)
+                        if (
+                            performer_name and performer_name.strip()
+                        ):  # Ensure non-empty string
+                            performers.add(performer_name.strip())
             except Exception as e:
                 logger.debug(
                     f"Error accessing performers for scene {getattr(scene, 'id', 'unknown')}: {e}"
@@ -1435,20 +1437,23 @@ class AnalysisService:
         """Build name parts from extracted attributes."""
         name_parts = []
 
+        # Only add studio part if there are actual studios
         if len(studios) == 1:
-            name_parts.append(f"{list(studios)[0]}")
-        elif len(studios) <= 3:
-            name_parts.append(f"{', '.join(sorted(studios))}")
+            name_parts.append(list(studios)[0])
+        elif len(studios) > 1 and len(studios) <= 3:
+            name_parts.append(", ".join(sorted(studios)))
 
+        # Only add performer part if there are actual performers
         if len(performers) == 1:
-            name_parts.append(f"{list(performers)[0]}")
-        elif len(performers) <= 2:
-            name_parts.append(f"{', '.join(sorted(performers))}")
+            name_parts.append(list(performers)[0])
+        elif len(performers) > 1 and len(performers) <= 2:
+            name_parts.append(", ".join(sorted(performers)))
 
+        # Only add date part if there are actual dates
         if len(dates) == 1:
-            name_parts.append(f"{list(dates)[0]}")
-        elif len(dates) <= 2:
-            name_parts.append(f"{'-'.join(sorted(dates))}")
+            name_parts.append(list(dates)[0])
+        elif len(dates) > 1 and len(dates) <= 2:
+            name_parts.append("-".join(sorted(dates)))
 
         return name_parts
 
