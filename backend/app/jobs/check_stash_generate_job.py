@@ -68,39 +68,19 @@ query CheckSceneGeneration($page: Int!, $per_page: Int!) {
         sprite
         vtt
       }
-      scene_markers {
-        id
-        seconds
-        stream
-        preview
-        screenshot
-      }
     }
   }
 }
 """
 
-CHECK_MARKER_GENERATION_QUERY = """
-query CheckMarkerGeneration {
-  findSceneMarkers(
-    filter: {
-      per_page: -1
+RUN_MARKER_CHECK_PLUGIN = """
+mutation RunPluginOperation {
+  runPluginOperation(
+    plugin_id: "marker_check"
+    args: {
+      mode: "check"
     }
-  ) {
-    count
-    scene_markers {
-      id
-      title
-      seconds
-      scene {
-        id
-        title
-      }
-      stream
-      preview
-      screenshot
-    }
-  }
+  )
 }
 """
 
@@ -121,10 +101,6 @@ query PendingGeneration {
     scene_filter: { is_missing: "phash" }
     filter: { per_page: 0 }
   ) {
-    count
-  }
-
-  allMarkers: findSceneMarkers(filter: { per_page: 0 }) {
     count
   }
 }
@@ -209,39 +185,58 @@ def _process_scene_generation(scene: Dict[str, Any], result: Dict[str, Any]) -> 
     if not paths.get("webp"):
         details["scenes_missing_webp"] += 1
 
-    # Check markers for this scene
-    for marker in scene.get("scene_markers", []):
-        _process_marker_generation(marker, scene, result)
 
-
-def _process_marker_generation(
-    marker: Dict[str, Any], scene: Dict[str, Any], result: Dict[str, Any]
+async def _check_markers_with_plugin(
+    stash_service: StashService,
+    result: Dict[str, Any],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
 ) -> None:
-    """Process a single marker for missing generated content."""
+    """Check markers using plugin operation."""
+    await progress_callback(70, "Checking markers for missing generated content")
     details = cast(Dict[str, int], result["details"])
-    sample_resources = cast(
-        Dict[str, List[Dict[str, Any]]], result["sample_missing_resources"]
-    )
 
-    if not marker.get("stream"):
-        details["markers_missing_video"] += 1
-        marker_videos_list = cast(
-            List[Dict[str, Any]], sample_resources["marker_videos"]
+    try:
+        marker_check_response = await stash_service.execute_graphql(
+            RUN_MARKER_CHECK_PLUGIN
         )
-        if len(marker_videos_list) < 5:
-            marker_videos_list.append(
-                {
-                    "marker_id": marker["id"],
-                    "scene_id": scene["id"],
-                    "scene_title": scene.get("title", "Untitled"),
-                }
+        plugin_result = marker_check_response.get("runPluginOperation", {})
+
+        # Update marker statistics from plugin response
+        details["total_markers"] = plugin_result.get("total_markers", 0)
+        details["markers_missing_video"] = plugin_result.get(
+            "markers_needing_video_count", 0
+        )
+        details["markers_missing_screenshot"] = plugin_result.get(
+            "markers_needing_screenshot_count", 0
+        )
+        details["markers_missing_webp"] = plugin_result.get(
+            "markers_needing_webp_count", 0
+        )
+
+        # Store marker IDs that need generation
+        result["markers_needing_generation"] = plugin_result.get(
+            "markers_needing_generation", []
+        )
+        result["markers_needing_generation_count"] = plugin_result.get(
+            "markers_needing_generation_count", 0
+        )
+
+        # Get sample marker videos if any are missing
+        if details["markers_missing_video"] > 0:
+            sample_marker_ids = plugin_result.get("markers_needing_video", [])[:5]
+            sample_resources = cast(
+                Dict[str, List[Dict[str, Any]]], result["sample_missing_resources"]
             )
+            sample_resources["marker_videos"] = [
+                {"marker_id": marker_id} for marker_id in sample_marker_ids
+            ]
 
-    if not marker.get("preview"):
-        details["markers_missing_image"] += 1
-
-    if not marker.get("screenshot"):
-        details["markers_missing_screenshot"] += 1
+    except Exception as e:
+        logger.error(f"Error running marker check plugin: {e}")
+        # Continue without marker data rather than failing the job
+        details["markers_missing_video"] = 0
+        details["markers_missing_screenshot"] = 0
+        details["markers_missing_webp"] = 0
 
 
 async def _get_sample_missing_resources(
@@ -286,7 +281,7 @@ async def check_stash_generate(
     1. Scenes missing covers
     2. Scenes missing phash
     3. Scenes missing sprites/previews
-    4. Markers missing video/image previews
+    4. Markers missing video/screenshot/webp (via plugin operation)
 
     Args:
         job_id: Unique job identifier
@@ -317,8 +312,8 @@ async def check_stash_generate(
                 "scenes_missing_previews": 0,
                 "scenes_missing_webp": 0,
                 "markers_missing_video": 0,
-                "markers_missing_image": 0,
                 "markers_missing_screenshot": 0,
+                "markers_missing_webp": 0,
                 "total_scenes": 0,
                 "total_markers": 0,
             },
@@ -348,7 +343,6 @@ async def check_stash_generate(
         details["scenes_missing_phash"] = overview_data.get("missingPhash", {}).get(
             "count", 0
         )
-        details["total_markers"] = overview_data.get("allMarkers", {}).get("count", 0)
 
         # Check if any basic resources are missing
         if details["scenes_missing_cover"] > 0 or details["scenes_missing_phash"] > 0:
@@ -366,18 +360,21 @@ async def check_stash_generate(
                 return {"status": "cancelled", "job_id": job_id}
             raise
 
-        # 3. Check if we found any missing generated content
+        # 3. Check markers using plugin operation
+        await _check_markers_with_plugin(stash_service, result, progress_callback)
+
+        # 4. Check if we found any missing generated content
         if (
             details["scenes_missing_sprites"] > 0
             or details["scenes_missing_previews"] > 0
             or details["scenes_missing_webp"] > 0
             or details["markers_missing_video"] > 0
-            or details["markers_missing_image"] > 0
             or details["markers_missing_screenshot"] > 0
+            or details["markers_missing_webp"] > 0
         ):
             result["resources_requiring_generation"] = True
 
-        # 4. Get sample of missing resources
+        # 5. Get sample of missing resources
         await _get_sample_missing_resources(stash_service, result, progress_callback)
 
         # Final progress
@@ -392,6 +389,10 @@ async def check_stash_generate(
         logger.info(f"Missing sprites: {details['scenes_missing_sprites']}")
         logger.info(f"Missing previews: {details['scenes_missing_previews']}")
         logger.info(f"Missing marker videos: {details['markers_missing_video']}")
+        logger.info(
+            f"Missing marker screenshots: {details['markers_missing_screenshot']}"
+        )
+        logger.info(f"Missing marker webp: {details['markers_missing_webp']}")
 
         return result
 
