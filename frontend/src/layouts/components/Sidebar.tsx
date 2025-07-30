@@ -49,9 +49,19 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       ],
     },
     {
-      key: '/jobs',
+      key: 'jobs-menu',
       icon: <UnorderedListOutlined />,
       label: 'Jobs',
+      children: [
+        {
+          key: '/jobs',
+          label: 'Job Monitor',
+        },
+        {
+          key: '/jobs/v2',
+          label: 'Jobs v2',
+        },
+      ],
     },
     {
       key: '/sync',

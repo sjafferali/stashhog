@@ -55,17 +55,24 @@ async def _create_and_run_subjob(  # noqa: C901
         created_subjobs.append(sub_job_id)
 
     # Update parent job metadata with current sub-job info
-    if step_info:
-        async with AsyncSessionLocal() as db:
-            parent_job = await job_service.get_job(parent_job_id, db)
-            if parent_job:
-                # Get current metadata or create new dict
-                raw_metadata: Any = parent_job.job_metadata or {}
-                current_metadata: Dict[str, Any] = (
-                    raw_metadata if isinstance(raw_metadata, dict) else {}
-                )
-                updated_metadata = current_metadata.copy()
+    async with AsyncSessionLocal() as db:
+        parent_job = await job_service.get_job(parent_job_id, db)
+        if parent_job:
+            # Get current metadata or create new dict
+            raw_metadata: Any = parent_job.job_metadata or {}
+            current_metadata: Dict[str, Any] = (
+                raw_metadata if isinstance(raw_metadata, dict) else {}
+            )
+            updated_metadata = current_metadata.copy()
 
+            # Update sub_job_ids list
+            sub_job_ids = updated_metadata.get("sub_job_ids", [])
+            if sub_job_id not in sub_job_ids:
+                sub_job_ids.append(sub_job_id)
+                updated_metadata["sub_job_ids"] = sub_job_ids
+
+            # Update step info if provided
+            if step_info:
                 updated_metadata.update(
                     {
                         "current_step": step_info.get("current_step", 1),
@@ -79,8 +86,17 @@ async def _create_and_run_subjob(  # noqa: C901
                         },
                     }
                 )
-                parent_job.job_metadata = updated_metadata  # type: ignore
-                await db.commit()
+            else:
+                # Still update active_sub_job even without step_info
+                updated_metadata["active_sub_job"] = {
+                    "id": sub_job_id,
+                    "type": job_type.value,
+                    "status": "running",
+                    "progress": 0,
+                }
+
+            parent_job.job_metadata = updated_metadata  # type: ignore
+            await db.commit()
 
     # Poll for completion
     poll_interval = 2  # seconds
@@ -476,7 +492,34 @@ async def _update_parent_job_step(
                 }
             )
             parent_job.job_metadata = metadata  # type: ignore
+
+            # For the final step, clear active_sub_job
+            if step_number == 6:
+                metadata["active_sub_job"] = None
+                parent_job.job_metadata = metadata  # type: ignore
+
             await db.commit()
+            await db.refresh(parent_job)
+
+            # Send WebSocket update for step changes
+            from app.services.websocket_manager import websocket_manager
+
+            job_data = {
+                "id": parent_job.id,
+                "type": (
+                    parent_job.type.value
+                    if hasattr(parent_job.type, "value")
+                    else parent_job.type
+                ),
+                "status": (
+                    parent_job.status.value
+                    if hasattr(parent_job.status, "value")
+                    else parent_job.status
+                ),
+                "progress": parent_job.progress,
+                "metadata": metadata,
+            }
+            await websocket_manager.broadcast_job_update(job_data)
 
 
 async def _process_downloads_step(
@@ -670,6 +713,7 @@ async def process_new_scenes_job(  # noqa: C901
                         "total_steps": 6,
                         "step_name": "Initializing",
                         "active_sub_job": None,
+                        "sub_job_ids": [],  # Track all subjobs created
                     }
                 )
                 parent_job.job_metadata = initial_metadata  # type: ignore
@@ -875,8 +919,11 @@ async def process_new_scenes_job(  # noqa: C901
             workflow_result["status"] == "completed"
             or workflow_result["status"] == "completed_with_errors"
         ):
-            await weighted_progress_callback(100, "Workflow completed")
+            # Update to step 6 first, then set progress to 100%
             await _update_parent_job_step(job_service, job_id, 6, "Completed")
+            # Small delay to ensure the step update is committed and propagated
+            await asyncio.sleep(0.5)
+            await weighted_progress_callback(100, "Workflow completed")
 
         logger.info(
             f"Process new scenes workflow completed: "
@@ -884,6 +931,9 @@ async def process_new_scenes_job(  # noqa: C901
             f"{workflow_result['summary']['total_scenes_analyzed']} scenes analyzed, "
             f"{workflow_result['summary']['total_changes_applied']} changes applied"
         )
+
+        # Final delay to ensure all updates are propagated before job completes
+        await asyncio.sleep(0.5)
 
         return workflow_result
 
