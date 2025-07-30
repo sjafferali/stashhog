@@ -487,6 +487,76 @@ class JobService:
             total_items=total_items,
         )
 
+    def _should_skip_status_update(
+        self, current_status: str, new_status: str, job_id: str
+    ) -> bool:
+        """Check if status update should be skipped to prevent overriding CANCELLING status."""
+        if (
+            current_status == JobStatus.CANCELLING.value
+            and new_status == JobStatus.RUNNING.value
+        ):
+            logger.debug(
+                f"Job {job_id} is cancelling, not overriding status with RUNNING"
+            )
+            return True
+        return False
+
+    def _update_job_fields(
+        self,
+        job: Job,
+        status: str,
+        progress: Optional[int],
+        result: Optional[dict[str, Any]],
+        error: Optional[str],
+        processed_items: Optional[int],
+        total_items: Optional[int],
+    ) -> None:
+        """Update job fields with provided values."""
+        job.status = status  # type: ignore[assignment]
+
+        if progress is not None:
+            job.progress = progress  # type: ignore[assignment]
+        if result is not None:
+            job.result = result  # type: ignore[assignment]
+        if error is not None:
+            job.error = error  # type: ignore[assignment]
+        if processed_items is not None:
+            job.processed_items = processed_items  # type: ignore[assignment]
+        if total_items is not None:
+            job.total_items = total_items  # type: ignore[assignment]
+
+    def _update_job_timestamps(self, job: Job, status: JobStatus) -> None:
+        """Update job timestamps based on status."""
+        from datetime import datetime
+
+        if status == JobStatus.RUNNING and not job.started_at:
+            job.started_at = datetime.utcnow()  # type: ignore[assignment]
+        elif status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            job.completed_at = datetime.utcnow()  # type: ignore[assignment]
+
+    def _build_job_data(self, job: Job) -> Dict[str, Any]:
+        """Build job data dictionary for WebSocket broadcast."""
+        metadata_dict: Dict[str, Any] = (
+            job.job_metadata if isinstance(job.job_metadata, dict) else {}
+        )
+
+        return {
+            "id": job.id,
+            "type": job.type.value if hasattr(job.type, "value") else job.type,
+            "status": job.status.value if hasattr(job.status, "value") else job.status,
+            "progress": job.progress,
+            "total": job.total_items,
+            "processed_items": job.processed_items,
+            "parameters": metadata_dict,
+            "metadata": metadata_dict,
+            "result": job.result,
+            "error": job.error,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+
     async def _update_job_status_with_counts(
         self,
         job_id: str,
@@ -503,85 +573,45 @@ class JobService:
 
         async with AsyncSessionLocal() as db:
             job = await job_repository.get_job(job_id, db)
-            if job:
-                # Update standard fields
-                job.status = status.value if hasattr(status, "value") else status  # type: ignore[assignment]
+            if not job:
+                return
 
-                if progress is not None:
-                    job.progress = progress  # type: ignore[assignment]
-                if result is not None:
-                    job.result = result  # type: ignore[assignment]
-                if error is not None:
-                    job.error = error  # type: ignore[assignment]
+            # Check if we should skip this update
+            current_status = (
+                job.status if isinstance(job.status, str) else job.status.value
+            )
+            new_status = status.value if hasattr(status, "value") else status
 
-                # Update item counts
-                if processed_items is not None:
-                    job.processed_items = processed_items  # type: ignore[assignment]
-                if total_items is not None:
-                    job.total_items = total_items  # type: ignore[assignment]
+            if self._should_skip_status_update(current_status, new_status, job_id):
+                return
 
-                # Update timestamps based on status
-                if status == JobStatus.RUNNING and not job.started_at:
-                    from datetime import datetime
+            # Update job fields
+            self._update_job_fields(
+                job, new_status, progress, result, error, processed_items, total_items
+            )
 
-                    job.started_at = datetime.utcnow()  # type: ignore[assignment]
-                elif status in [
-                    JobStatus.COMPLETED,
-                    JobStatus.FAILED,
-                    JobStatus.CANCELLED,
-                ]:
-                    from datetime import datetime
+            # Update timestamps
+            self._update_job_timestamps(job, status)
 
-                    job.completed_at = datetime.utcnow()  # type: ignore[assignment]
+            await db.commit()
+            await db.refresh(job)
 
-                await db.commit()
+            # Re-fetch to ensure we have the latest data
+            fresh_job = await job_repository.get_job(job_id, db)
+            if fresh_job:
+                job = fresh_job
 
-                # Force read the latest metadata from DB to avoid stale data
-                await db.refresh(job)
+            # Build job data and update parent if needed
+            job_data = self._build_job_data(job)
+            metadata_dict: Dict[str, Any] = (
+                job.job_metadata if isinstance(job.job_metadata, dict) else {}
+            )
 
-                # Re-fetch to ensure we have the absolute latest data (including any concurrent updates)
-                fresh_job = await job_repository.get_job(job_id, db)
-                if fresh_job:
-                    job = fresh_job
+            await self._update_parent_job_active_subjob(job, metadata_dict, db)
 
-                # Build the complete job data from the current job object
-                metadata_dict: Dict[str, Any] = (
-                    job.job_metadata if isinstance(job.job_metadata, dict) else {}
-                )
-
-                job_data = {
-                    "id": job.id,
-                    "type": job.type.value if hasattr(job.type, "value") else job.type,
-                    "status": (
-                        job.status.value if hasattr(job.status, "value") else job.status
-                    ),
-                    "progress": job.progress,
-                    "total": job.total_items,
-                    "processed_items": job.processed_items,
-                    "parameters": metadata_dict,  # Frontend expects metadata as parameters
-                    "metadata": metadata_dict,  # Also include as metadata for compatibility
-                    "result": job.result,
-                    "error": job.error,
-                    "created_at": (
-                        job.created_at.isoformat() if job.created_at else None
-                    ),
-                    "updated_at": (
-                        job.updated_at.isoformat() if job.updated_at else None
-                    ),
-                    "started_at": (
-                        job.started_at.isoformat() if job.started_at else None
-                    ),
-                    "completed_at": (
-                        job.completed_at.isoformat() if job.completed_at else None
-                    ),
-                }
-
-                # Update parent job if this is a subjob
-                await self._update_parent_job_active_subjob(job, metadata_dict, db)
-
-                # Send WebSocket update directly with the current job data
-                logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
-                await websocket_manager.broadcast_job_update(job_data)
+            # Send WebSocket update
+            logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
+            await websocket_manager.broadcast_job_update(job_data)
 
     async def _update_parent_job_active_subjob(
         self, job: Job, metadata_dict: Dict[str, Any], db: AsyncSession
