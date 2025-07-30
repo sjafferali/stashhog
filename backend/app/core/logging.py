@@ -156,6 +156,26 @@ def configure_logging() -> None:
     # Apply configuration
     logging.config.dictConfig(config)
 
+    # Add job context filter to all handlers if it exists on root logger
+    # This ensures the filter is applied even after configure_logging creates new handlers
+    from app.core.job_context import JobContextFilter
+
+    root_logger = logging.getLogger()
+    job_filter = None
+    for filter in root_logger.filters:
+        if isinstance(filter, JobContextFilter):
+            job_filter = filter
+            break
+
+    if job_filter:
+        # Add the filter to all handlers
+        for handler in root_logger.handlers:
+            handler_has_filter = any(
+                isinstance(f, JobContextFilter) for f in handler.filters
+            )
+            if not handler_has_filter:
+                handler.addFilter(job_filter)
+
     # Log configuration info
     logger = logging.getLogger(__name__)
     logger.info(
