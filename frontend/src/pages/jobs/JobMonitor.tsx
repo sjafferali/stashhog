@@ -46,6 +46,7 @@ import {
   AnalysisJobResultData,
 } from '@/components/jobs/AnalysisJobResult';
 import { JobCard } from '@/components/jobs/JobCard';
+import { WorkflowJobModal } from '@/components/jobs/WorkflowJobModal';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -66,6 +67,10 @@ const JobMonitor: React.FC = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [workflowModalVisible, setWorkflowModalVisible] = useState(false);
+  const [selectedWorkflowJob, setSelectedWorkflowJob] = useState<Job | null>(
+    null
+  );
   const [_refreshInterval, setRefreshInterval] =
     useState<NodeJS.Timeout | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -220,8 +225,13 @@ const JobMonitor: React.FC = () => {
   };
 
   const showJobDetails = (job: Job) => {
-    setSelectedJob(job);
-    setDetailModalVisible(true);
+    if (job.type === 'process_new_scenes') {
+      setSelectedWorkflowJob(job);
+      setWorkflowModalVisible(true);
+    } else {
+      setSelectedJob(job);
+      setDetailModalVisible(true);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -1155,6 +1165,29 @@ const JobMonitor: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Workflow Job Modal */}
+      {selectedWorkflowJob && (
+        <WorkflowJobModal
+          job={selectedWorkflowJob}
+          visible={workflowModalVisible}
+          onClose={() => {
+            setWorkflowModalVisible(false);
+            setSelectedWorkflowJob(null);
+          }}
+          onCancel={
+            selectedWorkflowJob.status === 'running'
+              ? () => void handleCancel(selectedWorkflowJob.id)
+              : undefined
+          }
+          onRetry={
+            selectedWorkflowJob.status === 'failed'
+              ? () => void handleRetry(selectedWorkflowJob.id)
+              : undefined
+          }
+          onDelete={() => void message.info('Delete not implemented yet')}
+        />
+      )}
     </div>
   );
 };

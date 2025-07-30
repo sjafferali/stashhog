@@ -8,6 +8,7 @@ import {
   Typography,
   Tooltip,
   Descriptions,
+  Collapse,
 } from 'antd';
 import {
   ClockCircleOutlined,
@@ -90,12 +91,6 @@ export const JobCard: React.FC<JobCardProps> = ({
 }) => {
   // Use WorkflowJobCard for workflow jobs
   if (job.type === 'process_new_scenes' && !compact) {
-    console.log('Routing to WorkflowJobCard for job:', {
-      id: job.id,
-      type: job.type,
-      metadata: job.metadata,
-      status: job.status,
-    });
     return (
       <WorkflowJobCard
         job={job}
@@ -105,6 +100,7 @@ export const JobCard: React.FC<JobCardProps> = ({
       />
     );
   }
+
   const getStatusIcon = () => {
     switch (job.status) {
       case 'pending':
@@ -274,71 +270,57 @@ export const JobCard: React.FC<JobCardProps> = ({
       extra={<Space>{actions}</Space>}
     >
       <div className={styles.content}>
-        <div className={styles.progressSection}>
-          <div className={styles.progressInfo}>
-            <Text type="secondary">Progress</Text>
-            <Text>
-              {formatJobProgress(
-                job.type,
-                job.processed_items,
-                job.total,
-                job.progress
-              )}
-            </Text>
-          </div>
-          <Progress
-            percent={progressPercent}
-            status={
-              job.status === 'failed'
-                ? 'exception'
-                : job.status === 'cancelling' || job.status === 'cancelled'
+        {/* Basic Info Section - Always Visible */}
+        <div className={styles.basicInfo}>
+          <div className={styles.progressSection}>
+            <div className={styles.progressInfo}>
+              <Text type="secondary">Progress</Text>
+              <Text>
+                {formatJobProgress(
+                  job.type,
+                  job.processed_items,
+                  job.total,
+                  job.progress
+                )}
+              </Text>
+            </div>
+            <Progress
+              percent={progressPercent}
+              status={
+                job.status === 'failed'
                   ? 'exception'
-                  : job.status === 'running'
-                    ? 'active'
-                    : undefined
-            }
-            strokeColor={job.status === 'cancelled' ? '#ff4d4f' : undefined}
-          />
+                  : job.status === 'cancelling' || job.status === 'cancelled'
+                    ? 'exception'
+                    : job.status === 'running'
+                      ? 'active'
+                      : undefined
+              }
+              strokeColor={job.status === 'cancelled' ? '#ff4d4f' : undefined}
+            />
+          </div>
+
+          <div className={styles.quickInfo}>
+            <Space size="middle" wrap>
+              <Tooltip title="Job Type">
+                <Tag color={getJobTypeColor(job.type)}>
+                  {getJobTypeLabel(job.type)}
+                </Tag>
+              </Tooltip>
+              <Tooltip title="Duration">
+                <Text type="secondary">
+                  <ClockCircleOutlined /> {formatDuration() || 'Just started'}
+                </Text>
+              </Tooltip>
+              <Tooltip title="Created">
+                <Text type="secondary">
+                  {new Date(job.created_at).toLocaleTimeString()}
+                </Text>
+              </Tooltip>
+            </Space>
+          </div>
         </div>
 
-        {showDetails && (
-          <Descriptions column={2} size="small" className={styles.details}>
-            <Descriptions.Item label="Job ID" span={2}>
-              <Text
-                copyable
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  wordBreak: 'break-all',
-                }}
-              >
-                {job.id}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Type">
-              <Tag color={getJobTypeColor(job.type)}>
-                {getJobTypeLabel(job.type)}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Duration">
-              {formatDuration() || 'N/A'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Created">
-              {new Date(job.created_at).toLocaleString()}
-            </Descriptions.Item>
-            {job.started_at && (
-              <Descriptions.Item label="Started">
-                {new Date(job.started_at).toLocaleString()}
-              </Descriptions.Item>
-            )}
-            {job.completed_at && (
-              <Descriptions.Item label="Completed" span={2}>
-                {new Date(job.completed_at).toLocaleString()}
-              </Descriptions.Item>
-            )}
-          </Descriptions>
-        )}
-
+        {/* Error Section */}
         {job.error && (
           <div className={styles.error}>
             <Text type="danger" strong>
@@ -348,118 +330,186 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
 
-        {job.metadata && Object.keys(job.metadata).length > 0 && (
-          <div className={styles.metadata}>
-            <Text type="secondary">Additional Information:</Text>
-            <Descriptions column={1} size="small">
-              {Object.entries(job.metadata).map(([key, value]) => {
-                // Special handling for scene_ids
-                if (key === 'scene_ids' && Array.isArray(value)) {
-                  return (
-                    <Descriptions.Item key={key} label="Scene IDs">
-                      <div className={styles.sceneIdsContainer}>
-                        {value.length > 10 ? (
-                          <>
-                            <div className={styles.sceneIdsList}>
-                              {(value as string[])
-                                .slice(0, 10)
-                                .map((id: string, idx: number) => (
-                                  <Tag key={idx}>{id}</Tag>
-                                ))}
-                            </div>
-                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                              and {value.length - 10} more...
-                            </Text>
-                          </>
-                        ) : (
-                          <div className={styles.sceneIdsList}>
-                            {(value as string[]).map(
-                              (id: string, idx: number) => (
-                                <Tag key={idx}>{id}</Tag>
-                              )
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Descriptions.Item>
-                  );
-                }
-
-                // Default rendering for other metadata
-                return (
-                  <Descriptions.Item key={key} label={key}>
-                    {typeof value === 'string' ? (
-                      value
-                    ) : typeof value === 'object' && value !== null ? (
-                      <pre style={{ margin: 0, fontSize: '12px' }}>
-                        {JSON.stringify(value, null, 2)}
-                      </pre>
-                    ) : (
-                      String(value)
-                    )}
+        {/* Expandable Details Section */}
+        {showDetails && (
+          <div className={styles.detailsCollapse}>
+            <Collapse ghost>
+              <Collapse.Panel header="View Details" key="1">
+                <Descriptions
+                  column={2}
+                  size="small"
+                  className={styles.details}
+                >
+                  <Descriptions.Item label="Job ID" span={2}>
+                    <Text
+                      copyable
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {job.id}
+                    </Text>
                   </Descriptions.Item>
-                );
-              })}
-            </Descriptions>
+                  <Descriptions.Item label="Created">
+                    {new Date(job.created_at).toLocaleString()}
+                  </Descriptions.Item>
+                  {job.started_at && (
+                    <Descriptions.Item label="Started">
+                      {new Date(job.started_at).toLocaleString()}
+                    </Descriptions.Item>
+                  )}
+                  {job.completed_at && (
+                    <Descriptions.Item label="Completed" span={2}>
+                      {new Date(job.completed_at).toLocaleString()}
+                    </Descriptions.Item>
+                  )}
+                </Descriptions>
+
+                {/* Metadata */}
+                {job.metadata && Object.keys(job.metadata).length > 0 && (
+                  <>
+                    <Text
+                      type="secondary"
+                      style={{
+                        display: 'block',
+                        marginTop: 16,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Additional Information
+                    </Text>
+                    <Descriptions column={1} size="small">
+                      {Object.entries(job.metadata).map(([key, value]) => {
+                        // Special handling for scene_ids
+                        if (key === 'scene_ids' && Array.isArray(value)) {
+                          return (
+                            <Descriptions.Item key={key} label="Scene IDs">
+                              <div className={styles.sceneIdsContainer}>
+                                {value.length > 10 ? (
+                                  <>
+                                    <div className={styles.sceneIdsList}>
+                                      {(value as string[])
+                                        .slice(0, 10)
+                                        .map((id: string, idx: number) => (
+                                          <Tag key={idx}>{id}</Tag>
+                                        ))}
+                                    </div>
+                                    <Text
+                                      type="secondary"
+                                      style={{ fontSize: '12px' }}
+                                    >
+                                      and {value.length - 10} more...
+                                    </Text>
+                                  </>
+                                ) : (
+                                  <div className={styles.sceneIdsList}>
+                                    {(value as string[]).map(
+                                      (id: string, idx: number) => (
+                                        <Tag key={idx}>{id}</Tag>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </Descriptions.Item>
+                          );
+                        }
+
+                        // Default rendering for other metadata
+                        return (
+                          <Descriptions.Item key={key} label={key}>
+                            {typeof value === 'string' ? (
+                              value
+                            ) : typeof value === 'object' && value !== null ? (
+                              <pre style={{ margin: 0, fontSize: '12px' }}>
+                                {JSON.stringify(value, null, 2)}
+                              </pre>
+                            ) : (
+                              String(value)
+                            )}
+                          </Descriptions.Item>
+                        );
+                      })}
+                    </Descriptions>
+                  </>
+                )}
+
+                {/* Parameters */}
+                {job.parameters && Object.keys(job.parameters).length > 0 && (
+                  <>
+                    <Text
+                      type="secondary"
+                      style={{
+                        display: 'block',
+                        marginTop: 16,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Parameters
+                    </Text>
+                    <Descriptions column={1} size="small">
+                      {Object.entries(job.parameters).map(([key, value]) => {
+                        // Special handling for scene_ids
+                        if (key === 'scene_ids' && Array.isArray(value)) {
+                          return (
+                            <Descriptions.Item key={key} label="Scene IDs">
+                              <div className={styles.sceneIdsContainer}>
+                                {value.length > 10 ? (
+                                  <>
+                                    <div className={styles.sceneIdsList}>
+                                      {(value as string[])
+                                        .slice(0, 10)
+                                        .map((id: string, idx: number) => (
+                                          <Tag key={idx}>{id}</Tag>
+                                        ))}
+                                    </div>
+                                    <Text
+                                      type="secondary"
+                                      style={{ fontSize: '12px' }}
+                                    >
+                                      and {value.length - 10} more...
+                                    </Text>
+                                  </>
+                                ) : (
+                                  <div className={styles.sceneIdsList}>
+                                    {(value as string[]).map(
+                                      (id: string, idx: number) => (
+                                        <Tag key={idx}>{id}</Tag>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </Descriptions.Item>
+                          );
+                        }
+
+                        // Default rendering for other parameters
+                        return (
+                          <Descriptions.Item key={key} label={key}>
+                            {typeof value === 'string' ? (
+                              value
+                            ) : typeof value === 'object' && value !== null ? (
+                              <pre style={{ margin: 0, fontSize: '12px' }}>
+                                {JSON.stringify(value, null, 2)}
+                              </pre>
+                            ) : (
+                              String(value)
+                            )}
+                          </Descriptions.Item>
+                        );
+                      })}
+                    </Descriptions>
+                  </>
+                )}
+              </Collapse.Panel>
+            </Collapse>
           </div>
         )}
 
-        {job.parameters && Object.keys(job.parameters).length > 0 && (
-          <div className={styles.parameters}>
-            <Text type="secondary">Parameters:</Text>
-            <Descriptions column={1} size="small">
-              {Object.entries(job.parameters).map(([key, value]) => {
-                // Special handling for scene_ids
-                if (key === 'scene_ids' && Array.isArray(value)) {
-                  return (
-                    <Descriptions.Item key={key} label="Scene IDs">
-                      <div className={styles.sceneIdsContainer}>
-                        {value.length > 10 ? (
-                          <>
-                            <div className={styles.sceneIdsList}>
-                              {(value as string[])
-                                .slice(0, 10)
-                                .map((id: string, idx: number) => (
-                                  <Tag key={idx}>{id}</Tag>
-                                ))}
-                            </div>
-                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                              and {value.length - 10} more...
-                            </Text>
-                          </>
-                        ) : (
-                          <div className={styles.sceneIdsList}>
-                            {(value as string[]).map(
-                              (id: string, idx: number) => (
-                                <Tag key={idx}>{id}</Tag>
-                              )
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Descriptions.Item>
-                  );
-                }
-
-                // Default rendering for other parameters
-                return (
-                  <Descriptions.Item key={key} label={key}>
-                    {typeof value === 'string' ? (
-                      value
-                    ) : typeof value === 'object' && value !== null ? (
-                      <pre style={{ margin: 0, fontSize: '12px' }}>
-                        {JSON.stringify(value, null, 2)}
-                      </pre>
-                    ) : (
-                      String(value)
-                    )}
-                  </Descriptions.Item>
-                );
-              })}
-            </Descriptions>
-          </div>
-        )}
-
+        {/* Action Buttons */}
         {(job.result &&
           (job.type === 'scene_analysis' || job.type === 'analysis') &&
           'plan_id' in job.result &&

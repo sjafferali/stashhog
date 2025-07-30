@@ -1,7 +1,18 @@
 .jobCard {
   margin-bottom: 16px;
-  transition: opacity 0.3s ease;
+  transition: all 0.3s ease;
   width: 100%;
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  
+  &:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+    border-color: #d9d9d9;
+  }
   
   &:last-child {
     margin-bottom: 0;
@@ -74,28 +85,58 @@
 }
 
 .content {
+  padding: 20px;
   
-  .progressSection {
-    margin-bottom: 16px;
-    
-    .progressInfo {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      gap: 12px;
-      flex-wrap: wrap;
+  .basicInfo {
+    .progressSection {
+      margin-bottom: 12px;
       
-      > span {
-        &:last-child {
-          text-align: right;
+      .progressInfo {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        gap: 12px;
+        flex-wrap: wrap;
+        
+        > span {
+          &:last-child {
+            text-align: right;
+          }
         }
+      }
+    }
+    
+    .quickInfo {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #fafafa;
+      border-radius: 6px;
+    }
+  }
+  
+  .detailsCollapse {
+    margin-top: 16px;
+    border-top: 1px solid #f0f0f0;
+    
+    :global {
+      .ant-collapse-header {
+        padding: 12px 0 !important;
+        color: #1890ff;
+        font-weight: 500;
+        
+        &:hover {
+          color: #40a9ff;
+        }
+      }
+      
+      .ant-collapse-content-box {
+        padding: 16px 0;
       }
     }
   }
   
   .details {
-    margin-bottom: 16px;
     
     :global {
       .ant-descriptions-item-content {
@@ -178,5 +219,29 @@
     padding-top: 16px;
     border-top: 1px solid #f0f0f0;
     text-align: center;
+  }
+}
+
+// Global overrides for Ant Design Card
+.jobCard {
+  :global {
+    .ant-card-head {
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+      padding: 12px 20px;
+      
+      .ant-card-head-title {
+        padding: 0;
+      }
+    }
+    
+    .ant-card-body {
+      padding: 0;
+    }
+    
+    .ant-card-actions {
+      background: #fafafa;
+      border-top: 1px solid #f0f0f0;
+    }
   }
 }
