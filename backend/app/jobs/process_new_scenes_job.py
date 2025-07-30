@@ -108,7 +108,11 @@ async def _create_and_run_subjob(  # noqa: C901
                 )
                 if "active_sub_job" in parent_metadata:
                     updated_metadata = parent_metadata.copy()
-                    updated_metadata["active_sub_job"]["status"] = sub_job.status.value
+                    updated_metadata["active_sub_job"]["status"] = (
+                        sub_job.status.value
+                        if hasattr(sub_job.status, "value")
+                        else sub_job.status
+                    )
                     updated_metadata["active_sub_job"]["progress"] = sub_job.progress
                     parent_job.job_metadata = updated_metadata  # type: ignore
                     await db.commit()
