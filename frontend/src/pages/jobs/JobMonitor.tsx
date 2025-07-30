@@ -943,9 +943,9 @@ const JobMonitor: React.FC = () => {
                     key={job.id}
                     xs={24}
                     sm={24}
-                    md={24}
+                    md={12}
                     lg={12}
-                    xl={12}
+                    xl={8}
                     xxl={8}
                   >
                     <JobCard

@@ -1,6 +1,7 @@
 .jobCard {
   margin-bottom: 16px;
   transition: opacity 0.3s ease;
+  width: 100%;
   
   &:last-child {
     margin-bottom: 0;
@@ -20,9 +21,24 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
     
     h5 {
       margin: 0;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    > div:first-child {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
   }
 }
@@ -58,7 +74,6 @@
 }
 
 .content {
-  padding: 4px;
   
   .progressSection {
     margin-bottom: 16px;
@@ -66,12 +81,31 @@
     .progressInfo {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-bottom: 8px;
+      gap: 12px;
+      flex-wrap: wrap;
+      
+      > span {
+        &:last-child {
+          text-align: right;
+        }
+      }
     }
   }
   
   .details {
     margin-bottom: 16px;
+    
+    :global {
+      .ant-descriptions-item-content {
+        word-break: break-all;
+        
+        .ant-typography-copy {
+          margin-left: 4px;
+        }
+      }
+    }
   }
   
   .error {

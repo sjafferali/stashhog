@@ -304,7 +304,14 @@ export const JobCard: React.FC<JobCardProps> = ({
         {showDetails && (
           <Descriptions column={2} size="small" className={styles.details}>
             <Descriptions.Item label="Job ID" span={2}>
-              <Text copyable style={{ fontFamily: 'monospace' }}>
+              <Text
+                copyable
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  wordBreak: 'break-all',
+                }}
+              >
                 {job.id}
               </Text>
             </Descriptions.Item>

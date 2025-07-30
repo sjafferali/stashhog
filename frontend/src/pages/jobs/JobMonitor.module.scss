@@ -320,9 +320,16 @@
   }
   
   .cardView {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 16px;
     padding: 20px;
+    
+    :global {
+      .ant-col {
+        display: flex;
+        
+        > div {
+          width: 100%;
+        }
+      }
+    }
   }
 }
