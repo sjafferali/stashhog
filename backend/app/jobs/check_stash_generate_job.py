@@ -25,7 +25,6 @@ query ScenesWithoutCover {
     scenes {
       id
       title
-      path
     }
   }
 }
@@ -45,7 +44,6 @@ query ScenesWithoutPhash {
     scenes {
       id
       title
-      path
     }
   }
 }
