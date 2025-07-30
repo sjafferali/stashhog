@@ -576,9 +576,80 @@ class JobService:
                     ),
                 }
 
+                # Update parent job if this is a subjob
+                await self._update_parent_job_active_subjob(job, metadata_dict, db)
+
                 # Send WebSocket update directly with the current job data
                 logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
                 await websocket_manager.broadcast_job_update(job_data)
+
+    async def _update_parent_job_active_subjob(
+        self, job: Job, metadata_dict: Dict[str, Any], db: AsyncSession
+    ) -> None:
+        """Update parent job's active_sub_job metadata when subjob progress changes."""
+        if not metadata_dict.get("parent_job_id"):
+            return
+
+        parent_job_id = metadata_dict["parent_job_id"]
+        parent_job = await job_repository.get_job(parent_job_id, db)
+
+        if not parent_job or not parent_job.job_metadata:
+            return
+
+        parent_metadata: Dict[str, Any] = (
+            parent_job.job_metadata if isinstance(parent_job.job_metadata, dict) else {}
+        )
+
+        # Check if this is the active subjob
+        if (
+            "active_sub_job" not in parent_metadata
+            or not parent_metadata["active_sub_job"]
+            or parent_metadata["active_sub_job"].get("id") != str(job.id)
+        ):
+            return
+
+        # Update active subjob progress and status
+        parent_metadata["active_sub_job"]["progress"] = job.progress
+        parent_metadata["active_sub_job"]["status"] = (
+            job.status.value if hasattr(job.status, "value") else job.status
+        )
+        parent_job.job_metadata = parent_metadata  # type: ignore
+        await db.commit()
+
+        # Broadcast parent job update
+        parent_job_data = {
+            "id": parent_job.id,
+            "type": (
+                parent_job.type.value
+                if hasattr(parent_job.type, "value")
+                else parent_job.type
+            ),
+            "status": (
+                parent_job.status.value
+                if hasattr(parent_job.status, "value")
+                else parent_job.status
+            ),
+            "progress": parent_job.progress,
+            "total": parent_job.total_items,
+            "processed_items": parent_job.processed_items,
+            "parameters": parent_metadata,
+            "metadata": parent_metadata,
+            "result": parent_job.result,
+            "error": parent_job.error,
+            "created_at": (
+                parent_job.created_at.isoformat() if parent_job.created_at else None
+            ),
+            "updated_at": (
+                parent_job.updated_at.isoformat() if parent_job.updated_at else None
+            ),
+            "started_at": (
+                parent_job.started_at.isoformat() if parent_job.started_at else None
+            ),
+            "completed_at": (
+                parent_job.completed_at.isoformat() if parent_job.completed_at else None
+            ),
+        }
+        await websocket_manager.broadcast_job_update(parent_job_data)
 
     async def _send_job_update(
         self, job_id: str, data: dict[str, Any], job: Optional[Job] = None

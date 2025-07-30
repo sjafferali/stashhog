@@ -272,6 +272,21 @@ export const JobCard: React.FC<JobCardProps> = ({
       <div className={styles.content}>
         {/* Basic Info Section - Always Visible */}
         <div className={styles.basicInfo}>
+          {/* Job ID Section */}
+          <div className={styles.jobIdSection}>
+            <Text type="secondary">Job ID: </Text>
+            <Text
+              copyable
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                wordBreak: 'break-all',
+              }}
+            >
+              {job.id}
+            </Text>
+          </div>
+
           <div className={styles.progressSection}>
             <div className={styles.progressInfo}>
               <Text type="secondary">Progress</Text>
@@ -340,18 +355,6 @@ export const JobCard: React.FC<JobCardProps> = ({
                   size="small"
                   className={styles.details}
                 >
-                  <Descriptions.Item label="Job ID" span={2}>
-                    <Text
-                      copyable
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: '12px',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {job.id}
-                    </Text>
-                  </Descriptions.Item>
                   <Descriptions.Item label="Created">
                     {new Date(job.created_at).toLocaleString()}
                   </Descriptions.Item>
