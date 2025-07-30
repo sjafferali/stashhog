@@ -27,20 +27,38 @@ def _initialize_result(job_id: str, total_items: int) -> Dict[str, Any]:
     }
 
 
-def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> None:
-    """Hardlink torrent content to destination."""
+def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> bool:
+    """Hardlink torrent content to destination.
+
+    Returns:
+        True if any new files were linked, False if all files already existed.
+    """
+    any_new_files = False
+
     if content_path.is_file():
         # Single file torrent
+        if dest_path.exists():
+            logger.debug(f"Destination file already exists: {dest_path}")
+            return False
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         os.link(content_path, dest_path)
+        any_new_files = True
     else:
         # Directory torrent - hardlink each file individually
         for src_file in content_path.rglob("*"):
             if src_file.is_file():
                 rel_path = src_file.relative_to(content_path)
                 dst_file = dest_path / rel_path
+
+                if dst_file.exists():
+                    logger.debug(f"Destination file already exists: {dst_file}")
+                    continue
+
                 dst_file.parent.mkdir(parents=True, exist_ok=True)
                 os.link(src_file, dst_file)
+                any_new_files = True
+
+    return any_new_files
 
 
 def _process_single_torrent(
@@ -72,8 +90,13 @@ def _process_single_torrent(
     # Hardlink files/directories
     logger.info(f"Hardlinking from {content_path} to {dest_path}")
     try:
-        _hardlink_torrent_content(content_path, dest_path)
-        logger.debug(f"Successfully hardlinked {content_path} to {dest_path}")
+        created_new_files = _hardlink_torrent_content(content_path, dest_path)
+        if created_new_files:
+            logger.debug(f"Successfully hardlinked {content_path} to {dest_path}")
+        else:
+            logger.info(
+                f"All files already exist for {torrent.name}, skipping hardlink"
+            )
     except OSError as e:
         if e.errno == 18:  # Cross-device link error
             logger.warning(
@@ -81,11 +104,21 @@ def _process_single_torrent(
             )
             # Fall back to regular copy if hardlink fails (different filesystems)
             if content_path.is_file():
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(content_path, dest_path)
+                if not dest_path.exists():
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(content_path, dest_path)
+                    logger.info(
+                        f"Successfully copied {content_path} to {dest_path} (fallback)"
+                    )
+                else:
+                    logger.info(
+                        f"Destination already exists during copy fallback: {dest_path}"
+                    )
             else:
                 shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
-            logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
+                logger.info(
+                    f"Successfully copied {content_path} to {dest_path} (fallback)"
+                )
         else:
             raise
 
