@@ -88,6 +88,24 @@
   padding: 20px;
   
   .basicInfo {
+    .jobIdSection {
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: #f5f7fa;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      word-break: break-all;
+      
+      :global {
+        .ant-typography-copy {
+          margin-left: 4px;
+        }
+      }
+    }
+    
     .progressSection {
       margin-bottom: 12px;
       

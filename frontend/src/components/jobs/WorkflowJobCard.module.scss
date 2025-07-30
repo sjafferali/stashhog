@@ -35,7 +35,7 @@
   }
 
   .content {
-    padding: 8px;
+    padding: 20px;
 
     .jobIdSection {
       margin-bottom: 16px;
@@ -77,6 +77,13 @@
           min-width: 150px;
         }
       }
+    }
+
+    .quickInfo {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #fafafa;
+      border-radius: 6px;
     }
 
     .progressSection {
@@ -156,12 +163,17 @@
 
   :global {
     .ant-card-head {
+      background: #fafafa;
       border-bottom: 1px solid #f0f0f0;
-      padding: 16px 20px;
+      padding: 12px 20px;
+      
+      .ant-card-head-title {
+        padding: 0;
+      }
     }
 
     .ant-card-body {
-      padding: 16px 20px;
+      padding: 0;
     }
 
     .ant-badge-status-text {

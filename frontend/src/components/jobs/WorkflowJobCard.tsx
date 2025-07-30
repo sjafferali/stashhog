@@ -20,7 +20,7 @@ import {
   CaretRightOutlined,
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
-import { getJobTypeLabel } from '@/utils/jobUtils';
+import { getJobTypeLabel, getJobTypeColor } from '@/utils/jobUtils';
 import { WorkflowJobModal } from './WorkflowJobModal';
 import styles from './WorkflowJobCard.module.scss';
 
@@ -218,6 +218,22 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
                 ? `${currentStep}/6 - ${WORKFLOW_STEPS[currentStep - 1]?.title}`
                 : 'Initializing...'}
             </Text>
+          </div>
+
+          <div className={styles.quickInfo}>
+            <Space size="middle" wrap>
+              <Tooltip title="Job Type">
+                <Tag color={getJobTypeColor(job.type)}>
+                  {getJobTypeLabel(job.type)}
+                </Tag>
+              </Tooltip>
+              <Tooltip title="Created">
+                <Text type="secondary">
+                  <ClockCircleOutlined />{' '}
+                  {new Date(job.created_at).toLocaleTimeString()}
+                </Text>
+              </Tooltip>
+            </Space>
           </div>
 
           <div className={styles.progressSection}>
