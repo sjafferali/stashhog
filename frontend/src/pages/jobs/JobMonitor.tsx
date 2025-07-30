@@ -562,7 +562,9 @@ const JobMonitor: React.FC = () => {
         const stepName = record.metadata?.step_name as string | undefined;
         const activeSubJob = record.metadata?.active_sub_job as
           | {
+              id: string;
               type: string;
+              status: string;
               progress: number;
             }
           | undefined;
@@ -574,11 +576,17 @@ const JobMonitor: React.FC = () => {
               status={
                 record.status === 'failed'
                   ? 'exception'
-                  : record.status === 'completed'
-                    ? 'success'
-                    : 'active'
+                  : record.status === 'cancelled' ||
+                      record.status === 'cancelling'
+                    ? 'exception'
+                    : record.status === 'completed'
+                      ? 'success'
+                      : 'active'
               }
               size="small"
+              strokeColor={
+                record.status === 'cancelled' ? '#ff4d4f' : undefined
+              }
               format={(percent: number | undefined) => (
                 <Space size={4}>
                   <span>{percent}%</span>
@@ -599,11 +607,18 @@ const JobMonitor: React.FC = () => {
                   Step {currentStep}/{totalSteps}: {stepName}
                 </Text>
                 {activeSubJob && (
-                  <div>
+                  <div style={{ marginTop: 4 }}>
                     <Text type="secondary" style={{ fontSize: 11 }}>
-                      {getJobTypeLabel(activeSubJob.type)} (
-                      {activeSubJob.progress}%)
+                      {getJobTypeLabel(activeSubJob.type)}
                     </Text>
+                    <Progress
+                      key={`${activeSubJob.id}-${activeSubJob.progress}`}
+                      percent={activeSubJob.progress}
+                      size="small"
+                      showInfo={false}
+                      strokeWidth={4}
+                      style={{ marginTop: 2 }}
+                    />
                   </div>
                 )}
               </div>
@@ -906,6 +921,9 @@ const JobMonitor: React.FC = () => {
                 />
               ),
             }}
+            rowClassName={(record) =>
+              record.status === 'cancelled' ? 'cancelled-job-row' : ''
+            }
           />
         ) : (
           <div className={styles.cardView}>
@@ -1012,9 +1030,17 @@ const JobMonitor: React.FC = () => {
                       status={
                         selectedJob.status === 'failed'
                           ? 'exception'
-                          : selectedJob.status === 'completed'
-                            ? 'success'
-                            : 'active'
+                          : selectedJob.status === 'cancelled' ||
+                              selectedJob.status === 'cancelling'
+                            ? 'exception'
+                            : selectedJob.status === 'completed'
+                              ? 'success'
+                              : 'active'
+                      }
+                      strokeColor={
+                        selectedJob.status === 'cancelled'
+                          ? '#ff4d4f'
+                          : undefined
                       }
                     />
                   </Descriptions.Item>

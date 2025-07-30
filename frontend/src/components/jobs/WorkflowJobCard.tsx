@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Progress,
@@ -7,8 +7,6 @@ import {
   Button,
   Typography,
   Tooltip,
-  Descriptions,
-  Steps,
   Collapse,
   Badge,
 } from 'antd';
@@ -23,10 +21,10 @@ import {
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
 import { getJobTypeLabel } from '@/utils/jobUtils';
+import { WorkflowJobModal } from './WorkflowJobModal';
 import styles from './WorkflowJobCard.module.scss';
 
 const { Text, Title } = Typography;
-const { Step } = Steps;
 
 export interface WorkflowJobCardProps {
   job: Job;
@@ -63,20 +61,17 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
   onRetry,
   onDelete,
 }) => {
-  const metadata = job.metadata as WorkflowMetadata | undefined;
+  const [modalVisible, setModalVisible] = useState(false);
+  const [localJob, setLocalJob] = useState(job);
+  const metadata = localJob.metadata as WorkflowMetadata | undefined;
   const currentStep = metadata?.current_step || 0;
   const stepName = metadata?.step_name || '';
   const activeSubJob = metadata?.active_sub_job;
 
-  // Debug: Log workflow metadata
-  console.log('WorkflowJobCard rendering:', {
-    jobId: job.id,
-    jobType: job.type,
-    metadata: metadata,
-    currentStep: currentStep,
-    stepName: stepName,
-    activeSubJob: activeSubJob,
-  });
+  // Update local job when props change
+  useEffect(() => {
+    setLocalJob(job);
+  }, [job]);
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -112,43 +107,6 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
       default:
         return 'default';
     }
-  };
-
-  const formatDuration = () => {
-    if (!job.started_at) return null;
-
-    const start = new Date(job.started_at).getTime();
-    const end = job.completed_at
-      ? new Date(job.completed_at).getTime()
-      : Date.now();
-    const duration = end - start;
-
-    const seconds = Math.floor(duration / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    }
-    if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    }
-    return `${seconds}s`;
-  };
-
-  const getStepStatus = (stepIndex: number) => {
-    // Step indices are 0-based, but current_step is 1-based
-    const adjustedCurrent = currentStep - 1;
-
-    if (job.status === 'failed' || job.status === 'cancelled') {
-      if (stepIndex < adjustedCurrent) return 'finish';
-      if (stepIndex === adjustedCurrent) return 'error';
-      return 'wait';
-    }
-
-    if (stepIndex < adjustedCurrent) return 'finish';
-    if (stepIndex === adjustedCurrent) return 'process';
-    return 'wait';
   };
 
   const actions = [];
@@ -212,6 +170,7 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
             />
           </div>
           <Progress
+            key={`${activeSubJob.id}-${activeSubJob.progress}`}
             percent={activeSubJob.progress}
             size="small"
             status={activeSubJob.status === 'running' ? 'active' : undefined}
@@ -222,148 +181,105 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
   };
 
   return (
-    <Card
-      className={styles.workflowJobCard}
-      title={
-        <div className={styles.cardHeader}>
-          <Space>
-            {getStatusIcon()}
-            <Title level={5}>{job.name || 'Process New Scenes Workflow'}</Title>
-          </Space>
-          <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
-        </div>
-      }
-      extra={<Space>{actions}</Space>}
-    >
-      <div className={styles.content}>
-        <div className={styles.stepsSection}>
-          <Steps
-            current={currentStep - 1}
-            size="small"
-            className={styles.workflowSteps}
-          >
-            {WORKFLOW_STEPS.map((step, index) => (
-              <Step
-                key={index}
-                title={step.title}
-                description={step.description}
-                status={getStepStatus(index)}
-                icon={
-                  getStepStatus(index) === 'process' ? (
-                    <LoadingOutlined />
-                  ) : undefined
-                }
-              />
-            ))}
-          </Steps>
-        </div>
+    <>
+      <Card
+        className={styles.workflowJobCard}
+        data-status={job.status}
+        title={
+          <div className={styles.cardHeader}>
+            <Space>
+              {getStatusIcon()}
+              <Title level={5} style={{ margin: 0 }}>
+                {job.name || 'Process New Scenes Workflow'}
+              </Title>
+            </Space>
+            <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
+          </div>
+        }
+        extra={<Space>{actions}</Space>}
+        onClick={() => setModalVisible(true)}
+        style={{ cursor: 'pointer' }}
+      >
+        <div className={styles.content}>
+          <div className={styles.jobIdSection}>
+            <Text type="secondary">Job ID: </Text>
+            <Text
+              copyable
+              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+            >
+              {job.id}
+            </Text>
+          </div>
 
-        <div className={styles.progressSection}>
-          <div className={styles.progressInfo}>
-            <Text type="secondary">Overall Progress</Text>
-            <Text>
+          <div className={styles.stepsPreview}>
+            <Text type="secondary">Current Step:</Text>
+            <Text strong>
               {currentStep > 0 && currentStep <= 6
-                ? `Step ${currentStep}/6: ${stepName}`
+                ? `${currentStep}/6 - ${WORKFLOW_STEPS[currentStep - 1]?.title}`
                 : 'Initializing...'}
             </Text>
           </div>
-          <Progress
-            percent={job.progress}
-            status={
-              job.status === 'failed'
-                ? 'exception'
-                : job.status === 'running'
-                  ? 'active'
-                  : undefined
-            }
-          />
-        </div>
 
-        {activeSubJob && (
-          <Collapse
-            {...({
-              items: [
-                {
-                  key: '1',
-                  label: 'Sub-Job Details',
-                  children: renderSubJobInfo(),
-                },
-              ],
-              expandIcon: ({ isActive }: { isActive?: boolean }) => (
-                <CaretRightOutlined rotate={isActive ? 90 : 0} />
-              ),
-              className: styles.subJobCollapse,
-            } as unknown as Record<string, unknown>)}
-          />
-        )}
-
-        <Descriptions column={2} size="small" className={styles.details}>
-          <Descriptions.Item label="Type">
-            <Tag color="purple">{getJobTypeLabel(job.type)}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Duration">
-            {formatDuration() || 'N/A'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Created">
-            {new Date(job.created_at).toLocaleString()}
-          </Descriptions.Item>
-          {job.started_at && (
-            <Descriptions.Item label="Started">
-              {new Date(job.started_at).toLocaleString()}
-            </Descriptions.Item>
-          )}
-          {job.completed_at && (
-            <Descriptions.Item label="Completed" span={2}>
-              {new Date(job.completed_at).toLocaleString()}
-            </Descriptions.Item>
-          )}
-        </Descriptions>
-
-        {job.error && (
-          <div className={styles.error}>
-            <Text type="danger" strong>
-              Error:
-            </Text>
-            <Text type="danger">{job.error}</Text>
+          <div className={styles.progressSection}>
+            <div className={styles.progressInfo}>
+              <Text type="secondary">Overall Progress</Text>
+              <Text>
+                {currentStep > 0 && currentStep <= 6
+                  ? `Step ${currentStep}/6: ${stepName}`
+                  : 'Initializing...'}
+              </Text>
+            </div>
+            <Progress
+              percent={job.progress}
+              status={
+                job.status === 'failed'
+                  ? 'exception'
+                  : job.status === 'cancelled' || job.status === 'cancelling'
+                    ? 'exception'
+                    : job.status === 'running'
+                      ? 'active'
+                      : undefined
+              }
+              strokeColor={job.status === 'cancelled' ? '#ff4d4f' : undefined}
+            />
           </div>
-        )}
 
-        {job.result && Object.keys(job.result).length > 0 && (
-          <Collapse
-            {...({
-              items: [
-                {
-                  key: '1',
-                  label: 'Workflow Summary',
-                  children: (
-                    <Descriptions column={1} size="small">
-                      {job.result.summary &&
-                        Object.entries(
-                          job.result.summary as Record<string, unknown>
-                        ).map(([key, value]) => (
-                          <Descriptions.Item
-                            key={key}
-                            label={key
-                              .replace(/_/g, ' ')
-                              .replace(/\b\w/g, (l) => l.toUpperCase())}
-                          >
-                            {typeof value === 'object'
-                              ? JSON.stringify(value)
-                              : String(value)}
-                          </Descriptions.Item>
-                        ))}
-                    </Descriptions>
-                  ),
-                },
-              ],
-              expandIcon: ({ isActive }: { isActive?: boolean }) => (
-                <CaretRightOutlined rotate={isActive ? 90 : 0} />
-              ),
-              className: styles.resultCollapse,
-            } as unknown as Record<string, unknown>)}
-          />
-        )}
-      </div>
-    </Card>
+          {activeSubJob && (
+            <Collapse
+              {...({
+                items: [
+                  {
+                    key: '1',
+                    label: 'Sub-Job Details',
+                    children: renderSubJobInfo(),
+                  },
+                ],
+                expandIcon: ({ isActive }: { isActive?: boolean }) => (
+                  <CaretRightOutlined rotate={isActive ? 90 : 0} />
+                ),
+                className: styles.subJobCollapse,
+                // Force re-render when activeSubJob changes
+                key: `collapse-${activeSubJob.id}-${activeSubJob.progress}`,
+              } as unknown as Record<string, unknown>)}
+            />
+          )}
+
+          <div className={styles.clickHint}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Click card to view full details
+            </Text>
+          </div>
+        </div>
+      </Card>
+
+      <WorkflowJobModal
+        job={localJob}
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onCancel={onCancel}
+        onRetry={onRetry}
+        onDelete={onDelete}
+      />
+    </>
   );
 };

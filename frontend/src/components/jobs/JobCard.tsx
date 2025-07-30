@@ -18,6 +18,7 @@ import {
   RedoOutlined,
   DeleteOutlined,
   FileTextOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
@@ -41,6 +42,41 @@ export interface JobCardProps {
   compact?: boolean;
   showDetails?: boolean;
 }
+
+const getJobSceneIds = (job: Job): string[] | null => {
+  // Check different places where scene IDs might be stored
+
+  // 1. Check metadata.scene_ids (for sync jobs)
+  if (job.metadata?.scene_ids && Array.isArray(job.metadata.scene_ids)) {
+    return job.metadata.scene_ids as string[];
+  }
+
+  // 2. Check parameters.scene_ids (for some sync jobs)
+  if (job.parameters?.scene_ids && Array.isArray(job.parameters.scene_ids)) {
+    return job.parameters.scene_ids as string[];
+  }
+
+  // 3. For analysis jobs, check if we have analyzed_scene_ids in result
+  if (
+    job.result?.analyzed_scene_ids &&
+    Array.isArray(job.result.analyzed_scene_ids)
+  ) {
+    return job.result.analyzed_scene_ids as string[];
+  }
+
+  // 4. For analysis jobs with scenes_analyzed count but no explicit IDs
+  if (
+    job.result?.scenes_analyzed &&
+    typeof job.result.scenes_analyzed === 'number'
+  ) {
+    // Check if there's a scene_ids in result
+    if (job.result?.scene_ids && Array.isArray(job.result.scene_ids)) {
+      return job.result.scene_ids as string[];
+    }
+  }
+
+  return null;
+};
 
 export const JobCard: React.FC<JobCardProps> = ({
   job,
@@ -187,7 +223,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   if (compact) {
     return (
-      <div className={styles.compactCard}>
+      <div className={styles.compactCard} data-status={job.status}>
         <div className={styles.compactHeader}>
           <Space>
             {getStatusIcon()}
@@ -196,11 +232,18 @@ export const JobCard: React.FC<JobCardProps> = ({
           </Space>
           <Space>{actions}</Space>
         </div>
-        {(job.status === 'running' || job.status === 'cancelling') && (
+        {(job.status === 'running' ||
+          job.status === 'cancelling' ||
+          job.status === 'cancelled') && (
           <Progress
             percent={progressPercent}
             size="small"
-            status={job.status === 'cancelling' ? 'exception' : 'active'}
+            status={
+              job.status === 'cancelling' || job.status === 'cancelled'
+                ? 'exception'
+                : 'active'
+            }
+            strokeColor={job.status === 'cancelled' ? '#ff4d4f' : undefined}
             format={() =>
               formatJobProgress(
                 job.type,
@@ -218,6 +261,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   return (
     <Card
       className={styles.jobCard}
+      data-status={job.status}
       title={
         <div className={styles.cardHeader}>
           <Space>
@@ -247,12 +291,13 @@ export const JobCard: React.FC<JobCardProps> = ({
             status={
               job.status === 'failed'
                 ? 'exception'
-                : job.status === 'cancelling'
+                : job.status === 'cancelling' || job.status === 'cancelled'
                   ? 'exception'
                   : job.status === 'running'
                     ? 'active'
                     : undefined
             }
+            strokeColor={job.status === 'cancelled' ? '#ff4d4f' : undefined}
           />
         </div>
 
@@ -300,19 +345,110 @@ export const JobCard: React.FC<JobCardProps> = ({
           <div className={styles.metadata}>
             <Text type="secondary">Additional Information:</Text>
             <Descriptions column={1} size="small">
-              {Object.entries(job.metadata).map(([key, value]) => (
-                <Descriptions.Item key={key} label={key}>
-                  {typeof value === 'string' ? (
-                    value
-                  ) : typeof value === 'object' && value !== null ? (
-                    <pre style={{ margin: 0, fontSize: '12px' }}>
-                      {JSON.stringify(value, null, 2)}
-                    </pre>
-                  ) : (
-                    String(value)
-                  )}
-                </Descriptions.Item>
-              ))}
+              {Object.entries(job.metadata).map(([key, value]) => {
+                // Special handling for scene_ids
+                if (key === 'scene_ids' && Array.isArray(value)) {
+                  return (
+                    <Descriptions.Item key={key} label="Scene IDs">
+                      <div className={styles.sceneIdsContainer}>
+                        {value.length > 10 ? (
+                          <>
+                            <div className={styles.sceneIdsList}>
+                              {(value as string[])
+                                .slice(0, 10)
+                                .map((id: string, idx: number) => (
+                                  <Tag key={idx}>{id}</Tag>
+                                ))}
+                            </div>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              and {value.length - 10} more...
+                            </Text>
+                          </>
+                        ) : (
+                          <div className={styles.sceneIdsList}>
+                            {(value as string[]).map(
+                              (id: string, idx: number) => (
+                                <Tag key={idx}>{id}</Tag>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </Descriptions.Item>
+                  );
+                }
+
+                // Default rendering for other metadata
+                return (
+                  <Descriptions.Item key={key} label={key}>
+                    {typeof value === 'string' ? (
+                      value
+                    ) : typeof value === 'object' && value !== null ? (
+                      <pre style={{ margin: 0, fontSize: '12px' }}>
+                        {JSON.stringify(value, null, 2)}
+                      </pre>
+                    ) : (
+                      String(value)
+                    )}
+                  </Descriptions.Item>
+                );
+              })}
+            </Descriptions>
+          </div>
+        )}
+
+        {job.parameters && Object.keys(job.parameters).length > 0 && (
+          <div className={styles.parameters}>
+            <Text type="secondary">Parameters:</Text>
+            <Descriptions column={1} size="small">
+              {Object.entries(job.parameters).map(([key, value]) => {
+                // Special handling for scene_ids
+                if (key === 'scene_ids' && Array.isArray(value)) {
+                  return (
+                    <Descriptions.Item key={key} label="Scene IDs">
+                      <div className={styles.sceneIdsContainer}>
+                        {value.length > 10 ? (
+                          <>
+                            <div className={styles.sceneIdsList}>
+                              {(value as string[])
+                                .slice(0, 10)
+                                .map((id: string, idx: number) => (
+                                  <Tag key={idx}>{id}</Tag>
+                                ))}
+                            </div>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              and {value.length - 10} more...
+                            </Text>
+                          </>
+                        ) : (
+                          <div className={styles.sceneIdsList}>
+                            {(value as string[]).map(
+                              (id: string, idx: number) => (
+                                <Tag key={idx}>{id}</Tag>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </Descriptions.Item>
+                  );
+                }
+
+                // Default rendering for other parameters
+                return (
+                  <Descriptions.Item key={key} label={key}>
+                    {typeof value === 'string' ? (
+                      value
+                    ) : typeof value === 'object' && value !== null ? (
+                      <pre style={{ margin: 0, fontSize: '12px' }}>
+                        {JSON.stringify(value, null, 2)}
+                      </pre>
+                    ) : (
+                      String(value)
+                    )}
+                  </Descriptions.Item>
+                );
+              })}
             </Descriptions>
           </div>
         )}
@@ -343,6 +479,23 @@ export const JobCard: React.FC<JobCardProps> = ({
             </Link>
           </div>
         ) : null}
+
+        {(() => {
+          const sceneIds = getJobSceneIds(job);
+          if (sceneIds && sceneIds.length > 0) {
+            return (
+              <div className={styles.scenesLink}>
+                <Link to={`/scenes?scene_ids=${sceneIds.join(',')}`}>
+                  <Button type="default" icon={<VideoCameraOutlined />}>
+                    View {sceneIds.length} Scene
+                    {sceneIds.length !== 1 ? 's' : ''}
+                  </Button>
+                </Link>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
     </Card>
   );

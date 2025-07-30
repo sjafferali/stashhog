@@ -9,3 +9,6 @@ export type { JobListProps } from './JobList';
 
 export { WorkflowJobCard } from './WorkflowJobCard';
 export type { WorkflowJobCardProps } from './WorkflowJobCard';
+
+export { WorkflowJobModal } from './WorkflowJobModal';
+export type { WorkflowJobModalProps } from './WorkflowJobModal';

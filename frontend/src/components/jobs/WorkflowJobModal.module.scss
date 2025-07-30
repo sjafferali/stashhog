@@ -1,0 +1,134 @@
+.workflowModal {
+  :global {
+    .ant-modal-body {
+      padding: 24px;
+    }
+  }
+
+  .modalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    
+    h4 {
+      margin: 0;
+    }
+  }
+
+  .content {
+    .jobIdSection {
+      margin-bottom: 20px;
+      padding: 12px;
+      background: #f5f7fa;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stepsSection {
+      margin-bottom: 24px;
+      padding: 20px;
+      background: #fafafa;
+      border-radius: 8px;
+
+      .workflowSteps {
+        :global {
+          .ant-steps-item-title {
+            font-size: 14px;
+            font-weight: 500;
+          }
+
+          .ant-steps-item-description {
+            font-size: 13px;
+          }
+
+          .ant-steps-item-process .ant-steps-item-icon {
+            background: #1890ff;
+          }
+
+          .ant-steps-item-error .ant-steps-item-icon {
+            background: #ff4d4f;
+          }
+
+          .ant-steps-item-content {
+            margin-bottom: 16px;
+          }
+        }
+      }
+    }
+
+    .progressSection {
+      margin-bottom: 20px;
+
+      .progressInfo {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+    }
+
+    .subJobCollapse {
+      margin-bottom: 20px;
+      background: #f5f7fa;
+      border-radius: 8px;
+
+      :global {
+        .ant-collapse-header {
+          font-weight: 500;
+        }
+
+        .ant-collapse-content {
+          background: transparent;
+        }
+      }
+
+      .subJobInfo {
+        padding: 12px;
+
+        .subJobHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+      }
+    }
+
+    .resultCollapse {
+      margin-top: 20px;
+      background: #f0f2f5;
+      border-radius: 8px;
+
+      :global {
+        .ant-collapse-header {
+          font-weight: 500;
+        }
+
+        .ant-collapse-content {
+          background: transparent;
+        }
+      }
+    }
+
+    .details {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .error {
+      margin-top: 20px;
+      padding: 16px;
+      background: #fff2e8;
+      border: 1px solid #ffbb96;
+      border-radius: 8px;
+
+      :global {
+        .ant-typography {
+          margin-right: 8px;
+        }
+      }
+    }
+  }
+}

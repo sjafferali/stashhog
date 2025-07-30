@@ -3,9 +3,21 @@
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
+  cursor: pointer;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  &[data-status="cancelled"] {
+    opacity: 0.7;
+    
+    .cardHeader h5 {
+      text-decoration: line-through;
+      text-decoration-color: #ff4d4f;
+      text-decoration-thickness: 2px;
+    }
   }
 
   .cardHeader {
@@ -19,31 +31,26 @@
   }
 
   .content {
-    .stepsSection {
-      margin-bottom: 24px;
-      padding: 16px;
+    padding: 8px;
+
+    .jobIdSection {
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: #f5f7fa;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stepsPreview {
+      margin-bottom: 16px;
+      padding: 12px;
       background: #fafafa;
-      border-radius: 8px;
-
-      .workflowSteps {
-        :global {
-          .ant-steps-item-title {
-            font-size: 13px;
-          }
-
-          .ant-steps-item-description {
-            font-size: 12px;
-          }
-
-          .ant-steps-item-process .ant-steps-item-icon {
-            background: #1890ff;
-          }
-
-          .ant-steps-item-error .ant-steps-item-icon {
-            background: #ff4d4f;
-          }
-        }
-      }
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .progressSection {
@@ -64,14 +71,20 @@
       :global {
         .ant-collapse-header {
           font-weight: 500;
+          padding: 12px 16px;
         }
 
         .ant-collapse-content {
           background: transparent;
         }
+
+        .ant-collapse-content-box {
+          padding: 16px;
+        }
       }
 
       .subJobInfo {
+        padding: 0;
         .subJobHeader {
           display: flex;
           justify-content: space-between;
@@ -97,38 +110,32 @@
       }
     }
 
-    .details {
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid #f0f0f0;
-    }
-
-    .error {
-      margin-top: 16px;
-      padding: 12px;
-      background: #fff2e8;
-      border: 1px solid #ffbb96;
-      border-radius: 4px;
-
-      :global {
-        .ant-typography {
-          margin-right: 8px;
-        }
-      }
+    .clickHint {
+      margin-top: 12px;
+      text-align: center;
+      opacity: 0.6;
+      transition: opacity 0.2s;
     }
   }
 
   :global {
     .ant-card-head {
       border-bottom: 1px solid #f0f0f0;
+      padding: 16px 20px;
     }
 
     .ant-card-body {
-      padding: 20px;
+      padding: 16px 20px;
     }
 
     .ant-badge-status-text {
       font-size: 13px;
+    }
+  }
+
+  &:hover {
+    .clickHint {
+      opacity: 1;
     }
   }
 }
