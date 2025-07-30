@@ -211,10 +211,11 @@ async def _analyze_batch(
         {
             "scene_ids": scene_ids,
             "options": {
-                "analyze_video_tags": True,
-                "analyze_video_markers": True,
-                "analyze_scene_text": False,
-                "analyze_scene_ai": False,
+                "detect_video_tags": True,
+                "detect_performers": False,
+                "detect_studios": False,
+                "detect_tags": True,
+                "detect_details": False,
             },
         },
         parent_job_id,
@@ -367,6 +368,35 @@ async def _run_workflow_step(
     return result
 
 
+async def _update_parent_job_step(
+    job_service: JobService,
+    job_id: str,
+    step_number: int,
+    step_name: str,
+    total_steps: int = 6,
+) -> None:
+    """Update parent job metadata with current step info."""
+    async with AsyncSessionLocal() as db:
+        parent_job = await job_service.get_job(job_id, db)
+        if parent_job:
+            raw_metadata: Any = parent_job.job_metadata or {}
+            metadata: Dict[str, Any] = (
+                raw_metadata if isinstance(raw_metadata, dict) else {}
+            )
+            metadata.update(
+                {
+                    "current_step": step_number,
+                    "total_steps": total_steps,
+                    "step_name": step_name,
+                    "active_sub_job": metadata.get(
+                        "active_sub_job"
+                    ),  # Preserve active sub-job
+                }
+            )
+            parent_job.job_metadata = metadata  # type: ignore
+            await db.commit()
+
+
 async def _process_downloads_step(
     job_service: JobService,
     job_id: str,
@@ -376,6 +406,7 @@ async def _process_downloads_step(
 ) -> Optional[int]:
     """Process downloads and return synced items count."""
     await progress_callback(5, "Step 1/6: Processing downloads")
+    await _update_parent_job_step(job_service, job_id, 1, "Processing downloads")
 
     downloads_result = await _run_workflow_step(
         job_service,
@@ -484,6 +515,27 @@ async def process_new_scenes_job(  # noqa: C901
 
         job_service = get_job_service()
 
+        # Initialize parent job metadata with workflow info
+        async with AsyncSessionLocal() as db:
+            parent_job = await job_service.get_job(job_id, db)
+            if parent_job:
+                raw_initial_metadata: Any = parent_job.job_metadata or {}
+                initial_metadata: Dict[str, Any] = (
+                    raw_initial_metadata
+                    if isinstance(raw_initial_metadata, dict)
+                    else {}
+                )
+                initial_metadata.update(
+                    {
+                        "current_step": 0,
+                        "total_steps": 6,
+                        "step_name": "Initializing",
+                        "active_sub_job": None,
+                    }
+                )
+                parent_job.job_metadata = initial_metadata  # type: ignore
+                await db.commit()
+
         # Step 1: Process downloads
         synced_items = await _process_downloads_step(
             job_service,
@@ -507,6 +559,7 @@ async def process_new_scenes_job(  # noqa: C901
         await weighted_progress_callback(
             20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
         )
+        await _update_parent_job_step(job_service, job_id, 2, "Scanning metadata")
         await _run_workflow_step(
             job_service,
             JobType.STASH_SCAN,
@@ -522,6 +575,9 @@ async def process_new_scenes_job(  # noqa: C901
 
         # Step 3: Incremental sync
         await weighted_progress_callback(35, "Step 3/6: Running incremental sync")
+        await _update_parent_job_step(
+            job_service, job_id, 3, "Running incremental sync"
+        )
         await _run_workflow_step(
             job_service,
             JobType.SYNC,
@@ -537,6 +593,7 @@ async def process_new_scenes_job(  # noqa: C901
 
         # Step 4: Get unanalyzed scenes and process in batches
         await weighted_progress_callback(50, "Step 4/6: Analyzing unanalyzed scenes")
+        await _update_parent_job_step(job_service, job_id, 4, "Analyzing scenes")
         scene_batches = await _get_unanalyzed_scenes()
 
         if scene_batches:
@@ -572,6 +629,7 @@ async def process_new_scenes_job(  # noqa: C901
 
         # Step 5: Stash metadata generate
         await weighted_progress_callback(85, "Step 5/6: Generating Stash metadata")
+        await _update_parent_job_step(job_service, job_id, 5, "Generating metadata")
         await _run_workflow_step(
             job_service,
             JobType.STASH_GENERATE,
@@ -587,6 +645,7 @@ async def process_new_scenes_job(  # noqa: C901
 
         # Final progress
         await weighted_progress_callback(100, "Workflow completed")
+        await _update_parent_job_step(job_service, job_id, 6, "Completed")
 
         logger.info(
             f"Process new scenes workflow completed: "
