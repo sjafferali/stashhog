@@ -362,6 +362,9 @@ class TestTaskCallbacks:
                     break
                 await asyncio.sleep(0.01)
 
+            # Wait a bit more to ensure all async callbacks have completed
+            await asyncio.sleep(0.05)
+
             # Check callbacks were called
             assert (task_id, "started") in callback_events
             assert (task_id, "async_started") in callback_events

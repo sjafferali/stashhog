@@ -80,6 +80,7 @@ async def your_workflow_job(
     2. Update parent job metadata with current step info
     3. Use weighted progress calculation
     4. Handle cancellation across all sub-jobs
+    5. Track all created subjobs for proper cancellation cleanup
     """
     logger.info(f"Starting workflow job {job_id}")
     
@@ -94,6 +95,9 @@ async def your_workflow_job(
             # Add workflow-specific summary fields
         },
     }
+    
+    # IMPORTANT: Track all created subjobs for cancellation handling
+    created_subjobs: List[str] = []
     
     # Define step weights for progress calculation
     STEP_WEIGHTS = {
@@ -124,6 +128,7 @@ async def your_workflow_job(
             workflow_result,
             "step1",
             {"current_step": 1, "total_steps": 4},
+            created_subjobs,  # Pass the tracking list
         )
         
         if not step1_result or step1_result["status"] != "completed":
@@ -140,6 +145,12 @@ async def your_workflow_job(
     except asyncio.CancelledError:
         logger.info(f"Workflow {job_id} was cancelled")
         workflow_result["status"] = "cancelled"
+        
+        # CRITICAL: Wait for all subjobs to finish before allowing parent to be cancelled
+        if created_subjobs:
+            logger.info(f"Waiting for {len(created_subjobs)} subjobs to finish")
+            await _wait_for_subjobs_to_finish(job_service, job_id, created_subjobs)
+        
         raise
     except Exception as e:
         error_msg = f"Workflow failed: {str(e)}"
@@ -161,11 +172,14 @@ async def _create_and_run_subjob(
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
     step_info: Optional[Dict[str, Any]] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Create and run a sub-job, polling until completion.
     
     CRITICAL: Each database operation MUST use its own session to avoid greenlet errors.
+    IMPORTANT: Pass created_subjobs list to track subjobs for cancellation handling.
     """
+    # This log will include [job_type=..., job_id=..., parent_job_id=...] automatically
     logger.info(f"Starting {step_name} for parent job {parent_job_id}")
     
     # Check if already cancelled before creating sub-job
@@ -182,6 +196,10 @@ async def _create_and_run_subjob(
         )
         await db.commit()
         sub_job_id = str(sub_job.id)
+    
+    # Track the subjob for cancellation handling
+    if created_subjobs is not None:
+        created_subjobs.append(sub_job_id)
     
     # Update parent job metadata with current sub-job info
     if step_info:
@@ -261,7 +279,54 @@ async def _create_and_run_subjob(
         await asyncio.sleep(poll_interval)
 ```
 
-### 3. Workflow Step Helper
+### 3. Wait for Subjobs Function
+
+```python
+async def _wait_for_subjobs_to_finish(
+    job_service: JobService,
+    parent_job_id: str,
+    created_subjobs: List[str],
+    max_wait_seconds: int = 300,  # 5 minutes max wait
+) -> None:
+    """Wait for all subjobs to reach a terminal state.
+    
+    This ensures that when a workflow job is cancelled, it doesn't transition
+    to CANCELLED status until all of its subjobs have finished cancelling.
+    This prevents the parent job from appearing as cancelled while subjobs
+    are still running or in the process of being cancelled.
+    """
+    if not created_subjobs:
+        return
+        
+    logger.info(f"Waiting for {len(created_subjobs)} subjobs to finish for parent job {parent_job_id}")
+    
+    start_time = asyncio.get_event_loop().time()
+    poll_interval = 1  # second
+    
+    while True:
+        # Check if we've exceeded max wait time
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed > max_wait_seconds:
+            logger.warning(f"Timeout waiting for subjobs to finish after {elapsed:.1f}s")
+            break
+            
+        # Check status of all subjobs
+        all_finished = True
+        async with AsyncSessionLocal() as db:
+            for subjob_id in created_subjobs:
+                subjob = await job_service.get_job(subjob_id, db)
+                if subjob and not subjob.is_finished():
+                    all_finished = False
+                    break
+                    
+        if all_finished:
+            logger.info(f"All {len(created_subjobs)} subjobs have finished")
+            break
+            
+        await asyncio.sleep(poll_interval)
+```
+
+### 4. Workflow Step Helper
 
 ```python
 async def _run_workflow_step(
@@ -275,6 +340,7 @@ async def _run_workflow_step(
     workflow_result: Dict[str, Any],
     result_key: str,
     step_info: Optional[Dict[str, Any]] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run a workflow step and update results."""
     # Check if already cancelled before creating sub-job
@@ -291,6 +357,7 @@ async def _run_workflow_step(
         progress_callback,
         cancellation_token,
         step_info,
+        created_subjobs,
     )
     
     workflow_result["steps"][result_key] = result
@@ -474,12 +541,37 @@ await progress_callback(100, "Workflow completed")
    except asyncio.CancelledError:
        logger.info(f"Workflow {job_id} was cancelled")
        workflow_result["status"] = "cancelled"
-       # Clean up any pending resources
+       
+       # CRITICAL: Wait for subjobs to finish cancelling
+       if created_subjobs:
+           await _wait_for_subjobs_to_finish(job_service, job_id, created_subjobs)
+       
+       # Clean up any other pending resources
        await _cleanup_pending_plans(job_id)
        raise
    ```
 
-7. **Use Eager Loading for Relationships**
+7. **Proper Cancellation Handling for Workflows**
+   ```python
+   # ✅ CORRECT: Track subjobs and wait for them to finish
+   created_subjobs: List[str] = []  # Track at workflow level
+   
+   # Pass to all subjob creation functions
+   await _create_and_run_subjob(..., created_subjobs=created_subjobs)
+   
+   # In cancellation handler, wait for subjobs
+   except asyncio.CancelledError:
+       if created_subjobs:
+           await _wait_for_subjobs_to_finish(job_service, job_id, created_subjobs)
+       raise
+   
+   # ❌ WRONG: Let parent transition to CANCELLED immediately
+   except asyncio.CancelledError:
+       # This causes parent to show as cancelled while subjobs are still running
+       raise
+   ```
+
+8. **Use Eager Loading for Relationships**
    ```python
    # When fetching entities with relationships, use eager loading to avoid
    # lazy loading issues after session closes:
@@ -653,6 +745,9 @@ async def data_import_workflow(
         },
     }
     
+    # Track created subjobs for cancellation handling
+    created_subjobs: List[str] = []
+    
     # Step weights
     STEP_WEIGHTS = {
         1: (0, 20),     # Validation: 0-20%
@@ -679,6 +774,7 @@ async def data_import_workflow(
             workflow_result,
             "validation",
             {"current_step": 1, "total_steps": 4},
+            created_subjobs,
         )
         
         if not validation_result:
@@ -710,6 +806,7 @@ async def data_import_workflow(
             workflow_result,
             "processing",
             {"current_step": 2, "total_steps": 4},
+            created_subjobs,
         )
         
         if process_result:
@@ -729,6 +826,7 @@ async def data_import_workflow(
             workflow_result,
             "indexing",
             {"current_step": 3, "total_steps": 4},
+            created_subjobs,
         )
         
         if index_result:
@@ -748,6 +846,7 @@ async def data_import_workflow(
             workflow_result,
             "cleanup",
             {"current_step": 4, "total_steps": 4},
+            created_subjobs,
         )
         
         # Final status
@@ -763,6 +862,11 @@ async def data_import_workflow(
     except asyncio.CancelledError:
         logger.info(f"Workflow {job_id} was cancelled")
         workflow_result["status"] = "cancelled"
+        
+        # Wait for all subjobs to finish cancelling
+        if created_subjobs:
+            await _wait_for_subjobs_to_finish(job_service, job_id, created_subjobs)
+        
         raise
     except Exception as e:
         error_msg = f"Import workflow failed: {str(e)}"
@@ -867,6 +971,10 @@ async def test_workflow_session_isolation():
    - Cause: Not checking sub-job result status
    - Solution: Check `result["status"] != "completed"`
 
+5. **Parent Job Shows Cancelled While Subjobs Still Running**
+   - Cause: Not waiting for subjobs to finish cancelling
+   - Solution: Track subjobs and use `_wait_for_subjobs_to_finish()` in cancellation handler
+
 ### Debug Logging
 
 Add detailed logging to track workflow execution:
@@ -876,6 +984,28 @@ logger.debug(f"Step {step_num}: Creating sub-job {job_type}")
 logger.debug(f"Sub-job {sub_job_id} progress: {progress}%")
 logger.debug(f"Workflow {job_id} overall progress: {overall_progress}%")
 ```
+
+### Automatic Job Context in Logs
+
+All log messages within workflow jobs and their subjobs automatically include context:
+
+1. **Parent Workflow Logs**:
+   ```
+   2024-01-15 10:30:00 - app.jobs.process_new_scenes - INFO [job_type=process_new_scenes, job_id=workflow456] - Starting process_new_scenes job workflow456
+   2024-01-15 10:30:01 - app.jobs.process_new_scenes - INFO [job_type=process_new_scenes, job_id=workflow456] - Creating sub-job sub789 for Process Downloads
+   ```
+
+2. **Subjob Logs**:
+   ```
+   2024-01-15 10:30:05 - app.jobs.download_jobs - INFO [job_type=process_downloads, job_id=sub789, parent_job_id=workflow456] - Processing downloads from qBittorrent
+   2024-01-15 10:30:10 - app.jobs.download_jobs - DEBUG [job_type=process_downloads, job_id=sub789, parent_job_id=workflow456] - Successfully hardlinked 5 files
+   ```
+
+3. **Benefits**:
+   - Trace entire workflow execution by filtering on parent_job_id
+   - Debug specific subjobs by filtering on job_id
+   - Analyze performance by job_type
+   - No code changes needed - it's automatic!
 
 ### Monitoring Checklist
 
@@ -896,6 +1026,38 @@ logger.debug(f"Workflow {job_id} overall progress: {overall_progress}%")
 6. **Document Step Dependencies**: Clear prerequisites for each step
 7. **Use Consistent Naming**: Step names should be clear and descriptive
 8. **Monitor Resource Usage**: Long workflows may accumulate resources
+9. **Leverage Automatic Logging Context**: All logs include job metadata automatically
+10. **Proper Cancellation Handling**: Always track subjobs and wait for them to finish before allowing parent to transition to CANCELLED status
+
+## Logging in Workflow Jobs
+
+### What's Automatic
+
+1. **Job Context**: Every log message includes job_type, job_id, and parent_job_id (if applicable)
+2. **No Extra Code**: Just use standard logging - context is added automatically
+3. **Subjob Tracking**: Subjobs automatically include their parent's ID
+
+### Best Practices
+
+```python
+# In your workflow job
+logger.info(f"Starting workflow job {job_id}")  # Includes job context
+logger.info(f"Step 1/6: Processing downloads")  # Includes job context
+
+# In subjob monitoring
+logger.info(f"Created sub-job {sub_job_id} for {step_name}")  # Includes parent context
+logger.debug(f"Sub-job {sub_job_id} progress: {progress}%")  # Includes parent context
+
+# Error handling
+logger.error(f"Step {step_name} failed: {str(e)}", exc_info=True)  # Stack trace + context
+```
+
+### Filtering Logs
+
+To debug workflows, filter logs by:
+- `job_id=workflow456` - All logs from a specific workflow
+- `parent_job_id=workflow456` - All subjob logs for a workflow
+- `job_type=process_new_scenes` - All instances of a workflow type
 
 ## Summary
 

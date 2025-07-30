@@ -18,6 +18,7 @@ import {
   Empty,
   Select,
   Collapse,
+  Segmented,
 } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
@@ -34,6 +35,8 @@ import {
   FileTextOutlined,
   BugOutlined,
   VideoCameraOutlined,
+  TableOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
@@ -41,6 +44,7 @@ import {
   AnalysisJobResult,
   AnalysisJobResultData,
 } from '@/components/jobs/AnalysisJobResult';
+import { JobCard } from '@/components/jobs/JobCard';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -69,6 +73,9 @@ const JobMonitor: React.FC = () => {
   );
   const [typeFilter, setTypeFilter] = useState<string | undefined>(
     searchParams.get('type') || undefined
+  );
+  const [viewMode, setViewMode] = useState<'table' | 'card'>(
+    (searchParams.get('view') as 'table' | 'card') || 'table'
   );
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
@@ -317,6 +324,61 @@ const JobMonitor: React.FC = () => {
                     <Text>{record.progress}%</Text>
                   )}
                 </Descriptions.Item>
+                {record.type === 'process_new_scenes' && record.metadata && (
+                  <>
+                    {record.metadata.current_step &&
+                      record.metadata.total_steps && (
+                        <Descriptions.Item label="Workflow Step">
+                          <Text>
+                            {record.metadata.current_step as number} /{' '}
+                            {record.metadata.total_steps as number}
+                          </Text>
+                        </Descriptions.Item>
+                      )}
+                    {record.metadata.step_name && (
+                      <Descriptions.Item label="Current Step">
+                        <Text>{record.metadata.step_name as string}</Text>
+                      </Descriptions.Item>
+                    )}
+                    {record.metadata.active_sub_job && (
+                      <Descriptions.Item label="Active Sub-Job">
+                        <Space direction="vertical" size="small">
+                          <Tag
+                            color={getJobTypeColor(
+                              (
+                                record.metadata.active_sub_job as {
+                                  type: string;
+                                  progress: number;
+                                }
+                              ).type
+                            )}
+                          >
+                            {getJobTypeLabel(
+                              (
+                                record.metadata.active_sub_job as {
+                                  type: string;
+                                  progress: number;
+                                }
+                              ).type
+                            )}
+                          </Tag>
+                          <Progress
+                            percent={
+                              (
+                                record.metadata.active_sub_job as {
+                                  type: string;
+                                  progress: number;
+                                }
+                              ).progress
+                            }
+                            size="small"
+                            status="active"
+                          />
+                        </Space>
+                      </Descriptions.Item>
+                    )}
+                  </>
+                )}
               </Descriptions>
             </Card>
           </Col>
@@ -462,6 +524,16 @@ const JobMonitor: React.FC = () => {
       render: (_: unknown, record: Job) => {
         const percent = Math.round(record.progress || 0);
         const hasMessage = !!record.metadata?.last_message;
+        const isWorkflow = record.type === 'process_new_scenes';
+        const currentStep = record.metadata?.current_step as number | undefined;
+        const totalSteps = record.metadata?.total_steps as number | undefined;
+        const stepName = record.metadata?.step_name as string | undefined;
+        const activeSubJob = record.metadata?.active_sub_job as
+          | {
+              type: string;
+              progress: number;
+            }
+          | undefined;
 
         return (
           <div style={{ minWidth: 150 }}>
@@ -489,10 +561,27 @@ const JobMonitor: React.FC = () => {
                 </Space>
               )}
             />
-            {record.processed_items !== undefined && record.total && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.processed_items} / {record.total} items
-              </Text>
+            {isWorkflow && currentStep && totalSteps && stepName ? (
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Step {currentStep}/{totalSteps}: {stepName}
+                </Text>
+                {activeSubJob && (
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {getJobTypeLabel(activeSubJob.type)} (
+                      {activeSubJob.progress}%)
+                    </Text>
+                  </div>
+                )}
+              </div>
+            ) : (
+              record.processed_items !== undefined &&
+              record.total && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {record.processed_items} / {record.total} items
+                </Text>
+              )
             )}
           </div>
         );
@@ -667,6 +756,19 @@ const JobMonitor: React.FC = () => {
         className={styles.mainCard}
         extra={
           <Space>
+            <Segmented
+              value={viewMode}
+              options={[
+                { label: 'Table', value: 'table', icon: <TableOutlined /> },
+                { label: 'Cards', value: 'card', icon: <AppstoreOutlined /> },
+              ]}
+              onChange={(value: string) => {
+                setViewMode(value as 'table' | 'card');
+                const newParams = new URLSearchParams(searchParams);
+                newParams.set('view', value);
+                setSearchParams(newParams);
+              }}
+            />
             <Select
               placeholder="Filter by status"
               allowClear
@@ -706,35 +808,74 @@ const JobMonitor: React.FC = () => {
           </Space>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={filteredJobs}
-          loading={loading}
-          rowKey="key"
-          expandable={{
-            expandedRowRender,
-            expandedRowKeys,
-            onExpandedRowsChange: setExpandedRowKeys,
-            expandRowByClick: true,
-            rowExpandable: (record: JobWithExpanded) =>
-              !!record.metadata?.last_message ||
-              !!record.error ||
-              !!record.result,
-          }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} jobs`,
-          }}
-          locale={{
-            emptyText: (
+        {viewMode === 'table' ? (
+          <Table
+            columns={columns}
+            dataSource={filteredJobs}
+            loading={loading}
+            rowKey="key"
+            expandable={{
+              expandedRowRender,
+              expandedRowKeys,
+              onExpandedRowsChange: setExpandedRowKeys,
+              expandRowByClick: true,
+              rowExpandable: (record: JobWithExpanded) =>
+                !!record.metadata?.last_message ||
+                !!record.error ||
+                !!record.result,
+            }}
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showTotal: (total) => `Total ${total} jobs`,
+            }}
+            locale={{
+              emptyText: (
+                <Empty
+                  description="No jobs found"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              ),
+            }}
+          />
+        ) : (
+          <div className={styles.cardView}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <LoadingOutlined style={{ fontSize: 24 }} />
+              </div>
+            ) : filteredJobs.length === 0 ? (
               <Empty
                 description="No jobs found"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
-            ),
-          }}
-        />
+            ) : (
+              <Row gutter={[16, 16]}>
+                {filteredJobs.map((job) => (
+                  <Col
+                    key={job.id}
+                    xs={24}
+                    sm={24}
+                    md={24}
+                    lg={12}
+                    xl={12}
+                    xxl={8}
+                  >
+                    <JobCard
+                      job={job}
+                      onCancel={() => void handleCancel(job.id)}
+                      onRetry={() => void handleRetry(job.id)}
+                      onDelete={() =>
+                        void message.info('Delete not implemented yet')
+                      }
+                      showDetails={true}
+                    />
+                  </Col>
+                ))}
+              </Row>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Job Detail Modal */}

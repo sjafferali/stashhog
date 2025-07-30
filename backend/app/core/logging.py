@@ -31,6 +31,14 @@ class JSONFormatter(logging.Formatter):
         if hasattr(record, "request_id"):
             log_data["request_id"] = record.request_id
 
+        # Add job context fields
+        if hasattr(record, "job_id") and record.job_id:
+            log_data["job_id"] = record.job_id
+        if hasattr(record, "job_type") and record.job_type:
+            log_data["job_type"] = record.job_type
+        if hasattr(record, "parent_job_id") and record.parent_job_id:
+            log_data["parent_job_id"] = record.parent_job_id
+
         # Add exception info if present
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)

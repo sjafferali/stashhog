@@ -17,6 +17,7 @@ from app.api import api_router
 from app.api.error_handlers import register_error_handlers
 from app.core.config import get_settings
 from app.core.database import close_db
+from app.core.job_context import setup_job_logging
 from app.core.logging import configure_logging
 from app.core.middleware import (
     ErrorHandlingMiddleware,
@@ -36,6 +37,7 @@ warnings.filterwarnings(
 
 # Configure logging
 configure_logging()
+setup_job_logging()  # Set up job context logging
 logger = logging.getLogger(__name__)
 
 # Get settings

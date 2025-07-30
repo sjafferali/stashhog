@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.core.cancellation import cancellation_manager
+from app.core.job_context import job_logging_context
 from app.core.tasks import TaskStatus, get_task_queue
 from app.models.job import Job, JobStatus, JobType
 from app.repositories.job_repository import job_repository
@@ -137,114 +138,132 @@ class JobService:
         """Execute a job with proper status updates."""
         from app.core.database import AsyncSessionLocal
 
-        try:
-            # Create a single database session for all job status updates
-            async with AsyncSessionLocal() as status_db:
-                # Update job status to running
-                await self._update_job_status_with_session(
+        # Extract parent job ID if this is a subjob
+        parent_job_id = metadata.get("parent_job_id") if metadata else None
+
+        # Set up job logging context
+        with job_logging_context(
+            job_id=job_id,
+            job_type=job_type.value,
+            parent_job_id=parent_job_id,
+        ):
+            try:
+                # Create a single database session for all job status updates
+                async with AsyncSessionLocal() as status_db:
+                    # Update job status to running
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.RUNNING,
+                        message="Job started",
+                        db=status_db,
+                    )
+                    await status_db.commit()
+
+                # Merge job metadata with kwargs for handlers that expect direct parameters
+                handler_kwargs = kwargs.copy()
+                if metadata:
+                    handler_kwargs.update(metadata)
+
+                # Get cancellation token
+                cancellation_token = cancellation_manager.get_token(job_id)
+
+                # Create an async progress callback that uses its own session
+                async def async_progress_callback(
+                    progress: Optional[int], message: Optional[str] = None
+                ) -> None:
+                    # Check if job is being cancelled before updating progress
+                    async with AsyncSessionLocal() as check_db:
+                        job = await self.get_job(job_id, check_db)
+                        if job and job.status == JobStatus.CANCELLING.value:
+                            logger.debug(
+                                f"Job {job_id} is cancelling, skipping progress callback"
+                            )
+                            return
+
+                    # Use _update_job_progress which parses the message for counts
+                    if progress is not None:
+                        await self._update_job_progress(job_id, progress, message)
+                    elif message:
+                        # Just update the message without changing progress
+                        async with AsyncSessionLocal() as db:
+                            job = await self.get_job(job_id, db)
+                            if job and job.job_metadata:
+                                metadata = job.job_metadata
+                                metadata["message"] = message
+                                job.job_metadata = metadata
+                                await db.commit()
+
+                # Execute handler with job context
+                result = await handler(
                     job_id=job_id,
-                    status=JobStatus.RUNNING,
-                    message="Job started",
-                    db=status_db,
+                    progress_callback=async_progress_callback,
+                    cancellation_token=cancellation_token,
+                    **handler_kwargs,
                 )
-                await status_db.commit()
 
-            # Merge job metadata with kwargs for handlers that expect direct parameters
-            handler_kwargs = kwargs.copy()
-            if metadata:
-                handler_kwargs.update(metadata)
+                # Update job status based on result
+                async with AsyncSessionLocal() as final_db:
+                    # Check if result indicates failure
+                    job_status = JobStatus.COMPLETED
+                    message = "Job completed successfully"
 
-            # Get cancellation token
-            cancellation_token = cancellation_manager.get_token(job_id)
+                    if isinstance(result, dict):
+                        result_status = result.get("status", "completed")
+                        if result_status == "failed":
+                            job_status = JobStatus.FAILED
+                            message = "Job failed with errors"
+                        elif result_status == "cancelled":
+                            job_status = JobStatus.CANCELLED
+                            message = result.get("message", "Job was cancelled")
+                        elif result_status == "completed_with_errors":
+                            # Still mark as completed but note the errors in the message
+                            errors = result.get("errors", [])
+                            error_count = len(errors)
+                            message = f"Job completed with {error_count} error(s)"
 
-            # Create an async progress callback that uses its own session
-            async def async_progress_callback(
-                progress: Optional[int], message: Optional[str] = None
-            ) -> None:
-                # Use _update_job_progress which parses the message for counts
-                if progress is not None:
-                    await self._update_job_progress(job_id, progress, message)
-                elif message:
-                    # Just update the message without changing progress
-                    async with AsyncSessionLocal() as db:
-                        job = await self.get_job(job_id, db)
-                        if job and job.job_metadata:
-                            metadata = job.job_metadata
-                            metadata["message"] = message
-                            job.job_metadata = metadata
-                            await db.commit()
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=job_status,
+                        progress=100,
+                        result=result,
+                        message=message,
+                        db=final_db,
+                    )
+                    await final_db.commit()
 
-            # Execute handler with job context
-            result = await handler(
-                job_id=job_id,
-                progress_callback=async_progress_callback,
-                cancellation_token=cancellation_token,
-                **handler_kwargs,
-            )
+                return str(result) if result is not None else ""
 
-            # Update job status based on result
-            async with AsyncSessionLocal() as final_db:
-                # Check if result indicates failure
-                job_status = JobStatus.COMPLETED
-                message = "Job completed successfully"
-
-                if isinstance(result, dict):
-                    result_status = result.get("status", "completed")
-                    if result_status == "failed":
-                        job_status = JobStatus.FAILED
-                        message = "Job failed with errors"
-                    elif result_status == "cancelled":
-                        job_status = JobStatus.CANCELLED
-                        message = result.get("message", "Job was cancelled")
-                    elif result_status == "completed_with_errors":
-                        # Still mark as completed but note the errors in the message
-                        errors = result.get("errors", [])
-                        error_count = len(errors)
-                        message = f"Job completed with {error_count} error(s)"
-
-                await self._update_job_status_with_session(
-                    job_id=job_id,
-                    status=job_status,
-                    progress=100,
-                    result=result,
-                    message=message,
-                    db=final_db,
-                )
-                await final_db.commit()
-
-            return str(result) if result is not None else ""
-
-        except asyncio.CancelledError:
-            logger.info(f"Job {job_id} was cancelled")
-            # Update status in a new session for cancellation
-            async with AsyncSessionLocal() as cancel_db:
-                await self._update_job_status_with_session(
-                    job_id=job_id,
-                    status=JobStatus.CANCELLED,
-                    error="Job was cancelled by user",
-                    message="Job cancelled",
-                    db=cancel_db,
-                )
-                # Clean up any pending plans associated with this job
-                await self._cleanup_pending_plans(job_id, cancel_db)
-                await cancel_db.commit()
-            raise
-        except Exception as e:
-            logger.error(f"Job {job_id} failed: {str(e)}")
-            # Update status in a new session for error case
-            async with AsyncSessionLocal() as error_db:
-                await self._update_job_status_with_session(
-                    job_id=job_id,
-                    status=JobStatus.FAILED,
-                    error=str(e),
-                    message=f"Job failed: {str(e)}",
-                    db=error_db,
-                )
-                await error_db.commit()
-            raise
-        finally:
-            # Clean up cancellation token
-            cancellation_manager.remove_token(job_id)
+            except asyncio.CancelledError:
+                logger.info(f"Job {job_id} was cancelled")
+                # Update status in a new session for cancellation
+                async with AsyncSessionLocal() as cancel_db:
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.CANCELLED,
+                        error="Job was cancelled by user",
+                        message="Job cancelled",
+                        db=cancel_db,
+                    )
+                    # Clean up any pending plans associated with this job
+                    await self._cleanup_pending_plans(job_id, cancel_db)
+                    await cancel_db.commit()
+                raise
+            except Exception as e:
+                logger.error(f"Job {job_id} failed: {str(e)}")
+                # Update status in a new session for error case
+                async with AsyncSessionLocal() as error_db:
+                    await self._update_job_status_with_session(
+                        job_id=job_id,
+                        status=JobStatus.FAILED,
+                        error=str(e),
+                        message=f"Job failed: {str(e)}",
+                        db=error_db,
+                    )
+                    await error_db.commit()
+                raise
+            finally:
+                # Clean up cancellation token
+                cancellation_manager.remove_token(job_id)
 
     async def get_job(
         self, job_id: str, db: Union[Session, AsyncSession]
@@ -447,6 +466,16 @@ class JobService:
             if match:
                 processed_items = int(match.group(1))
                 total_items = int(match.group(2))
+
+        # Check current job status first - don't override CANCELLING status
+        from app.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            job = await self.get_job(job_id, db)
+            if job and job.status == JobStatus.CANCELLING.value:
+                # Don't change status back to RUNNING if job is being cancelled
+                logger.info(f"Job {job_id} is cancelling, skipping progress update")
+                return
 
         # Update job with progress and counts
         await self._update_job_status_with_counts(

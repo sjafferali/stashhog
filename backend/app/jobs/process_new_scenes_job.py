@@ -34,6 +34,7 @@ async def _create_and_run_subjob(  # noqa: C901
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
     step_info: Optional[Dict[str, Any]] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Create and run a sub-job, polling until completion."""
     logger.info(f"Starting {step_name} for parent job {parent_job_id}")
@@ -49,6 +50,10 @@ async def _create_and_run_subjob(  # noqa: C901
         sub_job_id = str(sub_job.id)
 
     logger.info(f"Created sub-job {sub_job_id} for {step_name}")
+
+    # Track the subjob if tracking list provided
+    if created_subjobs is not None:
+        created_subjobs.append(sub_job_id)
 
     # Update parent job metadata with current sub-job info
     if step_info:
@@ -253,6 +258,7 @@ async def _analyze_batch(
     parent_job_id: str,
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run analysis on a batch of scenes."""
     logger.info(
@@ -277,6 +283,7 @@ async def _analyze_batch(
         progress_callback,
         cancellation_token,
         {"current_step": 4, "total_steps": 6},
+        created_subjobs,
     )
 
 
@@ -318,6 +325,7 @@ async def _process_analysis_batch(
     parent_job_id: str,
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Process a batch of scenes through analysis and apply changes."""
     batch_result: Dict[str, Any] = {
@@ -337,6 +345,7 @@ async def _process_analysis_batch(
         parent_job_id,
         progress_callback,
         cancellation_token,
+        created_subjobs,
     )
 
     if not analysis_result or analysis_result["status"] != "completed":
@@ -373,6 +382,7 @@ async def _process_analysis_batch(
             progress_callback,
             cancellation_token,
             {"current_step": 4, "total_steps": 6},
+            created_subjobs,
         )
 
         if not apply_result or apply_result["status"] != "completed":
@@ -400,6 +410,7 @@ async def _run_workflow_step(
     workflow_result: Dict[str, Any],
     result_key: str,
     step_info: Optional[Dict[str, Any]] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Run a workflow step and update results."""
     # Check if already cancelled before creating sub-job
@@ -416,6 +427,7 @@ async def _run_workflow_step(
         progress_callback,
         cancellation_token,
         step_info,
+        created_subjobs,
     )
 
     workflow_result["steps"][result_key] = result
@@ -469,6 +481,7 @@ async def _process_downloads_step(
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any],
     workflow_result: Dict[str, Any],
+    created_subjobs: Optional[List[str]] = None,
 ) -> Optional[int]:
     """Process downloads and return synced items count."""
     await progress_callback(5, "Step 1/6: Processing downloads")
@@ -485,6 +498,7 @@ async def _process_downloads_step(
         workflow_result,
         "process_downloads",
         {"current_step": 1, "total_steps": 6},
+        created_subjobs,
     )
 
     # Check if cancelled
@@ -500,6 +514,54 @@ async def _process_downloads_step(
     synced_items = downloads_result.get("result", {}).get("synced_items", 0)
     workflow_result["summary"]["total_synced_items"] = synced_items
     return int(synced_items)
+
+
+async def _wait_for_subjobs_to_finish(
+    job_service: JobService,
+    parent_job_id: str,
+    created_subjobs: List[str],
+    max_wait_seconds: int = 300,  # 5 minutes max wait
+) -> None:
+    """Wait for all subjobs to reach a terminal state.
+
+    This ensures that when a workflow job is cancelled, it doesn't transition
+    to CANCELLED status until all of its subjobs have finished cancelling.
+    This prevents the parent job from appearing as cancelled while subjobs
+    are still running or in the process of being cancelled.
+    """
+    if not created_subjobs:
+        return
+
+    logger.info(
+        f"Waiting for {len(created_subjobs)} subjobs to finish for parent job {parent_job_id}"
+    )
+
+    start_time = asyncio.get_event_loop().time()
+    poll_interval = 1  # second
+
+    while True:
+        # Check if we've exceeded max wait time
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed > max_wait_seconds:
+            logger.warning(
+                f"Timeout waiting for subjobs to finish after {elapsed:.1f}s"
+            )
+            break
+
+        # Check status of all subjobs
+        all_finished = True
+        async with AsyncSessionLocal() as db:
+            for subjob_id in created_subjobs:
+                subjob = await job_service.get_job(subjob_id, db)
+                if subjob and not subjob.is_finished():
+                    all_finished = False
+                    break
+
+        if all_finished:
+            logger.info(f"All {len(created_subjobs)} subjobs have finished")
+            break
+
+        await asyncio.sleep(poll_interval)
 
 
 async def process_new_scenes_job(  # noqa: C901
@@ -527,6 +589,9 @@ async def process_new_scenes_job(  # noqa: C901
             "total_errors": 0,
         },
     }
+
+    # Track all created subjobs for cleanup on cancellation
+    created_subjobs: List[str] = []
 
     # Step weights for progress calculation
     STEP_WEIGHTS = {
@@ -613,6 +678,7 @@ async def process_new_scenes_job(  # noqa: C901
             progress_callback,
             cancellation_token,
             workflow_result,
+            created_subjobs,
         )
 
         if synced_items is None:
@@ -638,6 +704,7 @@ async def process_new_scenes_job(  # noqa: C901
                 workflow_result,
                 "stash_scan",
                 {"current_step": 2, "total_steps": 6},
+                created_subjobs,
             )
             # Check if cancelled
             if (
@@ -688,6 +755,7 @@ async def process_new_scenes_job(  # noqa: C901
                 workflow_result,
                 "incremental_sync",
                 {"current_step": 3, "total_steps": 6},
+                created_subjobs,
             )
             # Check if cancelled
             if (
@@ -735,6 +803,7 @@ async def process_new_scenes_job(  # noqa: C901
                 job_id,
                 progress_callback,
                 cancellation_token,
+                created_subjobs,
             )
 
             # Update workflow result with analysis summary
@@ -787,6 +856,7 @@ async def process_new_scenes_job(  # noqa: C901
             workflow_result,
             "stash_generate",
             {"current_step": 5, "total_steps": 6},
+            created_subjobs,
         )
         # Check if cancelled
         if (
@@ -816,6 +886,14 @@ async def process_new_scenes_job(  # noqa: C901
     except asyncio.CancelledError:
         logger.info(f"Job {job_id} was cancelled")
         workflow_result["status"] = "cancelled"
+
+        # Wait for all subjobs to finish before allowing parent to transition to CANCELLED
+        if created_subjobs:
+            logger.info(
+                f"Waiting for {len(created_subjobs)} subjobs to finish before marking parent as cancelled"
+            )
+            await _wait_for_subjobs_to_finish(job_service, job_id, created_subjobs)
+
         # Don't update progress to 100% - leave it at current position
         # Update parent job status to show cancellation
         await _update_parent_job_step(
@@ -836,6 +914,7 @@ async def _process_all_batches(
     parent_job_id: str,
     progress_callback: Callable[[Optional[int], Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
+    created_subjobs: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Process all scene batches for analysis."""
     batch_results: List[Dict[str, Any]] = []
@@ -872,6 +951,7 @@ async def _process_all_batches(
             parent_job_id,
             progress_callback,
             cancellation_token,
+            created_subjobs,
         )
 
         batch_results.append(batch_result)

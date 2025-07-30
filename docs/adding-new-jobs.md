@@ -113,6 +113,8 @@ async def your_new_job(
         cancellation_token: Token to check for job cancellation
         **kwargs: Job parameters from metadata
     """
+    # Logging best practice: Include job context in initial log
+    # The job context (job_type, job_id, parent_job_id) is automatically included
     logger.info(f"Starting your job {job_id}")
     
     try:
@@ -381,6 +383,7 @@ The `progress_callback` parameter is crucial for job status updates:
    - It handles its own database session
    - It automatically updates the job record
    - It sends WebSocket notifications
+   - **It respects cancellation status** - Won't change CANCELLING back to RUNNING
 
 3. **Usage Guidelines**:
    ```python
@@ -390,6 +393,11 @@ The `progress_callback` parameter is crucial for job status updates:
    # ❌ WRONG: Don't create your own job updates
    job.progress = 25  # Never manually update job fields
    ```
+
+4. **Cancellation Safety**: The progress callback automatically checks if the job is being cancelled:
+   - If job status is CANCELLING, the callback returns without updating
+   - This prevents the status from incorrectly transitioning back to RUNNING
+   - You don't need to check cancellation status before calling progress_callback
 
 4. **Message Format for Item Counts**:
    - Include "X/Y" pattern for automatic parsing: `"Processed 5/10 items"`
@@ -436,6 +444,42 @@ Check the cancellation token regularly:
 if cancellation_token and cancellation_token.is_cancelled:
     logger.info(f"Job {job_id} cancelled")
     return {"status": "cancelled", "job_id": job_id}
+```
+
+**IMPORTANT: Cancellation Status Transitions**
+
+When a job is cancelled, it follows this status flow:
+1. RUNNING → CANCELLING (when cancel is requested)
+2. CANCELLING → CANCELLED (when job actually exits)
+
+**Critical Guidelines:**
+- **Never manually update job status to RUNNING** - The job service handles this
+- **Always use the provided progress_callback** - It checks cancellation status
+- **Don't create custom progress update methods** that set status to RUNNING
+- The job service's progress callback automatically skips updates if job is CANCELLING
+
+```python
+# ✅ CORRECT: Use the provided callback
+await progress_callback(50, "Processing items...")
+
+# ❌ WRONG: Custom progress update that ignores cancellation
+async def my_progress_update(job_id, progress):
+    # This will incorrectly set status back to RUNNING
+    await job_repository.update_job_status(
+        job_id, JobStatus.RUNNING, progress=progress
+    )
+```
+
+If you need custom progress tracking (not recommended), always check cancellation status:
+
+```python
+# Only if absolutely necessary - prefer using provided callback
+async with AsyncSessionLocal() as db:
+    job = await job_repository.get_job(job_id, db)
+    if job and job.status == JobStatus.CANCELLING.value:
+        logger.info(f"Job {job_id} is cancelling, skipping update")
+        return
+    # Only then proceed with updates
 ```
 
 ### Result Dictionary
@@ -832,6 +876,8 @@ return {
 8. **Don't forget to refresh** objects returned from other services before accessing attributes
 9. **Don't initialize services inside database sessions** - do it before or after
 10. **Don't forget to close external service connections** in the finally block
+11. **Don't create custom progress methods that set status to RUNNING** - this breaks cancellation flow
+12. **Don't manually update job status during execution** - let the job service manage status transitions
 
 ## Type Hint Inconsistency Note
 
@@ -841,6 +887,58 @@ You may notice that existing jobs use `Callable[[int, Optional[str]], None]` for
 progress_callback: Callable[[int, Optional[str]], Awaitable[None]]
 ```
 
+## Logging Best Practices
+
+### Automatic Job Context
+
+When your job executes, all log messages automatically include job context:
+- **job_type**: Type of job being executed
+- **job_id**: Unique ID of the current job
+- **parent_job_id**: For subjobs in workflows, the parent job ID
+
+### Logging Guidelines
+
+1. **Use Standard Logger Pattern**:
+   ```python
+   import logging
+   logger = logging.getLogger(__name__)
+   ```
+
+2. **Log Important Events**:
+   ```python
+   # Job lifecycle
+   logger.info(f"Starting {job_type} job {job_id}")
+   logger.info(f"Job {job_id} completed successfully")
+   
+   # Key operations
+   logger.info(f"Processing {len(items)} items")
+   logger.debug(f"Item {item_id} processed successfully")
+   
+   # Warnings and errors
+   logger.warning(f"Skipping invalid item: {item_id}")
+   logger.error(f"Failed to process item {item_id}: {str(e)}", exc_info=True)
+   ```
+
+3. **Log Output Format**:
+   ```
+   # Regular job
+   2024-01-15 10:23:45 - app.jobs.sync_jobs - INFO [job_type=sync_scenes, job_id=abc123] - Starting sync_scenes job abc123
+   
+   # Subjob in workflow
+   2024-01-15 10:30:05 - app.jobs.download_jobs - INFO [job_type=process_downloads, job_id=sub789, parent_job_id=workflow456] - Processing downloads
+   ```
+
+4. **Don't Log Sensitive Data**:
+   - Never log API keys, passwords, or tokens
+   - Be careful with user data in logs
+   - Use debug level for detailed data
+
+5. **Use Appropriate Log Levels**:
+   - **DEBUG**: Detailed information for debugging
+   - **INFO**: General informational messages
+   - **WARNING**: Warning messages for recoverable issues
+   - **ERROR**: Error messages with stack traces
+
 ## Debugging Tips
 
 1. **Check logs for session issues**: Look for "greenlet_spawn has not been called" errors
@@ -848,6 +946,7 @@ progress_callback: Callable[[int, Optional[str]], Awaitable[None]]
 3. **Test cancellation**: Use the job monitor to cancel jobs and verify cleanup
 4. **Monitor WebSocket updates**: Check that progress updates appear in real-time
 5. **Validate result structure**: Ensure your job returns expected fields
+6. **Filter logs by job**: Use job_id to trace all logs from a specific job execution
 
 ## Troubleshooting Common Errors
 

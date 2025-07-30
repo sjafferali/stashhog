@@ -1822,6 +1822,12 @@ class AnalysisService:
             from app.repositories.job_repository import job_repository
 
             async with AsyncSessionLocal() as db:
+                # Check current job status first - don't override CANCELLING status
+                current_job = await job_repository.get_job(job_id, db)
+                if current_job and current_job.status == JobStatus.CANCELLING.value:
+                    logger.info(f"Job {job_id} is cancelling, skipping progress update")
+                    return
+
                 # Use the job repository to update the job
                 await job_repository.update_job_status(
                     job_id=job_id,
