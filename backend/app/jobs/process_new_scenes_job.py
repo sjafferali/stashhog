@@ -20,6 +20,7 @@ from app.core.database import AsyncSessionLocal
 from app.models import Scene
 from app.models.job import JobType
 from app.services.job_service import JobService
+from app.services.stash_service import StashService
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,59 @@ async def _create_and_run_subjob(  # noqa: C901
             )
 
         await asyncio.sleep(poll_interval)
+
+
+async def _check_pending_scenes_for_sync() -> int:
+    """Check if there are any scenes pending sync from Stash."""
+    from app.core.config import get_settings
+    from app.models.sync_history import SyncHistory
+
+    settings = get_settings()
+
+    async with AsyncSessionLocal() as db:
+        # Get last sync time
+        stmt = (
+            select(SyncHistory)
+            .where(SyncHistory.entity_type == "scene")
+            .where(SyncHistory.status == "completed")
+            .order_by(SyncHistory.completed_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        last_sync_record = result.scalar_one_or_none()
+
+        # Create stash service to check for pending scenes
+        stash_service = StashService(
+            stash_url=settings.stash.url,
+            api_key=settings.stash.api_key,
+        )
+
+        try:
+            if last_sync_record and last_sync_record.completed_at:
+                # Check for scenes updated since last sync
+                filter_dict = {
+                    "updated_at": {
+                        "value": last_sync_record.completed_at.isoformat() + "Z",
+                        "modifier": "GREATER_THAN",
+                    }
+                }
+                logger.info(
+                    f"Checking for scenes updated since {last_sync_record.completed_at}"
+                )
+            else:
+                # No previous sync, check total scenes
+                filter_dict = None
+                logger.info("No previous sync found, checking total scene count")
+
+            scenes_sample, total_pending = await stash_service.get_scenes(
+                page=1, per_page=1, filter=filter_dict
+            )
+
+            logger.info(f"Found {total_pending} scenes pending sync")
+            return total_pending
+
+        finally:
+            await stash_service.close()
 
 
 async def _get_unanalyzed_scenes(batch_size: int = 100) -> List[List[str]]:
@@ -548,55 +602,92 @@ async def process_new_scenes_job(  # noqa: C901
         if synced_items is None:
             return workflow_result
 
-        if synced_items == 0:
-            logger.info("No new items downloaded, ending workflow")
+        # Step 2: Stash metadata scan (skip if no new items)
+        if synced_items > 0:
             await weighted_progress_callback(
-                100, "Workflow completed: No new items to process"
+                20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
             )
-            return workflow_result
+            await _update_parent_job_step(job_service, job_id, 2, "Scanning metadata")
+            await _run_workflow_step(
+                job_service,
+                JobType.STASH_SCAN,
+                {},
+                job_id,
+                "Stash Metadata Scan",
+                progress_callback,
+                cancellation_token,
+                workflow_result,
+                "stash_scan",
+                {"current_step": 2, "total_steps": 6},
+            )
+        else:
+            logger.info("No new items downloaded, skipping Stash metadata scan")
+            await weighted_progress_callback(
+                20, "Step 2/6: Skipped - No new items to scan"
+            )
+            await _update_parent_job_step(
+                job_service, job_id, 2, "Skipped - No new items"
+            )
 
-        # Step 2: Stash metadata scan
-        await weighted_progress_callback(
-            20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
-        )
-        await _update_parent_job_step(job_service, job_id, 2, "Scanning metadata")
-        await _run_workflow_step(
-            job_service,
-            JobType.STASH_SCAN,
-            {},
-            job_id,
-            "Stash Metadata Scan",
-            progress_callback,
-            cancellation_token,
-            workflow_result,
-            "stash_scan",
-            {"current_step": 2, "total_steps": 6},
-        )
-
-        # Step 3: Incremental sync
-        await weighted_progress_callback(35, "Step 3/6: Running incremental sync")
+        # Step 3: Incremental sync (only if there are pending scenes)
+        await weighted_progress_callback(35, "Step 3/6: Checking for pending scenes")
         await _update_parent_job_step(
-            job_service, job_id, 3, "Running incremental sync"
-        )
-        await _run_workflow_step(
-            job_service,
-            JobType.SYNC,
-            {"force": False},
-            job_id,
-            "Incremental Sync",
-            progress_callback,
-            cancellation_token,
-            workflow_result,
-            "incremental_sync",
-            {"current_step": 3, "total_steps": 6},
+            job_service, job_id, 3, "Checking for pending scenes"
         )
 
-        # Step 4: Get unanalyzed scenes and process in batches
-        await weighted_progress_callback(50, "Step 4/6: Analyzing unanalyzed scenes")
-        await _update_parent_job_step(job_service, job_id, 4, "Analyzing scenes")
+        pending_scenes = await _check_pending_scenes_for_sync()
+        if pending_scenes > 0:
+            await weighted_progress_callback(
+                35,
+                f"Step 3/6: Running incremental sync ({pending_scenes} pending scenes)",
+            )
+            await _update_parent_job_step(
+                job_service,
+                job_id,
+                3,
+                f"Running incremental sync ({pending_scenes} scenes)",
+            )
+            await _run_workflow_step(
+                job_service,
+                JobType.SYNC,
+                {"force": False},
+                job_id,
+                "Incremental Sync",
+                progress_callback,
+                cancellation_token,
+                workflow_result,
+                "incremental_sync",
+                {"current_step": 3, "total_steps": 6},
+            )
+        else:
+            logger.info("No pending scenes to sync, skipping incremental sync")
+            await weighted_progress_callback(
+                45, "Step 3/6: Skipped - No pending scenes to sync"
+            )
+            await _update_parent_job_step(
+                job_service, job_id, 3, "Skipped - No pending scenes"
+            )
+            workflow_result["steps"]["incremental_sync"] = {
+                "status": "skipped",
+                "message": "No pending scenes to sync",
+            }
+
+        # Step 4: Analyze scenes (only if there are unanalyzed scenes)
+        await weighted_progress_callback(50, "Step 4/6: Checking for unanalyzed scenes")
+        await _update_parent_job_step(
+            job_service, job_id, 4, "Checking for unanalyzed scenes"
+        )
         scene_batches = await _get_unanalyzed_scenes()
 
         if scene_batches:
+            total_unanalyzed = sum(len(batch) for batch in scene_batches)
+            await weighted_progress_callback(
+                50, f"Step 4/6: Analyzing {total_unanalyzed} unanalyzed scenes"
+            )
+            await _update_parent_job_step(
+                job_service, job_id, 4, f"Analyzing {total_unanalyzed} scenes"
+            )
+
             analysis_summary = await _process_all_batches(
                 job_service,
                 scene_batches,
@@ -625,7 +716,17 @@ async def process_new_scenes_job(  # noqa: C901
             if analysis_summary["has_errors"]:
                 workflow_result["status"] = "completed_with_errors"
         else:
-            logger.info("No unanalyzed scenes found")
+            logger.info("No unanalyzed scenes found, skipping analysis")
+            await weighted_progress_callback(
+                80, "Step 4/6: Skipped - No unanalyzed scenes"
+            )
+            await _update_parent_job_step(
+                job_service, job_id, 4, "Skipped - No unanalyzed scenes"
+            )
+            workflow_result["steps"]["analysis_batches"] = {
+                "status": "skipped",
+                "message": "No unanalyzed scenes found",
+            }
 
         # Step 5: Stash metadata generate
         await weighted_progress_callback(85, "Step 5/6: Generating Stash metadata")

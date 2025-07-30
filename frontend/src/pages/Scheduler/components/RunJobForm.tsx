@@ -295,7 +295,7 @@ const jobDefinitions: JobDefinition[] = [
     description:
       'Scan the Stash library to update metadata, generate covers, previews, and other media assets',
     icon: <DatabaseOutlined />,
-    category: 'Maintenance',
+    category: 'Stash Tasks',
     parameters: [
       {
         name: 'paths',
@@ -369,7 +369,7 @@ const jobDefinitions: JobDefinition[] = [
     description:
       'Check Stash for resources requiring generation (covers, phash, sprites, previews, markers)',
     icon: <DatabaseOutlined />,
-    category: 'Maintenance',
+    category: 'Stash Tasks',
     parameters: [],
   },
   {
@@ -378,7 +378,7 @@ const jobDefinitions: JobDefinition[] = [
     description:
       'Generate preview images, sprites, thumbnails, and other metadata for media files in Stash',
     icon: <ExperimentOutlined />,
-    category: 'Maintenance',
+    category: 'Stash Tasks',
     parameters: [
       {
         name: 'sceneIDs',

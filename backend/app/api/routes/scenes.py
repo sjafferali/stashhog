@@ -35,6 +35,7 @@ router = APIRouter()
 
 async def parse_scene_filters(
     search: Optional[str] = Query(None),
+    scene_ids: Annotated[Optional[List[str]], Query()] = None,
     studio_id: Optional[str] = Query(None),
     performer_ids: Annotated[Optional[List[str]], Query()] = None,
     tag_ids: Annotated[Optional[List[str]], Query()] = None,
@@ -65,6 +66,7 @@ async def parse_scene_filters(
 
     return SceneFilter(
         search=search,
+        scene_ids=scene_ids or [],
         studio_id=studio_id,
         performer_ids=performer_ids or [],
         tag_ids=tag_ids or [],
@@ -120,6 +122,9 @@ def _apply_id_filters(
     filters: SceneFilter, query: Any, conditions: list[Any]
 ) -> tuple[Any, list[Any]]:
     """Apply ID-based filters to query."""
+    if filters.scene_ids:
+        conditions.append(Scene.id.in_(filters.scene_ids))
+
     if filters.studio_id:
         conditions.append(Scene.studio_id == filters.studio_id)
 

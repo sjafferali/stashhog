@@ -351,6 +351,7 @@ class SceneFilter(BaseSchema):
     """Scene filter parameters."""
 
     search: Optional[str] = Field(None, description="Search text")
+    scene_ids: Optional[list[str]] = Field(None, description="Filter by scene IDs")
     studio_id: Optional[str] = Field(None, description="Filter by studio ID")
     performer_ids: Optional[list[str]] = Field(
         None, description="Filter by performer IDs"

@@ -268,3 +268,153 @@ async def get_stash_scene_debug(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch scene from Stash: {str(e)}",
         )
+
+
+# Custom debug query for markers
+DEBUG_MARKER_QUERY = """
+query FindSceneMarkers($filter: FindFilterType, $scene_marker_filter: SceneMarkerFilterType, $ids: [ID!]) {
+  findSceneMarkers(filter: $filter, scene_marker_filter: $scene_marker_filter, ids: $ids) {
+    count
+    scene_markers {
+      id
+      title
+      seconds
+      end_seconds
+      created_at
+      updated_at
+      stream
+      preview
+      screenshot
+      scene {
+        id
+        title
+        date
+        rating100
+        organized
+        paths {
+          screenshot
+          preview
+          stream
+          webp
+          vtt
+          sprite
+          funscript
+          interactive_heatmap
+          caption
+        }
+        files {
+          path
+          size
+          id
+          duration
+          video_codec
+          audio_codec
+          width
+          height
+          frame_rate
+          bit_rate
+        }
+        studio {
+          id
+          name
+        }
+        performers {
+          id
+          name
+          gender
+        }
+        tags {
+          id
+          name
+        }
+      }
+      primary_tag {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        parent_count
+        child_count
+        parents {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+      }
+      tags {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        parent_count
+        child_count
+        parents {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+"""
+
+
+@router.get("/stashmarker/{marker_id}")
+async def get_stash_marker_debug(
+    marker_id: str,
+    stash_service: StashService = Depends(get_stash_service),
+) -> Dict[str, Any]:
+    """
+    Get raw marker data from Stash GraphQL API for debugging purposes.
+
+    Returns both the GraphQL query and the raw result.
+    """
+    # Format the query for display with variables filled in
+    query_for_display = DEBUG_MARKER_QUERY.strip()
+    # Replace the variable declarations and usage with actual values
+    query_for_display = query_for_display.replace(
+        "query FindSceneMarkers($filter: FindFilterType, $scene_marker_filter: SceneMarkerFilterType, $ids: [ID!])",
+        "query FindSceneMarkers",
+    )
+    query_for_display = query_for_display.replace(
+        "findSceneMarkers(filter: $filter, scene_marker_filter: $scene_marker_filter, ids: $ids)",
+        f'findSceneMarkers(ids: ["{marker_id}"])',
+    )
+    # Convert to single line by removing newlines and collapsing multiple spaces
+    query_for_display = " ".join(query_for_display.split())
+
+    try:
+        # Execute the GraphQL query with ids filter
+        result = await stash_service.execute_graphql(
+            DEBUG_MARKER_QUERY, {"ids": [marker_id]}
+        )
+
+        # Check if marker was found
+        if not result.get("findSceneMarkers") or not result["findSceneMarkers"].get(
+            "scene_markers"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Marker {marker_id} not found in Stash",
+            )
+
+        return {"query": query_for_display, "result": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch marker from Stash: {str(e)}",
+        )
