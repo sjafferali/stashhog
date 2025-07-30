@@ -400,7 +400,7 @@ async def process_new_scenes_job(
         await progress_callback(35, "Step 3/6: Running incremental sync")
         await _run_workflow_step(
             job_service,
-            JobType.SYNC_ALL,
+            JobType.SYNC,
             {"force": False},
             job_id,
             "Incremental Sync",
