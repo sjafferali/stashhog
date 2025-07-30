@@ -1,7 +1,7 @@
 """Test cancellation behavior for Stash jobs."""
 
 import asyncio
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -60,21 +60,23 @@ async def test_stash_generate_job_cancellation_continues_polling():
 
     stash_service.execute_graphql = mock_execute_graphql
 
-    # Start polling in background
-    poll_task = asyncio.create_task(
-        generate_poll_job_status(
-            stash_service, "test-job-id", progress_callback, cancellation_token
+    # Mock asyncio.sleep to make test instant
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        # Start polling in background
+        poll_task = asyncio.create_task(
+            generate_poll_job_status(
+                stash_service, "test-job-id", progress_callback, cancellation_token
+            )
         )
-    )
 
-    # Wait a bit for first poll
-    await asyncio.sleep(0.1)
+        # Let the event loop run one iteration to start polling
+        await asyncio.sleep(0)
 
-    # Trigger cancellation
-    cancellation_token.is_cancelled = True
+        # Trigger cancellation
+        cancellation_token.is_cancelled = True
 
-    # Wait for result
-    result = await poll_task
+        # Wait for result
+        result = await poll_task
 
     # Verify result
     assert result["status"] == "cancelled"
@@ -130,21 +132,23 @@ async def test_stash_scan_job_cancellation_continues_polling():
 
     stash_service.execute_graphql = mock_execute_graphql
 
-    # Start polling in background
-    poll_task = asyncio.create_task(
-        scan_poll_job_status(
-            stash_service, "test-job-id", progress_callback, cancellation_token
+    # Mock asyncio.sleep to make test instant
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        # Start polling in background
+        poll_task = asyncio.create_task(
+            scan_poll_job_status(
+                stash_service, "test-job-id", progress_callback, cancellation_token
+            )
         )
-    )
 
-    # Wait a bit for first poll
-    await asyncio.sleep(0.1)
+        # Let the event loop run one iteration to start polling
+        await asyncio.sleep(0)
 
-    # Trigger cancellation
-    cancellation_token.is_cancelled = True
+        # Trigger cancellation
+        cancellation_token.is_cancelled = True
 
-    # Wait for result
-    result = await poll_task
+        # Wait for result
+        result = await poll_task
 
     # Verify result
     assert result["status"] == "cancelled"

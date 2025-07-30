@@ -234,6 +234,7 @@ export interface Job {
     | 'stash_generate'
     | 'check_stash_generate'
     | 'process_downloads'
+    | 'process_new_scenes'
     | 'cleanup'
     | 'generate_details'
     | 'export'

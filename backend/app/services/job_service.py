@@ -33,6 +33,7 @@ class JobService:
             JobType.ANALYSIS,
             JobType.APPLY_PLAN,
             JobType.GENERATE_DETAILS,
+            JobType.PROCESS_NEW_SCENES,
         }
 
     def register_handler(self, job_type: JobType, handler: Callable) -> None:

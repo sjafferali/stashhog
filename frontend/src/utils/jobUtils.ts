@@ -17,7 +17,8 @@ export type JobType =
   | 'stash_scan'
   | 'stash_generate'
   | 'check_stash_generate'
-  | 'process_downloads';
+  | 'process_downloads'
+  | 'process_new_scenes';
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
   sync: 'Sync',
@@ -39,6 +40,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   stash_generate: 'Stash Generate Metadata',
   check_stash_generate: 'Check Resource Generation',
   process_downloads: 'Process Downloads',
+  process_new_scenes: 'Process New Scenes',
 };
 
 export const JOB_TYPE_COLORS: Record<string, string> = {
@@ -61,6 +63,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   stash_generate: 'geekblue',
   check_stash_generate: 'orange',
   process_downloads: 'geekblue',
+  process_new_scenes: 'purple',
 };
 
 export const getJobTypeLabel = (type: string): string => {
@@ -118,6 +121,8 @@ export const formatJobProgress = (
       unit = ' resources';
     } else if (type === 'process_downloads') {
       unit = ' downloads';
+    } else if (type === 'process_new_scenes') {
+      unit = ' steps';
     }
 
     return `${processed} / ${total}${unit}`;
@@ -147,6 +152,8 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
     'Generate preview images, sprites, and metadata for media files',
   check_stash_generate: 'Check for resources requiring generation in Stash',
   process_downloads: 'Process downloaded content',
+  process_new_scenes:
+    'Complete workflow to process newly downloaded scenes through scanning, analysis, and metadata generation',
 };
 
 export const getJobTypeDescription = (type: string): string => {

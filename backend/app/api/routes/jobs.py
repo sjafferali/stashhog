@@ -41,6 +41,7 @@ def map_job_type_to_schema(model_type: str) -> str:
         "stash_scan": "stash_scan",
         "stash_generate": "stash_generate",
         "check_stash_generate": "check_stash_generate",
+        "process_new_scenes": "process_new_scenes",
     }
     return mapping.get(model_type, model_type)
 
@@ -49,6 +50,7 @@ def map_job_type_to_schema(model_type: str) -> str:
 async def list_jobs(
     status: Optional[List[str]] = Query(None, description="Filter by job status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
+    job_id: Optional[str] = Query(None, description="Filter by job ID"),
     limit: int = Query(50, le=100, description="Maximum number of jobs to return"),
     db: AsyncSession = Depends(get_db),
     job_service: JobService = Depends(get_job_service),
@@ -58,6 +60,41 @@ async def list_jobs(
 
     Returns active jobs from the queue and recent completed jobs from the database.
     """
+    # If filtering by specific job ID, return only that job
+    if job_id:
+        job = await job_service.get_job(job_id, db)
+        if job:
+            # Ensure metadata is a dict
+            metadata_dict: Dict[str, Any] = (
+                job.job_metadata if isinstance(job.job_metadata, dict) else {}
+            )
+
+            job_response = JobResponse(
+                id=str(job.id),
+                type=SchemaJobType(
+                    map_job_type_to_schema(
+                        job.type.value if hasattr(job.type, "value") else job.type
+                    )
+                ),
+                status=JobStatus(
+                    job.status.value if hasattr(job.status, "value") else job.status
+                ),
+                progress=float(job.progress or 0),
+                parameters={},
+                metadata=metadata_dict,
+                result=job.result,  # type: ignore[arg-type]
+                error=job.error,  # type: ignore[arg-type]
+                created_at=job.created_at,  # type: ignore[arg-type]
+                updated_at=job.updated_at,  # type: ignore[arg-type]
+                started_at=job.started_at,  # type: ignore[arg-type]
+                completed_at=job.completed_at,  # type: ignore[arg-type]
+                total=job.total_items,
+                processed_items=job.processed_items,
+            )
+            return JobsListResponse(jobs=[job_response])
+        else:
+            return JobsListResponse(jobs=[])
+
     # Get active jobs from queue
     active_jobs = await job_service.get_active_jobs(db)
 
@@ -99,7 +136,7 @@ async def list_jobs(
     job_responses = []
     for job in all_jobs:
         # Ensure metadata is a dict
-        metadata_dict: Dict[str, Any] = (
+        job_metadata_dict: Dict[str, Any] = (
             job.job_metadata if isinstance(job.job_metadata, dict) else {}
         )
 
@@ -116,7 +153,7 @@ async def list_jobs(
                 ),
                 progress=float(job.progress or 0),
                 parameters={},  # Empty dict for parameters since model doesn't have this field
-                metadata=metadata_dict,  # Use job_metadata for metadata field
+                metadata=job_metadata_dict,  # Use job_metadata for metadata field
                 result=job.result,  # type: ignore[arg-type]
                 error=job.error,  # type: ignore[arg-type]
                 created_at=job.created_at,  # type: ignore[arg-type]

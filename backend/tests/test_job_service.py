@@ -354,6 +354,7 @@ class TestJobService:
             JobType.ANALYSIS,
             JobType.APPLY_PLAN,
             JobType.GENERATE_DETAILS,
+            JobType.PROCESS_NEW_SCENES,
         }
 
         assert job_service.sync_job_types == expected_sync_types

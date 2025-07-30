@@ -44,6 +44,7 @@ class JobType(str, enum.Enum):
     STASH_SCAN = "stash_scan"
     STASH_GENERATE = "stash_generate"
     CHECK_STASH_GENERATE = "check_stash_generate"
+    PROCESS_NEW_SCENES = "process_new_scenes"
 
 
 class Job(BaseModel):
@@ -81,6 +82,7 @@ class Job(BaseModel):
             "STASH_SCAN",
             "STASH_GENERATE",
             "CHECK_STASH_GENERATE",
+            "PROCESS_NEW_SCENES",
             name="jobtype",
             create_type=False,  # Don't try to create the type, it already exists
         ),

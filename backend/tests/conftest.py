@@ -3,6 +3,7 @@
 import tempfile
 from pathlib import Path
 from typing import Generator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -180,3 +181,19 @@ def test_db_url() -> str:
 def anyio_backend():
     """Configure anyio for pytest-asyncio."""
     return "asyncio"
+
+
+@pytest.fixture
+def fast_async():
+    """Make all async sleep calls instant for faster tests."""
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        yield
+
+
+@pytest.fixture
+def fast_retry():
+    """Make retry backoff delays instant for faster tests."""
+    # Mock tenacity wait functions to return 0 delay
+    with patch("tenacity.wait_exponential") as mock_wait:
+        mock_wait.return_value = lambda retry_state: 0
+        yield

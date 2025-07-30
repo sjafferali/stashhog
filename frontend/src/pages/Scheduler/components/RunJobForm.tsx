@@ -281,6 +281,15 @@ const jobDefinitions: JobDefinition[] = [
     parameters: [],
   },
   {
+    type: 'process_new_scenes',
+    name: 'Process New Scenes',
+    description:
+      'Complete workflow to process newly downloaded scenes: downloads → scan → sync → analyze → apply changes → generate metadata',
+    icon: <PlayCircleOutlined />,
+    category: 'Workflow',
+    parameters: [],
+  },
+  {
     type: 'stash_scan',
     name: 'Stash Metadata Scan',
     description:
