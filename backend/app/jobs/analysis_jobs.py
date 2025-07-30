@@ -406,41 +406,6 @@ async def _apply_single_plan_in_bulk(
         return 0, [], e
 
 
-async def _trigger_scene_sync_for_bulk(
-    job_id: str, modified_scene_ids: list[str]
-) -> Optional[dict]:
-    """Trigger scene sync after bulk apply."""
-    try:
-        from app.core.database import AsyncSessionLocal
-        from app.models.job import JobType
-        from app.services.job_service import job_service
-
-        async with AsyncSessionLocal() as db:
-            sync_job = await job_service.create_job(
-                job_type=JobType.SYNC_SCENES,
-                db=db,
-                metadata={
-                    "scene_ids": modified_scene_ids,
-                    "triggered_by": f"bulk_apply_{job_id}",
-                    "force": False,
-                },
-            )
-            await db.commit()
-            logger.info(
-                f"Created scene sync job {sync_job.id} for {len(modified_scene_ids)} scenes after bulk apply"
-            )
-            return None
-    except Exception as sync_error:
-        logger.error(
-            f"Failed to trigger scene sync after bulk apply: {str(sync_error)}",
-            exc_info=True,
-        )
-        return {
-            "error": f"Failed to trigger scene sync: {str(sync_error)}",
-            "type": "sync_trigger_failure",
-        }
-
-
 async def _apply_bulk_plans(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
@@ -476,9 +441,7 @@ async def _apply_bulk_plans(
             progress_callback,
         )
 
-    # Trigger sync if needed
-    if state.total_changes_applied > 0 and state.all_modified_scene_ids:
-        await _trigger_sync_after_bulk_apply(job_id, state, progress_callback)
+    # No automatic sync triggering after bulk apply
 
     await progress_callback(100, "Bulk apply completed")
 
@@ -627,25 +590,6 @@ def _create_plan_progress_callback(
     return callback
 
 
-async def _trigger_sync_after_bulk_apply(
-    job_id: str,
-    state: _BulkApplyState,
-    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
-) -> None:
-    """Trigger scene sync after bulk apply completes."""
-    logger.info(
-        f"Bulk apply job {job_id} applied {state.total_changes_applied} changes "
-        f"to {len(state.all_modified_scene_ids)} scenes, triggering scene sync"
-    )
-    await progress_callback(95, "Starting scene sync...")
-
-    sync_error = await _trigger_scene_sync_for_bulk(
-        job_id, list(state.all_modified_scene_ids)
-    )
-    if sync_error:
-        state.all_errors.append(sync_error)
-
-
 async def apply_analysis_plan_job(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
@@ -710,52 +654,11 @@ async def apply_analysis_plan_job(
             change_ids=change_ids,
         )
 
-        # If changes were successfully applied, trigger an incremental sync
-        if result.applied_changes > 0 and result.modified_scene_ids:
+        # Changes successfully applied - no automatic sync
+        if result.applied_changes > 0:
             logger.info(
-                f"Plan {plan_id} applied {result.applied_changes} changes to {len(result.modified_scene_ids)} scenes, triggering incremental sync"
+                f"Plan {plan_id} applied {result.applied_changes} changes to {len(result.modified_scene_ids)} scenes"
             )
-            await progress_callback(
-                95,
-                f"Applied {result.applied_changes} changes, starting incremental sync...",
-            )
-
-            try:
-                from app.core.database import AsyncSessionLocal
-                from app.models.job import JobType
-                from app.services.job_service import job_service
-
-                async with AsyncSessionLocal() as db:
-                    # Create an incremental sync job for the modified scenes
-                    sync_job = await job_service.create_job(
-                        job_type=JobType.SYNC_SCENES,
-                        db=db,
-                        metadata={
-                            "scene_ids": result.modified_scene_ids,
-                            "incremental": True,
-                            "triggered_by": f"apply_plan_{plan_id}",
-                            "force": False,
-                        },
-                    )
-                    await db.commit()
-                    logger.info(
-                        f"Created incremental sync job {sync_job.id} for {len(result.modified_scene_ids)} scenes after applying plan {plan_id}"
-                    )
-
-            except Exception as sync_error:
-                # Log the error but don't fail the whole job
-                logger.error(
-                    f"Failed to trigger scene sync after applying plan {plan_id}: {str(sync_error)}",
-                    exc_info=True,
-                )
-                # Add to errors but continue
-                result.errors.append(
-                    {
-                        "error": f"Failed to trigger scene sync: {str(sync_error)}",
-                        "type": "sync_trigger_failure",
-                    }
-                )
-
             await progress_callback(
                 100, f"Plan applied successfully with {result.applied_changes} changes"
             )

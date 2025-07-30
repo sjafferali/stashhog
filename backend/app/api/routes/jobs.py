@@ -449,8 +449,13 @@ async def retry_job(
     )
 
     # Create a new job with the same parameters
+    # Convert string type back to JobType enum
+    from app.models.job import JobType as ModelJobType
+
+    job_type_enum = ModelJobType(job.type)
+
     new_job = await job_service.create_job(
-        job_type=job.type,  # type: ignore[arg-type]
+        job_type=job_type_enum,
         metadata=metadata_dict,
         db=db,
     )
