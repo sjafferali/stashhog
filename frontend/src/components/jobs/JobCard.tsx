@@ -21,7 +21,11 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
-import { getJobTypeLabel, formatJobProgress } from '@/utils/jobUtils';
+import {
+  getJobTypeLabel,
+  getJobTypeColor,
+  formatJobProgress,
+} from '@/utils/jobUtils';
 import { WorkflowJobCard } from './WorkflowJobCard';
 import styles from './JobCard.module.scss';
 
@@ -187,7 +191,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className={styles.compactHeader}>
           <Space>
             {getStatusIcon()}
-            <Text strong>{job.name || `${job.type} Job`}</Text>
+            <Text strong>{job.name || getJobTypeLabel(job.type)}</Text>
             <Tag color={getStatusColor()}>{job.status}</Tag>
           </Space>
           <Space>{actions}</Space>
@@ -218,7 +222,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className={styles.cardHeader}>
           <Space>
             {getStatusIcon()}
-            <Title level={5}>{job.name || `${job.type} Job`}</Title>
+            <Title level={5}>{job.name || getJobTypeLabel(job.type)}</Title>
           </Space>
           <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
         </div>
@@ -254,8 +258,15 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         {showDetails && (
           <Descriptions column={2} size="small" className={styles.details}>
+            <Descriptions.Item label="Job ID" span={2}>
+              <Text copyable style={{ fontFamily: 'monospace' }}>
+                {job.id}
+              </Text>
+            </Descriptions.Item>
             <Descriptions.Item label="Type">
-              <Tag>{getJobTypeLabel(job.type)}</Tag>
+              <Tag color={getJobTypeColor(job.type)}>
+                {getJobTypeLabel(job.type)}
+              </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Duration">
               {formatDuration() || 'N/A'}
@@ -291,7 +302,15 @@ export const JobCard: React.FC<JobCardProps> = ({
             <Descriptions column={1} size="small">
               {Object.entries(job.metadata).map(([key, value]) => (
                 <Descriptions.Item key={key} label={key}>
-                  {JSON.stringify(value)}
+                  {typeof value === 'string' ? (
+                    value
+                  ) : typeof value === 'object' && value !== null ? (
+                    <pre style={{ margin: 0, fontSize: '12px' }}>
+                      {JSON.stringify(value, null, 2)}
+                    </pre>
+                  ) : (
+                    String(value)
+                  )}
                 </Descriptions.Item>
               ))}
             </Descriptions>

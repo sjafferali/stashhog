@@ -19,6 +19,7 @@ import {
   Select,
   Collapse,
   Segmented,
+  Input,
 } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
@@ -74,6 +75,9 @@ const JobMonitor: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string | undefined>(
     searchParams.get('type') || undefined
   );
+  const [jobIdFilter, setJobIdFilter] = useState<string | undefined>(
+    searchParams.get('job_id') || undefined
+  );
   const [viewMode, setViewMode] = useState<'table' | 'card'>(
     (searchParams.get('view') as 'table' | 'card') || 'table'
   );
@@ -81,39 +85,67 @@ const JobMonitor: React.FC = () => {
 
   const fetchJobs = async () => {
     try {
-      setLoading(true);
-      const response = await apiClient.getJobs({ limit: 50 });
-      // Ensure we always have an array
-      const jobsArray = Array.isArray(response) ? response : [];
+      // If job ID filter is set, fetch that specific job and its sub-jobs
+      if (jobIdFilter) {
+        try {
+          const job = await apiClient.getJob(jobIdFilter);
+          const jobsToShow = [job];
 
-      // Debug: Log process_new_scenes jobs
-      const workflowJobs = jobsArray.filter(
-        (job) => job.type === 'process_new_scenes'
-      );
-      if (workflowJobs.length > 0) {
-        console.log(
-          'Process new scenes jobs from API:',
-          workflowJobs.map((job) => ({
-            id: job.id,
-            status: job.status,
-            metadata: job.metadata,
-            progress: job.progress,
-          }))
+          // If it's a workflow job, also fetch its sub-jobs
+          if (job.type === 'process_new_scenes' && job.metadata?.sub_job_ids) {
+            const subJobIds = job.metadata.sub_job_ids;
+            if (Array.isArray(subJobIds)) {
+              const subJobPromises = subJobIds.map((id: string) =>
+                apiClient.getJob(id).catch((err) => {
+                  console.error(`Failed to fetch sub-job ${id}:`, err);
+                  return null;
+                })
+              );
+              const subJobs = await Promise.all(subJobPromises);
+              jobsToShow.push(...(subJobs.filter((j) => j !== null) as Job[]));
+            }
+          }
+
+          setJobs(jobsToShow);
+        } catch (error) {
+          console.error('Failed to fetch job by ID:', error);
+          void message.error('Failed to fetch job by ID');
+          setJobs([]);
+        }
+      } else {
+        // Normal job list fetch
+        const response = await apiClient.getJobs({ limit: 50 });
+        // Ensure we always have an array
+        const jobsArray = Array.isArray(response) ? response : [];
+
+        // Debug: Log process_new_scenes jobs
+        const workflowJobs = jobsArray.filter(
+          (job) => job.type === 'process_new_scenes'
         );
-      }
+        if (workflowJobs.length > 0) {
+          console.log(
+            'Process new scenes jobs from API:',
+            workflowJobs.map((job) => ({
+              id: job.id,
+              status: job.status,
+              metadata: job.metadata,
+              progress: job.progress,
+            }))
+          );
+        }
 
-      setJobs(jobsArray);
+        setJobs(jobsArray);
+      }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       void message.error('Failed to fetch jobs');
       setJobs([]); // Ensure state is always an array
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchJobs();
+    setLoading(true);
+    void fetchJobs().finally(() => setLoading(false));
 
     // Set up auto-refresh every 5 seconds
     const interval = setInterval(() => {
@@ -126,7 +158,7 @@ const JobMonitor: React.FC = () => {
         clearInterval(interval);
       }
     };
-  }, []);
+  }, [jobIdFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle WebSocket updates for real-time job changes
   useEffect(() => {
@@ -699,8 +731,13 @@ const JobMonitor: React.FC = () => {
     [jobs]
   );
 
-  // Filter jobs by status and type
+  // Filter jobs by status and type (skip if job ID filter is active)
   const filteredJobs = useMemo(() => {
+    // If job ID filter is set, don't apply other filters
+    if (jobIdFilter) {
+      return jobsWithKeys;
+    }
+
     let filtered = jobsWithKeys;
 
     if (statusFilter) {
@@ -712,7 +749,7 @@ const JobMonitor: React.FC = () => {
     }
 
     return filtered;
-  }, [jobsWithKeys, statusFilter, typeFilter]);
+  }, [jobsWithKeys, statusFilter, typeFilter, jobIdFilter]);
 
   const runningJobs = jobsWithKeys.filter((job) => job.status === 'running');
   const pendingJobs = jobsWithKeys.filter((job) => job.status === 'pending');
@@ -720,18 +757,42 @@ const JobMonitor: React.FC = () => {
 
   const handleStatusFilterChange = (value: string | undefined) => {
     setStatusFilter(value);
-    updateSearchParams({ status: value, type: typeFilter });
+    updateSearchParams({
+      status: value,
+      type: typeFilter,
+      job_id: jobIdFilter,
+    });
   };
 
   const handleTypeFilterChange = (value: string | undefined) => {
     setTypeFilter(value);
-    updateSearchParams({ status: statusFilter, type: value });
+    updateSearchParams({
+      status: statusFilter,
+      type: value,
+      job_id: jobIdFilter,
+    });
   };
 
-  const updateSearchParams = (params: { status?: string; type?: string }) => {
+  const handleJobIdFilterChange = (value: string) => {
+    const trimmedValue = value.trim();
+    setJobIdFilter(trimmedValue || undefined);
+    updateSearchParams({
+      status: statusFilter,
+      type: typeFilter,
+      job_id: trimmedValue || undefined,
+    });
+  };
+
+  const updateSearchParams = (params: {
+    status?: string;
+    type?: string;
+    job_id?: string;
+  }) => {
     const newParams: Record<string, string> = {};
     if (params.status) newParams.status = params.status;
     if (params.type) newParams.type = params.type;
+    if (params.job_id) newParams.job_id = params.job_id;
+    if (viewMode !== 'table') newParams.view = viewMode;
     setSearchParams(newParams);
   };
 
@@ -797,6 +858,14 @@ const JobMonitor: React.FC = () => {
                   value,
                 })),
               ]}
+            />
+            <Input
+              placeholder="Filter by Job ID"
+              value={jobIdFilter}
+              onChange={(e) => handleJobIdFilterChange(e.target.value)}
+              onPressEnter={() => void fetchJobs()}
+              allowClear
+              style={{ width: 200 }}
             />
             <Button
               icon={<SyncOutlined />}

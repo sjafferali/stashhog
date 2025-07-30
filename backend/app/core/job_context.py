@@ -29,10 +29,6 @@ class JobContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Add job context fields to the log record."""
-        # Always set job_context to avoid KeyError in formatters
-        # Initialize with empty string to ensure the attribute exists
-        record.job_context = ""  # type: ignore[attr-defined]
-
         context = _job_context.get()
 
         # Add job context fields to the record
@@ -40,18 +36,20 @@ class JobContextFilter(logging.Filter):
         record.job_type = context.get("job_type", "")  # type: ignore[attr-defined]
         record.parent_job_id = context.get("parent_job_id", "")  # type: ignore[attr-defined]
 
-        # Create a job context string for inclusion in messages
-        job_parts = []
-        if record.job_type:  # type: ignore[attr-defined]
-            job_parts.append(f"job_type={record.job_type}")  # type: ignore[attr-defined]
-        if record.job_id:  # type: ignore[attr-defined]
-            job_parts.append(f"job_id={record.job_id}")  # type: ignore[attr-defined]
-        if record.parent_job_id:  # type: ignore[attr-defined]
-            job_parts.append(f"parent_job_id={record.parent_job_id}")  # type: ignore[attr-defined]
+        # If we have job context, modify the message to include it
+        if context:
+            job_parts = []
+            if record.job_type:  # type: ignore[attr-defined]
+                job_parts.append(f"job_type={record.job_type}")  # type: ignore[attr-defined]
+            if record.job_id:  # type: ignore[attr-defined]
+                job_parts.append(f"job_id={record.job_id}")  # type: ignore[attr-defined]
+            if record.parent_job_id:  # type: ignore[attr-defined]
+                job_parts.append(f"parent_job_id={record.parent_job_id}")  # type: ignore[attr-defined]
 
-        # Only set job_context if there are parts to include
-        if job_parts:
-            record.job_context = f"[{', '.join(job_parts)}] "  # type: ignore[attr-defined]
+            if job_parts:
+                # Prepend job context to the message
+                context_prefix = f"[{', '.join(job_parts)}] "
+                record.msg = f"{context_prefix}{record.msg}"
 
         return True
 
@@ -119,45 +117,17 @@ def setup_job_logging():
         if isinstance(filter, JobContextFilter):
             return
 
-    # Add the job context filter
-    root_logger.addFilter(JobContextFilter())
+    # Create a single filter instance to reuse
+    job_filter = JobContextFilter()
 
-    # Update the logging format to include job context if present
-    # This updates all handlers to include job context
+    # Add the job context filter to the root logger
+    root_logger.addFilter(job_filter)
+
+    # Also add the filter to all existing handlers to ensure it's applied
+    # This is needed because handlers added after setup_job_logging() might not inherit filters
     for handler in root_logger.handlers:
-        if handler.formatter and hasattr(handler.formatter, "_fmt"):
-            # Get the current format string
-            current_format = handler.formatter._fmt
-
-            # Only update if job_context not already in format and format is a string
-            if (
-                isinstance(current_format, str)
-                and "%(job_context)s" not in current_format
-            ):
-                # Insert job context after timestamp/level, before message
-                # Most formats follow pattern: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                if " - %(message)s" in current_format:
-                    new_format = current_format.replace(
-                        " - %(message)s", "%(job_context)s - %(message)s"
-                    )
-                else:
-                    # Fallback: append before message
-                    new_format = current_format.replace(
-                        "%(message)s", "%(job_context)s %(message)s"
-                    )
-
-                # Create new formatter with updated format
-                try:
-                    handler.setFormatter(
-                        logging.Formatter(
-                            new_format,
-                            datefmt=(
-                                handler.formatter.datefmt
-                                if hasattr(handler.formatter, "datefmt")
-                                else None
-                            ),
-                        )
-                    )
-                except Exception:
-                    # If format update fails, continue without it
-                    pass
+        handler_has_filter = any(
+            isinstance(f, JobContextFilter) for f in handler.filters
+        )
+        if not handler_has_filter:
+            handler.addFilter(job_filter)

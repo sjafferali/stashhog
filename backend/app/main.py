@@ -36,8 +36,9 @@ warnings.filterwarnings(
 )
 
 # Configure logging
+# Set up job context logging first to ensure filter is available
+setup_job_logging()
 configure_logging()
-setup_job_logging()  # Set up job context logging
 logger = logging.getLogger(__name__)
 
 # Get settings

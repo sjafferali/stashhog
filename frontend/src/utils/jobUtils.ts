@@ -93,7 +93,12 @@ export const formatJobProgress = (
   total: number | undefined,
   progress: number
 ): string => {
-  if (total !== undefined && processed !== undefined) {
+  if (
+    total !== undefined &&
+    total !== null &&
+    processed !== undefined &&
+    processed !== null
+  ) {
     // Determine the unit based on job type
     let unit = '';
     if (
@@ -128,7 +133,7 @@ export const formatJobProgress = (
     return `${processed} / ${total}${unit}`;
   }
 
-  return `${Math.round(progress)}%`;
+  return `${Math.round(progress || 0)}%`;
 };
 
 export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
