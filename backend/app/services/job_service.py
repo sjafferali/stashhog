@@ -182,6 +182,9 @@ class JobService:
                     if result_status == "failed":
                         job_status = JobStatus.FAILED
                         message = "Job failed with errors"
+                    elif result_status == "cancelled":
+                        job_status = JobStatus.CANCELLED
+                        message = result.get("message", "Job was cancelled")
                     elif result_status == "completed_with_errors":
                         # Still mark as completed but note the errors in the message
                         errors = result.get("errors", [])
