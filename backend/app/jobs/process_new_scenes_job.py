@@ -14,7 +14,6 @@ import logging
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.core.database import AsyncSessionLocal
 from app.models import Scene
@@ -292,24 +291,28 @@ async def _approve_plan_changes(plan_id: int, batch_num: int) -> int:
     """Approve all changes in a plan."""
     async with AsyncSessionLocal() as db:
         from app.models import AnalysisPlan
+        from app.models.plan_change import ChangeStatus
 
-        query = (
-            select(AnalysisPlan)
-            .where(AnalysisPlan.id == plan_id)
-            .options(selectinload(AnalysisPlan.changes))
-        )
+        # Don't use selectinload with dynamic relationships
+        query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
         result = await db.execute(query)
         plan = result.scalar_one_or_none()
 
         if not plan:
             raise ValueError(f"Plan {plan_id} not found")
 
-        # Approve all changes
+        # Approve all changes - using the dynamic relationship
+        # Filter for changes that are not already approved
         changes_to_approve = 0
-        for change in plan.changes:
-            if not change.is_approved:
-                change.is_approved = True
-                changes_to_approve += 1
+        # Since plan.changes is a dynamic relationship, use it as a query
+        unapproved_changes = plan.changes.filter_by(
+            accepted=False, rejected=False
+        ).all()
+
+        for change in unapproved_changes:
+            change.accepted = True
+            change.status = ChangeStatus.APPROVED
+            changes_to_approve += 1
 
         if changes_to_approve > 0:
             await db.commit()
