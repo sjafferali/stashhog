@@ -78,6 +78,23 @@ const JobMonitor: React.FC = () => {
       const response = await apiClient.getJobs({ limit: 50 });
       // Ensure we always have an array
       const jobsArray = Array.isArray(response) ? response : [];
+
+      // Debug: Log process_new_scenes jobs
+      const workflowJobs = jobsArray.filter(
+        (job) => job.type === 'process_new_scenes'
+      );
+      if (workflowJobs.length > 0) {
+        console.log(
+          'Process new scenes jobs from API:',
+          workflowJobs.map((job) => ({
+            id: job.id,
+            status: job.status,
+            metadata: job.metadata,
+            progress: job.progress,
+          }))
+        );
+      }
+
       setJobs(jobsArray);
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
@@ -110,6 +127,15 @@ const JobMonitor: React.FC = () => {
       const update = lastMessage as { type: string; job: Job };
 
       if (update.type === 'job_update' && update.job) {
+        // Debug: Log process_new_scenes job metadata
+        if (update.job.type === 'process_new_scenes') {
+          console.log('Process new scenes job update:', {
+            id: update.job.id,
+            status: update.job.status,
+            metadata: update.job.metadata,
+            progress: update.job.progress,
+          });
+        }
         setJobs((prevJobs) => {
           const jobIndex = prevJobs.findIndex((j) => j.id === update.job.id);
 

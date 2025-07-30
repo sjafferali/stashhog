@@ -50,6 +50,12 @@ export const JobCard: React.FC<JobCardProps> = ({
 }) => {
   // Use WorkflowJobCard for workflow jobs
   if (job.type === 'process_new_scenes' && !compact) {
+    console.log('Routing to WorkflowJobCard for job:', {
+      id: job.id,
+      type: job.type,
+      metadata: job.metadata,
+      status: job.status,
+    });
     return (
       <WorkflowJobCard
         job={job}

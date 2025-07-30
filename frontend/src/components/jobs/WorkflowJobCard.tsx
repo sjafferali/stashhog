@@ -68,6 +68,16 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
   const stepName = metadata?.step_name || '';
   const activeSubJob = metadata?.active_sub_job;
 
+  // Debug: Log workflow metadata
+  console.log('WorkflowJobCard rendering:', {
+    jobId: job.id,
+    jobType: job.type,
+    metadata: metadata,
+    currentStep: currentStep,
+    stepName: stepName,
+    activeSubJob: activeSubJob,
+  });
+
   const getStatusIcon = () => {
     switch (job.status) {
       case 'pending':

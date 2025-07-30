@@ -199,7 +199,16 @@ async def _check_markers_with_plugin(
         marker_check_response = await stash_service.execute_graphql(
             RUN_MARKER_CHECK_PLUGIN
         )
+        # The execute_graphql method already extracts the data portion
         plugin_result = marker_check_response.get("runPluginOperation", {})
+
+        # Log the plugin response for debugging
+        logger.info(
+            f"Marker check plugin response: total_markers={plugin_result.get('total_markers', 0)}, "
+            f"markers_needing_video_count={plugin_result.get('markers_needing_video_count', 0)}, "
+            f"markers_needing_screenshot_count={plugin_result.get('markers_needing_screenshot_count', 0)}, "
+            f"markers_needing_webp_count={plugin_result.get('markers_needing_webp_count', 0)}"
+        )
 
         # Update marker statistics from plugin response
         details["total_markers"] = plugin_result.get("total_markers", 0)
