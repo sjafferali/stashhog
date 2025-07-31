@@ -345,6 +345,7 @@ export interface SyncStatus {
 export interface Settings {
   stash_url: string;
   stash_api_key?: string;
+  stash_preview_preset?: string;
   openai_api_key?: string;
   openai_model: string;
   openai_temperature: number;

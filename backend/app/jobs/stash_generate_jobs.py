@@ -173,16 +173,18 @@ async def stash_generate_job(
                 ),
                 "previewExcludeStart": preview_options.get("previewExcludeStart", "0"),
                 "previewExcludeEnd": preview_options.get("previewExcludeEnd", "0"),
-                "previewPreset": preview_options.get("previewPreset", "ultrafast"),
+                "previewPreset": preview_options.get(
+                    "previewPreset", settings.stash.preview_preset
+                ),
             }
         else:
-            # Use default preview options
+            # Use default preview options with configured preset
             generate_input["previewOptions"] = {
                 "previewSegments": 12,
                 "previewSegmentDuration": 0.75,
                 "previewExcludeStart": "0",
                 "previewExcludeEnd": "0",
-                "previewPreset": "ultrafast",
+                "previewPreset": settings.stash.preview_preset,
             }
 
         # Add scene IDs if provided

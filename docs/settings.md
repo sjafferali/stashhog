@@ -32,6 +32,7 @@ StashHog uses environment variables for configuration that should be set before 
 | `STASH_API_KEY` | `None` | API key for Stash authentication (optional if not required) |
 | `STASH_TIMEOUT` | `30` | Request timeout in seconds |
 | `STASH_MAX_RETRIES` | `3` | Maximum number of retry attempts for failed requests |
+| `STASH_PREVIEW_PRESET` | `ultrafast` | Video encoding preset for preview generation (ultrafast, veryfast, fast, medium, slow, slower, veryslow) |
 
 ### OpenAI Settings (`OPENAI_`)
 
@@ -96,6 +97,7 @@ These settings can be modified through the application's Settings page and are s
 |---------|------|-------------|
 | `stash_url` | String | URL of your Stash server |
 | `stash_api_key` | String (sensitive) | API key for Stash authentication |
+| `stash_preview_preset` | Select | Video encoding preset for preview generation (ultrafast to veryslow) |
 
 **Features:**
 - Test Connection button to verify Stash connectivity
@@ -144,6 +146,21 @@ Settings are loaded in the following priority order (highest to lowest):
 3. Default values in code
 
 ## Important Notes
+
+### Preview Preset Usage
+
+The `stash_preview_preset` setting controls the video encoding quality/speed tradeoff when generating previews in Stash:
+
+- **ultrafast**: Lowest quality, fastest processing (recommended for quick testing)
+- **veryfast/fast**: Good balance for development environments
+- **medium**: Balanced quality and speed
+- **slow/slower**: Higher quality, longer processing time
+- **veryslow**: Highest quality, slowest processing (recommended for production archives)
+
+This setting is used in:
+- Stash metadata generation jobs (`stash_generate_job`)
+- Process new scenes workflow (Step 5: Stash Generate Metadata)
+- Any manual or scheduled preview generation tasks
 
 ### Security Considerations
 

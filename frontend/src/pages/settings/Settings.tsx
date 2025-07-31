@@ -39,6 +39,7 @@ interface ModelInfo {
 interface SettingsFormValues {
   stash_url?: string;
   stash_api_key?: string;
+  stash_preview_preset?: string;
   openai_api_key?: string;
   openai_model?: string;
   openai_base_url?: string;
@@ -370,6 +371,34 @@ const Settings: React.FC = () => {
                 fieldPlaceholders.stash_api_key || 'Enter API key if required'
               }
               allowClear
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Preview Preset"
+            name="stash_preview_preset"
+            tooltip="Video encoding preset for preview generation. Faster presets reduce quality but process quicker."
+          >
+            <Select
+              placeholder={
+                fieldPlaceholders.stash_preview_preset || 'ultrafast'
+              }
+              allowClear
+              options={[
+                {
+                  value: 'ultrafast',
+                  label: 'Ultra Fast (lowest quality, fastest processing)',
+                },
+                { value: 'veryfast', label: 'Very Fast' },
+                { value: 'fast', label: 'Fast' },
+                { value: 'medium', label: 'Medium (balanced)' },
+                { value: 'slow', label: 'Slow (higher quality)' },
+                { value: 'slower', label: 'Slower' },
+                {
+                  value: 'veryslow',
+                  label: 'Very Slow (highest quality, slowest processing)',
+                },
+              ]}
             />
           </Form.Item>
 

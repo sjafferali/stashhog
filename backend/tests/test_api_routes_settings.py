@@ -64,23 +64,36 @@ def mock_settings_list():
 def mock_base_settings():
     """Create mock base settings."""
     settings = Mock()
+
+    # Create nested mock objects for each section
+    settings.stash = Mock()
     settings.stash.url = "http://default:9999"
     settings.stash.api_key = "default-key"
+    settings.stash.preview_preset = "medium"
+
+    settings.openai = Mock()
     settings.openai.api_key = "sk-default"
     settings.openai.model = "gpt-4"
     settings.openai.base_url = None
+
+    settings.analysis = Mock()
     settings.analysis.confidence_threshold = 0.7
     settings.analysis.ai_video_server_url = "http://localhost:8084"
     settings.analysis.frame_interval = 2
     settings.analysis.ai_video_threshold = 0.3
     settings.analysis.server_timeout = 3700
     settings.analysis.create_markers = True
+
+    settings.qbittorrent = Mock()
     settings.qbittorrent.host = "localhost"
     settings.qbittorrent.port = 8080
     settings.qbittorrent.username = "admin"
     settings.qbittorrent.password = None
+
+    settings.app = Mock()
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
+
     return settings
 
 
@@ -88,23 +101,36 @@ def mock_base_settings():
 def mock_overridden_settings():
     """Create mock overridden settings."""
     settings = Mock()
+
+    # Create nested mock objects for each section
+    settings.stash = Mock()
     settings.stash.url = "http://override:9999"
     settings.stash.api_key = "override-key"
+    settings.stash.preview_preset = "medium"
+
+    settings.openai = Mock()
     settings.openai.api_key = "sk-override"
     settings.openai.model = "gpt-4"
     settings.openai.base_url = None
+
+    settings.analysis = Mock()
     settings.analysis.confidence_threshold = 0.8
     settings.analysis.ai_video_server_url = "http://localhost:8084"
     settings.analysis.frame_interval = 2
     settings.analysis.ai_video_threshold = 0.3
     settings.analysis.server_timeout = 3700
     settings.analysis.create_markers = True
+
+    settings.qbittorrent = Mock()
     settings.qbittorrent.host = "localhost"
     settings.qbittorrent.port = 8080
     settings.qbittorrent.username = "admin"
     settings.qbittorrent.password = None
+
+    settings.app = Mock()
     settings.app.name = "StashHog"
     settings.app.version = "1.0.0"
+
     return settings
 
 
@@ -149,6 +175,9 @@ class TestSettingsRoutes:
             assert stash_url_setting is not None
             assert stash_url_setting["source"] == "database"
             assert stash_url_setting["db_value"] == "http://localhost:9999"
+            assert (
+                stash_url_setting["value"] == "http://localhost:9999"
+            )  # Database value takes precedence
             assert stash_url_setting["editable"] is True
 
             # Check secret masking

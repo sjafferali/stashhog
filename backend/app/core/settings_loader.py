@@ -56,6 +56,9 @@ def _apply_stash_overrides(settings_dict: Dict[str, Any], overrides: Dict[str, A
         else:
             settings_dict["stash"]["api_key"] = None
 
+    if "preview_preset" in overrides["stash"]:
+        settings_dict["stash"]["preview_preset"] = overrides["stash"]["preview_preset"]
+
 
 def _apply_openai_overrides(settings_dict: Dict[str, Any], overrides: Dict[str, Any]):
     """Apply OpenAI-specific overrides with special handling."""

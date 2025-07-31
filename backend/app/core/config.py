@@ -50,6 +50,10 @@ class StashSettings(BaseSettings):
     api_key: Optional[str] = Field(None, description="Stash API key")
     timeout: int = Field(30, description="API request timeout in seconds")
     max_retries: int = Field(3, description="Maximum number of retry attempts")
+    preview_preset: str = Field(
+        "ultrafast",
+        description="Default preview generation preset (ultrafast, veryfast, fast, medium, slow, slower, veryslow)",
+    )
 
     model_config = SettingsConfigDict(env_prefix="STASH_")
 
@@ -61,6 +65,25 @@ class StashSettings(BaseSettings):
             raise ValueError("Stash URL cannot be empty")
         # Remove trailing slash for consistency
         return v.rstrip("/")
+
+    @field_validator("preview_preset")
+    @classmethod
+    def validate_preview_preset(cls, v: str) -> str:
+        """Ensure preview preset is valid."""
+        valid_presets = [
+            "ultrafast",
+            "veryfast",
+            "fast",
+            "medium",
+            "slow",
+            "slower",
+            "veryslow",
+        ]
+        if v not in valid_presets:
+            raise ValueError(
+                f"Invalid preview preset. Must be one of: {', '.join(valid_presets)}"
+            )
+        return v
 
 
 class OpenAISettings(BaseSettings):

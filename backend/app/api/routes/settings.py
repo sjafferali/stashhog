@@ -58,6 +58,14 @@ async def list_settings(
             True,
         ),
         (
+            "stash_preview_preset",
+            "stash.preview_preset",
+            base_settings.stash.preview_preset,
+            overridden_settings.stash.preview_preset,
+            "Stash preview generation preset",
+            False,
+        ),
+        (
             "openai_api_key",
             "openai.api_key",
             base_settings.openai.api_key,
@@ -311,6 +319,7 @@ async def update_settings(
     allowed_keys = {
         "stash_url",
         "stash_api_key",
+        "stash_preview_preset",
         "openai_api_key",
         "openai_model",
         "openai_base_url",
