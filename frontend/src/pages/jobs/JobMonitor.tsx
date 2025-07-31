@@ -38,6 +38,7 @@ import {
   VideoCameraOutlined,
   TableOutlined,
   AppstoreOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
@@ -69,6 +70,10 @@ const JobMonitor: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [workflowModalVisible, setWorkflowModalVisible] = useState(false);
   const [selectedWorkflowJob, setSelectedWorkflowJob] = useState<Job | null>(
+    null
+  );
+  const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
+  const [selectedRawDataJob, setSelectedRawDataJob] = useState<Job | null>(
     null
   );
   const [_refreshInterval, setRefreshInterval] =
@@ -232,6 +237,11 @@ const JobMonitor: React.FC = () => {
       setSelectedJob(job);
       setDetailModalVisible(true);
     }
+  };
+
+  const showRawJobData = (job: Job) => {
+    setSelectedRawDataJob(job);
+    setRawDataModalVisible(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -965,6 +975,7 @@ const JobMonitor: React.FC = () => {
                       onDelete={() =>
                         void message.info('Delete not implemented yet')
                       }
+                      onViewRawData={() => showRawJobData(job)}
                       showDetails={true}
                     />
                   </Col>
@@ -1188,6 +1199,106 @@ const JobMonitor: React.FC = () => {
           onDelete={() => void message.info('Delete not implemented yet')}
         />
       )}
+
+      {/* Raw Job Data Modal */}
+      <Modal
+        title={
+          <Space>
+            <CodeOutlined />
+            Raw Job Data
+          </Space>
+        }
+        open={rawDataModalVisible}
+        onCancel={() => {
+          setRawDataModalVisible(false);
+          setSelectedRawDataJob(null);
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setRawDataModalVisible(false);
+              setSelectedRawDataJob(null);
+            }}
+          >
+            Close
+          </Button>,
+        ]}
+        width={800}
+        bodyStyle={{
+          maxHeight: 'calc(80vh - 108px)',
+          overflowY: 'auto',
+        }}
+      >
+        {selectedRawDataJob && (
+          <div>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Job ID">
+                <Text copyable>{selectedRawDataJob.id}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Name">
+                {selectedRawDataJob.name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Type">
+                <Tag color={getJobTypeColor(selectedRawDataJob.type)}>
+                  {getJobTypeLabel(selectedRawDataJob.type)}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag
+                  color={
+                    selectedRawDataJob.status === 'completed'
+                      ? 'success'
+                      : selectedRawDataJob.status === 'failed'
+                        ? 'error'
+                        : selectedRawDataJob.status === 'running'
+                          ? 'processing'
+                          : selectedRawDataJob.status === 'pending'
+                            ? 'orange'
+                            : selectedRawDataJob.status === 'cancelled'
+                              ? 'warning'
+                              : 'default'
+                  }
+                >
+                  {selectedRawDataJob.status.toUpperCase()}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Progress">
+                {selectedRawDataJob.progress}%
+              </Descriptions.Item>
+              <Descriptions.Item label="Created At">
+                {new Date(selectedRawDataJob.created_at).toLocaleString()}
+              </Descriptions.Item>
+              {selectedRawDataJob.started_at && (
+                <Descriptions.Item label="Started At">
+                  {new Date(selectedRawDataJob.started_at).toLocaleString()}
+                </Descriptions.Item>
+              )}
+              {selectedRawDataJob.completed_at && (
+                <Descriptions.Item label="Completed At">
+                  {new Date(selectedRawDataJob.completed_at).toLocaleString()}
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+
+            <Title level={5} style={{ marginTop: 16 }}>
+              Full JSON Data
+            </Title>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '12px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+              }}
+            >
+              {JSON.stringify(selectedRawDataJob, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

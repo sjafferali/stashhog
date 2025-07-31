@@ -12,6 +12,8 @@ import {
   message,
   Empty,
   Segmented,
+  Modal,
+  Descriptions,
 } from 'antd';
 import { Link } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
@@ -27,6 +29,7 @@ import {
   AppstoreOutlined,
   VideoCameraOutlined,
   FileTextOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
@@ -50,6 +53,8 @@ const Jobsv2: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = async () => {
@@ -135,6 +140,22 @@ const Jobsv2: React.FC = () => {
       }
     });
 
+    // Sort sub-jobs by created_at to maintain execution order
+    jobsWithRelationships.forEach((job) => {
+      if (job.subJobs && job.subJobs.length > 0) {
+        job.subJobs.sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      }
+      if (job.children && job.children.length > 0) {
+        job.children.sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      }
+    });
+
     // Sort root jobs by created_at desc
     rootJobs.sort(
       (a, b) =>
@@ -164,6 +185,11 @@ const Jobsv2: React.FC = () => {
       console.error('Failed to retry job:', error);
       void message.error('Failed to retry job');
     }
+  };
+
+  const showRawJobData = (job: Job) => {
+    setSelectedJob(job);
+    setRawDataModalVisible(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -229,14 +255,26 @@ const Jobsv2: React.FC = () => {
     }
   };
 
-  const renderJobCard = (job: JobWithRelationship, isSubJob = false) => {
+  const renderJobCard = (
+    job: JobWithRelationship,
+    isSubJob = false,
+    isFirstSubJob = false,
+    isLastSubJob = false,
+    subJobIndex = 0
+  ) => {
     const isWorkflow = job.type === 'process_new_scenes';
 
     return (
       <div key={job.id} className={styles.jobCardWrapper}>
         {isSubJob && (
-          <div className={styles.subjobConnector}>
-            <div className={styles.connectorLine} />
+          <div
+            className={`${styles.subjobConnector} ${
+              isFirstSubJob ? styles.firstSubjob : ''
+            } ${isLastSubJob ? styles.lastSubjob : ''}`}
+          >
+            <div className={styles.connectorLine}>
+              <div className={styles.stepNumber}>{subJobIndex}</div>
+            </div>
           </div>
         )}
         <Card
@@ -257,6 +295,14 @@ const Jobsv2: React.FC = () => {
           }
           extra={
             <Space>
+              <Tooltip title="View Raw Data">
+                <Button
+                  type="text"
+                  icon={<CodeOutlined />}
+                  size="small"
+                  onClick={() => showRawJobData(job)}
+                />
+              </Tooltip>
               {job.status === 'running' && (
                 <Button
                   type="text"
@@ -279,7 +325,15 @@ const Jobsv2: React.FC = () => {
         >
           {isSubJob && job.parentJobName && (
             <div className={styles.subjobIndicator}>
-              <Text type="secondary">SUB-JOB OF: {job.parentJobName}</Text>
+              <Text type="secondary">
+                SUB-JOB OF: {job.parentJobName}
+                {job.metadata?.workflow_step_number && (
+                  <span>
+                    {' '}
+                    • Step {job.metadata.workflow_step_number as number}
+                  </span>
+                )}
+              </Text>
             </div>
           )}
 
@@ -287,11 +341,29 @@ const Jobsv2: React.FC = () => {
             job.metadata?.current_step &&
             job.metadata?.total_steps && (
               <div className={styles.workflowStep}>
-                <Text>
-                  Current Step: {job.metadata.current_step as number}/
-                  {job.metadata.total_steps as number} -{' '}
-                  {job.metadata.step_name as string}
-                </Text>
+                <div className={styles.workflowStepHeader}>
+                  <Text strong>
+                    Workflow Step {job.metadata.current_step as number} of{' '}
+                    {job.metadata.total_steps as number}
+                  </Text>
+                </div>
+                <Text>{job.metadata.step_name as string}</Text>
+                <div className={styles.workflowProgress}>
+                  {Array.from({
+                    length: job.metadata.total_steps as number,
+                  }).map((_, index) => (
+                    <div
+                      key={index}
+                      className={`${styles.workflowProgressStep} ${
+                        index < (job.metadata?.current_step as number)
+                          ? styles.completed
+                          : index === (job.metadata?.current_step as number) - 1
+                            ? styles.active
+                            : ''
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -342,20 +414,36 @@ const Jobsv2: React.FC = () => {
 
           {/* Action buttons */}
           <Space className={styles.actionButtons} wrap>
-            {job.type === 'scene_analysis' && job.result?.plan_id ? (
-              <Link to={`/analysis/plans/${job.result.plan_id as string}`}>
+            {/* Analysis Plan Link */}
+            {(job.type === 'scene_analysis' || job.type === 'analysis') &&
+            ((job.status === 'completed' &&
+              job.result &&
+              'plan_id' in job.result &&
+              job.result.plan_id) ||
+              (job.status === 'running' &&
+                job.metadata &&
+                'plan_id' in job.metadata &&
+                job.metadata.plan_id)) ? (
+              <Link
+                to={`/analysis/plans/${
+                  (job.result && 'plan_id' in job.result
+                    ? job.result.plan_id
+                    : job.metadata?.plan_id) as string
+                }`}
+              >
                 <Button icon={<FileTextOutlined />} size="small">
                   View Analysis Plan
                 </Button>
               </Link>
             ) : null}
-            {job.metadata?.scene_ids &&
-            Array.isArray(job.metadata.scene_ids) ? (
+
+            {/* View Scenes Link */}
+            {shouldShowViewScenesButton(job) && getJobSceneIds(job) ? (
               <Link
-                to={`/scenes?scene_ids=${(job.metadata.scene_ids as string[]).join(',')}`}
+                to={`/scenes?scene_ids=${getJobSceneIds(job)?.join(',') || ''}`}
               >
                 <Button icon={<VideoCameraOutlined />} size="small">
-                  View {(job.metadata.scene_ids as string[]).length} Scenes
+                  View {getJobSceneIds(job)?.length || 0} Scenes
                 </Button>
               </Link>
             ) : null}
@@ -365,11 +453,70 @@ const Jobsv2: React.FC = () => {
         {/* Render sub-jobs */}
         {job.subJobs && job.subJobs.length > 0 && (
           <div className={styles.subjobsContainer}>
-            {job.subJobs.map((subJob) => renderJobCard(subJob, true))}
+            {job.subJobs.map((subJob, index) =>
+              renderJobCard(
+                subJob,
+                true,
+                index === 0,
+                index === (job.subJobs?.length ?? 0) - 1,
+                index + 1
+              )
+            )}
           </div>
         )}
       </div>
     );
+  };
+
+  // Helper function to get job scene IDs (similar to JobMonitor)
+  const getJobSceneIds = (job: Job): string[] | null => {
+    // Check metadata.scene_ids (for sync jobs)
+    if (job.metadata?.scene_ids && Array.isArray(job.metadata.scene_ids)) {
+      return job.metadata.scene_ids as string[];
+    }
+
+    // Check parameters.scene_ids (for some sync jobs)
+    if (job.parameters?.scene_ids && Array.isArray(job.parameters.scene_ids)) {
+      return job.parameters.scene_ids as string[];
+    }
+
+    // For analysis jobs, check if we have analyzed_scene_ids in result
+    if (
+      job.result?.analyzed_scene_ids &&
+      Array.isArray(job.result.analyzed_scene_ids)
+    ) {
+      return job.result.analyzed_scene_ids as string[];
+    }
+
+    // For analysis jobs with scenes_analyzed count but no explicit IDs
+    if (job.type === 'scene_analysis' || job.type === 'analysis') {
+      // Check if there's a way to get scene IDs from the result
+      if (job.result?.scene_ids && Array.isArray(job.result.scene_ids)) {
+        return job.result.scene_ids as string[];
+      }
+    }
+
+    return null;
+  };
+
+  const shouldShowViewScenesButton = (job: Job): boolean => {
+    // Check if this is a qualifying job type
+    const qualifyingTypes = [
+      'sync',
+      'sync_scenes',
+      'scene_sync',
+      'analysis',
+      'scene_analysis',
+      'apply_plan',
+    ];
+
+    if (!qualifyingTypes.includes(job.type)) {
+      return false;
+    }
+
+    // Check if we can extract scene IDs
+    const sceneIds = getJobSceneIds(job);
+    return sceneIds !== null && sceneIds.length > 0;
   };
 
   // Table columns
@@ -455,25 +602,83 @@ const Jobsv2: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      width: 150,
+      width: 250,
       render: (_: unknown, record: Job) => (
         <Space>
-          {record.status === 'running' && (
+          {/* View Raw Data */}
+          <Tooltip title="View Raw Data">
             <Button
               type="text"
-              danger
-              icon={<CloseCircleOutlined />}
+              icon={<CodeOutlined />}
               size="small"
-              onClick={() => void handleCancel(record.id)}
+              onClick={() => showRawJobData(record)}
             />
+          </Tooltip>
+
+          {/* Analysis Plan Icon Link */}
+          {(record.type === 'scene_analysis' || record.type === 'analysis') &&
+          ((record.status === 'completed' &&
+            record.result &&
+            'plan_id' in record.result &&
+            record.result.plan_id) ||
+            (record.status === 'running' &&
+              record.metadata &&
+              'plan_id' in record.metadata &&
+              record.metadata.plan_id)) ? (
+            <Tooltip title="View Plan">
+              <Link
+                to={`/analysis/plans/${
+                  (record.result && 'plan_id' in record.result
+                    ? record.result.plan_id
+                    : record.metadata?.plan_id) as string
+                }`}
+              >
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined />}
+                  size="small"
+                  style={{ color: '#1890ff' }}
+                />
+              </Link>
+            </Tooltip>
+          ) : null}
+
+          {/* View Scenes Icon Link */}
+          {shouldShowViewScenesButton(record) && (
+            <Tooltip title="View Impacted Scenes">
+              <Link
+                to={`/scenes?scene_ids=${getJobSceneIds(record)?.join(',') || ''}`}
+              >
+                <Button
+                  type="text"
+                  icon={<VideoCameraOutlined />}
+                  size="small"
+                  style={{ color: '#52c41a' }}
+                />
+              </Link>
+            </Tooltip>
+          )}
+
+          {record.status === 'running' && (
+            <Tooltip title="Cancel Job">
+              <Button
+                type="text"
+                danger
+                icon={<CloseCircleOutlined />}
+                size="small"
+                onClick={() => void handleCancel(record.id)}
+              />
+            </Tooltip>
           )}
           {record.status === 'failed' && (
-            <Button
-              type="text"
-              icon={<RedoOutlined />}
-              size="small"
-              onClick={() => void handleRetry(record.id)}
-            />
+            <Tooltip title="Retry Job">
+              <Button
+                type="text"
+                icon={<RedoOutlined />}
+                size="small"
+                onClick={() => void handleRetry(record.id)}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -578,6 +783,90 @@ const Jobsv2: React.FC = () => {
           />
         )}
       </Card>
+
+      {/* Raw Job Data Modal */}
+      <Modal
+        title={
+          <Space>
+            <CodeOutlined />
+            Raw Job Data
+          </Space>
+        }
+        open={rawDataModalVisible}
+        onCancel={() => {
+          setRawDataModalVisible(false);
+          setSelectedJob(null);
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setRawDataModalVisible(false);
+              setSelectedJob(null);
+            }}
+          >
+            Close
+          </Button>,
+        ]}
+        width={800}
+        bodyStyle={{
+          maxHeight: 'calc(80vh - 108px)',
+          overflowY: 'auto',
+        }}
+      >
+        {selectedJob && (
+          <div>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Job ID">
+                <Text copyable>{selectedJob.id}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Name">
+                {selectedJob.name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Type">
+                <Tag>{getJobTypeLabel(selectedJob.type)}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={getStatusColor(selectedJob.status)}>
+                  {selectedJob.status.toUpperCase()}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Progress">
+                {selectedJob.progress}%
+              </Descriptions.Item>
+              <Descriptions.Item label="Created At">
+                {new Date(selectedJob.created_at).toLocaleString()}
+              </Descriptions.Item>
+              {selectedJob.started_at && (
+                <Descriptions.Item label="Started At">
+                  {new Date(selectedJob.started_at).toLocaleString()}
+                </Descriptions.Item>
+              )}
+              {selectedJob.completed_at && (
+                <Descriptions.Item label="Completed At">
+                  {new Date(selectedJob.completed_at).toLocaleString()}
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+
+            <Title level={5} style={{ marginTop: 16 }}>
+              Full JSON Data
+            </Title>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '12px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+              }}
+            >
+              {JSON.stringify(selectedJob, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -20,6 +20,7 @@ import {
   DeleteOutlined,
   FileTextOutlined,
   VideoCameraOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
@@ -40,6 +41,7 @@ export interface JobCardProps {
   onDelete?: () => void;
   onPause?: () => void;
   onResume?: () => void;
+  onViewRawData?: () => void;
   compact?: boolean;
   showDetails?: boolean;
 }
@@ -86,6 +88,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onDelete,
   onPause,
   onResume: _onResume,
+  onViewRawData,
   compact = false,
   showDetails = true,
 }) => {
@@ -164,6 +167,15 @@ export const JobCard: React.FC<JobCardProps> = ({
   const progressPercent = job.progress; // job.progress is already a percentage (0-100)
 
   const actions = [];
+
+  // Add view raw data button if handler is provided
+  if (onViewRawData) {
+    actions.push(
+      <Tooltip key="raw" title="View Raw Data">
+        <Button type="text" icon={<CodeOutlined />} onClick={onViewRawData} />
+      </Tooltip>
+    );
+  }
 
   if (job.status === 'running' || job.status === 'cancelling') {
     if (onPause && job.status === 'running') {
