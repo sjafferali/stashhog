@@ -711,6 +711,48 @@ job = await job_service.create_job(...)
 job_id = job.id  # May fail with greenlet error
 ```
 
+### 6. Avoid Dynamic Relationships in Async Code
+
+**SQLAlchemy dynamic relationships (`lazy="dynamic"`) are incompatible with async sessions:**
+
+```python
+# Model with dynamic relationship
+class AnalysisPlan(BaseModel):
+    changes = relationship(
+        "PlanChange",
+        lazy="dynamic",  # Returns a query object, not a collection
+        order_by="PlanChange.id",
+    )
+
+# ❌ WRONG: Using dynamic relationship in async job
+async def your_job(job_id: str, progress_callback: Callable, **kwargs):
+    async with AsyncSessionLocal() as db:
+        plan = await db.get(AnalysisPlan, plan_id)
+        # This will cause a greenlet error!
+        pending_changes = plan.changes.filter_by(accepted=False).all()
+
+# ✅ CORRECT: Use explicit query instead
+async def your_job(job_id: str, progress_callback: Callable, **kwargs):
+    async with AsyncSessionLocal() as db:
+        from sqlalchemy import select
+        from app.models.plan_change import PlanChange
+        
+        # Query directly instead of using dynamic relationship
+        changes_query = select(PlanChange).where(
+            PlanChange.plan_id == plan_id,
+            PlanChange.accepted.is_(False),
+            PlanChange.rejected.is_(False)
+        )
+        result = await db.execute(changes_query)
+        pending_changes = result.scalars().all()
+```
+
+**Key points:**
+- Dynamic relationships return query objects that need the session to execute
+- In async contexts, this causes greenlet errors when the query tries to execute
+- Always use explicit queries with `select()` and `await db.execute()`
+- This issue was encountered in `process_new_scenes_job.py` and fixed by replacing dynamic relationship usage
+
 ### Complete Progress Reporting Example
 
 Here's a complete example showing how to implement progress reporting that displays "X / Y items":
@@ -878,6 +920,7 @@ return {
 10. **Don't forget to close external service connections** in the finally block
 11. **Don't create custom progress methods that set status to RUNNING** - this breaks cancellation flow
 12. **Don't manually update job status during execution** - let the job service manage status transitions
+13. **Don't use dynamic relationships in async jobs** - use explicit queries with `select()` instead of `model.relationship.filter_by()`
 
 ## Type Hint Inconsistency Note
 

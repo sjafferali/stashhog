@@ -119,6 +119,49 @@ This fix was applied to multiple endpoints across:
 - `backend/app/api/routes/jobs.py` (1 instance)
 - `backend/app/api/routes/schedules.py` (1 instance)
 
+### Example 3: Dynamic Relationships in Async Contexts
+
+SQLAlchemy dynamic relationships (defined with `lazy="dynamic"`) return query objects instead of collections. Using them in async contexts causes greenlet errors.
+
+#### The Problem
+```python
+# Model with dynamic relationship
+class AnalysisPlan(BaseModel):
+    changes = relationship(
+        "PlanChange",
+        lazy="dynamic",  # Returns a query object, not a collection
+        order_by="PlanChange.id",
+    )
+
+# In async function - FAILS
+async def approve_changes(plan_id: int):
+    async with AsyncSessionLocal() as db:
+        plan = await db.get(AnalysisPlan, plan_id)
+        # This fails - dynamic relationship query in async context
+        unapproved = plan.changes.filter_by(accepted=False).all()
+```
+
+#### The Fix
+```python
+# Use explicit queries instead of dynamic relationships
+async def approve_changes(plan_id: int):
+    async with AsyncSessionLocal() as db:
+        from sqlalchemy import select
+        from app.models.plan_change import PlanChange
+        
+        # Query directly instead of using dynamic relationship
+        changes_query = select(PlanChange).where(
+            PlanChange.plan_id == plan_id,
+            PlanChange.accepted.is_(False),
+            PlanChange.rejected.is_(False)
+        )
+        result = await db.execute(changes_query)
+        unapproved_changes = result.scalars().all()
+```
+
+This fix was applied to:
+- `backend/app/jobs/process_new_scenes_job.py` (_approve_plan_changes function)
+
 ## Guidelines for Creating New Jobs
 
 ### 1. Always Use Dedicated Sessions
@@ -206,6 +249,29 @@ job = await job_service.create_job(...)
 job_updated_at = job.updated_at  # May fail with greenlet error
 ```
 
+### 6. Avoid Dynamic Relationships in Async Code
+
+SQLAlchemy dynamic relationships (`lazy="dynamic"`) are incompatible with async sessions. Always use explicit queries instead:
+
+```python
+# ❌ WRONG: Using dynamic relationship in async context
+async def process_plan(plan_id: int):
+    async with AsyncSessionLocal() as db:
+        plan = await db.get(AnalysisPlan, plan_id)
+        # This will cause a greenlet error!
+        pending_changes = plan.changes.filter_by(accepted=False).all()
+
+# ✅ CORRECT: Use explicit query
+async def process_plan(plan_id: int):
+    async with AsyncSessionLocal() as db:
+        query = select(PlanChange).where(
+            PlanChange.plan_id == plan_id,
+            PlanChange.accepted.is_(False)
+        )
+        result = await db.execute(query)
+        pending_changes = result.scalars().all()
+```
+
 ## Design Patterns for Service Methods
 
 When designing service methods that return model objects:
@@ -262,6 +328,7 @@ logger.debug(f"Session closed in {function_name}")
 ### 3. Look for Common Patterns
 
 - **Lazy Loading**: Accessing relationships after session closes
+- **Dynamic Relationships**: Using SQLAlchemy dynamic relationships in async contexts
 - **Shared Sessions**: Passing sessions between functions
 - **Callbacks**: Progress or error callbacks using outer scope sessions
 - **Error Handlers**: Exception handling trying to use closed sessions
@@ -288,6 +355,7 @@ Before deploying new code, verify:
 - [ ] Progress callbacks create their own sessions
 - [ ] No sessions are passed between functions or stored in class attributes
 - [ ] All lazy-loaded relationships are accessed before session closes
+- [ ] No dynamic relationships (`lazy="dynamic"`) are used directly in async functions
 - [ ] Error handling uses new sessions, not the failed session
 - [ ] The job handler can run independently without external session dependencies
 - [ ] Objects returned from services are refreshed before accessing their attributes
@@ -366,7 +434,8 @@ The key to avoiding greenlet errors is maintaining proper session isolation. Eac
 The most common fixes are:
 1. **For background jobs**: Ensure each database operation uses its own session
 2. **For API endpoints**: Refresh objects returned from services before accessing their attributes
-3. **For all code**: Be mindful of session boundaries and avoid lazy loading on detached objects
+3. **For dynamic relationships**: Use explicit queries instead of dynamic relationship methods in async contexts
+4. **For all code**: Be mindful of session boundaries and avoid lazy loading on detached objects
 
 ## Additional Resources
 

@@ -322,7 +322,7 @@ async def _approve_plan_changes(plan_id: int, batch_num: int) -> int:
     """Approve all changes in a plan."""
     async with AsyncSessionLocal() as db:
         from app.models import AnalysisPlan
-        from app.models.plan_change import ChangeStatus
+        from app.models.plan_change import ChangeStatus, PlanChange
 
         # Don't use selectinload with dynamic relationships
         query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)
@@ -332,17 +332,22 @@ async def _approve_plan_changes(plan_id: int, batch_num: int) -> int:
         if not plan:
             raise ValueError(f"Plan {plan_id} not found")
 
-        # Approve all changes - using the dynamic relationship
-        # Filter for changes that are not already approved
+        # Approve all changes - use a separate query instead of dynamic relationship
+        # to avoid greenlet errors
         changes_to_approve = 0
-        # Since plan.changes is a dynamic relationship, use it as a query
-        unapproved_changes = plan.changes.filter_by(
-            accepted=False, rejected=False
-        ).all()
+
+        # Query for unapproved changes directly
+        changes_query = select(PlanChange).where(
+            PlanChange.plan_id == plan_id,
+            PlanChange.accepted.is_(False),
+            PlanChange.rejected.is_(False),
+        )
+        changes_result = await db.execute(changes_query)
+        unapproved_changes = changes_result.scalars().all()
 
         for change in unapproved_changes:
-            change.accepted = True
-            change.status = ChangeStatus.APPROVED
+            change.accepted = True  # type: ignore[assignment]
+            change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
             changes_to_approve += 1
 
         if changes_to_approve > 0:

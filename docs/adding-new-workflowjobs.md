@@ -590,6 +590,26 @@ await progress_callback(100, "Workflow completed")
            performer_count = len(scene.performers)  # Safe
    ```
 
+9. **Never Use Dynamic Relationships in Async Contexts**
+   ```python
+   # ❌ WRONG: Dynamic relationship in async function
+   async def process_plan_changes(plan_id: int):
+       async with AsyncSessionLocal() as db:
+           plan = await db.get(AnalysisPlan, plan_id)
+           # This will cause greenlet error!
+           changes = plan.changes.filter_by(accepted=False).all()
+   
+   # ✅ CORRECT: Use explicit query
+   async def process_plan_changes(plan_id: int):
+       async with AsyncSessionLocal() as db:
+           changes_query = select(PlanChange).where(
+               PlanChange.plan_id == plan_id,
+               PlanChange.accepted.is_(False)
+           )
+           result = await db.execute(changes_query)
+           changes = result.scalars().all()
+   ```
+
 ### Common Greenlet Error Scenarios in Workflows
 
 1. **Cross-Session Sub-job Updates**
@@ -603,6 +623,11 @@ await progress_callback(100, "Workflow completed")
 3. **Shared State Between Steps**
    - Problem: Passing SQLAlchemy objects between workflow steps
    - Solution: Pass primitive values (IDs, dicts) instead
+
+4. **Dynamic Relationships in Workflow Steps**
+   - Problem: Using SQLAlchemy dynamic relationships in async workflow functions
+   - Solution: Use explicit queries with `select()` instead of dynamic relationship methods
+   - Example: The `_approve_plan_changes()` function in `process_new_scenes_job.py` was fixed by replacing `plan.changes.filter_by()` with an explicit query
 
 ## Frontend Integration
 
