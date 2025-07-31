@@ -101,10 +101,6 @@ const SceneDetail: React.FC = () => {
     settings?.stash_url && settings.stash_url.trim() !== ''
   );
 
-  console.log('Scene Detail - Settings:', settings);
-  console.log('Scene Detail - hasStashUrl:', hasStashUrl);
-  console.log('Scene Detail - stash_url:', settings?.stash_url);
-
   // Analyze mutation
   const analyzeMutation = useMutation(
     async (options: AnalysisTypeOptions) => {

@@ -199,7 +199,7 @@ class SyncScheduler:
                 job_id = str(uuid4())
                 job = Job(
                     id=job_id,
-                    type=JobType.SYNC_ALL.value,
+                    type=JobType.SYNC.value,
                     status=JobStatus.RUNNING.value,
                     metadata={"force": force, "scheduled": True},
                     created_at=datetime.utcnow(),

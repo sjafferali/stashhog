@@ -57,18 +57,46 @@ const jobDefinitions: JobDefinition[] = [
   // Sync Jobs
   {
     type: 'sync',
-    name: 'Full Sync',
-    description:
-      'Synchronize all content from Stash including scenes, performers, tags, and studios',
+    name: 'Sync from Stash',
+    description: 'Synchronize data from Stash with configurable options',
     icon: <SyncOutlined />,
     category: 'Synchronization',
     parameters: [
       {
-        name: 'force',
+        name: 'full_resync',
         type: 'boolean',
         required: false,
         default: false,
-        description: 'Force re-sync even if items were recently synced',
+        description:
+          'Perform full resync (ignore timestamps and sync all data)',
+      },
+      {
+        name: 'include_scenes',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Include scenes in the synchronization',
+      },
+      {
+        name: 'include_performers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Include performers in the synchronization',
+      },
+      {
+        name: 'include_tags',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Include tags in the synchronization',
+      },
+      {
+        name: 'include_studios',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Include studios in the synchronization',
       },
     ],
   },
@@ -82,65 +110,9 @@ const jobDefinitions: JobDefinition[] = [
       {
         name: 'scene_ids',
         type: 'array',
-        required: false,
-        description:
-          'Comma-separated list of scene IDs to sync. Leave empty to sync all scenes.',
+        required: true,
+        description: 'Comma-separated list of scene IDs to sync.',
         placeholder: 'e.g., 123,456,789',
-      },
-      {
-        name: 'force',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: 'Force re-sync even if scenes were recently synced',
-      },
-    ],
-  },
-  {
-    type: 'sync_performers',
-    name: 'Sync Performers',
-    description: 'Synchronize all performers from Stash',
-    icon: <DatabaseOutlined />,
-    category: 'Synchronization',
-    parameters: [
-      {
-        name: 'force',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: 'Force re-sync even if performers were recently synced',
-      },
-    ],
-  },
-  {
-    type: 'sync_tags',
-    name: 'Sync Tags',
-    description: 'Synchronize all tags from Stash',
-    icon: <DatabaseOutlined />,
-    category: 'Synchronization',
-    parameters: [
-      {
-        name: 'force',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: 'Force re-sync even if tags were recently synced',
-      },
-    ],
-  },
-  {
-    type: 'sync_studios',
-    name: 'Sync Studios',
-    description: 'Synchronize all studios from Stash',
-    icon: <DatabaseOutlined />,
-    category: 'Synchronization',
-    parameters: [
-      {
-        name: 'force',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: 'Force re-sync even if studios were recently synced',
       },
     ],
   },

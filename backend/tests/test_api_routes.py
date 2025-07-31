@@ -325,7 +325,7 @@ class TestJobRoutes:
 
         mock_job = Mock(spec=Job)
         mock_job.id = "job1"
-        mock_job.type = JobType.SYNC_ALL
+        mock_job.type = JobType.SYNC
         mock_job.status = JobStatus.COMPLETED
         mock_job.created_at = datetime.now()
         mock_job.updated_at = datetime.now()
@@ -635,7 +635,7 @@ class TestSyncRoutes:
         mock_job_service = Mock()
         mock_job = Mock()
         mock_job.id = "test-job-id"
-        mock_job.type = "sync_all"
+        mock_job.type = "sync"
         mock_job.status = "pending"
         mock_job.progress = 0
         mock_job.created_at = datetime.now()
@@ -651,7 +651,7 @@ class TestSyncRoutes:
             assert response.status_code == 200
             data = response.json()
             assert data["id"] == "test-job-id"
-            assert data["type"] in ["sync_all", "SYNC_ALL"]
+            assert data["type"] == "sync"
             assert data["status"] == "pending"
             assert data["progress"] == 0
 
@@ -669,7 +669,7 @@ class TestSyncRoutes:
         mock_job_service = Mock()
         mock_job = Mock()
         mock_job.id = "test-job-id"
-        mock_job.type = "SYNC_SCENES"
+        mock_job.type = "sync_scenes"
         mock_job.status = "pending"
         mock_job.progress = 0
         mock_job.created_at = datetime.now()
@@ -681,11 +681,13 @@ class TestSyncRoutes:
         app.dependency_overrides[get_job_service] = lambda: mock_job_service
 
         try:
-            response = client.post("/api/sync/scenes")
+            response = client.post(
+                "/api/sync/scenes", json={"scene_ids": ["scene1", "scene2"]}
+            )
             assert response.status_code == 200
             data = response.json()
             assert data["id"] == "test-job-id"
-            assert data["type"] in ["scene_sync", "SYNC_SCENES"]
+            assert data["type"] == "scene_sync"
             assert data["status"] == "pending"
 
             # Verify create_job was called correctly

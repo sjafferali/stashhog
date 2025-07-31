@@ -659,14 +659,6 @@ const PlanDetail: React.FC = () => {
                       .length,
                   },
                 };
-                console.log('PlanDetail sending to PlanSummary:', {
-                  planStatus: plan.status,
-                  job,
-                  stats: planStats,
-                  totalScenes: plan.total_scenes,
-                  scenesLength: plan.scenes.length,
-                  metadata: plan.metadata,
-                });
                 return planStats;
               })()}
               onApply={() => setShowApplyModal(true)}

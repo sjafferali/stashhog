@@ -33,9 +33,8 @@ router = APIRouter()
 def map_job_type_to_schema(model_type: str) -> str:
     """Map model JobType values to schema JobType values."""
     mapping = {
-        "sync": "sync_all",
-        "sync_all": "sync_all",
-        "sync_scenes": "scene_sync",
+        "sync": "sync",
+        "sync_scenes": "sync_scenes",
         "analysis": "scene_analysis",
         "batch_analysis": "batch_analysis",
         "stash_scan": "stash_scan",

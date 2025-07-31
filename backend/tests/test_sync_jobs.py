@@ -9,10 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.jobs.sync_jobs import (
     register_sync_jobs,
     sync_all_job,
-    sync_performers_job,
     sync_scenes_job,
-    sync_studios_job,
-    sync_tags_job,
 )
 from app.models.job import JobType
 from app.services.job_service import JobService
@@ -76,7 +73,7 @@ class TestSyncJobs:
                         result = await sync_all_job(
                             job_id="test-job-123",
                             progress_callback=mock_progress_callback,
-                            force=True,
+                            full_resync=True,
                         )
 
         # Assert
@@ -101,6 +98,10 @@ class TestSyncJobs:
             force=True,
             progress_callback=mock_progress_callback,
             cancellation_token=None,
+            include_scenes=True,
+            include_performers=True,
+            include_tags=True,
+            include_studios=True,
         )
 
     @pytest.mark.asyncio
@@ -208,114 +209,9 @@ class TestSyncJobs:
         mock_sync_service.sync_scenes.assert_called_once_with(
             scene_ids=None,
             job_id="test-job-123",
-            force=False,
+            force=True,  # sync_scenes_job always uses force=True
             progress_callback=mock_progress_callback,
             cancellation_token=None,
-        )
-
-    @pytest.mark.asyncio
-    async def test_sync_performers_job_success(
-        self, mock_settings, mock_sync_result, mock_progress_callback
-    ):
-        """Test successful sync_performers job execution."""
-        # Arrange
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_sync_service = AsyncMock()
-        mock_sync_service.sync_performers.return_value = mock_sync_result
-
-        with patch(
-            "app.jobs.sync_jobs.load_settings_with_db_overrides",
-            return_value=mock_settings,
-        ):
-            with patch("app.jobs.sync_jobs.StashService"):
-                with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
-                    with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
-                        # Setup mocks
-                        mock_session.return_value.__aenter__.return_value = mock_db
-                        mock_sync_service_class.return_value = mock_sync_service
-
-                        # Act
-                        result = await sync_performers_job(
-                            job_id="test-job-123",
-                            progress_callback=mock_progress_callback,
-                            force=True,
-                        )
-
-        # Assert
-        assert result["job_id"] == "test-job-123"
-        assert result["status"] == "success"
-        mock_sync_service.sync_performers.assert_called_once_with(
-            job_id="test-job-123", force=True, progress_callback=mock_progress_callback
-        )
-
-    @pytest.mark.asyncio
-    async def test_sync_tags_job_success(
-        self, mock_settings, mock_sync_result, mock_progress_callback
-    ):
-        """Test successful sync_tags job execution."""
-        # Arrange
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_sync_service = AsyncMock()
-        mock_sync_service.sync_tags.return_value = mock_sync_result
-
-        with patch(
-            "app.jobs.sync_jobs.load_settings_with_db_overrides",
-            return_value=mock_settings,
-        ):
-            with patch("app.jobs.sync_jobs.StashService"):
-                with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
-                    with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
-                        # Setup mocks
-                        mock_session.return_value.__aenter__.return_value = mock_db
-                        mock_sync_service_class.return_value = mock_sync_service
-
-                        # Act
-                        result = await sync_tags_job(
-                            job_id="test-job-123",
-                            progress_callback=mock_progress_callback,
-                            force=False,
-                        )
-
-        # Assert
-        assert result["job_id"] == "test-job-123"
-        assert result["status"] == "success"
-        mock_sync_service.sync_tags.assert_called_once_with(
-            job_id="test-job-123", force=False, progress_callback=mock_progress_callback
-        )
-
-    @pytest.mark.asyncio
-    async def test_sync_studios_job_success(
-        self, mock_settings, mock_sync_result, mock_progress_callback
-    ):
-        """Test successful sync_studios job execution."""
-        # Arrange
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_sync_service = AsyncMock()
-        mock_sync_service.sync_studios.return_value = mock_sync_result
-
-        with patch(
-            "app.jobs.sync_jobs.load_settings_with_db_overrides",
-            return_value=mock_settings,
-        ):
-            with patch("app.jobs.sync_jobs.StashService"):
-                with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
-                    with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
-                        # Setup mocks
-                        mock_session.return_value.__aenter__.return_value = mock_db
-                        mock_sync_service_class.return_value = mock_sync_service
-
-                        # Act
-                        result = await sync_studios_job(
-                            job_id="test-job-123",
-                            progress_callback=mock_progress_callback,
-                            force=True,
-                        )
-
-        # Assert
-        assert result["job_id"] == "test-job-123"
-        assert result["status"] == "success"
-        mock_sync_service.sync_studios.assert_called_once_with(
-            job_id="test-job-123", force=True, progress_callback=mock_progress_callback
         )
 
     @pytest.mark.asyncio
@@ -371,19 +267,10 @@ class TestSyncJobs:
         register_sync_jobs(mock_job_service)
 
         # Assert
-        assert mock_job_service.register_handler.call_count == 5
+        assert mock_job_service.register_handler.call_count == 2
         mock_job_service.register_handler.assert_any_call(JobType.SYNC, sync_all_job)
         mock_job_service.register_handler.assert_any_call(
             JobType.SYNC_SCENES, sync_scenes_job
-        )
-        mock_job_service.register_handler.assert_any_call(
-            JobType.SYNC_PERFORMERS, sync_performers_job
-        )
-        mock_job_service.register_handler.assert_any_call(
-            JobType.SYNC_TAGS, sync_tags_job
-        )
-        mock_job_service.register_handler.assert_any_call(
-            JobType.SYNC_STUDIOS, sync_studios_job
         )
 
     @pytest.mark.asyncio
@@ -476,7 +363,14 @@ class TestSyncJobs:
 
         # Simulate progressive sync updates
         async def simulate_sync_all(
-            job_id, force, progress_callback, cancellation_token
+            job_id,
+            force,
+            progress_callback,
+            cancellation_token,
+            include_scenes=True,
+            include_performers=True,
+            include_tags=True,
+            include_studios=True,
         ):
             # Simulate progress updates
             progress_callback(10, "Starting sync...")
@@ -513,7 +407,7 @@ class TestSyncJobs:
                         result = await sync_all_job(
                             job_id="test-job-123",
                             progress_callback=mock_progress_callback,
-                            force=False,
+                            full_resync=False,
                         )
 
         # Assert
@@ -711,51 +605,3 @@ class TestSyncJobs:
 
         # Assert
         assert result["duration_seconds"] == 45.5
-
-    @pytest.mark.asyncio
-    async def test_multiple_sync_job_types_error_handling(
-        self, mock_settings, mock_progress_callback
-    ):
-        """Test error handling across different sync job types."""
-        # Arrange
-        mock_db = AsyncMock(spec=AsyncSession)
-        mock_sync_service = AsyncMock()
-
-        # Different errors for different sync types
-        mock_sync_service.sync_performers.side_effect = ValueError(
-            "Invalid performer data"
-        )
-        mock_sync_service.sync_tags.side_effect = RuntimeError("Tag sync failed")
-        mock_sync_service.sync_studios.side_effect = ConnectionError("Network error")
-
-        with patch(
-            "app.jobs.sync_jobs.load_settings_with_db_overrides",
-            return_value=mock_settings,
-        ):
-            with patch("app.jobs.sync_jobs.StashService"):
-                with patch("app.jobs.sync_jobs.SyncService") as mock_sync_service_class:
-                    with patch("app.jobs.sync_jobs.AsyncSessionLocal") as mock_session:
-                        # Setup mocks
-                        mock_session.return_value.__aenter__.return_value = mock_db
-                        mock_sync_service_class.return_value = mock_sync_service
-
-                        # Test performers job
-                        with pytest.raises(ValueError, match="Invalid performer data"):
-                            await sync_performers_job(
-                                job_id="test-job-1",
-                                progress_callback=mock_progress_callback,
-                            )
-
-                        # Test tags job
-                        with pytest.raises(RuntimeError, match="Tag sync failed"):
-                            await sync_tags_job(
-                                job_id="test-job-2",
-                                progress_callback=mock_progress_callback,
-                            )
-
-                        # Test studios job
-                        with pytest.raises(ConnectionError, match="Network error"):
-                            await sync_studios_job(
-                                job_id="test-job-3",
-                                progress_callback=mock_progress_callback,
-                            )

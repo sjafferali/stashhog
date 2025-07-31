@@ -38,7 +38,6 @@ export const useWebSocketClient = () => {
           case 'job_progress':
             // Handle job progress updates
             // You might want to update a job store here
-            console.log('Job progress:', message.data);
             break;
 
           case 'job_complete':
@@ -68,7 +67,6 @@ export const useWebSocketClient = () => {
 
           case 'sync_update':
             // Handle sync status updates
-            console.log('Sync update:', message.data);
             break;
 
           default:

@@ -124,7 +124,7 @@ class TestSyncAllEndpoint:
         data = response.json()
 
         assert data["id"] == "job-456"
-        assert data["type"] == "sync_all"
+        assert data["type"] == "sync"
         assert data["status"] == "pending"
         assert data["progress"] == 0
         assert data["parameters"]["force"] is False
@@ -163,8 +163,10 @@ class TestSyncScenesEndpoint:
     """Tests for the sync scenes endpoint."""
 
     def test_sync_scenes_all(self, client, mock_db, mock_job_service):
-        """Test syncing all scenes."""
-        response = client.post("/api/sync/scenes")
+        """Test syncing specific scenes."""
+        response = client.post(
+            "/api/sync/scenes", json={"scene_ids": ["scene1", "scene2"]}
+        )
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -172,19 +174,18 @@ class TestSyncScenesEndpoint:
         assert data["id"] == "job-456"
         assert data["type"] == "scene_sync"
         assert data["status"] == "pending"
-        assert data["parameters"]["scene_ids"] is None
-        assert data["parameters"]["force"] is False
+        assert data["parameters"]["scene_ids"] == ["scene1", "scene2"]
 
         # Verify job service was called
         mock_job_service.create_job.assert_called_once()
         call_args = mock_job_service.create_job.call_args
         assert call_args.kwargs["job_type"] == JobType.SYNC_SCENES
-        assert call_args.kwargs["metadata"] == {"scene_ids": None, "force": False}
+        assert call_args.kwargs["metadata"] == {"scene_ids": ["scene1", "scene2"]}
 
     def test_sync_specific_scenes(self, client, mock_db, mock_job_service):
         """Test syncing specific scenes."""
         scene_ids = ["scene1", "scene2", "scene3"]
-        response = client.post("/api/sync/scenes", json=scene_ids)
+        response = client.post("/api/sync/scenes", json={"scene_ids": scene_ids})
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -197,110 +198,73 @@ class TestSyncScenesEndpoint:
         assert call_args.kwargs["metadata"]["scene_ids"] == scene_ids
 
     def test_sync_scenes_with_force(self, client, mock_db, mock_job_service):
-        """Test sync scenes with force parameter."""
+        """Test sync scenes (force is always true internally)."""
         scene_ids = ["scene1"]
-        response = client.post("/api/sync/scenes?force=true", json=scene_ids)
+        response = client.post("/api/sync/scenes", json={"scene_ids": scene_ids})
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert data["parameters"]["force"] is True
         assert data["parameters"]["scene_ids"] == scene_ids
 
-        # Verify job service was called with force
+        # Verify job service was called without force in metadata
         mock_job_service.create_job.assert_called_once()
         call_args = mock_job_service.create_job.call_args
-        assert call_args.kwargs["metadata"]["force"] is True
+        assert call_args.kwargs["metadata"] == {"scene_ids": scene_ids}
 
 
 class TestSyncPerformersEndpoint:
-    """Tests for the sync performers endpoint."""
+    """Tests for the sync performers endpoint (removed)."""
 
     def test_sync_performers_success(self, client, mock_db, mock_job_service):
-        """Test successful sync performers request."""
+        """Test that sync performers endpoint no longer exists."""
         response = client.post("/api/sync/performers")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["id"] == "job-456"
-        assert data["type"] == "sync_performers"
-        assert data["status"] == "pending"
-        assert data["parameters"]["force"] is False
-
-        # Verify job service was called
-        mock_job_service.create_job.assert_called_once()
-        call_args = mock_job_service.create_job.call_args
-        assert call_args.kwargs["job_type"] == JobType.SYNC_PERFORMERS
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
     def test_sync_performers_with_force(self, client, mock_db, mock_job_service):
-        """Test sync performers with force parameter."""
+        """Test that sync performers endpoint no longer exists."""
         response = client.post("/api/sync/performers?force=true")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["parameters"]["force"] is True
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
 
 class TestSyncTagsEndpoint:
-    """Tests for the sync tags endpoint."""
+    """Tests for the sync tags endpoint (removed)."""
 
     def test_sync_tags_success(self, client, mock_db, mock_job_service):
-        """Test successful sync tags request."""
+        """Test that sync tags endpoint no longer exists."""
         response = client.post("/api/sync/tags")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["id"] == "job-456"
-        assert data["type"] == "sync_tags"
-        assert data["status"] == "pending"
-        assert data["parameters"]["force"] is False
-
-        # Verify job service was called
-        mock_job_service.create_job.assert_called_once()
-        call_args = mock_job_service.create_job.call_args
-        assert call_args.kwargs["job_type"] == JobType.SYNC_TAGS
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
     def test_sync_tags_with_force(self, client, mock_db, mock_job_service):
-        """Test sync tags with force parameter."""
+        """Test that sync tags endpoint no longer exists."""
         response = client.post("/api/sync/tags?force=true")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["parameters"]["force"] is True
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
 
 class TestSyncStudiosEndpoint:
-    """Tests for the sync studios endpoint."""
+    """Tests for the sync studios endpoint (removed)."""
 
     def test_sync_studios_success(self, client, mock_db, mock_job_service):
-        """Test successful sync studios request."""
+        """Test that sync studios endpoint no longer exists."""
         response = client.post("/api/sync/studios")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["id"] == "job-456"
-        assert data["type"] == "sync_studios"
-        assert data["status"] == "pending"
-        assert data["parameters"]["force"] is False
-
-        # Verify job service was called
-        mock_job_service.create_job.assert_called_once()
-        call_args = mock_job_service.create_job.call_args
-        assert call_args.kwargs["job_type"] == JobType.SYNC_STUDIOS
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
     def test_sync_studios_with_force(self, client, mock_db, mock_job_service):
-        """Test sync studios with force parameter."""
+        """Test that sync studios endpoint no longer exists."""
         response = client.post("/api/sync/studios?force=true")
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-
-        assert data["parameters"]["force"] is True
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Endpoint should not exist
 
 
 class TestSyncSingleSceneEndpoint:
@@ -545,9 +509,6 @@ class TestStopSyncEndpoint:
         job_types = [
             JobType.SYNC,
             JobType.SYNC_SCENES,
-            JobType.SYNC_PERFORMERS,
-            JobType.SYNC_TAGS,
-            JobType.SYNC_STUDIOS,
         ]
 
         jobs = []
@@ -567,8 +528,8 @@ class TestStopSyncEndpoint:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert data["message"] == "Cancelled 5 sync job(s)"
-        assert mock_job_service.cancel_job.call_count == 5
+        assert data["message"] == "Cancelled 2 sync job(s)"
+        assert mock_job_service.cancel_job.call_count == 2
 
 
 class TestSyncStatsEndpoint:

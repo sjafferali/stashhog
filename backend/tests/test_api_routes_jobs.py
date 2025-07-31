@@ -221,7 +221,7 @@ class TestJobRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == str(mock_job.id)
-        assert data["type"] == "scene_sync"  # Mapped from sync_scenes
+        assert data["type"] == "sync_scenes"  # No longer mapped
         assert data["status"] == mock_job.status.value
 
     def test_get_job_not_found(self, client, mock_db, mock_job_service):
@@ -495,7 +495,7 @@ class TestJobRoutes:
         """Test handling multiple concurrent jobs of different types."""
         # Create jobs of different types
         sync_job = create_job_mock(
-            type=JobType.SYNC_ALL,
+            type=JobType.SYNC,
             status=JobStatus.RUNNING,
             progress=40,
             job_metadata={"full_sync": True},
@@ -550,7 +550,7 @@ class TestJobRoutes:
         job_types = {job["type"] for job in data["jobs"]}
         job_statuses = {job["status"] for job in data["jobs"]}
 
-        assert "sync_all" in job_types
+        assert "sync" in job_types
         assert "scene_analysis" in job_types
         assert "scene_analysis" in job_types
 

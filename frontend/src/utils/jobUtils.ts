@@ -2,9 +2,6 @@ export type JobType =
   | 'sync'
   | 'sync_all'
   | 'sync_scenes'
-  | 'sync_performers'
-  | 'sync_tags'
-  | 'sync_studios'
   | 'analysis'
   | 'apply_plan'
   | 'generate_details'
@@ -24,9 +21,6 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   sync: 'Sync',
   sync_all: 'Full Sync',
   sync_scenes: 'Sync Scenes',
-  sync_performers: 'Sync Performers',
-  sync_tags: 'Sync Tags',
-  sync_studios: 'Sync Studios',
   analysis: 'Scene Analysis',
   scene_analysis: 'Scene Analysis', // Handle legacy type
   scene_sync: 'Scene Sync', // Handle legacy type
@@ -47,9 +41,6 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   sync: 'blue',
   sync_all: 'blue',
   sync_scenes: 'blue',
-  sync_performers: 'blue',
-  sync_tags: 'blue',
-  sync_studios: 'blue',
   scene_sync: 'blue',
   analysis: 'green',
   scene_analysis: 'green',
@@ -112,12 +103,6 @@ export const formatJobProgress = (
       unit = ' scenes';
     } else if (type === 'apply_plan') {
       unit = ' changes';
-    } else if (type === 'sync_performers') {
-      unit = ' performers';
-    } else if (type === 'sync_tags') {
-      unit = ' tags';
-    } else if (type === 'sync_studios') {
-      unit = ' studios';
     } else if (type === 'stash_scan') {
       unit = ' files';
     } else if (type === 'stash_generate') {
@@ -139,10 +124,7 @@ export const formatJobProgress = (
 export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   sync: 'Synchronize all data with Stash',
   sync_all: 'Full synchronization of all entities with Stash',
-  sync_scenes: 'Synchronize scenes with Stash',
-  sync_performers: 'Synchronize performers with Stash',
-  sync_tags: 'Synchronize tags with Stash',
-  sync_studios: 'Synchronize studios with Stash',
+  sync_scenes: 'Synchronize specific scenes with Stash',
   analysis: 'Analyze scenes with AI',
   scene_analysis: 'Analyze scenes with AI',
   scene_sync: 'Synchronize scenes with Stash',

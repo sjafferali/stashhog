@@ -734,7 +734,7 @@ class TestSyncRoutes:
         """Test full sync."""
         mock_job = Mock()
         mock_job.id = "sync_job_123"
-        mock_job.type = JobType.SYNC_ALL
+        mock_job.type = JobType.SYNC
         mock_job.status = JobStatus.PENDING
         mock_job.progress = 0
         mock_job.created_at = datetime.utcnow()
@@ -750,7 +750,7 @@ class TestSyncRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == "sync_job_123"
-        assert data["type"] in ["sync_all", "SYNC_ALL"]
+        assert data["type"] == "sync"
 
     def test_sync_scenes(self, client, mock_job_service):
         """Test scene sync."""
@@ -768,11 +768,11 @@ class TestSyncRoutes:
         mock_job.parameters = {}
         mock_job_service.create_job = AsyncMock(return_value=mock_job)
 
-        response = client.post("/api/sync/scenes")
+        response = client.post("/api/sync/scenes", json={"scene_ids": []})
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == "sync_scenes_job_123"
-        assert data["type"] in ["scene_sync", "SYNC_SCENES"]
+        assert data["type"] == "scene_sync"
 
     def test_sync_status(self, client):
         """Test getting sync status - endpoint doesn't exist."""

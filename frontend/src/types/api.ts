@@ -25,9 +25,6 @@ export interface AnalysisRequest {
 export interface SyncRequest {
   full_sync?: boolean;
   sync_scenes?: boolean;
-  sync_performers?: boolean;
-  sync_tags?: boolean;
-  sync_studios?: boolean;
 }
 
 export interface SettingsUpdateRequest {

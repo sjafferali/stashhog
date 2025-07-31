@@ -57,7 +57,6 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
     {
       onSuccess: (data) => {
-        console.log('Sync job created successfully:', data);
         setCurrentJob(data); // The response is the job itself
         setSyncModalVisible(true);
         void message.success('Sync started');

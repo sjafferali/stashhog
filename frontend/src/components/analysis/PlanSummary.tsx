@@ -89,24 +89,12 @@ export const PlanSummary: React.FC<PlanSummaryProps> = ({
       ? (statistics.acceptedChanges / statistics.totalChanges) * 100
       : 0;
 
-  // Debug logging
-  console.log('PlanSummary Debug:', {
-    planStatus: plan.status,
-    jobProgress,
-    statistics,
-    totalScenes: statistics.totalScenes,
-    analyzedScenes: statistics.analyzedScenes,
-    pendingScenes: statistics.pendingScenes,
-  });
-
   const completionRate =
     jobProgress !== undefined && plan.status.toLowerCase() === 'pending'
       ? jobProgress
       : statistics.totalScenes > 0
         ? (statistics.analyzedScenes / statistics.totalScenes) * 100
         : 0;
-
-  console.log('Calculated completion rate:', completionRate);
 
   const fieldIcons = {
     title: <FileTextOutlined />,

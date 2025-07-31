@@ -122,12 +122,8 @@ class JobType(str, Enum):
     SCENE_SYNC = "scene_sync"
     SCENE_ANALYSIS = "scene_analysis"
     SETTINGS_TEST = "settings_test"
-    SYNC_ALL = "sync_all"
-    SYNC = "sync"  # Legacy, mapped to SYNC_ALL
+    SYNC = "sync"
     SYNC_SCENES = "sync_scenes"
-    SYNC_PERFORMERS = "sync_performers"
-    SYNC_TAGS = "sync_tags"
-    SYNC_STUDIOS = "sync_studios"
     ANALYSIS = "analysis"
     APPLY_PLAN = "apply_plan"
     VIDEO_TAG_ANALYSIS = "video_tag_analysis"

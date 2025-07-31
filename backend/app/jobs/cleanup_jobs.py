@@ -15,18 +15,10 @@ logger = logging.getLogger(__name__)
 
 # Timeout threshold for jobs that should have completed
 JOB_TIMEOUT_MINUTES = {
-    # Full sync of all content from Stash (scenes, performers, tags, studios)
+    # Full sync from Stash (all entities - scenes, performers, tags, studios)
     JobType.SYNC: 30,
-    # Alias for SYNC, used by scheduler for forced sync operations
-    JobType.SYNC_ALL: 30,
-    # Sync only scenes from Stash
+    # Sync specific scenes from Stash
     JobType.SYNC_SCENES: 30,
-    # Sync only performers from Stash
-    JobType.SYNC_PERFORMERS: 20,
-    # Sync only tags from Stash
-    JobType.SYNC_TAGS: 20,
-    # Sync only studios from Stash
-    JobType.SYNC_STUDIOS: 20,
     # AI-powered scene analysis using OpenAI Vision API
     JobType.ANALYSIS: 60,  # AI analysis can take longer
     # Apply analysis plan to update Stash with generated tags/details

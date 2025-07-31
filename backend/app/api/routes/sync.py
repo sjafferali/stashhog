@@ -4,9 +4,9 @@ Sync management endpoints.
 
 import logging
 from datetime import timezone
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
 
@@ -76,7 +76,7 @@ async def sync_all(
 
     return JobResponse(
         id=job_id,
-        type=APIJobType.SYNC_ALL,
+        type=APIJobType.SYNC,
         status=APIJobStatus.PENDING,
         progress=0,
         parameters={"force": force},
@@ -91,27 +91,28 @@ async def sync_all(
 
 @router.post("/scenes", response_model=JobResponse)
 async def sync_scenes(
-    scene_ids: Optional[List[str]] = None,
-    force: bool = Query(False, description="Force sync even if unchanged"),
+    body: dict = Body(...),
     db: AsyncDBSession = Depends(get_db),
     job_service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     """
-    Sync scenes from Stash.
+    Sync specific scenes from Stash.
+    Note: This always performs a full sync of the specified scenes.
 
     Args:
-        scene_ids: Specific scene IDs to sync (if not provided, syncs all)
-        force: Force sync even if scenes are unchanged
+        body: Request body containing scene_ids
         db: Database session
 
     Returns:
         Job information
     """
+    scene_ids = body.get("scene_ids", [])
+
     # Create job via job service
     job = await job_service.create_job(
         job_type=ModelJobType.SYNC_SCENES,
         db=db,
-        metadata={"scene_ids": scene_ids, "force": force},
+        metadata={"scene_ids": scene_ids},
     )
 
     # Refresh the job object in the current session to ensure all attributes are loaded
@@ -127,139 +128,7 @@ async def sync_scenes(
         type=APIJobType.SCENE_SYNC,
         status=APIJobStatus.PENDING,
         progress=0,
-        parameters={"scene_ids": scene_ids, "force": force},
-        created_at=job_created_at,  # type: ignore[arg-type]
-        updated_at=job_updated_at,  # type: ignore[arg-type]
-        started_at=None,
-        completed_at=None,
-        result=None,
-        error=None,
-    )
-
-
-@router.post("/performers", response_model=JobResponse)
-async def sync_performers(
-    force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: AsyncDBSession = Depends(get_db),
-    job_service: JobService = Depends(get_job_service),
-) -> JobResponse:
-    """
-    Sync performers from Stash.
-
-    Args:
-        force: Force sync ignoring timestamps
-        db: Database session
-
-    Returns:
-        Job information
-    """
-    # Create job via job service
-    job = await job_service.create_job(
-        job_type=ModelJobType.SYNC_PERFORMERS, db=db, metadata={"force": force}
-    )
-
-    # Refresh the job object in the current session to ensure all attributes are loaded
-    await db.refresh(job)
-
-    # Now safely access all attributes
-    job_id = str(job.id)
-    job_created_at = job.created_at
-    job_updated_at = job.updated_at
-
-    return JobResponse(
-        id=job_id,
-        type=APIJobType.SYNC_PERFORMERS,
-        status=APIJobStatus.PENDING,
-        progress=0,
-        parameters={"force": force},
-        created_at=job_created_at,  # type: ignore[arg-type]
-        updated_at=job_updated_at,  # type: ignore[arg-type]
-        started_at=None,
-        completed_at=None,
-        result=None,
-        error=None,
-    )
-
-
-@router.post("/tags", response_model=JobResponse)
-async def sync_tags(
-    force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: AsyncDBSession = Depends(get_db),
-    job_service: JobService = Depends(get_job_service),
-) -> JobResponse:
-    """
-    Sync tags from Stash.
-
-    Args:
-        force: Force sync ignoring timestamps
-        db: Database session
-
-    Returns:
-        Job information
-    """
-    # Create job via job service
-    job = await job_service.create_job(
-        job_type=ModelJobType.SYNC_TAGS, db=db, metadata={"force": force}
-    )
-
-    # Refresh the job object in the current session to ensure all attributes are loaded
-    await db.refresh(job)
-
-    # Now safely access all attributes
-    job_id = str(job.id)
-    job_created_at = job.created_at
-    job_updated_at = job.updated_at
-
-    return JobResponse(
-        id=job_id,
-        type=APIJobType.SYNC_TAGS,
-        status=APIJobStatus.PENDING,
-        progress=0,
-        parameters={"force": force},
-        created_at=job_created_at,  # type: ignore[arg-type]
-        updated_at=job_updated_at,  # type: ignore[arg-type]
-        started_at=None,
-        completed_at=None,
-        result=None,
-        error=None,
-    )
-
-
-@router.post("/studios", response_model=JobResponse)
-async def sync_studios(
-    force: bool = Query(False, description="Force sync ignoring timestamps"),
-    db: AsyncDBSession = Depends(get_db),
-    job_service: JobService = Depends(get_job_service),
-) -> JobResponse:
-    """
-    Sync studios from Stash.
-
-    Args:
-        force: Force sync ignoring timestamps
-        db: Database session
-
-    Returns:
-        Job information
-    """
-    # Create job via job service
-    job = await job_service.create_job(
-        job_type=ModelJobType.SYNC_STUDIOS, db=db, metadata={"force": force}
-    )
-
-    # Refresh the job object in the current session to ensure all attributes are loaded
-    await db.refresh(job)
-
-    # Now safely access all attributes
-    job_id = str(job.id)
-    job_created_at = job.created_at
-    job_updated_at = job.updated_at
-
-    return JobResponse(
-        id=job_id,
-        type=APIJobType.SYNC_STUDIOS,
-        status=APIJobStatus.PENDING,
-        progress=0,
-        parameters={"force": force},
+        parameters={"scene_ids": scene_ids},
         created_at=job_created_at,  # type: ignore[arg-type]
         updated_at=job_updated_at,  # type: ignore[arg-type]
         started_at=None,
@@ -376,9 +245,6 @@ async def stop_sync(
             [
                 ModelJobType.SYNC,
                 ModelJobType.SYNC_SCENES,
-                ModelJobType.SYNC_PERFORMERS,
-                ModelJobType.SYNC_TAGS,
-                ModelJobType.SYNC_STUDIOS,
             ]
         ),
         Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
@@ -515,9 +381,6 @@ async def get_sync_stats(
             [
                 ModelJobType.SYNC,
                 ModelJobType.SYNC_SCENES,
-                ModelJobType.SYNC_PERFORMERS,
-                ModelJobType.SYNC_TAGS,
-                ModelJobType.SYNC_STUDIOS,
             ]
         ),
         Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),

@@ -252,7 +252,7 @@ class TestJobModel:
 
     def test_job_failure(self):
         """Test job failure."""
-        job = Job(type=JobType.SYNC_ALL, status=JobStatus.RUNNING)
+        job = Job(type=JobType.SYNC, status=JobStatus.RUNNING)
 
         job.status = JobStatus.FAILED
         job.error = "Connection timeout"
@@ -355,7 +355,7 @@ class TestScheduledTaskModel:
         """Test updating last run time."""
         task = ScheduledTask(
             name="Test Task",
-            task_type="sync_all",
+            task_type="sync",
             schedule="*/30 * * * *",  # Every 30 minutes
         )
 

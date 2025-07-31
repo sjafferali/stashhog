@@ -121,6 +121,10 @@ class SyncService:
         batch_size: int = 100,
         progress_callback: Optional[Any] = None,
         cancellation_token: Optional[Any] = None,
+        include_scenes: bool = True,
+        include_performers: bool = True,
+        include_tags: bool = True,
+        include_studios: bool = True,
     ) -> SyncResult:
         """Full sync of all entities from Stash"""
         job_id = job_id or str(uuid4())
@@ -141,9 +145,15 @@ class SyncService:
                 await progress_callback(0, f"Starting {sync_type}")
 
             # Sync entities first (performers, tags, studios)
-            logger.info("Syncing entities...")
-            logger.debug(f"About to call _sync_entities with force={force}")
-            entity_result = await self._sync_entities(force)
+            if include_performers or include_tags or include_studios:
+                logger.info("Syncing entities...")
+                logger.debug(f"About to call _sync_entities with force={force}")
+                entity_result = await self._sync_entities(
+                    force, include_performers, include_tags, include_studios
+                )
+            else:
+                logger.info("Skipping entity sync - all entities excluded")
+                entity_result = {}
             logger.debug(f"_sync_entities returned: {entity_result}")
             result.stats.performers_processed = entity_result.get("performers", {}).get(
                 "processed", 0
@@ -176,54 +186,63 @@ class SyncService:
                 await progress_callback(20, "Entities synced, starting scene sync")
 
             # Sync scenes
-            logger.info("=== SCENE SYNC DECISION ===")
-            logger.info(f"Force parameter: {force}")
+            if include_scenes:
+                logger.info("=== SCENE SYNC DECISION ===")
+                logger.info(f"Force parameter: {force}")
 
-            last_sync_time = None if force else await self._get_last_sync_time("scene")
-
-            logger.info(f"Last sync time retrieved: {last_sync_time}")
-
-            if force:
-                logger.info("→ Syncing scenes... (FULL SYNC - force=True)")
-            elif last_sync_time:
-                logger.info(
-                    f"→ Syncing scenes... (INCREMENTAL SYNC - changes since {last_sync_time})"
+                last_sync_time = (
+                    None if force else await self._get_last_sync_time("scene")
                 )
+
+                logger.info(f"Last sync time retrieved: {last_sync_time}")
+
+                if force:
+                    logger.info("→ Syncing scenes... (FULL SYNC - force=True)")
+                elif last_sync_time:
+                    logger.info(
+                        f"→ Syncing scenes... (INCREMENTAL SYNC - changes since {last_sync_time})"
+                    )
+                else:
+                    logger.info(
+                        "→ Syncing scenes... (FULL SYNC - no previous sync history)"
+                    )
+                logger.debug(
+                    f"About to sync scenes - since: {last_sync_time}, job_id: {job_id}, batch_size: {batch_size}"
+                )
+                scene_result = await self.sync_scenes(
+                    since=last_sync_time,
+                    job_id=job_id,
+                    batch_size=batch_size,
+                    progress_callback=progress_callback,
+                    cancellation_token=cancellation_token,
+                )
+                logger.info(
+                    f"📊 Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
+                )
+                logger.info(
+                    f"📊 Before merge: result.total_items = {result.total_items}"
+                )
+
+                # Merge scene results
+                result.total_items += scene_result.total_items
+
+                logger.info(
+                    f"📊 After merge: result.total_items = {result.total_items}"
+                )
+                result.processed_items += scene_result.processed_items
+                result.created_items += scene_result.created_items
+                result.updated_items += scene_result.updated_items
+                result.skipped_items += scene_result.skipped_items
+                result.failed_items += scene_result.failed_items
+                result.errors.extend(scene_result.errors)
+
+                result.stats.scenes_processed = scene_result.stats.scenes_processed
+                result.stats.scenes_created = scene_result.stats.scenes_created
+                result.stats.scenes_updated = scene_result.stats.scenes_updated
+                result.stats.scenes_skipped = scene_result.stats.scenes_skipped
+                result.stats.scenes_failed = scene_result.stats.scenes_failed
             else:
-                logger.info(
-                    "→ Syncing scenes... (FULL SYNC - no previous sync history)"
-                )
-            logger.debug(
-                f"About to sync scenes - since: {last_sync_time}, job_id: {job_id}, batch_size: {batch_size}"
-            )
-            scene_result = await self.sync_scenes(
-                since=last_sync_time,
-                job_id=job_id,
-                batch_size=batch_size,
-                progress_callback=progress_callback,
-                cancellation_token=cancellation_token,
-            )
-            logger.info(
-                f"📊 Scene sync returned - total: {scene_result.total_items}, processed: {scene_result.processed_items}, status: {scene_result.status}"
-            )
-            logger.info(f"📊 Before merge: result.total_items = {result.total_items}")
-
-            # Merge scene results
-            result.total_items += scene_result.total_items
-
-            logger.info(f"📊 After merge: result.total_items = {result.total_items}")
-            result.processed_items += scene_result.processed_items
-            result.created_items += scene_result.created_items
-            result.updated_items += scene_result.updated_items
-            result.skipped_items += scene_result.skipped_items
-            result.failed_items += scene_result.failed_items
-            result.errors.extend(scene_result.errors)
-
-            result.stats.scenes_processed = scene_result.stats.scenes_processed
-            result.stats.scenes_created = scene_result.stats.scenes_created
-            result.stats.scenes_updated = scene_result.stats.scenes_updated
-            result.stats.scenes_skipped = scene_result.stats.scenes_skipped
-            result.stats.scenes_failed = scene_result.stats.scenes_failed
+                logger.info("Skipping scene sync - scenes excluded")
 
             # Report 100% progress before completing
             if progress_callback:
@@ -1429,37 +1448,58 @@ class SyncService:
                 "updated": 0,
             }
 
-    async def _sync_entities(self, force: bool = False) -> Dict[str, Any]:
-        """Sync performers, tags, and studios"""
+    async def _sync_entities(
+        self,
+        force: bool = False,
+        include_performers: bool = True,
+        include_tags: bool = True,
+        include_studios: bool = True,
+    ) -> Dict[str, Any]:
+        """Sync performers, tags, and studios based on include flags"""
         logger.debug(f"_sync_entities called with force={force}")
+        logger.debug(
+            f"Include flags: performers={include_performers}, tags={include_tags}, studios={include_studios}"
+        )
         results: Dict[str, Any] = {}
 
         # Sync performers
-        results["performers"] = await self._sync_entity_type(
-            "performer",
-            force,
-            self.stash_service.get_all_performers,
-            self.stash_service.get_performers_since,
-            self.entity_handler.sync_performers,
-        )
+        if include_performers:
+            results["performers"] = await self._sync_entity_type(
+                "performer",
+                force,
+                self.stash_service.get_all_performers,
+                self.stash_service.get_performers_since,
+                self.entity_handler.sync_performers,
+            )
+        else:
+            logger.info("Skipping performer sync")
+            results["performers"] = {"processed": 0, "created": 0, "updated": 0}
 
         # Sync tags
-        results["tags"] = await self._sync_entity_type(
-            "tag",
-            force,
-            self.stash_service.get_all_tags,
-            self.stash_service.get_tags_since,
-            self.entity_handler.sync_tags,
-        )
+        if include_tags:
+            results["tags"] = await self._sync_entity_type(
+                "tag",
+                force,
+                self.stash_service.get_all_tags,
+                self.stash_service.get_tags_since,
+                self.entity_handler.sync_tags,
+            )
+        else:
+            logger.info("Skipping tag sync")
+            results["tags"] = {"processed": 0, "created": 0, "updated": 0}
 
         # Sync studios
-        results["studios"] = await self._sync_entity_type(
-            "studio",
-            force,
-            self.stash_service.get_all_studios,
-            self.stash_service.get_studios_since,
-            self.entity_handler.sync_studios,
-        )
+        if include_studios:
+            results["studios"] = await self._sync_entity_type(
+                "studio",
+                force,
+                self.stash_service.get_all_studios,
+                self.stash_service.get_studios_since,
+                self.entity_handler.sync_studios,
+            )
+        else:
+            logger.info("Skipping studio sync")
+            results["studios"] = {"processed": 0, "created": 0, "updated": 0}
 
         return results
 

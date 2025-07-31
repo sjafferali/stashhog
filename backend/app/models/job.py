@@ -29,11 +29,7 @@ class JobType(str, enum.Enum):
     """Type of background job."""
 
     SYNC = "sync"
-    SYNC_ALL = "sync_all"  # Alias for SYNC
     SYNC_SCENES = "sync_scenes"
-    SYNC_PERFORMERS = "sync_performers"
-    SYNC_TAGS = "sync_tags"
-    SYNC_STUDIOS = "sync_studios"
     ANALYSIS = "analysis"
     APPLY_PLAN = "apply_plan"
     GENERATE_DETAILS = "generate_details"
@@ -67,11 +63,11 @@ class Job(BaseModel):
             *[e.value for e in JobType],
             # Also include uppercase values that exist in database
             "SYNC",
-            "SYNC_ALL",
+            "SYNC_ALL",  # Keep for migration compatibility
             "SYNC_SCENES",
-            "SYNC_PERFORMERS",
-            "SYNC_TAGS",
-            "SYNC_STUDIOS",
+            "SYNC_PERFORMERS",  # Keep for migration compatibility
+            "SYNC_TAGS",  # Keep for migration compatibility
+            "SYNC_STUDIOS",  # Keep for migration compatibility
             "ANALYSIS",
             "APPLY_PLAN",
             "GENERATE_DETAILS",

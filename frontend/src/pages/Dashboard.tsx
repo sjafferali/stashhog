@@ -167,12 +167,6 @@ const Dashboard: React.FC = () => {
       case 'sync_scenes':
       case 'scene_sync':
         return 'Scene Sync';
-      case 'sync_performers':
-        return 'Performer Sync';
-      case 'sync_tags':
-        return 'Tag Sync';
-      case 'sync_studios':
-        return 'Studio Sync';
       case 'analysis':
         return 'Scene Analysis';
       case 'apply_plan':

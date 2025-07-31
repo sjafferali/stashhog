@@ -67,11 +67,7 @@ class TestJob:
     def test_job_type_enum(self):
         """Test JobType enum values."""
         assert JobType.SYNC == "sync"
-        assert JobType.SYNC_ALL == "sync_all"
         assert JobType.SYNC_SCENES == "sync_scenes"
-        assert JobType.SYNC_PERFORMERS == "sync_performers"
-        assert JobType.SYNC_TAGS == "sync_tags"
-        assert JobType.SYNC_STUDIOS == "sync_studios"
         assert JobType.ANALYSIS == "analysis"
         assert JobType.APPLY_PLAN == "apply_plan"
         assert JobType.GENERATE_DETAILS == "generate_details"

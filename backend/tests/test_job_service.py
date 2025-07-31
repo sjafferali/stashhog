@@ -346,11 +346,7 @@ class TestJobService:
         """Test that sync job types are properly defined."""
         expected_sync_types = {
             JobType.SYNC,
-            JobType.SYNC_ALL,
             JobType.SYNC_SCENES,
-            JobType.SYNC_PERFORMERS,
-            JobType.SYNC_TAGS,
-            JobType.SYNC_STUDIOS,
             JobType.ANALYSIS,
             JobType.APPLY_PLAN,
             JobType.GENERATE_DETAILS,

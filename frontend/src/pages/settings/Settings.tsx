@@ -170,7 +170,6 @@ const Settings: React.FC = () => {
         }
       });
 
-      console.log('Saving settings with values:', updates);
       const response = await api.put('/settings', updates);
 
       if (response.data.requires_restart) {
