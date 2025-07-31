@@ -10,6 +10,7 @@ set -e
 BACKEND_ONLY=false
 FRONTEND_ONLY=false
 DOCKER_BUILD=false
+FAST_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -25,12 +26,17 @@ while [[ $# -gt 0 ]]; do
             DOCKER_BUILD=true
             shift
             ;;
+        --fast)
+            FAST_MODE=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  --backend-only   Run only backend checks"
             echo "  --frontend-only  Run only frontend checks"
             echo "  --docker-build   Include Docker build test"
+            echo "  --fast          Skip dependency downloads (assumes tools are installed)"
             echo "  --help          Show this help message"
             exit 0
             ;;
@@ -73,23 +79,27 @@ if [ ! -f "backend/requirements.txt" ] || [ ! -f "frontend/package.json" ]; then
 fi
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+if [ "$FAST_MODE" = false ] && [ ! -d "venv" ]; then
     print_header "Creating Python virtual environment"
     print_command "python3 -m venv venv"
     python3 -m venv venv
 fi
 
 # Activate virtual environment
-print_header "Activating virtual environment"
-source venv/bin/activate
+if [ -d "venv" ]; then
+    print_header "Activating virtual environment"
+    source venv/bin/activate
+fi
 
-# Install/upgrade pip
-print_header "Upgrading pip"
-print_command "python -m pip install --upgrade pip"
-python -m pip install --upgrade pip
+# Install/upgrade pip (skip in fast mode)
+if [ "$FAST_MODE" = false ]; then
+    print_header "Upgrading pip"
+    print_command "python -m pip install --upgrade pip"
+    python -m pip install --upgrade pip
+fi
 
-# Install backend dependencies (skip if frontend-only)
-if [ "$FRONTEND_ONLY" = false ]; then
+# Install backend dependencies (skip if frontend-only or fast mode)
+if [ "$FRONTEND_ONLY" = false ] && [ "$FAST_MODE" = false ]; then
     print_header "Installing backend dependencies"
     cd backend
     print_command "pip install -r requirements.txt"
@@ -106,8 +116,8 @@ if [ "$FRONTEND_ONLY" = false ]; then
     pip install pytest black isort flake8 mypy pip-audit
 fi
 
-# Install frontend dependencies (skip if backend-only)
-if [ "$BACKEND_ONLY" = false ]; then
+# Install frontend dependencies (skip if backend-only or fast mode)
+if [ "$BACKEND_ONLY" = false ] && [ "$FAST_MODE" = false ]; then
     print_header "Installing frontend dependencies"
     cd frontend
     print_command "npm ci"
@@ -267,8 +277,8 @@ if [ "$BACKEND_ONLY" = false ]; then
     cd ..
 fi
 
-# Security check - Python dependencies (skip if frontend-only)
-if [ "$FRONTEND_ONLY" = false ]; then
+# Security check - Python dependencies (skip if frontend-only or fast mode)
+if [ "$FRONTEND_ONLY" = false ] && [ "$FAST_MODE" = false ]; then
     print_header "Checking Python dependencies for vulnerabilities"
     cd backend
     print_command "pip-audit -r requirements.txt"
@@ -281,8 +291,8 @@ if [ "$FRONTEND_ONLY" = false ]; then
     cd ..
 fi
 
-# Security check - npm dependencies (skip if backend-only)
-if [ "$BACKEND_ONLY" = false ]; then
+# Security check - npm dependencies (skip if backend-only or fast mode)
+if [ "$BACKEND_ONLY" = false ] && [ "$FAST_MODE" = false ]; then
     print_header "Checking npm dependencies for vulnerabilities"
     cd frontend
     print_command "npm audit --json"
@@ -315,7 +325,13 @@ if [ "$DOCKER_BUILD" = true ]; then
 fi
 
 # Deactivate virtual environment
-deactivate
+if [ -d "venv" ]; then
+    deactivate
+fi
 
 print_header "CI checks completed! 🎉"
-print_success "All critical checks passed successfully!"
+if [ "$FAST_MODE" = true ]; then
+    print_success "All critical checks passed successfully! (fast mode - skipped dependency downloads)"
+else
+    print_success "All critical checks passed successfully!"
+fi
