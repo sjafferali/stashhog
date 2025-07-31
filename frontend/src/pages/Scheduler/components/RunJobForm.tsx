@@ -671,10 +671,24 @@ const RunJobForm: React.FC<RunJobFormProps> = ({ onSuccess, onClose }) => {
       onFinish={handleSubmit}
       style={{ maxWidth: 600 }}
     >
-      <Title level={4}>Run Job Immediately</Title>
-      <Paragraph type="secondary">
-        Select a job type and configure its parameters to run it immediately.
-      </Paragraph>
+      {!onClose && (
+        <>
+          <Title level={2}>Run Job</Title>
+          <Paragraph type="secondary">
+            Select a job type and configure its parameters to run it
+            immediately.
+          </Paragraph>
+        </>
+      )}
+      {onClose && (
+        <>
+          <Title level={4}>Run Job Immediately</Title>
+          <Paragraph type="secondary">
+            Select a job type and configure its parameters to run it
+            immediately.
+          </Paragraph>
+        </>
+      )}
 
       <Form.Item
         name="job_type"
@@ -769,8 +783,8 @@ const RunJobForm: React.FC<RunJobFormProps> = ({ onSuccess, onClose }) => {
 
       <Alert
         message="Note"
-        description="Some job types may require specific API endpoints that are not yet implemented for direct execution. Use the appropriate UI sections for those operations."
-        type="warning"
+        description="The job will be added to the queue and processed by the worker. You can monitor its progress in the Job Monitor."
+        type="info"
         showIcon
         style={{ marginTop: 16 }}
       />

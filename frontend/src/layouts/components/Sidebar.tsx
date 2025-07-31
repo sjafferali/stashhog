@@ -58,6 +58,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
           label: 'Job Monitor',
         },
         {
+          key: '/jobs/run',
+          label: 'Run Job',
+        },
+        {
           key: '/jobs/v2',
           label: 'Jobs v2',
         },

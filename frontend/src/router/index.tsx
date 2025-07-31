@@ -7,6 +7,7 @@ import Analysis from '@/pages/analysis/Analysis';
 import PlanList from '@/pages/analysis/PlanList';
 import PlanDetail from '@/pages/analysis/PlanDetail';
 import JobMonitor from '@/pages/jobs/JobMonitor';
+import RunJob from '@/pages/jobs/RunJob';
 import Jobsv2 from '@/pages/jobs/Jobsv2';
 import Settings from '@/pages/settings/Settings';
 import SyncManagement from '@/pages/sync/SyncManagement';
@@ -63,6 +64,10 @@ export const routes: RouteObject[] = [
           {
             index: true,
             element: <JobMonitor />,
+          },
+          {
+            path: 'run',
+            element: <RunJob />,
           },
           {
             path: 'v2',
