@@ -24,8 +24,8 @@ def upgrade() -> None:
         """
         UPDATE job
         SET type = 'sync',
-            job_metadata = jsonb_set(
-                COALESCE(job_metadata, '{}'),
+            metadata = jsonb_set(
+                COALESCE(metadata, '{}'),
                 '{migrated_from}',
                 to_jsonb(type)
             )
@@ -46,12 +46,12 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE job
-        SET job_metadata = jsonb_set(
-            job_metadata - 'force',
+        SET metadata = jsonb_set(
+            metadata - 'force',
             '{full_resync}',
-            COALESCE(job_metadata->>'force', 'false')::jsonb
+            COALESCE(metadata->>'force', 'false')::jsonb
         )
-        WHERE type = 'sync' AND job_metadata ? 'force'
+        WHERE type = 'sync' AND metadata ? 'force'
     """
     )
 
@@ -59,8 +59,8 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE job
-        SET job_metadata = job_metadata - 'force'
-        WHERE type = 'sync_scenes' AND job_metadata ? 'force'
+        SET metadata = metadata - 'force'
+        WHERE type = 'sync_scenes' AND metadata ? 'force'
     """
     )
 
