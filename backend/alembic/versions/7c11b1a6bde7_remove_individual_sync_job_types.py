@@ -25,7 +25,7 @@ def upgrade() -> None:
         """
         UPDATE job
         SET type = 'sync',
-            metadata = CASE 
+            metadata = CASE
                 WHEN metadata IS NULL THEN json_build_object('migrated_from', type)::json
                 ELSE (metadata::jsonb || json_build_object('migrated_from', type)::jsonb)::json
             END
@@ -54,8 +54,8 @@ def upgrade() -> None:
             )::json
             FROM json_each(metadata)
         )
-        WHERE type = 'sync' 
-        AND metadata IS NOT NULL 
+        WHERE type = 'sync'
+        AND metadata IS NOT NULL
         AND metadata::jsonb ? 'force'
     """
     )
@@ -69,8 +69,8 @@ def upgrade() -> None:
             FROM json_each(metadata)
             WHERE key != 'force'
         )
-        WHERE type = 'sync_scenes' 
-        AND metadata IS NOT NULL 
+        WHERE type = 'sync_scenes'
+        AND metadata IS NOT NULL
         AND metadata::jsonb ? 'force'
     """
     )
