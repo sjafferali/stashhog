@@ -213,14 +213,29 @@ async def _check_pending_scenes_for_sync() -> int:
         try:
             if last_sync_record and last_sync_record.completed_at:
                 # Check for scenes updated since last sync
+                # Convert to Pacific timezone with Z suffix for Stash compatibility
+                import pytz
+
+                pacific_tz = pytz.timezone("America/Los_Angeles")
+                completed_at_no_microseconds = last_sync_record.completed_at.replace(
+                    microsecond=0
+                )
+                completed_at_pacific = completed_at_no_microseconds.astimezone(
+                    pacific_tz
+                )
+                formatted_timestamp = completed_at_pacific.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+
                 filter_dict = {
                     "updated_at": {
-                        "value": last_sync_record.completed_at.isoformat() + "Z",
+                        "value": formatted_timestamp,
                         "modifier": "GREATER_THAN",
                     }
                 }
                 logger.info(
-                    f"Checking for scenes updated since {last_sync_record.completed_at}"
+                    f"Checking for scenes updated since {last_sync_record.completed_at} "
+                    f"(formatted as {formatted_timestamp} for Stash API)"
                 )
             else:
                 # No previous sync, check total scenes
