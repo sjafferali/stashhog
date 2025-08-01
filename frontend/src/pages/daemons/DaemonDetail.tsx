@@ -286,6 +286,19 @@ const DaemonDetail: React.FC = () => {
     );
   }
 
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'LAUNCHED':
+        return 'success';
+      case 'CANCELLED':
+        return 'error';
+      case 'MONITORED':
+        return 'processing';
+      default:
+        return 'default';
+    }
+  };
+
   const jobHistoryColumns = [
     {
       title: 'Time',
@@ -298,13 +311,30 @@ const DaemonDetail: React.FC = () => {
       title: 'Action',
       dataIndex: 'action',
       key: 'action',
-      render: (text: unknown) => <Tag>{text as string}</Tag>,
+      render: (text: unknown) => {
+        const action = text as string;
+        return (
+          <Tag color={getActionColor(action)}>
+            {action
+              .replace(/_/g, ' ')
+              .toLowerCase()
+              .replace(/\b\w/g, (l) => l.toUpperCase())}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Job ID',
       dataIndex: 'job_id',
       key: 'job_id',
-      render: (text: unknown) => <Text code>{text as string}</Text>,
+      render: (text: unknown) => {
+        const jobId = text as string;
+        return (
+          <Text code copyable={{ text: jobId }} style={{ color: '#1890ff' }}>
+            {jobId}
+          </Text>
+        );
+      },
     },
     {
       title: 'Reason',

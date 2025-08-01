@@ -132,7 +132,8 @@ class YourDaemon(BaseDaemon):
             )
             
             # Add to monitoring if needed
-            self.monitored_items.add(item.id)
+            # NOTE: You should add job_id, not item.id to monitoring!
+            self.monitored_jobs.add(job_id)  # Track the job, not the item
             
         except Exception as e:
             await self.log(LogLevel.ERROR, f"Failed to process item: {str(e)}")
@@ -253,7 +254,19 @@ if check_interval < 1:
     check_interval = 1
 ```
 
-### 5. Job Orchestration
+### 5. Job Orchestration and Monitoring
+
+#### Job Actions
+
+StashHog tracks three types of job actions that daemons can record:
+
+- **LAUNCHED**: When a daemon creates or starts a job
+- **CANCELLED**: When a daemon cancels a job
+- **MONITORED**: When a daemon detects a job it was tracking has completed
+
+**Important**: Job monitoring is NOT automatic. Each daemon must explicitly implement monitoring for jobs it cares about.
+
+#### Launching Jobs
 
 When launching jobs from daemons:
 
@@ -282,11 +295,103 @@ async def launch_job(self, job_type: JobType, metadata: dict):
         # Submit to job service
         await self.job_service.submit_job(job_id)
         
+        # Add to monitoring if you need to track completion
+        self._monitored_jobs.add(job_id)
+        
         return job_id
         
     except Exception as e:
         await self.log(LogLevel.ERROR, f"Failed to launch job: {e}")
         return None
+```
+
+#### Implementing Job Monitoring
+
+To monitor jobs your daemon launches:
+
+```python
+class YourDaemon(BaseDaemon):
+    async def on_start(self):
+        await super().on_start()
+        # Set to track jobs we're monitoring
+        self._monitored_jobs: Set[str] = set()
+    
+    async def run(self):
+        while self.is_running:
+            try:
+                # Your main work
+                await self._do_work()
+                
+                # Check monitored jobs periodically
+                await self._check_monitored_jobs()
+                
+                await asyncio.sleep(self.config.get("check_interval", 10))
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                await self.log(LogLevel.ERROR, f"Error: {e}")
+    
+    async def _check_monitored_jobs(self):
+        """Check status of jobs we're monitoring."""
+        if not self._monitored_jobs:
+            return
+        
+        completed_jobs = set()
+        
+        async with AsyncSessionLocal() as db:
+            for job_id in self._monitored_jobs:
+                job = await db.get(Job, job_id)
+                if not job:
+                    completed_jobs.add(job_id)
+                    continue
+                
+                # Check if job has finished
+                if job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+                    await self.log(
+                        LogLevel.INFO,
+                        f"Job {job_id} completed with status: {job.status}"
+                    )
+                    
+                    # Track the monitoring action
+                    await self.track_job_action(
+                        job_id=job_id,
+                        action=DaemonJobAction.MONITORED,
+                        reason=f"Job completed with status {job.status}"
+                    )
+                    
+                    # Optionally react based on job outcome
+                    if job.status == JobStatus.FAILED:
+                        await self._handle_failed_job(job)
+                    
+                    completed_jobs.add(job_id)
+        
+        # Remove completed jobs from monitoring
+        self._monitored_jobs -= completed_jobs
+```
+
+#### Cancelling Jobs
+
+If your daemon needs to cancel jobs:
+
+```python
+async def cancel_job(self, job_id: str, reason: str):
+    try:
+        # Use job service to cancel
+        await self.job_service.cancel_job(job_id)
+        
+        # Track the cancellation
+        await self.track_job_action(
+            job_id=job_id,
+            action=DaemonJobAction.CANCELLED,
+            reason=reason
+        )
+        
+        # Remove from monitoring
+        self._monitored_jobs.discard(job_id)
+        
+    except Exception as e:
+        await self.log(LogLevel.ERROR, f"Failed to cancel job: {e}")
 ```
 
 ### 6. Graceful Shutdown
@@ -480,6 +585,8 @@ Before deploying your daemon:
 - [ ] Graceful shutdown is handled
 - [ ] Errors are logged but don't crash the daemon
 - [ ] Configuration has sensible defaults
+- [ ] Job monitoring is implemented if daemon launches jobs
+- [ ] Job actions (LAUNCHED, MONITORED, CANCELLED) are tracked appropriately
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Documentation is updated

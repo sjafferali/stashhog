@@ -256,7 +256,12 @@ const Daemons: React.FC = () => {
                     <Tag color={getStatusColor(daemon.status)}>
                       {daemon.status}
                     </Tag>
-                    <Tag>{daemon.type}</Tag>
+                    <Tag color="blue">
+                      {daemon.type
+                        .replace(/_/g, ' ')
+                        .toLowerCase()
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </Tag>
                   </Space>
 
                   {daemon.status === DaemonStatus.RUNNING &&
