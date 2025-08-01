@@ -6,11 +6,14 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
+  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 import { AnalysisPlan } from '@/types/models';
 import { StatusSummary } from '@/components/analysis/StatusSummary';
+import ApplyPlanModal from './components/ApplyPlanModal';
+import api from '@/services/api';
 
 const PlanList: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +22,13 @@ const PlanList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applyModalData, setApplyModalData] = useState<{
+    planId: number;
+    planName: string;
+    acceptedChanges: number;
+    totalScenes: number;
+  } | null>(null);
 
   useEffect(() => {
     void fetchPlans();
@@ -267,6 +277,93 @@ const PlanList: React.FC = () => {
     });
   };
 
+  const handleBulkAcceptAndApply = async () => {
+    const selectedPlans = plans.filter((plan) =>
+      selectedRowKeys.includes(plan.id)
+    );
+    const eligiblePlans = selectedPlans.filter(
+      (plan) =>
+        plan.status.toLowerCase() === 'reviewing' ||
+        plan.status.toLowerCase() === 'draft'
+    );
+
+    if (eligiblePlans.length === 0) {
+      void message.warning(
+        'Please select plans that are in reviewing or draft status'
+      );
+      return;
+    }
+
+    // For multiple plans, we'll process them sequentially
+    if (eligiblePlans.length > 1) {
+      Modal.confirm({
+        title: 'Accept and Apply All Changes',
+        content: `Are you sure you want to accept and apply all changes for ${eligiblePlans.length} plan(s)? This will update the scenes in Stash.`,
+        onOk: async () => {
+          let successCount = 0;
+          let errorCount = 0;
+
+          for (const plan of eligiblePlans) {
+            try {
+              // First accept all changes
+              await apiClient.bulkUpdateAnalysisPlan(plan.id, 'accept_all');
+
+              // Then apply the changes
+              await api.post(`/analysis/plans/${plan.id}/apply`, {
+                change_ids: [], // Empty array means apply all accepted changes
+                background: true,
+              });
+
+              successCount++;
+            } catch (error) {
+              console.error(
+                `Failed to accept and apply changes for plan ${plan.id}:`,
+                error
+              );
+              errorCount++;
+            }
+          }
+
+          if (successCount > 0) {
+            void message.success(
+              `Successfully accepted and applied changes for ${successCount} plan(s)`
+            );
+            void fetchPlans();
+            setSelectedRowKeys([]);
+          }
+          if (errorCount > 0) {
+            void message.error(
+              `Failed to accept and apply changes for ${errorCount} plan(s)`
+            );
+          }
+        },
+      });
+    } else {
+      // For a single plan, show the apply modal
+      const plan = eligiblePlans[0];
+
+      try {
+        // First accept all changes
+        await apiClient.bulkUpdateAnalysisPlan(plan.id, 'accept_all');
+
+        // Get the updated plan to get accurate counts
+        const updatedPlan = await apiClient.getAnalysisPlan(plan.id);
+
+        // Show apply modal
+        setApplyModalData({
+          planId: plan.id,
+          planName: plan.name,
+          acceptedChanges: updatedPlan.approved_changes || 0,
+          totalScenes: plan.total_scenes,
+        });
+        setShowApplyModal(true);
+      } catch (error) {
+        console.error('Failed to accept changes:', error);
+        void message.error('Failed to accept changes');
+      }
+    }
+  };
+
   const statusCounts = useMemo(() => {
     const counts = {
       pending: 0,
@@ -403,6 +500,15 @@ const PlanList: React.FC = () => {
               >
                 Reject All Changes
               </Button>
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={() => {
+                  void handleBulkAcceptAndApply();
+                }}
+              >
+                Accept and Apply All Changes
+              </Button>
             </>
           )}
         </Space>
@@ -458,6 +564,41 @@ const PlanList: React.FC = () => {
           />
         </div>
       </Card>
+
+      {/* Apply Plan Modal */}
+      {applyModalData && (
+        <ApplyPlanModal
+          visible={showApplyModal}
+          planId={applyModalData.planId}
+          planName={applyModalData.planName}
+          acceptedChanges={applyModalData.acceptedChanges}
+          totalScenes={applyModalData.totalScenes}
+          onCancel={() => {
+            setShowApplyModal(false);
+            setApplyModalData(null);
+          }}
+          onApply={async () => {
+            // Call API to apply changes
+            const response = await api.post(
+              `/analysis/plans/${applyModalData.planId}/apply`,
+              {
+                change_ids: [], // Empty array means apply all accepted changes
+                background: true,
+              }
+            );
+
+            return response.data;
+          }}
+          onComplete={() => {
+            // Refresh the plan data
+            void fetchPlans();
+            void message.success('All changes applied successfully');
+            setShowApplyModal(false);
+            setApplyModalData(null);
+            setSelectedRowKeys([]);
+          }}
+        />
+      )}
     </div>
   );
 };
