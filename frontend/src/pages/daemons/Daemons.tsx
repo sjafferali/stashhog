@@ -38,6 +38,10 @@ const Daemons: React.FC = () => {
 
   // WebSocket connection for real-time updates
   const { sendMessage } = useWebSocket('/api/daemons/ws', {
+    onOpen: () => {
+      // Send initial ping to establish connection
+      sendMessage({ type: 'ping' });
+    },
     onMessage: (data) => {
       const message = data as { type: string; daemon?: Daemon };
       if (message.type === 'daemon_update') {
@@ -48,6 +52,9 @@ const Daemons: React.FC = () => {
       } else if (message.type === 'ping') {
         // Respond to ping with pong to keep connection alive
         sendMessage({ type: 'pong' });
+      } else if (message.type === 'pong') {
+        // Connection established successfully
+        console.log('Daemons WebSocket connected');
       }
     },
   });

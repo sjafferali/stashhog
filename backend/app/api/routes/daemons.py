@@ -2,8 +2,6 @@
 API routes for daemon management.
 """
 
-import asyncio
-import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -74,50 +72,23 @@ async def _handle_daemon_unsubscribe(websocket: WebSocket, daemon_id: str) -> No
 
 async def _handle_websocket_message(websocket: WebSocket, data: Dict[str, Any]) -> None:
     """Handle incoming WebSocket message."""
+    message_type = data.get("type")
     command = data.get("command")
     daemon_id = data.get("daemon_id")
 
-    if command == "subscribe" and daemon_id:
+    # Handle ping/pong for keepalive
+    if message_type == "ping":
+        await websocket.send_json({"type": "pong"})
+    elif message_type == "pong":
+        # Client responded to our ping
+        pass
+    # Handle daemon commands
+    elif command == "subscribe" and daemon_id:
         await _handle_daemon_subscribe(websocket, daemon_id)
     elif command == "unsubscribe" and daemon_id:
         await _handle_daemon_unsubscribe(websocket, daemon_id)
-    elif data.get("type") == "ping":
-        await websocket.send_json({"type": "pong"})
     elif command:
         await websocket.send_json({"type": "error", "message": "Invalid command"})
-
-
-async def _process_websocket_message(websocket: WebSocket) -> bool:
-    """
-    Process a single WebSocket message.
-
-    Returns:
-        bool: True to continue, False to disconnect
-    """
-    try:
-        # Use receive_text with a timeout to handle clients that don't send messages
-        message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-        try:
-            data = json.loads(message)
-            await _handle_websocket_message(websocket, data)
-        except json.JSONDecodeError:
-            logger.debug("Invalid JSON received from WebSocket")
-        return True
-    except asyncio.TimeoutError:
-        # Send a ping to check if client is still connected
-        try:
-            await websocket.send_json({"type": "ping"})
-            return True
-        except Exception:
-            # Connection is dead
-            return False
-    except WebSocketDisconnect:
-        logger.info("Daemon WebSocket client disconnected")
-        return False
-    except Exception as e:
-        logger.debug(f"WebSocket receive error: {e}")
-        # For connection errors, disconnect; for others, continue
-        return "connection" not in str(e).lower()
 
 
 @router.websocket("/ws")
@@ -135,12 +106,25 @@ async def daemon_websocket(websocket: WebSocket):
     - {"command": "unsubscribe", "daemon_id": "<id>"} - Unsubscribe from daemon
     """
     await websocket_manager.connect(websocket)
+    logger.info("Client connected to daemons WebSocket")
 
     try:
-        while await _process_websocket_message(websocket):
-            pass
+        # Keep connection alive and handle messages
+        while True:
+            try:
+                # Wait for client messages (matches jobs WebSocket pattern)
+                data = await websocket.receive_json()
+                await _handle_websocket_message(websocket, data)
+
+            except WebSocketDisconnect:
+                logger.info("Client disconnected from daemons WebSocket")
+                break
+            except Exception as e:
+                logger.error(f"Daemons WebSocket error: {e}")
+                break
+
     except Exception as e:
-        logger.error(f"Daemon WebSocket error: {e}")
+        logger.error(f"Daemons WebSocket error: {str(e)}")
     finally:
         await websocket_manager.disconnect(websocket)
 
