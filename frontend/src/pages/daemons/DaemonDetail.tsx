@@ -93,16 +93,25 @@ const DaemonDetail: React.FC = () => {
   // WebSocket message handler - memoized to prevent reconnections
   const handleWebSocketMessage = useCallback(
     (data: unknown) => {
+      console.log('WebSocket message received:', data);
+
       if (paused) return;
 
       const message = data as DaemonWebSocketMessage;
 
-      if (message.type === 'daemon_update' && message.daemon.id === daemonId) {
+      if (message.type === 'subscription_confirmed') {
+        console.log('Subscription confirmed for daemon:', message.daemon_id);
+      } else if (
+        message.type === 'daemon_update' &&
+        message.daemon.id === daemonId
+      ) {
+        console.log('Daemon update received');
         setDaemon(message.daemon);
       } else if (
         message.type === 'daemon_log' &&
         message.daemon_id === daemonId
       ) {
+        console.log('Daemon log received:', message.log);
         setLogs((prev) => {
           const newLogs = [...prev, message.log];
           // Keep only last 1000 logs
@@ -115,6 +124,7 @@ const DaemonDetail: React.FC = () => {
         message.type === 'daemon_job_action' &&
         message.daemon_id === daemonId
       ) {
+        console.log('Daemon job action received:', message.action);
         setJobHistory((prev) => [message.action, ...prev]);
       }
     },
@@ -129,15 +139,21 @@ const DaemonDetail: React.FC = () => {
   // Subscribe to daemon updates when component mounts or daemonId changes
   useEffect(() => {
     if (daemonId) {
-      // Subscribe to this daemon's updates
-      sendMessage({ command: 'subscribe', daemon_id: daemonId });
+      // Delay subscription to ensure WebSocket is connected
+      const timeoutId = setTimeout(() => {
+        console.log('Subscribing to daemon:', daemonId);
+        sendMessage({ command: 'subscribe', daemon_id: daemonId });
+      }, 500);
 
       // Cleanup: unsubscribe when component unmounts or daemonId changes
       return () => {
+        clearTimeout(timeoutId);
+        console.log('Unsubscribing from daemon:', daemonId);
         sendMessage({ command: 'unsubscribe', daemon_id: daemonId });
       };
     }
-  }, [daemonId, sendMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daemonId]); // Remove sendMessage from dependencies to prevent re-subscriptions
 
   useEffect(() => {
     if (daemonId) {

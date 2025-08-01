@@ -1,7 +1,5 @@
 import asyncio
 import time
-import uuid
-from typing import Set
 
 from app.core.database import AsyncSessionLocal
 from app.daemons.base import BaseDaemon
@@ -33,7 +31,8 @@ class TestDaemon(BaseDaemon):
     async def on_start(self):
         """Initialize daemon-specific resources."""
         await super().on_start()
-        self._monitored_jobs: Set[str] = set()
+        self._monitored_jobs: set[str] = set()
+        self._test_job_created = False  # Track if we've created a test job
         await self.log(LogLevel.INFO, "TestDaemon initialized successfully")
 
     async def on_stop(self):
@@ -92,10 +91,10 @@ class TestDaemon(BaseDaemon):
         if config["simulate_errors"] and state["counter"] % 20 == 0:
             raise Exception("Simulated error for testing")
 
-        # Launch a test job periodically
-        if current_time - state["last_job_time"] >= config["job_interval"]:
+        # Launch a test job only once
+        if not self._test_job_created:
             await self._launch_test_job(state["counter"])
-            state["last_job_time"] = current_time
+            self._test_job_created = True
 
         # Check for any jobs we're monitoring
         await self._check_monitored_jobs()
@@ -126,23 +125,29 @@ class TestDaemon(BaseDaemon):
         """Launch a test job to demonstrate job orchestration."""
         try:
             job_name = f"test_job_{iteration}"
-            job_id = str(uuid.uuid4())
 
-            # Create a test job using dedicated session
+            # Get job service to properly create and queue the job
+            from app.core.dependencies import get_job_service
+
+            job_service = get_job_service()
+
+            # Create job metadata
+            job_metadata = {
+                "daemon_id": str(self.daemon_id),
+                "iteration": iteration,
+                "created_by": "TestDaemon",
+                "name": job_name,
+            }
+
+            # Create job using job service (this handles queuing and execution)
             async with AsyncSessionLocal() as db:
-                job = Job(
-                    id=job_id,
-                    type=JobType.TEST.value,
-                    status=JobStatus.PENDING.value,
-                    job_metadata={
-                        "daemon_id": str(self.daemon_id),
-                        "iteration": iteration,
-                        "created_by": "TestDaemon",
-                        "name": job_name,  # Store name in metadata
-                    },
+                job = await job_service.create_job(
+                    job_type=JobType.TEST,
+                    db=db,
+                    metadata=job_metadata,
                 )
-                db.add(job)
                 await db.commit()
+                job_id = str(job.id)
 
             await self.log(
                 LogLevel.INFO, f"Launched test job: {job_name} (ID: {job_id})"
@@ -157,9 +162,6 @@ class TestDaemon(BaseDaemon):
 
             # Add to monitored jobs
             self._monitored_jobs.add(job_id)
-
-            # Submit to job service (this will actually run the job)
-            # await job_service.submit_job(job_id)  # TODO: Implement job submission
 
         except Exception as e:
             await self.log(LogLevel.ERROR, f"Failed to launch test job: {str(e)}")

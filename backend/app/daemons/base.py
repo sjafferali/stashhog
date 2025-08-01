@@ -147,12 +147,19 @@ class BaseDaemon(ABC):
             logger.info(
                 f"About to broadcast daemon log for daemon_id: {self.daemon_id}"
             )
-            from app.services.websocket_manager import websocket_manager
+            try:
+                from app.services.websocket_manager import websocket_manager
 
-            await websocket_manager.broadcast_daemon_log(
-                daemon_id=str(self.daemon_id), log=log_entry.to_dict()
-            )
-            logger.info("Finished broadcasting daemon log")
+                logger.info(
+                    f"Successfully imported websocket_manager: {websocket_manager}"
+                )
+
+                await websocket_manager.broadcast_daemon_log(
+                    daemon_id=str(self.daemon_id), log=log_entry.to_dict()
+                )
+                logger.info("Finished broadcasting daemon log")
+            except Exception as e:
+                logger.error(f"Failed to broadcast daemon log: {e}", exc_info=True)
 
     async def update_heartbeat(self):
         """Update the daemon's heartbeat timestamp."""

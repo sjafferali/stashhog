@@ -3,6 +3,7 @@ API routes for daemon management.
 """
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -82,6 +83,8 @@ async def _handle_websocket_message(
     websocket: WebSocket, data: Dict[str, Any], manager: WebSocketManager
 ) -> None:
     """Handle incoming WebSocket message."""
+    logger.info(f"Received WebSocket message: {data}")
+
     message_type = data.get("type")
     command = data.get("command")
     daemon_id = data.get("daemon_id")
@@ -94,10 +97,13 @@ async def _handle_websocket_message(
         pass
     # Handle daemon commands
     elif command == "subscribe" and daemon_id:
+        logger.info(f"Handling subscribe command for daemon_id: {daemon_id}")
         await _handle_daemon_subscribe(websocket, daemon_id, manager)
     elif command == "unsubscribe" and daemon_id:
+        logger.info(f"Handling unsubscribe command for daemon_id: {daemon_id}")
         await _handle_daemon_unsubscribe(websocket, daemon_id, manager)
     elif command:
+        logger.warning(f"Invalid command received: {command}")
         await websocket.send_json({"type": "error", "message": "Invalid command"})
 
 
@@ -274,3 +280,23 @@ async def get_daemon_job_history(
     )
 
     return [h.to_dict() for h in history]
+
+
+@router.post("/{daemon_id}/test-broadcast")
+async def test_daemon_broadcast(daemon_id: str):
+    """Test endpoint to manually trigger a daemon log broadcast."""
+    logger.info(f"Test broadcast endpoint called for daemon_id: {daemon_id}")
+
+    test_log = {
+        "id": str(uuid.uuid4()),
+        "daemon_id": daemon_id,
+        "level": "INFO",
+        "message": "Test broadcast message",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+
+    logger.info(f"About to broadcast test log: {test_log}")
+    await websocket_manager.broadcast_daemon_log(daemon_id=daemon_id, log=test_log)
+    logger.info("Test broadcast complete")
+
+    return {"message": "Test broadcast sent", "log": test_log}

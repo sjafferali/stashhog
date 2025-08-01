@@ -116,6 +116,8 @@ export const formatJobProgress = (
       unit = ' downloads';
     } else if (type === 'process_new_scenes') {
       unit = ' steps';
+    } else if (type === 'test') {
+      unit = ' test steps';
     }
 
     return `${processed} / ${total}${unit}`;
