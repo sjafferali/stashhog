@@ -1,5 +1,6 @@
 """Main analysis service for scene metadata detection."""
 
+import asyncio
 import logging
 import time
 from datetime import datetime
@@ -86,6 +87,9 @@ class AnalysisService:
         self._current_batch_index: int = 0
         self._total_batches: int = 0
         self._current_plan_id: Optional[int] = None
+
+        # Lock to prevent concurrent plan creation
+        self._plan_creation_lock = asyncio.Lock()
 
     async def analyze_scenes(
         self,
@@ -709,39 +713,43 @@ class AnalysisService:
     ) -> None:
         """Update plan with scene changes if needed."""
         if db and scene_changes.has_changes():
-            if not self._current_plan_id:
-                # Create new plan
-                logger.info(
-                    f"Creating new plan for job {job_id} with name: {self._current_plan_name}"
-                )
-                plan = await self.plan_manager.create_or_update_plan(
-                    name=self._current_plan_name,
-                    scene_changes=scene_changes,
-                    metadata=self._plan_metadata,
-                    db=db,
-                    job_id=job_id,
-                )
-                plan_id: int = plan.id  # type: ignore[assignment]
-                self._current_plan_id = plan_id
-                logger.info(f"Created plan {plan_id} for job {job_id}")
+            # Use lock to prevent concurrent plan creation
+            async with self._plan_creation_lock:
+                if not self._current_plan_id:
+                    # Create new plan
+                    logger.info(
+                        f"Creating new plan for job {job_id} with name: {self._current_plan_name}"
+                    )
+                    plan = await self.plan_manager.create_or_update_plan(
+                        name=self._current_plan_name,
+                        scene_changes=scene_changes,
+                        metadata=self._plan_metadata,
+                        db=db,
+                        job_id=job_id,
+                    )
+                    plan_id: int = plan.id  # type: ignore[assignment]
+                    self._current_plan_id = plan_id
+                    logger.info(f"Created plan {plan_id} for job {job_id}")
 
-                # Update job metadata with plan_id
-                if job_id and self._current_job_id:
-                    await self._update_job_with_plan_id(job_id, plan_id)
-            else:
-                # Add to existing plan
-                logger.info(f"Adding changes to existing plan {self._current_plan_id}")
-                await self.plan_manager.add_changes_to_plan(
-                    self._current_plan_id,
-                    scene_changes,
-                    db,
-                )
-                logger.info(
-                    f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
-                )
+                    # Update job metadata with plan_id
+                    if job_id and self._current_job_id:
+                        await self._update_job_with_plan_id(job_id, plan_id)
+                else:
+                    # Add to existing plan
+                    logger.info(
+                        f"Adding changes to existing plan {self._current_plan_id}"
+                    )
+                    await self.plan_manager.add_changes_to_plan(
+                        self._current_plan_id,
+                        scene_changes,
+                        db,
+                    )
+                    logger.info(
+                        f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
+                    )
 
-                # Don't update job metadata here - it was already done when plan was created
-                # This avoids race conditions with progress updates
+                    # Don't update job metadata here - it was already done when plan was created
+                    # This avoids race conditions with progress updates
 
     def _create_error_scene_changes(
         self, scene_data: dict, error: Exception
