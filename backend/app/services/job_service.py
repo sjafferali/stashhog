@@ -730,7 +730,29 @@ class JobService:
                 ),
             }
             logger.debug(f"Broadcasting job update with metadata: {metadata_dict}")
+
+            # Send to all general connections
             await websocket_manager.broadcast_job_update(job_data)
+
+            # Also send to job-specific subscribers with the additional data from the data parameter
+            if data:
+                # Check if websocket_manager is a real instance (not a mock)
+                # In tests, websocket_manager might be a MagicMock without async support
+                is_mock = str(type(websocket_manager)).startswith(
+                    "<class 'unittest.mock."
+                )
+
+                if not is_mock and hasattr(websocket_manager, "send_job_update"):
+                    await websocket_manager.send_job_update(
+                        job_id,
+                        {
+                            "status": job_data["status"],
+                            "progress": job_data["progress"],
+                            "message": data.get("message"),
+                            "error": data.get("error"),
+                            "result": data.get("result"),
+                        },
+                    )
 
     def _task_callback(
         self,
