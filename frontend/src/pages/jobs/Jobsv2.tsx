@@ -33,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
+import { HandledDownloadsModal } from '@/components/jobs/HandledDownloadsModal';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { getJobTypeLabel, formatJobProgress } from '@/utils/jobUtils';
 import styles from './Jobsv2.module.scss';
@@ -55,6 +56,10 @@ const Jobsv2: React.FC = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
+  const [handledDownloadsModalVisible, setHandledDownloadsModalVisible] =
+    useState(false);
+  const [selectedHandledDownloadsJobId, setSelectedHandledDownloadsJobId] =
+    useState<string | null>(null);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = async () => {
@@ -447,6 +452,23 @@ const Jobsv2: React.FC = () => {
                 </Button>
               </Link>
             ) : null}
+
+            {/* View Processed Files for process_downloads jobs */}
+            {job.type === 'process_downloads' &&
+            job.processed_items &&
+            job.processed_items > 0 ? (
+              <Button
+                icon={<FileTextOutlined />}
+                size="small"
+                style={{ color: '#722ed1' }}
+                onClick={() => {
+                  setSelectedHandledDownloadsJobId(job.id);
+                  setHandledDownloadsModalVisible(true);
+                }}
+              >
+                View {job.processed_items} Files
+              </Button>
+            ) : null}
           </Space>
         </Card>
 
@@ -659,6 +681,24 @@ const Jobsv2: React.FC = () => {
             </Tooltip>
           )}
 
+          {/* View Processed Files for process_downloads jobs */}
+          {record.type === 'process_downloads' &&
+            record.processed_items &&
+            record.processed_items > 0 && (
+              <Tooltip title="View Processed Files">
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined />}
+                  size="small"
+                  style={{ color: '#722ed1' }}
+                  onClick={() => {
+                    setSelectedHandledDownloadsJobId(record.id);
+                    setHandledDownloadsModalVisible(true);
+                  }}
+                />
+              </Tooltip>
+            )}
+
           {record.status === 'running' && (
             <Tooltip title="Cancel Job">
               <Button
@@ -867,6 +907,18 @@ const Jobsv2: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Handled Downloads Modal */}
+      {selectedHandledDownloadsJobId && (
+        <HandledDownloadsModal
+          jobId={selectedHandledDownloadsJobId}
+          visible={handledDownloadsModalVisible}
+          onClose={() => {
+            setHandledDownloadsModalVisible(false);
+            setSelectedHandledDownloadsJobId(null);
+          }}
+        />
+      )}
     </div>
   );
 };

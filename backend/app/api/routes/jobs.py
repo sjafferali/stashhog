@@ -22,6 +22,7 @@ from app.api.schemas import JobDetailResponse, JobResponse, JobsListResponse, Jo
 from app.api.schemas import JobType as SchemaJobType
 from app.core.dependencies import get_db, get_job_service, get_websocket_manager
 from app.models import Job
+from app.models.handled_download import HandledDownload
 from app.services.job_service import JobService
 from app.services.websocket_manager import WebSocketManager
 
@@ -673,4 +674,48 @@ async def run_job(
         "job_id": str(new_job.id),
         "job_type": job_type,
         "metadata": job_metadata,
+    }
+
+
+@router.get("/{job_id}/handled-downloads")
+async def get_job_handled_downloads(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get the list of downloads that were handled/processed by a job.
+
+    This is specifically for process_downloads jobs to see which files were processed.
+    """
+    # First verify the job exists
+    query = select(Job).where(Job.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
+        )
+
+    # Get handled downloads for this job
+    query = (
+        select(HandledDownload)
+        .where(HandledDownload.job_id == job_id)
+        .order_by(HandledDownload.timestamp.desc())
+    )
+    result = await db.execute(query)
+    downloads = result.scalars().all()
+
+    return {
+        "job_id": job_id,
+        "total_downloads": len(downloads),
+        "downloads": [
+            {
+                "id": download.id,
+                "timestamp": download.timestamp,
+                "download_name": download.download_name,
+                "destination_path": download.destination_path,
+            }
+            for download in downloads
+        ],
     }

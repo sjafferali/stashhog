@@ -48,6 +48,7 @@ import {
 } from '@/components/jobs/AnalysisJobResult';
 import { JobCard } from '@/components/jobs/JobCard';
 import { WorkflowJobModal } from '@/components/jobs/WorkflowJobModal';
+import { HandledDownloadsModal } from '@/components/jobs/HandledDownloadsModal';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -91,6 +92,10 @@ const JobMonitor: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'card'>(
     (searchParams.get('view') as 'table' | 'card') || 'table'
   );
+  const [handledDownloadsModalVisible, setHandledDownloadsModalVisible] =
+    useState(false);
+  const [selectedHandledDownloadsJobId, setSelectedHandledDownloadsJobId] =
+    useState<string | null>(null);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = async () => {
@@ -707,6 +712,24 @@ const JobMonitor: React.FC = () => {
             </Tooltip>
           )}
 
+          {/* View Processed Files for process_downloads jobs */}
+          {record.type === 'process_downloads' &&
+            record.processed_items &&
+            record.processed_items > 0 && (
+              <Tooltip title="View Processed Files">
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined />}
+                  size="small"
+                  style={{ color: '#722ed1' }}
+                  onClick={() => {
+                    setSelectedHandledDownloadsJobId(record.id);
+                    setHandledDownloadsModalVisible(true);
+                  }}
+                />
+              </Tooltip>
+            )}
+
           {['running', 'pending'].includes(record.status) && (
             <Tooltip title="Cancel Job">
               <Button
@@ -951,6 +974,10 @@ const JobMonitor: React.FC = () => {
                         void message.info('Delete not implemented yet')
                       }
                       onViewRawData={() => showRawJobData(job)}
+                      onViewProcessedFiles={() => {
+                        setSelectedHandledDownloadsJobId(job.id);
+                        setHandledDownloadsModalVisible(true);
+                      }}
                       showDetails={true}
                     />
                   </Col>
@@ -1274,6 +1301,18 @@ const JobMonitor: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Handled Downloads Modal */}
+      {selectedHandledDownloadsJobId && (
+        <HandledDownloadsModal
+          jobId={selectedHandledDownloadsJobId}
+          visible={handledDownloadsModalVisible}
+          onClose={() => {
+            setHandledDownloadsModalVisible(false);
+            setSelectedHandledDownloadsJobId(null);
+          }}
+        />
+      )}
     </div>
   );
 };

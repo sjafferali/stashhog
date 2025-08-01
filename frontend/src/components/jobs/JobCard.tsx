@@ -42,6 +42,7 @@ export interface JobCardProps {
   onPause?: () => void;
   onResume?: () => void;
   onViewRawData?: () => void;
+  onViewProcessedFiles?: () => void;
   compact?: boolean;
   showDetails?: boolean;
 }
@@ -89,6 +90,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onPause,
   onResume: _onResume,
   onViewRawData,
+  onViewProcessedFiles,
   compact = false,
   showDetails = true,
 }) => {
@@ -173,6 +175,25 @@ export const JobCard: React.FC<JobCardProps> = ({
     actions.push(
       <Tooltip key="raw" title="View Raw Data">
         <Button type="text" icon={<CodeOutlined />} onClick={onViewRawData} />
+      </Tooltip>
+    );
+  }
+
+  // Add view processed files button for process_downloads jobs
+  if (
+    onViewProcessedFiles &&
+    job.type === 'process_downloads' &&
+    job.processed_items &&
+    job.processed_items > 0
+  ) {
+    actions.push(
+      <Tooltip key="processed-files" title="View Processed Files">
+        <Button
+          type="text"
+          icon={<FileTextOutlined />}
+          onClick={onViewProcessedFiles}
+          style={{ color: '#722ed1' }}
+        />
       </Tooltip>
     );
   }

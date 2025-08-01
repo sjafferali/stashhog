@@ -183,6 +183,20 @@ class ApiClient {
     return response.data;
   }
 
+  async getJobHandledDownloads(id: string): Promise<{
+    job_id: string;
+    total_downloads: number;
+    downloads: Array<{
+      id: number;
+      timestamp: string;
+      download_name: string;
+      destination_path: string;
+    }>;
+  }> {
+    const response = await api.get(`/jobs/${id}/handled-downloads`);
+    return response.data;
+  }
+
   async runManualCleanup(): Promise<{ job_id: string }> {
     const response = await api.post('/jobs/cleanup');
     return response.data;
