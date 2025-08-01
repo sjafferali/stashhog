@@ -2,6 +2,8 @@
 API routes for daemon management.
 """
 
+import asyncio
+import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -85,6 +87,39 @@ async def _handle_websocket_message(websocket: WebSocket, data: Dict[str, Any]) 
         await websocket.send_json({"type": "error", "message": "Invalid command"})
 
 
+async def _process_websocket_message(websocket: WebSocket) -> bool:
+    """
+    Process a single WebSocket message.
+
+    Returns:
+        bool: True to continue, False to disconnect
+    """
+    try:
+        # Use receive_text with a timeout to handle clients that don't send messages
+        message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+        try:
+            data = json.loads(message)
+            await _handle_websocket_message(websocket, data)
+        except json.JSONDecodeError:
+            logger.debug("Invalid JSON received from WebSocket")
+        return True
+    except asyncio.TimeoutError:
+        # Send a ping to check if client is still connected
+        try:
+            await websocket.send_json({"type": "ping"})
+            return True
+        except Exception:
+            # Connection is dead
+            return False
+    except WebSocketDisconnect:
+        logger.info("Daemon WebSocket client disconnected")
+        return False
+    except Exception as e:
+        logger.debug(f"WebSocket receive error: {e}")
+        # For connection errors, disconnect; for others, continue
+        return "connection" not in str(e).lower()
+
+
 @router.websocket("/ws")
 async def daemon_websocket(websocket: WebSocket):
     """
@@ -102,16 +137,8 @@ async def daemon_websocket(websocket: WebSocket):
     await websocket_manager.connect(websocket)
 
     try:
-        while True:
-            try:
-                data = await websocket.receive_json()
-                await _handle_websocket_message(websocket, data)
-            except WebSocketDisconnect:
-                logger.info("Daemon WebSocket client disconnected")
-                break
-            except Exception as e:
-                logger.debug(f"WebSocket receive error: {e}")
-                continue
+        while await _process_websocket_message(websocket):
+            pass
     except Exception as e:
         logger.error(f"Daemon WebSocket error: {e}")
     finally:

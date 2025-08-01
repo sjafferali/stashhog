@@ -37,7 +37,7 @@ const Daemons: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // WebSocket connection for real-time updates
-  useWebSocket('/api/daemons/ws', {
+  const { sendMessage } = useWebSocket('/api/daemons/ws', {
     onMessage: (data) => {
       const message = data as { type: string; daemon?: Daemon };
       if (message.type === 'daemon_update') {
@@ -45,6 +45,9 @@ const Daemons: React.FC = () => {
         setDaemons((prev) =>
           prev.map((d) => (d.id === message.daemon?.id ? message.daemon : d))
         );
+      } else if (message.type === 'ping') {
+        // Respond to ping with pong to keep connection alive
+        sendMessage({ type: 'pong' });
       }
     },
   });
