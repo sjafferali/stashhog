@@ -28,7 +28,7 @@ from app.schemas.daemon import (
 from app.services.daemon_service import daemon_service
 from app.services.websocket_manager import websocket_manager
 
-router = APIRouter(prefix="/api/daemons", tags=["daemons"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
