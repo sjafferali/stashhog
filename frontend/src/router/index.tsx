@@ -12,6 +12,8 @@ import Jobsv2 from '@/pages/jobs/Jobsv2';
 import Settings from '@/pages/settings/Settings';
 import SyncManagement from '@/pages/sync/SyncManagement';
 import Scheduler from '@/pages/Scheduler';
+import Daemons from '@/pages/daemons/Daemons';
+import DaemonDetail from '@/pages/daemons/DaemonDetail';
 import NotFound from '@/pages/NotFound';
 
 export const routes: RouteObject[] = [
@@ -86,6 +88,19 @@ export const routes: RouteObject[] = [
       {
         path: 'scheduler',
         element: <Scheduler />,
+      },
+      {
+        path: 'daemons',
+        children: [
+          {
+            index: true,
+            element: <Daemons />,
+          },
+          {
+            path: ':daemonId',
+            element: <DaemonDetail />,
+          },
+        ],
       },
     ],
   },

@@ -28,6 +28,9 @@ class WebSocketManager:
         # Store connection metadata
         self.connection_metadata: Dict[WebSocket, Dict] = {}
 
+        # Store daemon subscriptions
+        self.daemon_subscriptions: Dict[str, Set[WebSocket]] = defaultdict(set)
+
     async def connect(self, websocket: WebSocket) -> None:
         """
         Accept a new WebSocket connection.
@@ -53,6 +56,13 @@ class WebSocketManager:
                 self.job_subscriptions[job_id].discard(websocket)
                 if not self.job_subscriptions[job_id]:
                     del self.job_subscriptions[job_id]
+
+        # Remove from daemon subscriptions
+        for daemon_id in list(self.daemon_subscriptions.keys()):
+            if websocket in self.daemon_subscriptions[daemon_id]:
+                self.daemon_subscriptions[daemon_id].discard(websocket)
+                if not self.daemon_subscriptions[daemon_id]:
+                    del self.daemon_subscriptions[daemon_id]
 
         # Clean up metadata
         if websocket in self.connection_metadata:
@@ -191,6 +201,134 @@ class WebSocketManager:
                     disconnected.append(connection)
             except Exception as e:
                 logger.error(f"Error broadcasting job update: {e}")
+                disconnected.append(connection)
+
+        # Clean up disconnected clients
+        for connection in disconnected:
+            await self.disconnect(connection)
+
+    async def subscribe_to_daemon(self, websocket: WebSocket, daemon_id: str) -> None:
+        """
+        Subscribe a WebSocket to daemon updates.
+        """
+        self.daemon_subscriptions[daemon_id].add(websocket)
+        if websocket in self.connection_metadata:
+            self.connection_metadata[websocket]["subscriptions"].add(
+                f"daemon:{daemon_id}"
+            )
+        logger.info(f"WebSocket subscribed to daemon {daemon_id}")
+
+    async def unsubscribe_from_daemon(
+        self, websocket: WebSocket, daemon_id: str
+    ) -> None:
+        """
+        Unsubscribe a WebSocket from daemon updates.
+        """
+        if daemon_id in self.daemon_subscriptions:
+            self.daemon_subscriptions[daemon_id].discard(websocket)
+            if not self.daemon_subscriptions[daemon_id]:
+                del self.daemon_subscriptions[daemon_id]
+
+        if websocket in self.connection_metadata:
+            self.connection_metadata[websocket]["subscriptions"].discard(
+                f"daemon:{daemon_id}"
+            )
+
+        logger.info(f"WebSocket unsubscribed from daemon {daemon_id}")
+
+    async def broadcast_daemon_log(self, daemon_id: str, log: dict) -> None:
+        """
+        Broadcast daemon log to all subscribers.
+        """
+        if daemon_id not in self.daemon_subscriptions:
+            return
+
+        disconnected = []
+        message = {"type": "daemon_log", "daemon_id": daemon_id, "log": log}
+
+        for websocket in self.daemon_subscriptions[daemon_id]:
+            try:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json(message)
+                else:
+                    disconnected.append(websocket)
+            except Exception as e:
+                logger.error(f"Error sending daemon log: {e}")
+                disconnected.append(websocket)
+
+        # Clean up disconnected clients
+        for websocket in disconnected:
+            await self.unsubscribe_from_daemon(websocket, daemon_id)
+            await self.disconnect(websocket)
+
+    async def broadcast_daemon_status(self, daemon_id: str, status: dict) -> None:
+        """
+        Broadcast daemon status update to all subscribers.
+        """
+        if daemon_id not in self.daemon_subscriptions:
+            return
+
+        disconnected = []
+        message = {"type": "daemon_status", "daemon_id": daemon_id, "status": status}
+
+        for websocket in self.daemon_subscriptions[daemon_id]:
+            try:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json(message)
+                else:
+                    disconnected.append(websocket)
+            except Exception as e:
+                logger.error(f"Error sending daemon status: {e}")
+                disconnected.append(websocket)
+
+        # Clean up disconnected clients
+        for websocket in disconnected:
+            await self.unsubscribe_from_daemon(websocket, daemon_id)
+            await self.disconnect(websocket)
+
+    async def broadcast_daemon_job_action(self, daemon_id: str, action: dict) -> None:
+        """
+        Broadcast daemon job action to all subscribers.
+        """
+        if daemon_id not in self.daemon_subscriptions:
+            return
+
+        disconnected = []
+        message = {
+            "type": "daemon_job_action",
+            "daemon_id": daemon_id,
+            "action": action,
+        }
+
+        for websocket in self.daemon_subscriptions[daemon_id]:
+            try:
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json(message)
+                else:
+                    disconnected.append(websocket)
+            except Exception as e:
+                logger.error(f"Error sending daemon job action: {e}")
+                disconnected.append(websocket)
+
+        # Clean up disconnected clients
+        for websocket in disconnected:
+            await self.unsubscribe_from_daemon(websocket, daemon_id)
+            await self.disconnect(websocket)
+
+    async def broadcast_daemon_update(self, daemon: dict) -> None:
+        """
+        Broadcast daemon update to all connected clients (for the daemons list).
+        """
+        update_data = {"type": "daemon_update", "daemon": daemon}
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.send_json(update_data)
+                else:
+                    disconnected.append(connection)
+            except Exception as e:
+                logger.error(f"Error broadcasting daemon update: {e}")
                 disconnected.append(connection)
 
         # Clean up disconnected clients

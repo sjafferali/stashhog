@@ -28,6 +28,7 @@ from app.core.middleware import (
 from app.core.migrations import run_migrations_async
 from app.core.tasks import get_task_queue
 from app.jobs import register_all_jobs
+from app.services.daemon_service import daemon_service
 from app.services.job_service import job_service
 
 # Suppress passlib's crypt deprecation warning in Python 3.11+
@@ -103,6 +104,11 @@ async def _startup_tasks() -> None:
         sync_scheduler.start()
         logger.info("Scheduler started successfully")
 
+        # Initialize daemon service
+        logger.info("Initializing daemon service...")
+        await daemon_service.initialize()
+        logger.info("Daemon service initialized successfully")
+
     # TODO: Test external connections
     # logger.info("Testing external connections...")
     # await test_connections()
@@ -151,6 +157,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             from app.services.sync.scheduler import sync_scheduler
 
             sync_scheduler.shutdown()
+
+            # Shutdown daemon service
+            logger.info("Shutting down daemon service...")
+            await daemon_service.shutdown()
         else:
             logger.info("Skipping worker shutdown in test environment")
 

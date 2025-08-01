@@ -12,6 +12,18 @@ from app.models.associations import scene_performer, scene_tag
 
 # Import base model and database
 from app.models.base import BaseModel
+
+# Import daemon models last since they depend on Job model
+from app.models.daemon import (
+    Daemon,
+    DaemonJobAction,
+    DaemonJobHistory,
+    DaemonLog,
+    DaemonStatus,
+    DaemonType,
+    LogLevel,
+)
+from app.models.handled_download import HandledDownload
 from app.models.job import Job, JobStatus, JobType
 from app.models.performer import Performer
 from app.models.plan_change import ChangeAction, PlanChange
@@ -49,9 +61,17 @@ __all__ = [
     "ScheduledTask",
     "SyncHistory",
     "SyncLog",
+    "Daemon",
+    "DaemonLog",
+    "DaemonJobHistory",
+    "HandledDownload",
     # Enums
     "PlanStatus",
     "ChangeAction",
     "JobStatus",
     "JobType",
+    "DaemonStatus",
+    "DaemonType",
+    "LogLevel",
+    "DaemonJobAction",
 ]

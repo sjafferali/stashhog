@@ -185,11 +185,16 @@ class TestApplicationLifecycle:
                     mock_queue.return_value.start = AsyncMock()
 
                     with patch("app.main.register_all_jobs") as mock_register:
-                        await _startup_tasks()
+                        with patch(
+                            "app.main.daemon_service.initialize"
+                        ) as mock_daemon_init:
+                            mock_daemon_init.return_value = None
+                            await _startup_tasks()
 
                         mock_migrate.assert_called_once()
                         mock_queue.assert_called_once()
                         mock_register.assert_called_once()
+                        mock_daemon_init.assert_called_once()
         finally:
             # Restore test environment variable
             if pytest_test:

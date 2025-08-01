@@ -10,6 +10,7 @@ import {
   SyncOutlined,
   SettingOutlined,
   CalendarOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -76,6 +77,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       key: '/scheduler',
       icon: <CalendarOutlined />,
       label: 'Scheduler',
+    },
+    {
+      key: '/daemons',
+      icon: <ThunderboltOutlined />,
+      label: 'Daemons',
     },
     {
       key: '/settings',
