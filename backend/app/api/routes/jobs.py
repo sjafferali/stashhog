@@ -168,6 +168,47 @@ async def list_jobs(
     return JobsListResponse(jobs=job_responses)
 
 
+@router.get("/recent-processed-torrents")
+async def get_recent_processed_torrents(
+    limit: int = Query(10, le=50, description="Maximum number of torrents to return"),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get recently processed torrents with file counts.
+
+    Returns a summary of the most recently processed torrents, showing:
+    - Torrent name
+    - Number of files processed
+    - When they were processed
+    """
+    # Query to get torrents grouped by download_name with counts
+    query = (
+        select(
+            HandledDownload.download_name,
+            func.count(HandledDownload.id).label("file_count"),
+            func.max(HandledDownload.timestamp).label("latest_timestamp"),
+        )
+        .group_by(HandledDownload.download_name)
+        .order_by(func.max(HandledDownload.timestamp).desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    torrents = result.all()
+
+    return {
+        "total": len(torrents),
+        "torrents": [
+            {
+                "name": torrent.download_name,
+                "file_count": torrent.file_count,
+                "processed_at": torrent.latest_timestamp,
+            }
+            for torrent in torrents
+        ],
+    }
+
+
 @router.get("/{job_id}", response_model=JobDetailResponse)
 async def get_job(
     job_id: str,
@@ -717,46 +758,5 @@ async def get_job_handled_downloads(
                 "destination_path": download.destination_path,
             }
             for download in downloads
-        ],
-    }
-
-
-@router.get("/recent-processed-torrents")
-async def get_recent_processed_torrents(
-    limit: int = Query(10, le=50, description="Maximum number of torrents to return"),
-    db: AsyncSession = Depends(get_db),
-) -> Dict[str, Any]:
-    """
-    Get recently processed torrents with file counts.
-
-    Returns a summary of the most recently processed torrents, showing:
-    - Torrent name
-    - Number of files processed
-    - When they were processed
-    """
-    # Query to get torrents grouped by download_name with counts
-    query = (
-        select(
-            HandledDownload.download_name,
-            func.count(HandledDownload.id).label("file_count"),
-            func.max(HandledDownload.timestamp).label("latest_timestamp"),
-        )
-        .group_by(HandledDownload.download_name)
-        .order_by(func.max(HandledDownload.timestamp).desc())
-        .limit(limit)
-    )
-
-    result = await db.execute(query)
-    torrents = result.all()
-
-    return {
-        "total": len(torrents),
-        "torrents": [
-            {
-                "name": torrent.download_name,
-                "file_count": torrent.file_count,
-                "processed_at": torrent.latest_timestamp,
-            }
-            for torrent in torrents
         ],
     }
