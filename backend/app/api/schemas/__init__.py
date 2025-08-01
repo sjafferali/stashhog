@@ -136,6 +136,7 @@ class JobType(str, Enum):
     STASH_GENERATE = "stash_generate"
     CHECK_STASH_GENERATE = "check_stash_generate"
     PROCESS_NEW_SCENES = "process_new_scenes"
+    TEST = "test"
 
 
 class JobCreate(BaseSchema):

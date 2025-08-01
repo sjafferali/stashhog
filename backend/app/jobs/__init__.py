@@ -6,6 +6,7 @@ from app.jobs.process_new_scenes_job import register_process_new_scenes_job
 from app.jobs.stash_generate_jobs import register_stash_generate_jobs
 from app.jobs.stash_scan_jobs import register_stash_scan_jobs
 from app.jobs.sync_jobs import register_sync_jobs
+from app.jobs.test_jobs import register_test_job_handlers
 from app.services.job_service import JobService
 
 
@@ -23,6 +24,7 @@ def register_all_jobs(job_service: JobService) -> None:
     register_stash_generate_jobs(job_service)
     register_check_stash_generate_jobs(job_service)
     register_process_new_scenes_job(job_service)
+    register_test_job_handlers(job_service)
 
 
 __all__ = ["register_all_jobs"]

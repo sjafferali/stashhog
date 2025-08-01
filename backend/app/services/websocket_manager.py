@@ -211,12 +211,18 @@ class WebSocketManager:
         """
         Subscribe a WebSocket to daemon updates.
         """
+        logger.info(
+            f"subscribe_to_daemon called with daemon_id: {daemon_id} (type: {type(daemon_id)})"
+        )
         self.daemon_subscriptions[daemon_id].add(websocket)
         if websocket in self.connection_metadata:
             self.connection_metadata[websocket]["subscriptions"].add(
                 f"daemon:{daemon_id}"
             )
         logger.info(f"WebSocket subscribed to daemon {daemon_id}")
+        logger.info(
+            f"Current daemon subscriptions after subscribe: {list(self.daemon_subscriptions.keys())}"
+        )
 
     async def unsubscribe_from_daemon(
         self, websocket: WebSocket, daemon_id: str
@@ -240,17 +246,30 @@ class WebSocketManager:
         """
         Broadcast daemon log to all subscribers.
         """
+        logger.info(f"Broadcasting daemon log for daemon_id: {daemon_id}")
+        logger.info(
+            f"Current daemon subscriptions: {list(self.daemon_subscriptions.keys())}"
+        )
+        logger.info(
+            f"Number of subscribers for daemon {daemon_id}: {len(self.daemon_subscriptions.get(daemon_id, set()))}"
+        )
+
         if daemon_id not in self.daemon_subscriptions:
+            logger.warning(f"No subscribers for daemon {daemon_id}")
             return
 
         disconnected = []
         message = {"type": "daemon_log", "daemon_id": daemon_id, "log": log}
+        logger.info(f"Broadcasting message: {message}")
 
         for websocket in self.daemon_subscriptions[daemon_id]:
             try:
                 if websocket.client_state == WebSocketState.CONNECTED:
+                    logger.info(f"Sending daemon log to WebSocket: {websocket}")
                     await websocket.send_json(message)
+                    logger.info("Successfully sent daemon log message")
                 else:
+                    logger.warning(f"WebSocket not connected: {websocket}")
                     disconnected.append(websocket)
             except Exception as e:
                 logger.error(f"Error sending daemon log: {e}")

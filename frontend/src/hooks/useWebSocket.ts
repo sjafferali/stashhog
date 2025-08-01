@@ -52,6 +52,20 @@ export function useWebSocket(
     onMessage,
   } = options;
 
+  // Store callbacks in refs to prevent reconnections when they change
+  const onMessageRef = useRef(onMessage);
+  const onOpenRef = useRef(onOpen);
+  const onCloseRef = useRef(onClose);
+  const onErrorRef = useRef(onError);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onOpenRef.current = onOpen;
+    onCloseRef.current = onClose;
+    onErrorRef.current = onError;
+  }, [onMessage, onOpen, onClose, onError]);
+
   const connect = useCallback(() => {
     if (!endpoint) return;
 
@@ -67,12 +81,12 @@ export function useWebSocket(
       ws.current.onopen = (event) => {
         setReadyState(WebSocket.OPEN);
         reconnectCount.current = 0;
-        onOpen?.(event);
+        onOpenRef.current?.(event);
       };
 
       ws.current.onclose = (event) => {
         setReadyState(WebSocket.CLOSED);
-        onClose?.(event);
+        onCloseRef.current?.(event);
 
         // Attempt to reconnect
         if (
@@ -88,7 +102,7 @@ export function useWebSocket(
       };
 
       ws.current.onerror = (event) => {
-        onError?.(event);
+        onErrorRef.current?.(event);
         void antdMessage.error('WebSocket connection error');
       };
 
@@ -97,7 +111,7 @@ export function useWebSocket(
           const data = JSON.parse(event.data);
           setLastMessage(data);
           setMessage(data);
-          onMessage?.(data);
+          onMessageRef.current?.(data);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }
@@ -105,16 +119,7 @@ export function useWebSocket(
     } catch (error) {
       console.error('Failed to connect WebSocket:', error);
     }
-  }, [
-    endpoint,
-    reconnect,
-    reconnectInterval,
-    reconnectAttempts,
-    onOpen,
-    onClose,
-    onError,
-    onMessage,
-  ]);
+  }, [endpoint, reconnect, reconnectInterval, reconnectAttempts]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeout.current) {

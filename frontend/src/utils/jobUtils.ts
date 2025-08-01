@@ -15,7 +15,8 @@ export type JobType =
   | 'stash_generate'
   | 'check_stash_generate'
   | 'process_downloads'
-  | 'process_new_scenes';
+  | 'process_new_scenes'
+  | 'test';
 
 export const JOB_TYPE_LABELS: Record<string, string> = {
   sync: 'Sync',
@@ -35,6 +36,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   check_stash_generate: 'Check Resource Generation',
   process_downloads: 'Process Downloads',
   process_new_scenes: 'Process New Scenes',
+  test: 'Test Job',
 };
 
 export const JOB_TYPE_COLORS: Record<string, string> = {
@@ -55,6 +57,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   check_stash_generate: 'orange',
   process_downloads: 'geekblue',
   process_new_scenes: 'purple',
+  test: 'cyan',
 };
 
 export const getJobTypeLabel = (type: string): string => {
@@ -141,6 +144,7 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   process_downloads: 'Process downloaded content',
   process_new_scenes:
     'Complete workflow to process newly downloaded scenes through scanning, analysis, and metadata generation',
+  test: 'Test job demonstrating daemon job orchestration',
 };
 
 export const getJobTypeDescription = (type: string): string => {

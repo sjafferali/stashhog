@@ -132,6 +132,10 @@ class BaseDaemon(ABC):
 
     async def log(self, level: LogLevel, message: str):
         """Log a message to the database and broadcast via WebSocket."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         async with AsyncSessionLocal() as db:
             log_entry = DaemonLog(
                 daemon_id=self.daemon_id, level=level.value, message=message
@@ -140,11 +144,15 @@ class BaseDaemon(ABC):
             await db.commit()
 
             # Broadcast via WebSocket (will be implemented in WebSocket manager)
+            logger.info(
+                f"About to broadcast daemon log for daemon_id: {self.daemon_id}"
+            )
             from app.services.websocket_manager import websocket_manager
 
             await websocket_manager.broadcast_daemon_log(
-                daemon_id=self.daemon_id, log=log_entry.to_dict()
+                daemon_id=str(self.daemon_id), log=log_entry.to_dict()
             )
+            logger.info("Finished broadcasting daemon log")
 
     async def update_heartbeat(self):
         """Update the daemon's heartbeat timestamp."""
@@ -172,7 +180,7 @@ class BaseDaemon(ABC):
             from app.services.websocket_manager import websocket_manager
 
             await websocket_manager.broadcast_daemon_job_action(
-                daemon_id=self.daemon_id, action=history.to_dict()
+                daemon_id=str(self.daemon_id), action=history.to_dict()
             )
 
     def get_uptime_seconds(self) -> float:

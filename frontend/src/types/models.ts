@@ -235,7 +235,8 @@ export interface Job {
     | 'cleanup'
     | 'generate_details'
     | 'export'
-    | 'import';
+    | 'import'
+    | 'test';
   status:
     | 'pending'
     | 'running'

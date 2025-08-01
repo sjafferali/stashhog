@@ -132,14 +132,13 @@ class TestDaemon(BaseDaemon):
             async with AsyncSessionLocal() as db:
                 job = Job(
                     id=job_id,
-                    type=JobType.CLEANUP.value,  # Reuse existing type
+                    type=JobType.TEST.value,
                     status=JobStatus.PENDING.value,
-                    name=job_name,
-                    metadata={
+                    job_metadata={
                         "daemon_id": str(self.daemon_id),
                         "iteration": iteration,
-                        "test": True,
                         "created_by": "TestDaemon",
+                        "name": job_name,  # Store name in metadata
                     },
                 )
                 db.add(job)
@@ -180,9 +179,14 @@ class TestDaemon(BaseDaemon):
                     JobStatus.FAILED.value,
                     JobStatus.CANCELLED.value,
                 ]:
+                    job_name = (
+                        job.job_metadata.get("name", job.id)
+                        if job.job_metadata
+                        else job.id
+                    )
                     await self.log(
                         LogLevel.INFO,
-                        f"Monitored job {job.name} completed with status: {job.status}",
+                        f"Monitored job {job_name} completed with status: {job.status}",
                     )
 
                     await self.track_job_action(
