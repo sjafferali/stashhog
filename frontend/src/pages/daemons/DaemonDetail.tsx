@@ -90,15 +90,9 @@ const DaemonDetail: React.FC = () => {
     }
   }, [daemonId]);
 
-  // WebSocket connection for real-time updates
-  const { sendMessage } = useWebSocket('/api/daemons/ws', {
-    onOpen: () => {
-      if (daemonId) {
-        // Subscribe to this daemon's updates
-        sendMessage({ command: 'subscribe', daemon_id: daemonId });
-      }
-    },
-    onMessage: (data) => {
+  // WebSocket message handler - memoized to prevent reconnections
+  const handleWebSocketMessage = useCallback(
+    (data: unknown) => {
       if (paused) return;
 
       const message = data as DaemonWebSocketMessage;
@@ -124,13 +118,26 @@ const DaemonDetail: React.FC = () => {
         setJobHistory((prev) => [message.action, ...prev]);
       }
     },
-    onClose: () => {
-      if (daemonId) {
-        // Unsubscribe when connection closes
-        sendMessage({ command: 'unsubscribe', daemon_id: daemonId });
-      }
-    },
+    [daemonId, paused]
+  );
+
+  // WebSocket connection for real-time updates
+  const { sendMessage } = useWebSocket('/api/daemons/ws', {
+    onMessage: handleWebSocketMessage,
   });
+
+  // Subscribe to daemon updates when component mounts or daemonId changes
+  useEffect(() => {
+    if (daemonId) {
+      // Subscribe to this daemon's updates
+      sendMessage({ command: 'subscribe', daemon_id: daemonId });
+
+      // Cleanup: unsubscribe when component unmounts or daemonId changes
+      return () => {
+        sendMessage({ command: 'unsubscribe', daemon_id: daemonId });
+      };
+    }
+  }, [daemonId, sendMessage]);
 
   useEffect(() => {
     if (daemonId) {
