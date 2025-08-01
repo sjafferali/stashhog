@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import sqltypes
 
+from app.core.database import Base
 from app.models.base import BaseModel
 
 
@@ -90,7 +91,7 @@ class Daemon(BaseModel):
         }
 
 
-class DaemonLog(BaseModel):
+class DaemonLog(Base):
     __tablename__: str = "daemon_logs"  # type: ignore[assignment]
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -114,7 +115,7 @@ class DaemonLog(BaseModel):
         }
 
 
-class DaemonJobHistory(BaseModel):
+class DaemonJobHistory(Base):
     __tablename__: str = "daemon_job_history"  # type: ignore[assignment]
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
