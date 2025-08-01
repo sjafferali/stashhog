@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.core.tasks import TaskStatus, get_task_queue
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
+from app.models.handled_download import HandledDownload
 from app.models.job import Job, JobStatus, JobType
 from app.services.job_service import JobService
 
@@ -66,6 +67,32 @@ async def _cleanup_old_jobs(db: Any, current_time: datetime) -> int:
         logger.info(f"Deleted {old_jobs_deleted} old completed jobs")
 
     return old_jobs_deleted
+
+
+async def _cleanup_old_handled_downloads(db: Any, current_time: datetime) -> int:
+    """Delete old handled_downloads entries (older than 14 days)."""
+    old_download_cutoff = current_time - timedelta(days=14)
+    old_downloads_query = select(HandledDownload).where(
+        HandledDownload.timestamp < old_download_cutoff
+    )
+    old_downloads_result = await db.execute(old_downloads_query)
+    old_downloads = old_downloads_result.scalars().all()
+
+    old_downloads_deleted = 0
+    for old_download in old_downloads:
+        try:
+            await db.delete(old_download)
+            old_downloads_deleted += 1
+        except Exception as e:
+            logger.error(
+                f"Error deleting old handled_download {old_download.id}: {str(e)}"
+            )
+
+    if old_downloads_deleted > 0:
+        await db.commit()
+        logger.info(f"Deleted {old_downloads_deleted} old handled_downloads entries")
+
+    return old_downloads_deleted
 
 
 async def _cleanup_stuck_pending_plans(
@@ -232,12 +259,16 @@ async def _finalize_cleanup(
     db: AsyncSession,
     current_time: datetime,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
-) -> tuple[int, int, Optional[str]]:
-    """Finalize cleanup by deleting old jobs and updating stuck plans."""
+) -> tuple[int, int, int, Optional[str]]:
+    """Finalize cleanup by deleting old jobs, handled downloads, and updating stuck plans."""
     await progress_callback(90, "Finalizing cleanup...")
 
     # Cleanup old completed jobs
     old_jobs_deleted = await _cleanup_old_jobs(db, current_time)
+
+    # Cleanup old handled_downloads entries
+    await progress_callback(92, "Cleaning up old download logs...")
+    old_downloads_deleted = await _cleanup_old_handled_downloads(db, current_time)
 
     # Progress: Cleaning up stuck pending plans
     await progress_callback(95, "Cleaning up stuck pending plans...")
@@ -245,7 +276,12 @@ async def _finalize_cleanup(
         db, current_time
     )
 
-    return old_jobs_deleted, stuck_plans_updated, stuck_plans_error
+    return (
+        old_jobs_deleted,
+        old_downloads_deleted,
+        stuck_plans_updated,
+        stuck_plans_error,
+    )
 
 
 async def cleanup_stale_jobs(
@@ -255,8 +291,8 @@ async def cleanup_stale_jobs(
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
-    Cleanup stale jobs that are marked as running but have exceeded their timeout
-    and cleanup stuck pending plans.
+    Cleanup stale jobs that are marked as running but have exceeded their timeout,
+    cleanup stuck pending plans, and purge old download logs.
 
     This job will:
     1. Find all jobs marked as RUNNING or PENDING
@@ -264,8 +300,9 @@ async def cleanup_stale_jobs(
     3. Check if the associated task is actually running
     4. Update the job status accordingly
     5. Delete old completed jobs (older than 30 days)
-    6. Find plans stuck in PENDING status where the associated job is no longer running
-    7. Update stuck PENDING plans to DRAFT status
+    6. Delete old handled_downloads entries (older than 14 days)
+    7. Find plans stuck in PENDING status where the associated job is no longer running
+    8. Update stuck PENDING plans to DRAFT status
     """
     logger.info(f"Starting cleanup job {job_id}")
 
@@ -300,9 +337,12 @@ async def cleanup_stale_jobs(
             await db.commit()
 
             # Finalize cleanup
-            old_jobs_deleted, stuck_plans_updated, stuck_plans_error = (
-                await _finalize_cleanup(db, current_time, progress_callback)
-            )
+            (
+                old_jobs_deleted,
+                old_downloads_deleted,
+                stuck_plans_updated,
+                stuck_plans_error,
+            ) = await _finalize_cleanup(db, current_time, progress_callback)
 
             if stuck_plans_error:
                 errors.append(
@@ -317,6 +357,7 @@ async def cleanup_stale_jobs(
                 "cleaned_jobs": len(cleaned_jobs),
                 "cleaned_job_details": cleaned_jobs,
                 "old_jobs_deleted": old_jobs_deleted,
+                "old_downloads_deleted": old_downloads_deleted,
                 "stuck_plans_updated": stuck_plans_updated,
                 "errors": errors,
                 "status": "completed_with_errors" if errors else "completed",

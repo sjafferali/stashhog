@@ -132,7 +132,7 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   generate_details: 'Generate scene details with AI',
   export: 'Export data',
   import: 'Import data',
-  cleanup: 'Clean up old jobs and data',
+  cleanup: 'Clean up old jobs, stuck plans, and download logs',
   settings_test: 'Test system settings',
   stash_scan: 'Scan and update metadata in Stash library',
   stash_generate:

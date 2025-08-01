@@ -202,6 +202,20 @@ class ApiClient {
     return response.data;
   }
 
+  async getRecentProcessedTorrents(limit?: number): Promise<{
+    total: number;
+    torrents: Array<{
+      name: string;
+      file_count: number;
+      processed_at: string;
+    }>;
+  }> {
+    const response = await api.get('/jobs/recent-processed-torrents', {
+      params: { limit },
+    });
+    return response.data;
+  }
+
   async runJob(
     jobType: string,
     metadata?: Record<string, unknown>

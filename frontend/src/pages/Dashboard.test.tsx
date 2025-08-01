@@ -11,6 +11,11 @@ const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
 describe('Dashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock getRecentProcessedTorrents to return empty array by default
+    mockApiClient.getRecentProcessedTorrents.mockResolvedValue({
+      total: 0,
+      torrents: [],
+    });
   });
 
   it('renders dashboard title', async () => {

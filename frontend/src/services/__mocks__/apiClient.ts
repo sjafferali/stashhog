@@ -34,12 +34,20 @@ const apiClient = {
   analyzeScenes: jest.fn(),
   getAnalysisResults: jest.fn(),
   getAnalysisStats: jest.fn(),
+  applyAllApprovedChanges: jest.fn(),
 
   // Jobs
   getJobs: jest.fn(),
   getJob: jest.fn(),
   cancelJob: jest.fn(),
   retryJob: jest.fn(),
+  getJobHandledDownloads: jest.fn(),
+  runManualCleanup: jest.fn(),
+  getRecentProcessedTorrents: jest.fn().mockResolvedValue({
+    total: 0,
+    torrents: [],
+  }),
+  runJob: jest.fn(),
 
   // Settings
   getSettings: jest.fn(),

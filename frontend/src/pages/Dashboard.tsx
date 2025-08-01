@@ -42,11 +42,18 @@ dayjs.extend(relativeTime);
 
 const { Title, Text, Paragraph } = Typography;
 
+interface ProcessedTorrent {
+  name: string;
+  file_count: number;
+  processed_at: string;
+}
+
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<SyncStatus | null>(null);
   const [syncingScenes, setSyncingScenes] = useState(false);
   const [analyzingScenes] = useState(false);
+  const [recentTorrents, setRecentTorrents] = useState<ProcessedTorrent[]>([]);
   const navigate = useNavigate();
 
   const fetchStats = async () => {
@@ -58,11 +65,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const fetchRecentTorrents = async () => {
+    try {
+      const data = await apiClient.getRecentProcessedTorrents(10);
+      setRecentTorrents(data.torrents);
+    } catch (error) {
+      console.error('Failed to fetch recent torrents:', error);
+    }
+  };
+
   useEffect(() => {
     const loadInitialStats = async () => {
       try {
         setLoading(true);
-        await fetchStats();
+        await Promise.all([fetchStats(), fetchRecentTorrents()]);
       } finally {
         setLoading(false);
       }
@@ -562,6 +578,37 @@ const Dashboard: React.FC = () => {
               </Col>
             )}
           </Row>
+        </Card>
+      )}
+
+      {/* Recently Processed Torrents */}
+      {recentTorrents.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <PlayCircleOutlined />
+              Recently Processed Torrents
+            </Space>
+          }
+          style={{ marginTop: 24 }}
+        >
+          <Timeline
+            items={recentTorrents.map((torrent) => ({
+              color: 'green',
+              dot: <CheckCircleOutlined />,
+              children: (
+                <Space direction="vertical">
+                  <Space>
+                    <Text strong>{torrent.name}</Text>
+                    <Tag color="blue">{torrent.file_count} files</Tag>
+                  </Space>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Processed {dayjs(torrent.processed_at).fromNow()}
+                  </Text>
+                </Space>
+              ),
+            }))}
+          />
         </Card>
       )}
     </div>
