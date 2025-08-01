@@ -4,7 +4,7 @@ API routes for daemon management.
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.daemon import LogLevel
 from app.schemas.daemon import (
+    DaemonHealthItem,
     DaemonHealthResponse,
     DaemonJobHistoryResponse,
     DaemonLogResponse,
@@ -43,7 +44,44 @@ async def get_daemons(db: AsyncSession = Depends(get_db)):
 async def check_daemon_health(db: AsyncSession = Depends(get_db)):
     """Check health of all daemons."""
     health_status = await daemon_service.check_daemon_health(db)
-    return DaemonHealthResponse(**health_status)
+
+    # Convert dictionaries to DaemonHealthItem objects
+    return DaemonHealthResponse(
+        healthy=[DaemonHealthItem(**item) for item in health_status["healthy"]],
+        unhealthy=[DaemonHealthItem(**item) for item in health_status["unhealthy"]],
+        stopped=[DaemonHealthItem(**item) for item in health_status["stopped"]],
+    )
+
+
+async def _handle_daemon_subscribe(websocket: WebSocket, daemon_id: str) -> None:
+    """Handle daemon subscription command."""
+    await websocket_manager.subscribe_to_daemon(websocket, daemon_id)
+    await websocket.send_json(
+        {"type": "subscription_confirmed", "daemon_id": daemon_id}
+    )
+
+
+async def _handle_daemon_unsubscribe(websocket: WebSocket, daemon_id: str) -> None:
+    """Handle daemon unsubscription command."""
+    await websocket_manager.unsubscribe_from_daemon(websocket, daemon_id)
+    await websocket.send_json(
+        {"type": "unsubscription_confirmed", "daemon_id": daemon_id}
+    )
+
+
+async def _handle_websocket_message(websocket: WebSocket, data: Dict[str, Any]) -> None:
+    """Handle incoming WebSocket message."""
+    command = data.get("command")
+    daemon_id = data.get("daemon_id")
+
+    if command == "subscribe" and daemon_id:
+        await _handle_daemon_subscribe(websocket, daemon_id)
+    elif command == "unsubscribe" and daemon_id:
+        await _handle_daemon_unsubscribe(websocket, daemon_id)
+    elif data.get("type") == "ping":
+        await websocket.send_json({"type": "pong"})
+    elif command:
+        await websocket.send_json({"type": "error", "message": "Invalid command"})
 
 
 @router.websocket("/ws")
@@ -64,32 +102,19 @@ async def daemon_websocket(websocket: WebSocket):
 
     try:
         while True:
-            # Wait for messages from the client
-            data = await websocket.receive_json()
-
-            command = data.get("command")
-            daemon_id = data.get("daemon_id")
-
-            if command == "subscribe" and daemon_id:
-                await websocket_manager.subscribe_to_daemon(websocket, daemon_id)
-                await websocket.send_json(
-                    {"type": "subscription_confirmed", "daemon_id": daemon_id}
-                )
-
-            elif command == "unsubscribe" and daemon_id:
-                await websocket_manager.unsubscribe_from_daemon(websocket, daemon_id)
-                await websocket.send_json(
-                    {"type": "unsubscription_confirmed", "daemon_id": daemon_id}
-                )
-
-            else:
-                await websocket.send_json(
-                    {"type": "error", "message": "Invalid command"}
-                )
-
-    except WebSocketDisconnect:
+            try:
+                data = await websocket.receive_json()
+                await _handle_websocket_message(websocket, data)
+            except WebSocketDisconnect:
+                logger.info("Daemon WebSocket client disconnected")
+                break
+            except Exception as e:
+                logger.debug(f"WebSocket receive error: {e}")
+                continue
+    except Exception as e:
+        logger.error(f"Daemon WebSocket error: {e}")
+    finally:
         await websocket_manager.disconnect(websocket)
-        logger.info("Daemon WebSocket client disconnected")
 
 
 @router.get("/{daemon_id}", response_model=DaemonResponse)
