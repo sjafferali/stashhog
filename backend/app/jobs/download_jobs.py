@@ -6,7 +6,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import qbittorrentapi
 
+from app.core.database import AsyncSessionLocal
 from app.core.settings_loader import load_settings_with_db_overrides
+from app.models.handled_download import HandledDownload
 from app.models.job import JobType
 from app.services.job_service import JobService
 
@@ -27,22 +29,90 @@ def _initialize_result(job_id: str, total_items: int) -> Dict[str, Any]:
     }
 
 
-def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> bool:
+async def _record_handled_download(
+    download_name: str, destination_path: str, job_id: str
+) -> None:
+    """Record a handled download in the database.
+
+    Creates its own database session to avoid greenlet errors.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            handled_download = HandledDownload(
+                download_name=download_name,
+                destination_path=destination_path,
+                job_id=job_id,
+            )
+            db.add(handled_download)
+            await db.commit()
+            logger.debug(
+                f"Recorded handled download: {download_name} -> {destination_path}"
+            )
+    except Exception as e:
+        logger.error(f"Failed to record handled download: {str(e)}", exc_info=True)
+        # Don't fail the whole job just because we couldn't log the download
+
+
+def _add_synced_tag(torrent: Any) -> None:
+    """Add 'synced' tag to torrent."""
+    try:
+        logger.debug(f"Adding 'synced' tag to torrent: {torrent.name}")
+        torrent.add_tags("synced")
+        logger.info(f"Successfully synced torrent: {torrent.name}")
+    except Exception as e:
+        logger.error(
+            f"Failed to add 'synced' tag to torrent '{torrent.name}': {str(e)}"
+        )
+        # Don't fail the whole process just because we couldn't add a tag
+        logger.warning("Continuing despite tag addition failure")
+
+
+def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
+    """Copy torrent content when hardlinking fails.
+
+    Returns:
+        List of paths that were successfully copied.
+    """
+    copied_files: List[Path] = []
+
+    if content_path.is_file():
+        if not dest_path.exists():
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(content_path, dest_path)
+            copied_files.append(dest_path)
+            logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
+        else:
+            logger.info(f"Destination already exists during copy fallback: {dest_path}")
+    else:
+        # For directory copy, track all copied files
+        for src_file in content_path.rglob("*"):
+            if src_file.is_file():
+                rel_path = src_file.relative_to(content_path)
+                dst_file = dest_path / rel_path
+                if not dst_file.exists():
+                    copied_files.append(dst_file)
+        shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
+        logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
+
+    return copied_files
+
+
+def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     """Hardlink torrent content to destination.
 
     Returns:
-        True if any new files were linked, False if all files already existed.
+        List of paths that were successfully linked.
     """
-    any_new_files = False
+    linked_files: List[Path] = []
 
     if content_path.is_file():
         # Single file torrent
         if dest_path.exists():
             logger.debug(f"Destination file already exists: {dest_path}")
-            return False
+            return linked_files
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         os.link(content_path, dest_path)
-        any_new_files = True
+        linked_files.append(dest_path)
     else:
         # Directory torrent - hardlink each file individually
         for src_file in content_path.rglob("*"):
@@ -56,13 +126,13 @@ def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> bool:
 
                 dst_file.parent.mkdir(parents=True, exist_ok=True)
                 os.link(src_file, dst_file)
-                any_new_files = True
+                linked_files.append(dst_file)
 
-    return any_new_files
+    return linked_files
 
 
-def _process_single_torrent(
-    torrent: Any, dest_base: Path, result: Dict[str, Any]
+async def _process_single_torrent(
+    torrent: Any, dest_base: Path, result: Dict[str, Any], job_id: str
 ) -> None:
     """Process a single torrent."""
     logger.info(f"Processing torrent: {torrent.name}")
@@ -89,10 +159,13 @@ def _process_single_torrent(
 
     # Hardlink files/directories
     logger.info(f"Hardlinking from {content_path} to {dest_path}")
+    linked_files: List[Path] = []
     try:
-        created_new_files = _hardlink_torrent_content(content_path, dest_path)
-        if created_new_files:
-            logger.debug(f"Successfully hardlinked {content_path} to {dest_path}")
+        linked_files = _hardlink_torrent_content(content_path, dest_path)
+        if linked_files:
+            logger.debug(
+                f"Successfully hardlinked {len(linked_files)} files from {content_path} to {dest_path}"
+            )
         else:
             logger.info(
                 f"All files already exist for {torrent.name}, skipping hardlink"
@@ -102,37 +175,18 @@ def _process_single_torrent(
             logger.warning(
                 f"Cross-filesystem hardlink failed, falling back to copy: {e}"
             )
-            # Fall back to regular copy if hardlink fails (different filesystems)
-            if content_path.is_file():
-                if not dest_path.exists():
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(content_path, dest_path)
-                    logger.info(
-                        f"Successfully copied {content_path} to {dest_path} (fallback)"
-                    )
-                else:
-                    logger.info(
-                        f"Destination already exists during copy fallback: {dest_path}"
-                    )
-            else:
-                shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
-                logger.info(
-                    f"Successfully copied {content_path} to {dest_path} (fallback)"
-                )
+            linked_files = _copy_torrent_content(content_path, dest_path)
         else:
             raise
 
-    # Add "synced" tag to torrent
-    try:
-        logger.debug(f"Adding 'synced' tag to torrent: {torrent.name}")
-        torrent.add_tags("synced")
-        logger.info(f"Successfully synced torrent: {torrent.name}")
-    except Exception as e:
-        logger.error(
-            f"Failed to add 'synced' tag to torrent '{torrent.name}': {str(e)}"
+    # Record each linked/copied file in the database
+    for file_path in linked_files:
+        await _record_handled_download(
+            download_name=file_path.name, destination_path=str(file_path), job_id=job_id
         )
-        # Don't fail the whole process just because we couldn't add a tag
-        logger.warning("Continuing despite tag addition failure")
+
+    # Add "synced" tag to torrent
+    _add_synced_tag(torrent)
 
     result["synced_items"] += 1
     result["processed_items"] += 1
@@ -241,7 +295,7 @@ async def _process_torrents(
         )
 
         try:
-            _process_single_torrent(torrent, dest_base, result)
+            await _process_single_torrent(torrent, dest_base, result, result["job_id"])
         except Exception as e:
             logger.error(f"Error processing torrent '{torrent.name}': {str(e)}")
             result["failed_items"] += 1
