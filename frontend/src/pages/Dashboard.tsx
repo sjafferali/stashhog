@@ -31,6 +31,7 @@ import {
   LoadingOutlined,
   ExclamationCircleOutlined,
   StopOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
@@ -50,9 +51,11 @@ interface ProcessedTorrent {
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<SyncStatus | null>(null);
   const [syncingScenes, setSyncingScenes] = useState(false);
   const [analyzingScenes] = useState(false);
+  const [processingDownloads, setProcessingDownloads] = useState(false);
   const [recentTorrents, setRecentTorrents] = useState<ProcessedTorrent[]>([]);
   const navigate = useNavigate();
 
@@ -86,6 +89,15 @@ const Dashboard: React.FC = () => {
 
     void loadInitialStats();
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchStats(), fetchRecentTorrents()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Auto-refresh when there are running jobs
   useEffect(() => {
@@ -127,6 +139,19 @@ const Dashboard: React.FC = () => {
 
       case 'analyze_videos':
         void navigate('/analysis/generate?video_analysis=true');
+        break;
+
+      case 'process_downloads':
+        setProcessingDownloads(true);
+        try {
+          await apiClient.processDownloads();
+          // Refresh stats after processing
+          await fetchStats();
+        } catch (error) {
+          console.error('Failed to start download processing:', error);
+        } finally {
+          setProcessingDownloads(false);
+        }
         break;
     }
   };
@@ -187,6 +212,8 @@ const Dashboard: React.FC = () => {
         return 'Scene Analysis';
       case 'apply_plan':
         return 'Apply Analysis Plan';
+      case 'process_downloads':
+        return 'Process Downloads';
       default:
         return type;
     }
@@ -221,7 +248,25 @@ const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>Dashboard</Title>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}
+      >
+        <Title level={2} style={{ margin: 0 }}>
+          Dashboard
+        </Title>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => void handleRefresh()}
+          loading={refreshing}
+        >
+          Refresh
+        </Button>
+      </div>
 
       {/* Summary Statistics */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -351,7 +396,9 @@ const Dashboard: React.FC = () => {
                       icon={getActionIcon(item.type)}
                       loading={
                         (item.action === 'sync_scenes' && syncingScenes) ||
-                        (item.action === 'analyze_scenes' && analyzingScenes)
+                        (item.action === 'analyze_scenes' && analyzingScenes) ||
+                        (item.action === 'process_downloads' &&
+                          processingDownloads)
                       }
                       onClick={() => void handleAction(item)}
                     >

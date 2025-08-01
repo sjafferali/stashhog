@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.job import JobStatus, JobType
+from app.services.download_check_service import download_check_service
 from app.services.job_service import JobService
 from app.services.stash_service import StashService
 from app.services.sync.models import SyncError, SyncResult, SyncStatus
@@ -535,6 +536,14 @@ class TestStopSyncEndpoint:
 class TestSyncStatsEndpoint:
     """Tests for the sync stats endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_download_service(self):
+        """Mock download check service for all tests in this class."""
+        # Mock the download check service's method
+        download_check_service.get_pending_downloads_count = AsyncMock(return_value=0)
+        yield
+        # No cleanup needed since we're just modifying the method
+
     def test_get_sync_stats_no_history(self, client, mock_db, mock_stash_service):
         """Test getting sync stats with no sync history."""
         # Mock database calls
@@ -544,28 +553,35 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
-            # Entity counts (scene, performer, tag, studio) - 4 calls
+            # Set up default mocks to prevent errors
+            mock_scalars = Mock()
+            mock_scalars.all.return_value = []
+            result.scalars.return_value = mock_scalars
+            result.scalar_one.return_value = 0
+            result.scalar_one_or_none.return_value = None
+
+            # Entity counts (scene, performer, tag, studio) - calls 0-3
             if call_count < 4:
                 result.scalar_one.return_value = 0
-            # Sync history queries - 4 calls
+            # Sync history queries - calls 4-7
             elif call_count < 8:
                 result.scalar_one_or_none.return_value = None
-            # Active sync jobs query - 1 call
+            # Active sync jobs query - call 8 (SELECT job...)
             elif call_count == 8:
-                result.scalars.return_value.all.return_value = []
-            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
-            elif call_count < 12:
+                mock_scalars.all.return_value = []
+            # Analysis metrics - calls 9-12
+            elif call_count < 13:
                 result.scalar_one.return_value = 0
-            # Plan counts (draft, reviewing) - 2 calls
-            elif call_count < 14:
+            # Active analysis jobs - call 13 (SELECT job...)
+            elif call_count == 13:
+                mock_scalars.all.return_value = []
+            # Organization/metadata metrics - calls 14-19
+            elif call_count < 20:
                 result.scalar_one.return_value = 0
-            # Active analysis jobs - 1 call
-            elif call_count == 14:
-                result.scalars.return_value.all.return_value = []
-            # Running/completed jobs queries - 2 calls
-            elif call_count < 17:
-                result.scalars.return_value.all.return_value = []
-            # All remaining count queries - rest of calls
+            # Running/completed jobs - calls 20-21 (SELECT job...)
+            elif call_count < 22:
+                mock_scalars.all.return_value = []
+            # Failed jobs count - call 22+
             else:
                 result.scalar_one.return_value = 0
 
@@ -611,6 +627,13 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
+            # Set up default mocks first to prevent errors
+            mock_scalars = Mock()
+            mock_scalars.all.return_value = []
+            result.scalars.return_value = mock_scalars
+            result.scalar_one.return_value = 0
+            result.scalar_one_or_none.return_value = None
+
             # Entity counts (scene, performer, tag, studio) - 4 calls
             if call_count < 4:
                 counts = [100, 50, 200, 30]  # scene, performer, tag, studio counts
@@ -620,16 +643,6 @@ class TestSyncStatsEndpoint:
                 entity_types = ["scene", "performer", "tag", "studio"]
                 history = create_history_mock(entity_types[call_count - 4])
                 result.scalar_one_or_none.return_value = history
-            # Active sync jobs query - 1 call
-            elif call_count == 8:
-                result.scalars.return_value.all.return_value = []
-            # Analysis metrics and other counts - rest of calls
-            elif call_count < 17:
-                result.scalar_one.return_value = 0
-                result.scalars.return_value.all.return_value = []
-            # All remaining count queries
-            else:
-                result.scalar_one.return_value = 0
 
             call_count += 1
             return result
@@ -667,6 +680,13 @@ class TestSyncStatsEndpoint:
             nonlocal call_count
             result = Mock()
 
+            # Set up default mocks first to prevent errors
+            mock_scalars = Mock()
+            mock_scalars.all.return_value = []
+            result.scalars.return_value = mock_scalars
+            result.scalar_one.return_value = 0
+            result.scalar_one_or_none.return_value = None
+
             # Entity counts (scene, performer, tag, studio) - 4 calls
             if call_count < 4:
                 result.scalar_one.return_value = 0
@@ -676,9 +696,18 @@ class TestSyncStatsEndpoint:
             # Active sync jobs query - 1 call
             elif call_count == 8:
                 active_job = Mock()
+                active_job.id = "job-123"
                 active_job.type = JobType.SYNC
                 active_job.status = JobStatus.RUNNING
-                result.scalars.return_value.all.return_value = [active_job]
+                active_job.progress = 50
+                active_job.created_at = datetime.now(timezone.utc)
+                active_job.completed_at = None
+                active_job.error = None
+                active_job.result = {}
+                active_job.job_metadata = {}
+                mock_scalars = Mock()
+                mock_scalars.all.return_value = [active_job]
+                result.scalars.return_value = mock_scalars
             # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
             elif call_count < 12:
                 result.scalar_one.return_value = 0
@@ -687,13 +716,39 @@ class TestSyncStatsEndpoint:
                 result.scalar_one.return_value = 0
             # Active analysis jobs - 1 call
             elif call_count == 14:
-                result.scalars.return_value.all.return_value = []
+                mock_scalars = Mock()
+                mock_scalars.all.return_value = []
+                result.scalars.return_value = mock_scalars
             # Running/completed jobs queries - 2 calls
             elif call_count < 17:
-                result.scalars.return_value.all.return_value = []
-            # All remaining count queries - rest of calls
+                # Return mock that has all() method
+                mock_scalars = Mock()
+                if call_count == 15:  # First is running jobs query
+                    # Return the active job created earlier
+                    active_job = Mock()
+                    active_job.id = "job-123"
+                    active_job.type = JobType.SYNC
+                    active_job.status = JobStatus.RUNNING
+                    active_job.progress = 50
+                    active_job.created_at = datetime.now(timezone.utc)
+                    active_job.completed_at = None
+                    active_job.error = None
+                    active_job.result = {}
+                    active_job.job_metadata = {}
+                    mock_scalars.all.return_value = [active_job]
+                else:
+                    # Second is completed jobs query - empty
+                    mock_scalars.all.return_value = []
+                result.scalars.return_value = mock_scalars
+            # All remaining queries - rest of calls
             else:
+                # Default mock setup for scalars queries
+                mock_scalars = Mock()
+                mock_scalars.all.return_value = []
+                result.scalars.return_value = mock_scalars
+                # And for scalar queries
                 result.scalar_one.return_value = 0
+                result.scalar_one_or_none.return_value = None
 
             call_count += 1
             return result
@@ -706,6 +761,42 @@ class TestSyncStatsEndpoint:
         data = response.json()
 
         assert data["sync"]["is_syncing"] is True
+
+    def _create_mock_result(
+        self, scalar_value=0, scalars_value=None, scalar_one_or_none_value=None
+    ):
+        """Helper to create a mock result with common defaults."""
+        result = Mock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = scalars_value or []
+        result.scalars.return_value = mock_scalars
+        result.scalar_one.return_value = scalar_value
+        result.scalar_one_or_none.return_value = scalar_one_or_none_value
+        return result
+
+    def _handle_query_response(self, call_count, history):
+        """Handle query response based on call count."""
+        # Entity counts (0-3), analysis metrics (9-11), plan counts (12-13),
+        # organization status (15), metadata status (16-20), failed jobs (23)
+        if call_count in list(range(4)) + list(range(9, 12)) + list(range(12, 14)) + [
+            15
+        ] + list(range(16, 21)) + [23]:
+            return self._create_mock_result(scalar_value=0)
+
+        # First sync history call for scene
+        if call_count == 4:
+            return self._create_mock_result(scalar_one_or_none_value=history)
+
+        # Other entity histories (5-7)
+        if 5 <= call_count <= 7:
+            return self._create_mock_result()
+
+        # Active sync jobs (8), active analysis jobs (14), running jobs (21), completed jobs (22)
+        if call_count in [8, 14, 21, 22]:
+            return self._create_mock_result()
+
+        # Default case
+        return self._create_mock_result()
 
     def test_get_sync_stats_stash_error_fallback(
         self, client, mock_db, mock_stash_service
@@ -722,35 +813,7 @@ class TestSyncStatsEndpoint:
 
         def mock_execute(query):
             nonlocal call_count
-            result = Mock()
-
-            # Entity counts (scene, performer, tag, studio) - 4 calls
-            if call_count < 4:
-                result.scalar_one.return_value = 0
-            # Sync history queries - 4 calls
-            elif call_count == 4:  # First sync history call for scene
-                result.scalar_one_or_none.return_value = history
-            elif call_count < 8:  # Other entity histories
-                result.scalar_one_or_none.return_value = None
-            # Active sync jobs query - 1 call
-            elif call_count == 8:
-                result.scalars.return_value.all.return_value = []
-            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
-            elif call_count < 12:
-                result.scalar_one.return_value = 0
-            # Plan counts (draft, reviewing) - 2 calls
-            elif call_count < 14:
-                result.scalar_one.return_value = 0
-            # Active analysis jobs - 1 call
-            elif call_count == 14:
-                result.scalars.return_value.all.return_value = []
-            # Running/completed jobs queries - 2 calls
-            elif call_count < 17:
-                result.scalars.return_value.all.return_value = []
-            # All remaining count queries - rest of calls
-            else:
-                result.scalar_one.return_value = 0
-
+            result = self._handle_query_response(call_count, history)
             call_count += 1
             return result
 

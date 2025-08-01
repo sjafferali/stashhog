@@ -312,6 +312,11 @@ class ApiClient {
     await api.post('/sync/stop');
   }
 
+  async processDownloads(): Promise<Job> {
+    const response = await api.post('/sync/downloads');
+    return response.data;
+  }
+
   async getSyncHistory(params?: FilterParams): Promise<PaginatedResponse<Job>> {
     const response = await api.get('/sync/history', { params });
     return response.data;

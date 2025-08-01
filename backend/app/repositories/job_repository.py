@@ -64,6 +64,15 @@ class JobRepository:
             job.progress = progress  # type: ignore[assignment]
         if result is not None:
             job.result = result  # type: ignore[assignment]
+            # Extract processed_items from result if available
+            if isinstance(result, dict) and "processed_items" in result:
+                job.processed_items = result["processed_items"]  # type: ignore[assignment]
+                logger.debug(
+                    f"Updated job {job.id} processed_items to {result['processed_items']}"
+                )
+            # Also extract total_items if available
+            if isinstance(result, dict) and "total_items" in result:
+                job.total_items = result["total_items"]  # type: ignore[assignment]
         if error is not None:
             job.error = error  # type: ignore[assignment]
         if message is not None:
