@@ -39,6 +39,59 @@ async def get_daemons(db: AsyncSession = Depends(get_db)):
     return [DaemonResponse.from_orm(daemon) for daemon in daemons]
 
 
+@router.get("/health/check", response_model=DaemonHealthResponse)
+async def check_daemon_health(db: AsyncSession = Depends(get_db)):
+    """Check health of all daemons."""
+    health_status = await daemon_service.check_daemon_health(db)
+    return DaemonHealthResponse(**health_status)
+
+
+@router.websocket("/ws")
+async def daemon_websocket(websocket: WebSocket):
+    """
+    WebSocket for real-time updates of all daemons.
+
+    Message types sent:
+    - daemon_update: Daemon status changes
+    - daemon_log: Log messages (when subscribed to specific daemon)
+    - daemon_job_action: Job actions (when subscribed to specific daemon)
+
+    Commands accepted:
+    - {"command": "subscribe", "daemon_id": "<id>"} - Subscribe to specific daemon
+    - {"command": "unsubscribe", "daemon_id": "<id>"} - Unsubscribe from daemon
+    """
+    await websocket_manager.connect(websocket)
+
+    try:
+        while True:
+            # Wait for messages from the client
+            data = await websocket.receive_json()
+
+            command = data.get("command")
+            daemon_id = data.get("daemon_id")
+
+            if command == "subscribe" and daemon_id:
+                await websocket_manager.subscribe_to_daemon(websocket, daemon_id)
+                await websocket.send_json(
+                    {"type": "subscription_confirmed", "daemon_id": daemon_id}
+                )
+
+            elif command == "unsubscribe" and daemon_id:
+                await websocket_manager.unsubscribe_from_daemon(websocket, daemon_id)
+                await websocket.send_json(
+                    {"type": "unsubscription_confirmed", "daemon_id": daemon_id}
+                )
+
+            else:
+                await websocket.send_json(
+                    {"type": "error", "message": "Invalid command"}
+                )
+
+    except WebSocketDisconnect:
+        await websocket_manager.disconnect(websocket)
+        logger.info("Daemon WebSocket client disconnected")
+
+
 @router.get("/{daemon_id}", response_model=DaemonResponse)
 async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
     """Get a specific daemon."""
@@ -178,56 +231,3 @@ async def get_daemon_job_history(
     )
 
     return [DaemonJobHistoryResponse.from_orm(h) for h in history]
-
-
-@router.get("/health/check", response_model=DaemonHealthResponse)
-async def check_daemon_health(db: AsyncSession = Depends(get_db)):
-    """Check health of all daemons."""
-    health_status = await daemon_service.check_daemon_health(db)
-    return DaemonHealthResponse(**health_status)
-
-
-@router.websocket("/ws")
-async def daemon_websocket(websocket: WebSocket):
-    """
-    WebSocket for real-time updates of all daemons.
-
-    Message types sent:
-    - daemon_update: Daemon status changes
-    - daemon_log: Log messages (when subscribed to specific daemon)
-    - daemon_job_action: Job actions (when subscribed to specific daemon)
-
-    Commands accepted:
-    - {"command": "subscribe", "daemon_id": "<id>"} - Subscribe to specific daemon
-    - {"command": "unsubscribe", "daemon_id": "<id>"} - Unsubscribe from daemon
-    """
-    await websocket_manager.connect(websocket)
-
-    try:
-        while True:
-            # Wait for messages from the client
-            data = await websocket.receive_json()
-
-            command = data.get("command")
-            daemon_id = data.get("daemon_id")
-
-            if command == "subscribe" and daemon_id:
-                await websocket_manager.subscribe_to_daemon(websocket, daemon_id)
-                await websocket.send_json(
-                    {"type": "subscription_confirmed", "daemon_id": daemon_id}
-                )
-
-            elif command == "unsubscribe" and daemon_id:
-                await websocket_manager.unsubscribe_from_daemon(websocket, daemon_id)
-                await websocket.send_json(
-                    {"type": "unsubscription_confirmed", "daemon_id": daemon_id}
-                )
-
-            else:
-                await websocket.send_json(
-                    {"type": "error", "message": "Invalid command"}
-                )
-
-    except WebSocketDisconnect:
-        await websocket_manager.disconnect(websocket)
-        logger.info("Daemon WebSocket client disconnected")
