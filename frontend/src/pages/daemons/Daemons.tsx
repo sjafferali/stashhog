@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -36,28 +36,36 @@ const Daemons: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // WebSocket message handler - memoized to prevent reconnections
+  const handleWebSocketMessage = useCallback((data: unknown) => {
+    const message = data as { type: string; daemon?: Daemon };
+    if (message.type === 'daemon_update') {
+      // Update daemon in the list
+      setDaemons((prev) =>
+        prev.map((d) => (d.id === message.daemon?.id ? message.daemon : d))
+      );
+    } else if (message.type === 'pong') {
+      console.log('Daemons WebSocket connected');
+    }
+  }, []);
+
+  const handleWebSocketOpen = useCallback(() => {
+    console.log('Daemons WebSocket opened');
+  }, []);
+
   // WebSocket connection for real-time updates
   const { sendMessage } = useWebSocket('/api/daemons/ws', {
-    onOpen: () => {
-      // Send initial ping to establish connection
-      sendMessage({ type: 'ping' });
-    },
-    onMessage: (data) => {
-      const message = data as { type: string; daemon?: Daemon };
-      if (message.type === 'daemon_update') {
-        // Update daemon in the list
-        setDaemons((prev) =>
-          prev.map((d) => (d.id === message.daemon?.id ? message.daemon : d))
-        );
-      } else if (message.type === 'ping') {
-        // Respond to ping with pong to keep connection alive
-        sendMessage({ type: 'pong' });
-      } else if (message.type === 'pong') {
-        // Connection established successfully
-        console.log('Daemons WebSocket connected');
-      }
-    },
+    onOpen: handleWebSocketOpen,
+    onMessage: handleWebSocketMessage,
   });
+
+  // Send initial ping when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      sendMessage({ type: 'ping' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [sendMessage]);
 
   useEffect(() => {
     void loadDaemons();
