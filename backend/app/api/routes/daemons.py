@@ -16,7 +16,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_async_db
 from app.models.daemon import LogLevel
 from app.schemas.daemon import (
     DaemonHealthItem,
@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=List[DaemonResponse])
-async def get_daemons(db: AsyncSession = Depends(get_db)):
+async def get_daemons(db: AsyncSession = Depends(get_async_db)):
     """Get all daemons."""
     daemons = await daemon_service.get_all_daemons(db)
     return [DaemonResponse.from_orm(daemon) for daemon in daemons]
 
 
 @router.get("/health/check", response_model=DaemonHealthResponse)
-async def check_daemon_health(db: AsyncSession = Depends(get_db)):
+async def check_daemon_health(db: AsyncSession = Depends(get_async_db)):
     """Check health of all daemons."""
     health_status = await daemon_service.check_daemon_health(db)
 
@@ -118,7 +118,7 @@ async def daemon_websocket(websocket: WebSocket):
 
 
 @router.get("/{daemon_id}", response_model=DaemonResponse)
-async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
+async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     """Get a specific daemon."""
     daemon = await daemon_service.get_daemon(db, daemon_id)
     if not daemon:
@@ -127,7 +127,7 @@ async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{daemon_id}/start")
-async def start_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
+async def start_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     """Start a daemon."""
     # Check if daemon exists
     daemon = await daemon_service.get_daemon(db, daemon_id)
@@ -150,7 +150,7 @@ async def start_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{daemon_id}/stop")
-async def stop_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
+async def stop_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     """Stop a daemon."""
     # Check if daemon exists
     daemon = await daemon_service.get_daemon(db, daemon_id)
@@ -173,7 +173,7 @@ async def stop_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{daemon_id}/restart")
-async def restart_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
+async def restart_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     """Restart a daemon."""
     # Check if daemon exists
     daemon = await daemon_service.get_daemon(db, daemon_id)
@@ -195,7 +195,7 @@ async def restart_daemon(daemon_id: str, db: AsyncSession = Depends(get_db)):
 async def update_daemon(
     daemon_id: str,
     update_request: DaemonUpdateRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Update daemon configuration."""
     try:
@@ -220,7 +220,7 @@ async def update_daemon(
 @router.get("/{daemon_id}/logs", response_model=List[DaemonLogResponse])
 async def get_daemon_logs(
     daemon_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     limit: int = Query(100, ge=1, le=1000),
     level: Optional[LogLevel] = None,
     since: Optional[datetime] = None,
@@ -241,7 +241,7 @@ async def get_daemon_logs(
 @router.get("/{daemon_id}/history", response_model=List[DaemonJobHistoryResponse])
 async def get_daemon_job_history(
     daemon_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     limit: int = Query(100, ge=1, le=1000),
     since: Optional[datetime] = None,
 ):
