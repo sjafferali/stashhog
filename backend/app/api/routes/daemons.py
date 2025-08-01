@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 async def get_daemons(db: AsyncSession = Depends(get_async_db)):
     """Get all daemons."""
     daemons = await daemon_service.get_all_daemons(db)
-    return [DaemonResponse.from_orm(daemon) for daemon in daemons]
+    # Use to_dict() which already converts UUID to string
+    return [daemon.to_dict() for daemon in daemons]
 
 
 @router.get("/health/check", response_model=DaemonHealthResponse)
@@ -123,7 +124,7 @@ async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     daemon = await daemon_service.get_daemon(db, daemon_id)
     if not daemon:
         raise HTTPException(status_code=404, detail="Daemon not found")
-    return DaemonResponse.from_orm(daemon)
+    return daemon.to_dict()
 
 
 @router.post("/{daemon_id}/start")
@@ -210,7 +211,7 @@ async def update_daemon(
         # Broadcast update
         await websocket_manager.broadcast_daemon_update(daemon.to_dict())
 
-        return DaemonResponse.from_orm(daemon)
+        return daemon.to_dict()
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -235,7 +236,7 @@ async def get_daemon_logs(
         db=db, daemon_id=daemon_id, limit=limit, level=level, since=since
     )
 
-    return [DaemonLogResponse.from_orm(log) for log in logs]
+    return [log.to_dict() for log in logs]
 
 
 @router.get("/{daemon_id}/history", response_model=List[DaemonJobHistoryResponse])
@@ -255,4 +256,4 @@ async def get_daemon_job_history(
         db=db, daemon_id=daemon_id, limit=limit, since=since
     )
 
-    return [DaemonJobHistoryResponse.from_orm(h) for h in history]
+    return [h.to_dict() for h in history]

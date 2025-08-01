@@ -5,10 +5,12 @@ Pydantic schemas for daemon API.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DaemonResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     type: str
@@ -21,9 +23,6 @@ class DaemonResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class DaemonUpdateRequest(BaseModel):
     configuration: Dict[str, Any] = Field(default_factory=dict)
@@ -32,26 +31,24 @@ class DaemonUpdateRequest(BaseModel):
 
 
 class DaemonLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     daemon_id: str
     level: str
     message: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class DaemonJobHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     daemon_id: str
     job_id: str
     action: str
     reason: Optional[str]
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class DaemonHealthItem(BaseModel):
