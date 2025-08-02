@@ -261,7 +261,7 @@ const DaemonDetail: React.FC = () => {
       case DaemonStatus.RUNNING:
         return 'success';
       case DaemonStatus.STOPPED:
-        return 'default';
+        return 'orange';
       case DaemonStatus.ERROR:
         return 'error';
     }
