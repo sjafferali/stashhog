@@ -324,25 +324,6 @@ export const SceneDetail: React.FC<SceneDetailProps> = ({
         </Col>
 
         <Col xs={24} lg={8}>
-          {false && (
-            <Card title="Analysis Results" className={styles.sideCard}>
-              {scene.analysis_results?.map((result) => (
-                <div key={result.id} className={styles.analysisResult}>
-                  <Tag color="blue">{result.plan?.name || 'Analysis'}</Tag>
-                  <div className={styles.extractedData}>
-                    {Object.entries(result.extracted_data).map(
-                      ([key, value]) => (
-                        <div key={key}>
-                          <strong>{key}:</strong> {JSON.stringify(value)}
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              ))}
-            </Card>
-          )}
-
           {relatedScenes.length > 0 && (
             <Card title="Related Scenes" className={styles.sideCard}>
               <div className={styles.relatedScenes}>

@@ -23,7 +23,7 @@ import {
   NumberOutlined,
   // FileTextOutlined,
 } from '@ant-design/icons';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import { useSceneFilters } from '../hooks/useSceneFilters';
@@ -46,30 +46,39 @@ export const AdvancedFilters: React.FC = () => {
     data: performers = [],
     isLoading: loadingPerformers,
     error: performersError,
-  } = useQuery<Performer[]>(['performers'], async () => {
-    const response = await api.get('/entities/performers');
-    // The backend returns a direct array, not a paginated response
-    return response.data;
+  } = useQuery<Performer[]>({
+    queryKey: ['performers'],
+    queryFn: async () => {
+      const response = await api.get('/entities/performers');
+      // The backend returns a direct array, not a paginated response
+      return response.data;
+    },
   });
 
   const {
     data: tags = [],
     isLoading: loadingTags,
     error: tagsError,
-  } = useQuery<TagType[]>(['tags'], async () => {
-    const response = await api.get('/entities/tags');
-    // The backend returns a direct array, not a paginated response
-    return response.data;
+  } = useQuery<TagType[]>({
+    queryKey: ['tags'],
+    queryFn: async () => {
+      const response = await api.get('/entities/tags');
+      // The backend returns a direct array, not a paginated response
+      return response.data;
+    },
   });
 
   const {
     data: studios = [],
     isLoading: loadingStudios,
     error: studiosError,
-  } = useQuery<Studio[]>(['studios'], async () => {
-    const response = await api.get('/entities/studios');
-    // The backend returns a direct array, not a paginated response
-    return response.data;
+  } = useQuery<Studio[]>({
+    queryKey: ['studios'],
+    queryFn: async () => {
+      const response = await api.get('/entities/studios');
+      // The backend returns a direct array, not a paginated response
+      return response.data;
+    },
   });
 
   const handleDateRangeChange = (

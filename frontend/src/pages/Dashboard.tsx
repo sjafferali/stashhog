@@ -106,7 +106,7 @@ const Dashboard: React.FC = () => {
     try {
       await apiClient.runJob('process_new_scenes');
       // Navigate to jobs page to see the workflow progress
-      navigate('/jobs');
+      void navigate('/jobs');
     } catch (error) {
       console.error('Failed to start process new scenes workflow:', error);
     } finally {

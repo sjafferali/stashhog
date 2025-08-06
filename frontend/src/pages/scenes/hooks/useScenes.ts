@@ -1,4 +1,4 @@
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { Scene, PaginatedResponse, FilterParams } from '@/types/models';
 
@@ -43,9 +43,9 @@ export function useScenes(params: SceneQueryParams) {
       const response = await api.get('/scenes', { params: filteredParams });
       return response.data;
     },
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
     staleTime: 30000, // Consider data stale after 30 seconds
-    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 }
 

@@ -32,7 +32,7 @@ import type {
 import { useSearchParams } from 'react-router-dom';
 import { Scene } from '@/types/models';
 import { useScenesStore } from '@/store/slices/scenes';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import {
@@ -95,8 +95,8 @@ export const ListView: React.FC<ListViewProps> = ({
   const sortOrder = searchParams.get('sort_order') || 'desc';
 
   // Analyze mutation
-  const analyzeMutation = useMutation(
-    async ({
+  const analyzeMutation = useMutation({
+    mutationFn: async ({
       sceneId,
       options,
     }: {
@@ -117,17 +117,15 @@ export const ListView: React.FC<ListViewProps> = ({
       });
       return response.data;
     },
-    {
-      onSuccess: () => {
-        void message.success('Started analysis for scene');
-        void queryClient.invalidateQueries('jobs');
-        void queryClient.invalidateQueries(['scene-analysis']);
-      },
-      onError: () => {
-        void message.error('Failed to start analysis');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Started analysis for scene');
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['scene-analysis'] });
+    },
+    onError: () => {
+      void message.error('Failed to start analysis');
+    },
+  });
 
   const handleAnalyze = useCallback(
     (scene: Scene) => {
@@ -364,7 +362,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 key="analyze"
                 icon={<ExperimentOutlined />}
                 onClick={() => handleAnalyze(record)}
-                disabled={analyzeMutation.isLoading}
+                disabled={analyzeMutation.isPending}
               >
                 Analyze Scene
               </Menu.Item>
@@ -395,7 +393,7 @@ export const ListView: React.FC<ListViewProps> = ({
       selectAllScenes,
       clearSelection,
       handleAnalyze,
-      analyzeMutation.isLoading,
+      analyzeMutation.isPending,
     ]
   );
 
@@ -535,7 +533,7 @@ export const ListView: React.FC<ListViewProps> = ({
                       key="analyze"
                       icon={<ExperimentOutlined />}
                       onClick={() => handleAnalyze(scene)}
-                      disabled={analyzeMutation.isLoading}
+                      disabled={analyzeMutation.isPending}
                     >
                       Analyze Scene
                     </Menu.Item>
@@ -588,7 +586,7 @@ export const ListView: React.FC<ListViewProps> = ({
         open={analysisModalVisible}
         onOk={handleAnalysisModalOk}
         onCancel={handleAnalysisModalCancel}
-        confirmLoading={analyzeMutation.isLoading}
+        confirmLoading={analyzeMutation.isPending}
         width={500}
       >
         <Space direction="vertical" style={{ width: '100%' }}>

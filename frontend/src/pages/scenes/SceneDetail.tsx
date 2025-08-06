@@ -25,7 +25,7 @@ import {
   ApiOutlined,
   BugOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQueryClient, useQuery } from 'react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import api from '@/services/api';
 import apiClient from '@/services/apiClient';
@@ -59,25 +59,21 @@ const SceneDetail: React.FC = () => {
     useState<AnalysisTypeOptions>(analysisOptions);
 
   // Fetch scene data
-  const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>(
-    ['scene', id],
-    () => apiClient.getScene(Number(id)),
-    {
-      enabled: !!id,
-    }
-  );
+  const { data: scene, isLoading: isLoadingScene } = useQuery<Scene>({
+    queryKey: ['scene', id],
+    queryFn: () => apiClient.getScene(Number(id!)),
+    enabled: !!id,
+  });
 
   // Fetch analysis results for the scene
-  const { data: analysisResults } = useQuery<AnalysisResult[]>(
-    ['scene-analysis', id],
-    async () => {
+  const { data: analysisResults } = useQuery<AnalysisResult[]>({
+    queryKey: ['scene-analysis', id],
+    queryFn: async () => {
       const response = await api.get(`/analysis/scenes/${id}/results`);
       return response.data;
     },
-    {
-      enabled: !!id,
-    }
-  );
+    enabled: !!id,
+  });
 
   // Load settings if not already loaded
   useEffect(() => {
@@ -102,8 +98,8 @@ const SceneDetail: React.FC = () => {
   );
 
   // Analyze mutation
-  const analyzeMutation = useMutation(
-    async (options: AnalysisTypeOptions) => {
+  const analyzeMutation = useMutation({
+    mutationFn: async (options: AnalysisTypeOptions) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [id || '0'],
         plan_name: `Scene #${id} Analysis - ${new Date().toISOString()}`,
@@ -118,17 +114,15 @@ const SceneDetail: React.FC = () => {
       });
       return response.data;
     },
-    {
-      onSuccess: () => {
-        void message.success('Started analysis for scene');
-        void queryClient.invalidateQueries('jobs');
-        void queryClient.invalidateQueries(['scene-analysis', id]);
-      },
-      onError: () => {
-        void message.error('Failed to start analysis');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Started analysis for scene');
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['scene-analysis', id] });
+    },
+    onError: () => {
+      void message.error('Failed to start analysis');
+    },
+  });
 
   const handleAnalyze = () => {
     setTempAnalysisOptions(analysisOptions);
@@ -382,7 +376,7 @@ const SceneDetail: React.FC = () => {
             type="primary"
             icon={<ExperimentOutlined />}
             onClick={handleAnalyze}
-            loading={analyzeMutation.isLoading}
+            loading={analyzeMutation.isPending}
           >
             Analyze Scene
           </Button>
@@ -512,7 +506,7 @@ const SceneDetail: React.FC = () => {
               type="primary"
               icon={<RobotOutlined />}
               onClick={handleAnalyze}
-              loading={analyzeMutation.isLoading}
+              loading={analyzeMutation.isPending}
             >
               Analyze
             </Button>
@@ -560,7 +554,7 @@ const SceneDetail: React.FC = () => {
           scene={scene}
           onClose={() => setEditModalVisible(false)}
           onSuccess={() => {
-            void queryClient.invalidateQueries(['scene', id]);
+            void queryClient.invalidateQueries({ queryKey: ['scene', id] });
           }}
         />
       )}
@@ -570,7 +564,7 @@ const SceneDetail: React.FC = () => {
         open={analysisModalVisible}
         onOk={handleAnalysisModalOk}
         onCancel={handleAnalysisModalCancel}
-        confirmLoading={analyzeMutation.isLoading}
+        confirmLoading={analyzeMutation.isPending}
         okButtonProps={{
           disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
         }}

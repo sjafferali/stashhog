@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, Button, Space, Statistic, Row, Col } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   BulbOutlined,
   FileTextOutlined,
@@ -13,9 +13,10 @@ const Analysis: React.FC = () => {
   const navigate = useNavigate();
 
   // Fetch analysis statistics
-  const { data: analysisStats } = useQuery('analysisStats', () =>
-    apiClient.getAnalysisStats()
-  );
+  const { data: analysisStats } = useQuery({
+    queryKey: ['analysisStats'],
+    queryFn: () => apiClient.getAnalysisStats(),
+  });
 
   const handleViewResults = () => {
     void navigate('/analysis/plans');

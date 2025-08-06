@@ -9,7 +9,7 @@ import {
   Button,
   message,
 } from 'antd';
-import { useMutation, useQuery, useQueryClient } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import apiClient from '@/services/apiClient';
 import { Scene, Performer, Tag, Studio } from '@/types/models';
@@ -34,36 +34,37 @@ export const SceneEditModal: React.FC<SceneEditModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   // Fetch all performers, tags, and studios for selection
-  const { data: performers } = useQuery('all-performers', () =>
-    apiClient.getPerformers({ per_page: 1000 })
-  );
-  const { data: tags } = useQuery('all-tags', () =>
-    apiClient.getTags({ per_page: 1000 })
-  );
-  const { data: studios } = useQuery('all-studios', () =>
-    apiClient.getStudios({ per_page: 1000 })
-  );
+  const { data: performers } = useQuery({
+    queryKey: ['all-performers'],
+    queryFn: () => apiClient.getPerformers({ per_page: 1000 }),
+  });
+  const { data: tags } = useQuery({
+    queryKey: ['all-tags'],
+    queryFn: () => apiClient.getTags({ per_page: 1000 }),
+  });
+  const { data: studios } = useQuery({
+    queryKey: ['all-studios'],
+    queryFn: () => apiClient.getStudios({ per_page: 1000 }),
+  });
 
   // Update scene mutation
-  const updateMutation = useMutation(
-    async (updates: Partial<Scene>) => {
+  const updateMutation = useMutation({
+    mutationFn: async (updates: Partial<Scene>) => {
       return apiClient.updateScene(Number(scene.id), updates);
     },
-    {
-      onSuccess: () => {
-        void message.success('Scene updated successfully');
-        void queryClient.invalidateQueries(['scene', scene.id]);
-        onSuccess?.();
-        onClose();
-      },
-      onError: (error: unknown) => {
-        const err = error as { response?: { data?: { detail?: string } } };
-        void message.error(
-          err.response?.data?.detail || 'Failed to update scene'
-        );
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Scene updated successfully');
+      void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+      onSuccess?.();
+      onClose();
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } };
+      void message.error(
+        err.response?.data?.detail || 'Failed to update scene'
+      );
+    },
+  });
 
   // Set initial form values when scene changes and options are loaded
   useEffect(() => {
@@ -134,7 +135,7 @@ export const SceneEditModal: React.FC<SceneEditModalProps> = ({
         <Button
           key="submit"
           type="primary"
-          loading={loading || updateMutation.isLoading}
+          loading={loading || updateMutation.isPending}
           onClick={() => void handleSubmit()}
         >
           Save Changes

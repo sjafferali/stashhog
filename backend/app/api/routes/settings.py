@@ -290,7 +290,8 @@ async def update_setting(
     else:
         # Update existing setting
         value = update.get("value") if isinstance(update, dict) else update
-        setting.value = value
+        if value is not None:
+            setting.value = value
 
     await db.commit()
 

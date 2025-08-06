@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Dropdown,
@@ -13,7 +13,7 @@ import {
   DownOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import api from '@/services/api';
@@ -35,76 +35,72 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
 
   // Fetch sync status
-  const { data: syncStatus } = useQuery<SyncStatus>(
-    'sync-status',
-    () => apiClient.getSyncStatus(),
-    {
-      refetchInterval: () => {
-        // TODO: Implement proper sync status check
-        return false;
-      },
-    }
-  );
+  const { data: syncStatus } = useQuery<SyncStatus>({
+    queryKey: ['sync-status'],
+    queryFn: () => apiClient.getSyncStatus(),
+    refetchInterval: () => {
+      // TODO: Implement proper sync status check
+      return false;
+    },
+  });
 
   // Sync mutation
-  const syncMutation = useMutation(
-    async (fullSync: boolean) => {
+  const syncMutation = useMutation({
+    mutationFn: async (fullSync: boolean) => {
       // Call the sync endpoint with force parameter for full sync
       const response = await api.post('/sync/all', null, {
         params: { force: fullSync },
       });
       return response.data;
     },
-    {
-      onSuccess: (data) => {
-        setCurrentJob(data); // The response is the job itself
-        setSyncModalVisible(true);
-        void message.success('Sync started');
-        void queryClient.invalidateQueries('sync-status');
-      },
-      onError: (error) => {
-        // Don't show a duplicate error message here since the API interceptor
-        // already handles error notifications globally
-        console.error('Sync mutation error:', error);
-      },
-    }
-  );
+    onSuccess: (data) => {
+      setCurrentJob(data); // The response is the job itself
+      setSyncModalVisible(true);
+      void message.success('Sync started');
+      void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+    },
+    onError: (error) => {
+      // Don't show a duplicate error message here since the API interceptor
+      // already handles error notifications globally
+      console.error('Sync mutation error:', error);
+    },
+  });
 
   // Poll job status
-  useQuery(
-    ['job', currentJob?.id],
-    async () => {
+  const { data: jobData } = useQuery<Job | null>({
+    queryKey: ['job', currentJob?.id],
+    queryFn: async () => {
       if (!currentJob?.id) return null;
       const response = await api.get(`/jobs/${currentJob.id}`);
       return response.data;
     },
-    {
-      enabled:
-        !!currentJob?.id &&
-        currentJob.status !== 'completed' &&
-        currentJob.status !== 'failed',
-      refetchInterval: 1000,
-      onSuccess: (data: Job) => {
-        if (data) {
-          setCurrentJob(data);
-          if (data.status === 'completed') {
-            void message.success('Sync completed successfully');
-            setSyncModalVisible(false);
-            void queryClient.invalidateQueries(['scenes']);
-            void queryClient.invalidateQueries(['sync-status']);
-            onSyncComplete?.();
-          } else if (data.status === 'failed') {
-            // Only show error if there's actually an error message
-            // to avoid duplicate notifications from WebSocket
-            if (data.error) {
-              void message.error('Sync failed: ' + data.error);
-            }
-            setSyncModalVisible(false);
-          }
+    enabled:
+      !!currentJob?.id &&
+      currentJob.status !== 'completed' &&
+      currentJob.status !== 'failed',
+    refetchInterval: 1000,
+  });
+
+  // Handle job status changes
+  useEffect(() => {
+    if (jobData) {
+      setCurrentJob(jobData);
+      if (jobData.status === 'completed') {
+        void message.success('Sync completed successfully');
+        setSyncModalVisible(false);
+        void queryClient.invalidateQueries({ queryKey: ['scenes'] });
+        void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+        onSyncComplete?.();
+      } else if (jobData.status === 'failed') {
+        // Only show error if there's actually an error message
+        // to avoid duplicate notifications from WebSocket
+        if (jobData.error) {
+          void message.error('Sync failed: ' + jobData.error);
         }
-      },
+        setSyncModalVisible(false);
+      }
     }
-  );
+  }, [jobData, onSyncComplete, queryClient]);
 
   const handleFullSync = () => {
     Modal.confirm({
@@ -151,7 +147,7 @@ export const SyncButton: React.FC<SyncButtonProps> = ({ onSyncComplete }) => {
     },
   ];
 
-  const isLoading = syncMutation.isLoading;
+  const isLoading = syncMutation.isPending;
 
   return (
     <>

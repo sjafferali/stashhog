@@ -879,10 +879,10 @@ class SceneSyncHandler:
         entities_list: List[Any]
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
-            entities_list = result.scalars().all()
+            entities_list = list(result.scalars().all())
         else:
             result = db.execute(stmt)
-            entities_list = result.scalars().all()
+            entities_list = list(result.scalars().all())
 
         return {entity.id: entity for entity in entities_list}
 

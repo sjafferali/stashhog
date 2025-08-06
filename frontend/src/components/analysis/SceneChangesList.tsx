@@ -22,10 +22,16 @@ import {
   DownOutlined,
   UpOutlined,
 } from '@ant-design/icons';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
 import { ProposedChange } from './ChangePreview';
-import { Scene, Tag as TagType, Performer, Studio } from '@/types/models';
+import {
+  Scene,
+  Tag as TagType,
+  Performer,
+  Studio,
+  PaginatedResponse,
+} from '@/types/models';
 import styles from './SceneChangesList.module.scss';
 
 const { Panel } = Collapse;
@@ -90,19 +96,22 @@ export const SceneChangesList: React.FC<SceneChangesListProps> = ({
   const [expandAll, setExpandAll] = useState(expandedByDefault);
 
   // Fetch all tags to map IDs to names
-  const { data: tagsData } = useQuery('all-tags', () =>
-    apiClient.getTags({ per_page: 1000 })
-  );
+  const { data: tagsData } = useQuery<PaginatedResponse<TagType>>({
+    queryKey: ['all-tags'],
+    queryFn: () => apiClient.getTags({ per_page: 1000 }),
+  });
 
   // Fetch all performers to map IDs to names
-  const { data: performersData } = useQuery('all-performers', () =>
-    apiClient.getPerformers({ per_page: 1000 })
-  );
+  const { data: performersData } = useQuery<PaginatedResponse<Performer>>({
+    queryKey: ['all-performers'],
+    queryFn: () => apiClient.getPerformers({ per_page: 1000 }),
+  });
 
   // Fetch all studios to map IDs to names
-  const { data: studiosData } = useQuery('all-studios', () =>
-    apiClient.getStudios({ per_page: 1000 })
-  );
+  const { data: studiosData } = useQuery<PaginatedResponse<Studio>>({
+    queryKey: ['all-studios'],
+    queryFn: () => apiClient.getStudios({ per_page: 1000 }),
+  });
 
   // Create a map of tag IDs to names
   const tagIdToName = React.useMemo(() => {

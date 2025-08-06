@@ -73,7 +73,7 @@ async def list_jobs(
                 id=str(job.id),
                 type=SchemaJobType(
                     map_job_type_to_schema(
-                        job.type.value if hasattr(job.type, "value") else job.type
+                        str(job.type.value if hasattr(job.type, "value") else job.type)
                     )
                 ),
                 status=JobStatus(
@@ -145,7 +145,7 @@ async def list_jobs(
                 id=str(job.id),
                 type=SchemaJobType(
                     map_job_type_to_schema(
-                        job.type.value if hasattr(job.type, "value") else job.type
+                        str(job.type.value if hasattr(job.type, "value") else job.type)
                     )
                 ),
                 status=JobStatus(
@@ -255,7 +255,7 @@ async def get_job(
         id=str(job.id),
         type=SchemaJobType(
             map_job_type_to_schema(
-                job.type.value if hasattr(job.type, "value") else job.type
+                str(job.type.value if hasattr(job.type, "value") else job.type)
             )
         ),
         status=JobStatus(

@@ -120,8 +120,14 @@ fi
 if [ "$BACKEND_ONLY" = false ] && [ "$FAST_MODE" = false ]; then
     print_header "Installing frontend dependencies"
     cd frontend
-    print_command "npm ci"
-    npm ci
+    # Check if package-lock.json exists, use npm ci if available, otherwise npm install
+    if [ -f "package-lock.json" ]; then
+        print_command "npm ci"
+        npm ci
+    else
+        print_command "npm install"
+        npm install
+    fi
     cd ..
 fi
 

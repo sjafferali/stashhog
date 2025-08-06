@@ -28,7 +28,7 @@ import {
   BugOutlined,
   // SyncOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import api from '@/services/api';
@@ -107,45 +107,39 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
   );
 
   // Fetch full scene details
-  const { data: fullScene, isLoading } = useQuery<Scene>(
-    ['scene', scene.id],
-    async () => {
+  const { data: fullScene, isLoading } = useQuery<Scene>({
+    queryKey: ['scene', scene.id],
+    queryFn: async () => {
       const response = await api.get(`/scenes/${scene.id}`);
       return response.data;
     },
-    {
-      enabled: visible,
-    }
-  );
+    enabled: visible,
+  });
 
   // Fetch analysis results for the scene
-  const { data: analysisResults } = useQuery<AnalysisResult[]>(
-    ['scene-analysis', scene.id],
-    async () => {
+  const { data: analysisResults } = useQuery<AnalysisResult[]>({
+    queryKey: ['scene-analysis', scene.id],
+    queryFn: async () => {
       const response = await api.get(`/analysis/scenes/${scene.id}/results`);
       return response.data;
     },
-    {
-      enabled: visible,
-    }
-  );
+    enabled: visible,
+  });
 
   // Fetch sync logs for the scene
-  const { data: syncLogs } = useQuery<SyncLogEntry[]>(
-    ['scene-sync-logs', scene.id],
-    async () => {
+  const { data: syncLogs } = useQuery<SyncLogEntry[]>({
+    queryKey: ['scene-sync-logs', scene.id],
+    queryFn: async () => {
       const response = await api.get(`/scenes/${scene.id}/sync-logs`);
       return response.data;
     },
-    {
-      enabled: visible && activeTab === 'history',
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    }
-  );
+    enabled: visible && activeTab === 'history',
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   // Analyze mutation
-  const analyzeMutation = useMutation(
-    async (options: AnalysisTypeOptions) => {
+  const analyzeMutation = useMutation({
+    mutationFn: async (options: AnalysisTypeOptions) => {
       const response = await api.post('/analysis/generate', {
         scene_ids: [scene.id],
         plan_name: `Scene #${scene.id} Analysis - ${new Date().toISOString()}`,
@@ -160,53 +154,49 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
       });
       return response.data;
     },
-    {
-      onSuccess: () => {
-        void message.success('Started analysis for scene');
-        void queryClient.invalidateQueries('jobs');
-        void queryClient.invalidateQueries(['scene-analysis', scene.id]);
-      },
-      onError: () => {
-        void message.error('Failed to start analysis');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Started analysis for scene');
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['scene-analysis', scene.id],
+      });
+    },
+    onError: () => {
+      void message.error('Failed to start analysis');
+    },
+  });
 
   // Toggle analyzed mutation
-  const toggleAnalyzedMutation = useMutation(
-    async (value: boolean) => {
+  const toggleAnalyzedMutation = useMutation({
+    mutationFn: async (value: boolean) => {
       return await apiClient.updateScene(parseInt(scene.id), {
         analyzed: value,
       });
     },
-    {
-      onSuccess: () => {
-        void message.success('Updated analyzed status');
-        void queryClient.invalidateQueries(['scene', scene.id]);
-      },
-      onError: () => {
-        void message.error('Failed to update analyzed status');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Updated analyzed status');
+      void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+    },
+    onError: () => {
+      void message.error('Failed to update analyzed status');
+    },
+  });
 
   // Toggle video analyzed mutation
-  const toggleVideoAnalyzedMutation = useMutation(
-    async (value: boolean) => {
+  const toggleVideoAnalyzedMutation = useMutation({
+    mutationFn: async (value: boolean) => {
       return await apiClient.updateScene(parseInt(scene.id), {
         video_analyzed: value,
       });
     },
-    {
-      onSuccess: () => {
-        void message.success('Updated video analyzed status');
-        void queryClient.invalidateQueries(['scene', scene.id]);
-      },
-      onError: () => {
-        void message.error('Failed to update video analyzed status');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success('Updated video analyzed status');
+      void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+    },
+    onError: () => {
+      void message.error('Failed to update video analyzed status');
+    },
+  });
 
   const handleAnalyze = () => {
     setTempAnalysisOptions(analysisOptions);
@@ -288,7 +278,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
               <Button
                 size="small"
                 type="link"
-                loading={toggleAnalyzedMutation.isLoading}
+                loading={toggleAnalyzedMutation.isPending}
                 onClick={() =>
                   toggleAnalyzedMutation.mutate(!fullScene?.analyzed)
                 }
@@ -306,7 +296,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
               <Button
                 size="small"
                 type="link"
-                loading={toggleVideoAnalyzedMutation.isLoading}
+                loading={toggleVideoAnalyzedMutation.isPending}
                 onClick={() =>
                   toggleVideoAnalyzedMutation.mutate(!fullScene?.video_analyzed)
                 }
@@ -599,7 +589,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             type="primary"
             icon={<ExperimentOutlined />}
             onClick={handleAnalyze}
-            loading={analyzeMutation.isLoading}
+            loading={analyzeMutation.isPending}
           >
             Analyze Scene
           </Button>
@@ -820,7 +810,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             type="primary"
             icon={<ExperimentOutlined />}
             onClick={handleAnalyze}
-            loading={analyzeMutation.isLoading}
+            loading={analyzeMutation.isPending}
           >
             Analyze
           </Button>,
@@ -892,7 +882,9 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
             setEditModalVisible(false);
           }}
           onSuccess={() => {
-            void queryClient.invalidateQueries(['scene', scene.id]);
+            void queryClient.invalidateQueries({
+              queryKey: ['scene', scene.id],
+            });
           }}
         />
       )}
@@ -902,7 +894,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         open={analysisModalVisible}
         onOk={handleAnalysisModalOk}
         onCancel={handleAnalysisModalCancel}
-        confirmLoading={analyzeMutation.isLoading}
+        confirmLoading={analyzeMutation.isPending}
         okButtonProps={{
           disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
         }}

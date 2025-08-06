@@ -8,9 +8,9 @@ import React, {
 } from 'react';
 import { Input, Select, DatePicker, Tag, Space, Button } from 'antd';
 import { CheckOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/services/apiClient';
-import { Tag as TagType } from '@/types/models';
+import { Tag as TagType, PaginatedResponse } from '@/types/models';
 import moment from 'moment';
 import './InlineEditor.scss';
 
@@ -40,13 +40,11 @@ const InlineEditor: React.FC<InlineEditorProps> = ({
   validator,
 }) => {
   // Fetch all tags to map IDs to names if needed
-  const { data: tagsData } = useQuery(
-    'all-tags',
-    () => apiClient.getTags({ per_page: 1000 }),
-    {
-      enabled: fieldName === 'tags' && type === 'array',
-    }
-  );
+  const { data: tagsData } = useQuery<PaginatedResponse<TagType>>({
+    queryKey: ['all-tags'],
+    queryFn: () => apiClient.getTags({ per_page: 1000 }),
+    enabled: fieldName === 'tags' && type === 'array',
+  });
 
   // Create a map of tag IDs to names
   const tagIdToName = React.useMemo(() => {

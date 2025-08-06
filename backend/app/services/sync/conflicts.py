@@ -209,7 +209,7 @@ class ConflictResolver:
         self, local: Scene, remote: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Detect changes in scene relationships"""
-        changes = {}
+        changes: Dict[str, Any] = {}
 
         # Check performers
         local_performer_ids = {p.id for p in local.performers}

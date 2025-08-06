@@ -21,7 +21,7 @@ import {
   CloseCircleOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { useScenesStore } from '@/store/slices/scenes';
 import { Tag as TagType } from '@/types/models';
@@ -65,17 +65,20 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     });
 
   // Fetch tags for the modal
-  const { data: tags } = useQuery<TagType[]>('tags', async () => {
-    const response = await api.get('/entities/tags');
-    // The backend returns a direct array, not a paginated response
-    return response.data;
+  const { data: tags } = useQuery<TagType[]>({
+    queryKey: ['tags'],
+    queryFn: async () => {
+      const response = await api.get('/entities/tags');
+      // The backend returns a direct array, not a paginated response
+      return response.data;
+    },
   });
 
   // Note: Video tags mutation removed - now handled through regular analysis endpoint
 
   // Analyze mutation
-  const analyzeMutation = useMutation(
-    async ({
+  const analyzeMutation = useMutation({
+    mutationFn: async ({
       sceneIds,
       options,
     }: {
@@ -96,48 +99,44 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       });
       return response.data;
     },
-    {
-      onSuccess: (data) => {
-        if (data.plan_id) {
-          void message.success(
-            `Created analysis plan ${data.plan_id} for ${selectedCount} scenes`
-          );
-        } else {
-          void message.success(`Started analysis for ${selectedCount} scenes`);
-        }
-        onClearSelection();
-        void queryClient.invalidateQueries('jobs');
-        void queryClient.invalidateQueries('plans');
-      },
-      onError: () => {
-        void message.error('Failed to start analysis');
-      },
-    }
-  );
+    onSuccess: (data) => {
+      if (data.plan_id) {
+        void message.success(
+          `Created analysis plan ${data.plan_id} for ${selectedCount} scenes`
+        );
+      } else {
+        void message.success(`Started analysis for ${selectedCount} scenes`);
+      }
+      onClearSelection();
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+    onError: () => {
+      void message.error('Failed to start analysis');
+    },
+  });
 
   // Sync mutation
-  const syncMutation = useMutation(
-    async (sceneIds: string[]) => {
+  const syncMutation = useMutation({
+    mutationFn: async (sceneIds: string[]) => {
       const response = await api.post('/scenes/resync-bulk', sceneIds, {
         params: { background: true },
       });
       return response.data;
     },
-    {
-      onSuccess: () => {
-        void message.success(`Started sync for ${selectedCount} scenes`);
-        onClearSelection();
-        void queryClient.invalidateQueries('jobs');
-      },
-      onError: () => {
-        void message.error('Failed to start sync');
-      },
-    }
-  );
+    onSuccess: () => {
+      void message.success(`Started sync for ${selectedCount} scenes`);
+      onClearSelection();
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+    onError: () => {
+      void message.error('Failed to start sync');
+    },
+  });
 
   // Tag mutation
-  const tagMutation = useMutation(
-    async ({
+  const tagMutation = useMutation({
+    mutationFn: async ({
       sceneIds,
       tagIds,
       action,
@@ -154,23 +153,21 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       });
       return response.data;
     },
-    {
-      onSuccess: (_, variables) => {
-        void message.success(
-          `${variables.action === 'add' ? 'Added' : 'Removed'} tags for ${selectedCount} scenes`
-        );
-        onClearSelection();
-        void queryClient.invalidateQueries('scenes');
-      },
-      onError: () => {
-        void message.error('Failed to update tags');
-      },
-    }
-  );
+    onSuccess: (_, variables) => {
+      void message.success(
+        `${variables.action === 'add' ? 'Added' : 'Removed'} tags for ${selectedCount} scenes`
+      );
+      onClearSelection();
+      void queryClient.invalidateQueries({ queryKey: ['scenes'] });
+    },
+    onError: () => {
+      void message.error('Failed to update tags');
+    },
+  });
 
   // Bulk update mutation for analyzed status
-  const bulkUpdateMutation = useMutation(
-    async ({
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({
       sceneIds,
       updates,
     }: {
@@ -183,30 +180,28 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       });
       return response.data;
     },
-    {
-      onSuccess: (data, variables) => {
-        const updateMessages = [];
-        if (variables.updates.analyzed !== undefined) {
-          updateMessages.push(
-            `${variables.updates.analyzed ? 'Set' : 'Unset'} analyzed status`
-          );
-        }
-        if (variables.updates.video_analyzed !== undefined) {
-          updateMessages.push(
-            `${variables.updates.video_analyzed ? 'Set' : 'Unset'} video analyzed status`
-          );
-        }
-        void message.success(
-          `${updateMessages.join(' and ')} for ${data.updated_count} scenes`
+    onSuccess: (data, variables) => {
+      const updateMessages = [];
+      if (variables.updates.analyzed !== undefined) {
+        updateMessages.push(
+          `${variables.updates.analyzed ? 'Set' : 'Unset'} analyzed status`
         );
-        onClearSelection();
-        void queryClient.invalidateQueries('scenes');
-      },
-      onError: () => {
-        void message.error('Failed to update scene attributes');
-      },
-    }
-  );
+      }
+      if (variables.updates.video_analyzed !== undefined) {
+        updateMessages.push(
+          `${variables.updates.video_analyzed ? 'Set' : 'Unset'} video analyzed status`
+        );
+      }
+      void message.success(
+        `${updateMessages.join(' and ')} for ${data.updated_count} scenes`
+      );
+      onClearSelection();
+      void queryClient.invalidateQueries({ queryKey: ['scenes'] });
+    },
+    onError: () => {
+      void message.error('Failed to update scene attributes');
+    },
+  });
 
   const handleAnalyze = () => {
     setTempAnalysisOptions(analysisOptions);
@@ -389,7 +384,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
             <Button
               icon={<SyncOutlined />}
               onClick={handleSync}
-              loading={syncMutation.isLoading}
+              loading={syncMutation.isPending}
             >
               Sync Selected
             </Button>
@@ -397,7 +392,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
             <Button
               icon={<ExperimentOutlined />}
               onClick={handleAnalyze}
-              loading={analyzeMutation.isLoading}
+              loading={analyzeMutation.isPending}
             >
               Analyze Selected
             </Button>
@@ -426,7 +421,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
           setTagModalVisible(false);
           setSelectedTags([]);
         }}
-        confirmLoading={tagMutation.isLoading}
+        confirmLoading={tagMutation.isPending}
       >
         <p>
           Select tags to {tagAction} {tagAction === 'add' ? 'to' : 'from'}{' '}
@@ -464,7 +459,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
           setAnalysisModalVisible(false);
           setTempAnalysisOptions(analysisOptions);
         }}
-        confirmLoading={analyzeMutation.isLoading}
+        confirmLoading={analyzeMutation.isPending}
         okButtonProps={{
           disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
         }}
