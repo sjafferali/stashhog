@@ -421,7 +421,7 @@ async def _process_analysis_batch(
             f"Apply changes batch {batch_num}/{total_batches}",
             progress_callback,
             cancellation_token,
-            {"current_step": 4, "total_steps": 6},
+            {"current_step": 4, "total_steps": 7},
             created_subjobs,
         )
 

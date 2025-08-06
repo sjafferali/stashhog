@@ -264,7 +264,8 @@ Progress is updated at step boundaries to prevent progress bar resets. Sub-job p
         "errors": []
       }
     ],
-    "stash_generate": { /* ... */ }
+    "stash_generate": { /* ... */ },
+    "final_incremental_sync": { /* ... */ }
   },
   "summary": {
     "total_synced_items": 42,

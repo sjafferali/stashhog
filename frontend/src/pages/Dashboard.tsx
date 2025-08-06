@@ -32,6 +32,7 @@ import {
   ExclamationCircleOutlined,
   StopOutlined,
   ReloadOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
@@ -56,6 +57,7 @@ const Dashboard: React.FC = () => {
   const [syncingScenes, setSyncingScenes] = useState(false);
   const [analyzingScenes] = useState(false);
   const [processingDownloads, setProcessingDownloads] = useState(false);
+  const [processingNewScenes, setProcessingNewScenes] = useState(false);
   const [recentTorrents, setRecentTorrents] = useState<ProcessedTorrent[]>([]);
   const navigate = useNavigate();
 
@@ -96,6 +98,19 @@ const Dashboard: React.FC = () => {
       await Promise.all([fetchStats(), fetchRecentTorrents()]);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleProcessNewScenes = async () => {
+    setProcessingNewScenes(true);
+    try {
+      await apiClient.runJob('process_new_scenes');
+      // Navigate to jobs page to see the workflow progress
+      navigate('/jobs');
+    } catch (error) {
+      console.error('Failed to start process new scenes workflow:', error);
+    } finally {
+      setProcessingNewScenes(false);
     }
   };
 
@@ -259,13 +274,23 @@ const Dashboard: React.FC = () => {
         <Title level={2} style={{ margin: 0 }}>
           Dashboard
         </Title>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => void handleRefresh()}
-          loading={refreshing}
-        >
-          Refresh
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<ThunderboltOutlined />}
+            onClick={() => void handleProcessNewScenes()}
+            loading={processingNewScenes}
+          >
+            Process New Scenes
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => void handleRefresh()}
+            loading={refreshing}
+          >
+            Refresh
+          </Button>
+        </Space>
       </div>
 
       {/* Summary Statistics */}
