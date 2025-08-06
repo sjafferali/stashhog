@@ -5,11 +5,15 @@ FROM node:24-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY frontend/package*.json ./
 
 # Install dependencies (including dev dependencies for build)
-RUN npm ci
+# Use npm ci if package-lock.json exists, otherwise use npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Copy source code
 COPY frontend/ ./
