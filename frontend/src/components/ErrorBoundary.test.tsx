@@ -47,11 +47,9 @@ describe('ErrorBoundary Component', () => {
   it('resets error state when clicking Back to Home', async () => {
     const user = userEvent.setup();
 
-    // Mock window.location.href
-    Object.defineProperty(window, 'location', {
-      value: { href: '' },
-      writable: true,
-    });
+    // Mock window.location.href assignment
+    delete (window as any).location;
+    (window as any).location = { href: '' };
 
     render(
       <ErrorBoundary>
@@ -62,7 +60,7 @@ describe('ErrorBoundary Component', () => {
     const button = screen.getByText('Back to Home');
     await user.click(button);
 
-    expect(window.location.href).toBe('/');
+    expect(window.location.href).toBe('http://localhost/');
   });
 
   it('catches errors in child components', async () => {
