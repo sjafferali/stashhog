@@ -12,14 +12,12 @@ RUN apk add --no-cache python3 make g++
 COPY frontend/package*.json ./
 
 # Install dependencies (including dev dependencies for build)
-# Use npm ci if package-lock.json exists, otherwise use npm install
-# Clean install to avoid Rollup native module issues in Alpine
-RUN if [ -f package-lock.json ]; then \
-        npm ci --no-optional && \
-        npm install --no-optional; \
-    else \
-        npm install --no-optional; \
-    fi
+# Fix for Rollup native module issues in Alpine Linux
+# Following the error message recommendation to remove package-lock.json and node_modules
+RUN rm -rf node_modules package-lock.json && \
+    npm cache clean --force && \
+    npm install @rollup/rollup-linux-x64-musl && \
+    npm install
 
 # Copy source code
 COPY frontend/ ./
