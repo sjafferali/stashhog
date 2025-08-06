@@ -13,7 +13,13 @@ COPY frontend/package*.json ./
 
 # Install dependencies (including dev dependencies for build)
 # Use npm ci if package-lock.json exists, otherwise use npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Clean install to avoid Rollup native module issues in Alpine
+RUN if [ -f package-lock.json ]; then \
+        npm ci --no-optional && \
+        npm install --no-optional; \
+    else \
+        npm install --no-optional; \
+    fi
 
 # Copy source code
 COPY frontend/ ./
