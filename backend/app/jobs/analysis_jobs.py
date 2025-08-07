@@ -129,35 +129,35 @@ async def analyze_scenes_non_ai_job(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Execute non-AI scene analysis as a background job.
-    
+
     This performs only non-AI detection methods:
     - Path and title-based performer detection
     - OFScraper path-based performer detection
     - HTML tag removal from details
-    
+
     Does NOT mark scenes as analyzed.
     """
     plan_id: Optional[int] = None
     scenes_processed: int = 0
-    
+
     # Check if job was cancelled before starting
     if cancellation_token and cancellation_token.is_cancelled:
         logger.info(f"Job {job_id} was cancelled before starting non-AI analysis")
         raise asyncio.CancelledError("Job cancelled before starting")
-    
+
     # Create a wrapper to track progress
     async def tracking_progress_callback(progress: int, message: str) -> None:
         nonlocal scenes_processed
         scenes_processed = _extract_scenes_processed(message, scenes_processed)
         await progress_callback(progress, message)
-    
+
     try:
         # Initialize services
         services = await _initialize_services(job_id, scene_ids)
-        
+
         # No OpenAI client needed for non-AI analysis
         services["openai_client"] = None
-        
+
         # Execute non-AI analysis
         plan = await _execute_non_ai_analysis(
             services,
@@ -168,12 +168,12 @@ async def analyze_scenes_non_ai_job(
             tracking_progress_callback,
             cancellation_token,
         )
-        
+
         # Process results
         result, plan_id = await _process_analysis_results(plan, job_id, scene_ids)
-        
+
         return result
-        
+
     except asyncio.CancelledError:
         return await _handle_job_cancellation(
             job_id, plan_id, scenes_processed, scene_ids
@@ -195,13 +195,13 @@ async def _execute_non_ai_analysis(
     cancellation_token: Optional[Any],
 ) -> Any:
     """Execute the non-AI scene analysis.
-    
+
     IMPORTANT: Each database operation uses its own session to avoid greenlet errors.
     """
     # Non-AI analysis doesn't require OpenAI client
     analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
     plan_name = kwargs.get("plan_name", "Non-AI Analysis")
-    
+
     # Use a fresh session for the analysis operation
     async with AsyncSessionLocal() as db:
         analysis_service = AnalysisService(
@@ -209,9 +209,11 @@ async def _execute_non_ai_analysis(
             stash_service=services["stash_service"],
             settings=services["settings"],
         )
-        
-        logger.info(f"Creating analysis service and starting non-AI analysis for job {job_id}")
-        
+
+        logger.info(
+            f"Creating analysis service and starting non-AI analysis for job {job_id}"
+        )
+
         plan = await analysis_service.analyze_scenes_non_ai(
             scene_ids=scene_ids,
             options=analysis_options,
@@ -221,14 +223,14 @@ async def _execute_non_ai_analysis(
             plan_name=plan_name,
             cancellation_token=cancellation_token,
         )
-        
+
         logger.info(
             f"Non-AI analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
         )
-        
+
         # Ensure we commit any pending changes
         await db.commit()
-        
+
         return plan
 
 

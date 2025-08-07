@@ -7,6 +7,7 @@ import pytest
 
 from app.jobs.analysis_jobs import (
     analyze_scenes_job,
+    analyze_scenes_non_ai_job,
     apply_analysis_plan_job,
     generate_scene_details_job,
     register_analysis_jobs,
@@ -421,13 +422,14 @@ class TestAnalysisJobs:
         register_analysis_jobs(mock_job_service)
 
         # Assert
-        assert mock_job_service.register_handler.call_count == 3
+        assert mock_job_service.register_handler.call_count == 4
         calls = mock_job_service.register_handler.call_args_list
 
         # Check each registration
         assert calls[0][0] == (JobType.ANALYSIS, analyze_scenes_job)
-        assert calls[1][0] == (JobType.APPLY_PLAN, apply_analysis_plan_job)
-        assert calls[2][0] == (JobType.GENERATE_DETAILS, generate_scene_details_job)
+        assert calls[1][0] == (JobType.NON_AI_ANALYSIS, analyze_scenes_non_ai_job)
+        assert calls[2][0] == (JobType.APPLY_PLAN, apply_analysis_plan_job)
+        assert calls[3][0] == (JobType.GENERATE_DETAILS, generate_scene_details_job)
 
 
 class TestAnalysisJobsHelpers:

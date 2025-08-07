@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Any, Optional, Union
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -40,22 +40,22 @@ class AnalysisService:
 
     def __init__(
         self,
-        openai_client: OpenAIClient,
+        openai_client: Optional[OpenAIClient],
         stash_service: StashService,
         settings: Settings,
     ):
         """Initialize analysis service.
 
         Args:
-            openai_client: OpenAI client for AI operations
+            openai_client: OpenAI client for AI operations (optional for non-AI analysis)
             stash_service: Stash service for data operations
             settings: Application settings
         """
         self.stash_service = stash_service
         self.settings = settings
 
-        # Initialize AI client
-        self.ai_client = AIClient(openai_client)
+        # Initialize AI client (only if openai_client is provided)
+        self.ai_client = AIClient(openai_client) if openai_client else None
 
         # Initialize detectors
         self.studio_detector = StudioDetector()
@@ -159,14 +159,14 @@ class AnalysisService:
         cancellation_token: Optional[Any] = None,
     ) -> AnalysisPlan:
         """Analyze scenes using only non-AI detection methods.
-        
+
         This includes:
         - Path and title-based performer detection
-        - OFScraper path-based performer detection  
+        - OFScraper path-based performer detection
         - HTML tag removal from details
-        
+
         Does NOT mark scenes as analyzed.
-        
+
         Args:
             scene_ids: Specific scene IDs to analyze
             filters: Filters for scene selection
@@ -174,45 +174,45 @@ class AnalysisService:
             job_id: Associated job ID for progress tracking
             db: Database session for saving plan
             plan_name: Optional custom name for the plan
-            
+
         Returns:
             Generated analysis plan
         """
         if options is None:
             options = AnalysisOptions()
-        
+
         # Override options to disable AI-based detection
         options.detect_video_tags = False  # No video analysis
         options.detect_tags = False  # No AI tag detection
         options.detect_studios = False  # Studios use AI as fallback
         options.detect_performers = True  # We'll do non-AI performer detection
         options.detect_details = True  # HTML cleaning only
-        
+
         if not db:
             raise ValueError("Database session is required for scene analysis")
-        
+
         # Initialize analysis
         scenes = await self._initialize_analysis(scene_ids, filters, options, db)
         if not scenes:
             return await self._create_empty_plan(db)
-        
+
         # Set up context for analysis
         await self._setup_analysis_context(
             scenes, options, job_id, progress_callback, plan_name or "Non-AI Analysis"
         )
-        
+
         # Process scenes and collect changes
         start_time = time.time()
         all_changes = await self._process_scenes_non_ai(
             scenes, options, db, job_id, progress_callback, cancellation_token
         )
         processing_time = time.time() - start_time
-        
+
         # Finalize and return plan WITHOUT marking scenes as analyzed
         plan = await self._finalize_analysis_non_ai(
             all_changes, scenes, processing_time, db, job_id, options
         )
-        
+
         # Clean up
         self._reset_progress_tracking()
         return plan
@@ -251,18 +251,18 @@ class AnalysisService:
     ) -> list[SceneChanges]:
         """Analyze a batch of scenes with non-AI methods only."""
         results = []
-        
+
         for scene_data in batch_data:
             # Check for cancellation before processing each scene
             if cancellation_token and hasattr(cancellation_token, "check_cancellation"):
                 await cancellation_token.check_cancellation()
-            
+
             # Analyze the scene with non-AI methods
             scene_changes = await self._analyze_single_scene_non_ai(
                 scene_data, options, db, job_id
             )
             results.append(scene_changes)
-        
+
         return results
 
     async def _analyze_single_scene_non_ai(
@@ -277,7 +277,7 @@ class AnalysisService:
             # Create Scene-like object and analyze
             scene = self._create_scene_like(scene_data)
             changes = await self._perform_non_ai_analysis(scene_data, options)
-            
+
             # Create SceneChanges object
             scene_changes = SceneChanges(
                 scene_id=scene.id,
@@ -285,18 +285,18 @@ class AnalysisService:
                 scene_path=scene.path,
                 changes=changes,
             )
-            
+
             # Update plan if needed
             await self._update_plan_if_needed(scene_changes, db, job_id)
-            
+
             # DO NOT mark scene as analyzed for non-AI analysis
             # We specifically skip this step
-            
+
             # Commit after each scene to make the plan visible incrementally
             if db:
                 await db.commit()
                 logger.info(f"Committed scene {scene.id} non-AI changes to database")
-            
+
             # Update progress after each scene
             self._scenes_processed_in_current_batch += 1
             if self._current_progress_callback:
@@ -309,48 +309,52 @@ class AnalysisService:
                 )
                 message = f"Processed {self._scenes_processed_in_current_batch}/{self._total_scenes_in_all_batches} scenes (non-AI)"
                 await self._current_progress_callback(progress, message)
-            
+
             return scene_changes
-            
+
         except Exception as e:
-            logger.error(f"Error in non-AI analysis for scene {scene_data.get('id')}: {e}")
+            logger.error(
+                f"Error in non-AI analysis for scene {scene_data.get('id')}: {e}"
+            )
             return self._create_error_scene_changes(scene_data, e)
 
     async def _perform_non_ai_analysis(
         self, scene_data: dict, options: AnalysisOptions
     ) -> list[ProposedChange]:
         """Perform non-AI analysis only.
-        
+
         Args:
             scene_data: Scene data dictionary
             options: Analysis options
-            
+
         Returns:
             List of proposed changes
         """
         changes = []
-        
+
         # Detect performers using non-AI methods only
         if options.detect_performers:
-            performer_changes = await self._detect_performers_non_ai(scene_data, options)
+            performer_changes = await self._detect_performers_non_ai(
+                scene_data, options
+            )
             changes.extend(performer_changes)
-        
+
         # Clean HTML from details
         if options.detect_details:
             details_changes = await self._detect_details(scene_data, options)
             changes.extend(details_changes)
-        
+
         return changes
 
     async def _detect_performers_non_ai(
         self, scene_data: dict, options: AnalysisOptions
     ) -> list[ProposedChange]:
         """Detect performers using only non-AI methods.
-        
+
         Args:
             scene_data: Scene data
             options: Analysis options
-            
+
         Returns:
             List of proposed changes
         """
@@ -359,27 +363,27 @@ class AnalysisService:
         current_names = [
             p.get("name", "") for p in current_performers if isinstance(p, dict)
         ]
-        
+
         # Get known performers from cache
         known_performers = (
             self._cache["performers"]
             if isinstance(self._cache["performers"], list)
             else []
         )
-        
+
         # Detect from path and title
         path_results = await self.performer_detector.detect_from_path(
             file_path=scene_data.get("file_path", ""),
             known_performers=known_performers,
             title=scene_data.get("title", ""),
         )
-        
+
         # Detect from ofscraper path structure
         ofscraper_results = await self.performer_detector.detect_from_ofscraper_path(
             file_path=scene_data.get("file_path", ""),
             known_performers=known_performers,
         )
-        
+
         # Combine and deduplicate results
         all_results: dict[str, Any] = {}
         for result in path_results + ofscraper_results:
@@ -391,7 +395,7 @@ class AnalysisService:
                         or result.confidence > all_results[name].confidence
                     ):
                         all_results[name] = result
-        
+
         # Create individual changes for each new performer
         for performer_name, result in all_results.items():
             changes.append(
@@ -404,7 +408,7 @@ class AnalysisService:
                     reason=f"Detected performer: {performer_name} (source: {result.source})",
                 )
             )
-        
+
         return changes
 
     async def _finalize_analysis_non_ai(
@@ -420,46 +424,53 @@ class AnalysisService:
         if db and self._current_plan_id:
             # Check if we have no changes at all
             has_any_changes = any(sc.has_changes() for sc in all_changes)
-            
+
             if not has_any_changes:
                 # Delete the empty plan
-                logger.info(f"No changes found, removing empty plan {self._current_plan_id}")
-                await self._delete_empty_plan(self._current_plan_id, db)
+                logger.info(
+                    f"No changes found, removing empty plan {self._current_plan_id}"
+                )
+                await self.plan_manager.delete_plan(self._current_plan_id, db)
                 await db.commit()
                 return await self._create_empty_plan(db)
-            
-            # Update plan metadata
-            await self._update_plan_metadata(
-                self._current_plan_id,
-                all_changes,
-                processing_time,
-                db,
-                options
+
+            # Build metadata for the plan
+            final_metadata = {
+                "processing_time": processing_time,
+                "scenes_analyzed": len(scenes),
+                "completed_at": datetime.utcnow().isoformat(),
+                "analysis_type": "non_ai",
+                "job_id": job_id,
+            }
+
+            # Finalize the plan with metadata
+            await self.plan_manager.finalize_plan(
+                self._current_plan_id, db, final_metadata
             )
-            
-            # Update plan status to completed
-            await self._update_plan_status(
-                self._current_plan_id, PlanStatus.COMPLETED, db
+
+            # Update plan status to DRAFT (ready for review)
+            await self.plan_manager.update_plan_status(
+                self._current_plan_id, PlanStatus.DRAFT, db
             )
-            
+
             # DO NOT mark scenes as analyzed for non-AI analysis
             # Skip the _mark_scenes_analyzed step
-            
+
             await db.commit()
-            
+
             # Return the plan
             plan_query = select(AnalysisPlan).where(
                 AnalysisPlan.id == self._current_plan_id
             )
             result = await db.execute(plan_query)
             plan = result.scalar_one()
-            
+
             logger.info(
                 f"Non-AI analysis plan {plan.id} completed with {len(all_changes)} scene changes"
             )
-            
+
             return plan
-        
+
         # Return mock plan if no database
         return await self._create_empty_plan(db)
 
@@ -1203,31 +1214,32 @@ class AnalysisService:
             title=scene_data.get("title", ""),
         )
 
-        # Always detect with AI for performers
+        # Only detect with AI if ai_client is available
         ai_results: list[Any] = []
-        # Use tracked version if cost tracker is available
-        if hasattr(self, "cost_tracker"):
-            ai_results, cost_info = (
-                await self.performer_detector.detect_with_ai_tracked(
+        if self.ai_client:
+            # Use tracked version if cost tracker is available
+            if hasattr(self, "cost_tracker"):
+                ai_results, cost_info = (
+                    await self.performer_detector.detect_with_ai_tracked(
+                        scene_data=scene_data,
+                        ai_client=self.ai_client,
+                        known_performers=self._cache["performers"],
+                    )
+                )
+                if cost_info:
+                    self.cost_tracker.track_operation(
+                        "performer_detection",
+                        cost_info["cost"],
+                        cost_info["usage"]["prompt_tokens"],
+                        cost_info["usage"]["completion_tokens"],
+                        cost_info["model"],
+                    )
+            else:
+                ai_results = await self.performer_detector.detect_with_ai(
                     scene_data=scene_data,
                     ai_client=self.ai_client,
                     known_performers=self._cache["performers"],
                 )
-            )
-            if cost_info:
-                self.cost_tracker.track_operation(
-                    "performer_detection",
-                    cost_info["cost"],
-                    cost_info["usage"]["prompt_tokens"],
-                    cost_info["usage"]["completion_tokens"],
-                    cost_info["model"],
-                )
-        else:
-            ai_results = await self.performer_detector.detect_with_ai(
-                scene_data=scene_data,
-                ai_client=self.ai_client,
-                known_performers=self._cache["performers"],
-            )
 
         # Combine and deduplicate results
         all_results: dict[str, Any] = {}
@@ -1277,31 +1289,32 @@ class AnalysisService:
             scene_data=scene_data, existing_tags=current_names
         )
 
-        # Always detect with AI for tags
+        # Only detect with AI if ai_client is available
         ai_results: list[Any] = []
-        # Use tracked version if cost tracker is available
-        if hasattr(self, "cost_tracker"):
-            ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
-                scene_data=scene_data,
-                ai_client=self.ai_client,
-                existing_tags=current_names,
-                available_tags=self._cache["tags"],
-            )
-            if cost_info:
-                self.cost_tracker.track_operation(
-                    "tag_detection",
-                    cost_info["cost"],
-                    cost_info["usage"]["prompt_tokens"],
-                    cost_info["usage"]["completion_tokens"],
-                    cost_info["model"],
+        if self.ai_client:
+            # Use tracked version if cost tracker is available
+            if hasattr(self, "cost_tracker"):
+                ai_results, cost_info = await self.tag_detector.detect_with_ai_tracked(
+                    scene_data=scene_data,
+                    ai_client=self.ai_client,
+                    existing_tags=current_names,
+                    available_tags=self._cache["tags"],
                 )
-        else:
-            ai_results = await self.tag_detector.detect_with_ai(
-                scene_data=scene_data,
-                ai_client=self.ai_client,
-                existing_tags=current_names,
-                available_tags=self._cache["tags"],
-            )
+                if cost_info:
+                    self.cost_tracker.track_operation(
+                        "tag_detection",
+                        cost_info["cost"],
+                        cost_info["usage"]["prompt_tokens"],
+                        cost_info["usage"]["completion_tokens"],
+                        cost_info["model"],
+                    )
+            else:
+                ai_results = await self.tag_detector.detect_with_ai(
+                    scene_data=scene_data,
+                    ai_client=self.ai_client,
+                    existing_tags=current_names,
+                    available_tags=self._cache["tags"],
+                )
 
         # Combine results and filter to only existing tags
         all_results: dict[str, Any] = {}
@@ -1973,7 +1986,7 @@ class AnalysisService:
                 "confidence_threshold": options.confidence_threshold,
             },
             "statistics": self._calculate_statistics(all_changes),
-            "ai_model": self.ai_client.model,
+            "ai_model": self.ai_client.model if self.ai_client else None,
         }
 
         # Add cost information if cost tracker is available

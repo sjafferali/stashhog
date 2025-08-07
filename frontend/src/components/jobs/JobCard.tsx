@@ -24,6 +24,14 @@ import {
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Job } from '@/types/models';
+
+// Type for process_downloads job result
+interface ProcessDownloadsResult {
+  total_files_linked?: number;
+  total_files_under_duration?: number;
+  total_files_skipped?: number;
+  synced_items?: number;
+}
 import {
   getJobTypeLabel,
   getJobTypeColor,
@@ -385,20 +393,27 @@ export const JobCard: React.FC<JobCardProps> = ({
             <div className={styles.resultSummary} style={{ marginTop: 16 }}>
               <Space size="small" wrap>
                 <Tag color="green">
-                  Files Linked: {(job.result as any).total_files_linked || 0}
+                  Files Linked:{' '}
+                  {(job.result as ProcessDownloadsResult).total_files_linked ||
+                    0}
                 </Tag>
                 <Tag color="orange">
                   Files Under 30s:{' '}
-                  {(job.result as any).total_files_under_duration || 0}
+                  {(job.result as ProcessDownloadsResult)
+                    .total_files_under_duration || 0}
                 </Tag>
                 <Tag color="gray">
-                  Files Skipped: {(job.result as any).total_files_skipped || 0}
+                  Files Skipped:{' '}
+                  {(job.result as ProcessDownloadsResult).total_files_skipped ||
+                    0}
                 </Tag>
-                {(job.result as any).synced_items > 0 && (
-                  <Tag color="blue">
-                    Torrents Synced: {(job.result as any).synced_items}
-                  </Tag>
-                )}
+                {(() => {
+                  const syncedItems = (job.result as ProcessDownloadsResult)
+                    .synced_items;
+                  return syncedItems && syncedItems > 0 ? (
+                    <Tag color="blue">Torrents Synced: {syncedItems}</Tag>
+                  ) : null;
+                })()}
               </Space>
             </div>
           )}

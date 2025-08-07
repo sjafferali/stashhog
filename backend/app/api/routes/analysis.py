@@ -236,12 +236,12 @@ async def generate_non_ai_analysis(
 ) -> dict[str, Any]:
     """
     Generate non-AI analysis plan for scenes.
-    
+
     This performs only non-AI detection methods:
     - Path and title-based performer detection
     - OFScraper path-based performer detection (/data/ofscraper/*)
     - HTML tag removal from details
-    
+
     Does NOT mark scenes as analyzed, allowing re-analysis with AI later.
     """
     # Validate scene selection
@@ -250,20 +250,23 @@ async def generate_non_ai_analysis(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either scene_ids or filters must be provided",
         )
-    
+
     # Get scene IDs
     scene_ids = request.scene_ids
     if not scene_ids and request.filters:
         scene_ids = await _get_scene_ids_from_filters(request.filters, db)
-    
+
     if not scene_ids:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No scenes found matching criteria"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No scenes found matching criteria",
         )
-    
+
     # Run analysis
     if background:
-        return await _run_background_non_ai_analysis(scene_ids, request, job_service, db)
+        return await _run_background_non_ai_analysis(
+            scene_ids, request, job_service, db
+        )
     else:
         return await _run_synchronous_non_ai_analysis(
             scene_ids, request, analysis_service, db
@@ -303,7 +306,7 @@ async def _run_synchronous_non_ai_analysis(
 ) -> dict[str, Any]:
     """Run non-AI analysis synchronously."""
     from app.services.analysis.models import AnalysisOptions as ServiceAnalysisOptions
-    
+
     service_options = ServiceAnalysisOptions(
         detect_performers=True,  # Non-AI performer detection
         detect_studios=False,  # Studios use AI as fallback
@@ -312,14 +315,14 @@ async def _run_synchronous_non_ai_analysis(
         detect_video_tags=False,  # Video analysis requires AI
         confidence_threshold=request.options.confidence_threshold,
     )
-    
+
     plan = await analysis_service.analyze_scenes_non_ai(
         scene_ids=scene_ids,
         options=service_options,
         db=db,
         plan_name=request.plan_name,
     )
-    
+
     if plan and hasattr(plan, "id") and plan.id:
         return {
             "plan_id": plan.id,
