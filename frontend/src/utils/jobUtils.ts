@@ -3,6 +3,7 @@ export type JobType =
   | 'sync_all'
   | 'sync_scenes'
   | 'analysis'
+  | 'non_ai_analysis'
   | 'apply_plan'
   | 'generate_details'
   | 'export'
@@ -23,6 +24,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   sync_all: 'Full Sync',
   sync_scenes: 'Sync Scenes',
   analysis: 'Scene Analysis',
+  non_ai_analysis: 'Non-AI Analysis',
   scene_analysis: 'Scene Analysis', // Handle legacy type
   scene_sync: 'Scene Sync', // Handle legacy type
   apply_plan: 'Apply Plan',
@@ -45,6 +47,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   sync_scenes: 'blue',
   scene_sync: 'blue',
   analysis: 'green',
+  non_ai_analysis: 'lime',
   scene_analysis: 'green',
   apply_plan: 'purple',
   generate_details: 'orange',

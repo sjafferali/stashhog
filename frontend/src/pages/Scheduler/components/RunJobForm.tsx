@@ -185,6 +185,39 @@ const jobDefinitions: JobDefinition[] = [
     ],
   },
   {
+    type: 'non_ai_analysis',
+    name: 'Non-AI Analysis',
+    description:
+      'Analyze scenes using path-based detection without AI (faster, no API costs)',
+    icon: <DatabaseOutlined />,
+    category: 'AI Analysis',
+    parameters: [
+      {
+        name: 'scene_ids',
+        type: 'array',
+        required: false,
+        description:
+          'Comma-separated list of scene IDs to analyze. Leave empty to analyze all unanalyzed scenes.',
+        placeholder: 'e.g., 123,456,789',
+      },
+      {
+        name: 'plan_name',
+        type: 'string',
+        required: false,
+        description: 'Name for the analysis plan',
+        placeholder: 'e.g., Path-based Detection',
+      },
+      {
+        name: 'detect_performers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description:
+          'Detect performers from file paths and directory structure',
+      },
+    ],
+  },
+  {
     type: 'apply_plan',
     name: 'Apply Analysis Plan',
     description:

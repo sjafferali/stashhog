@@ -8,6 +8,7 @@ import {
   Select,
   message,
   Tag,
+  Radio,
 } from 'antd';
 import {
   ExperimentOutlined,
@@ -20,6 +21,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   VideoCameraOutlined,
+  DatabaseOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
@@ -31,7 +34,7 @@ import {
   AnalysisTypeOptions,
   hasAtLeastOneAnalysisTypeSelected,
 } from '@/components/forms/AnalysisTypeSelector';
-import type { MenuProps } from 'antd';
+import type { MenuProps, RadioChangeEvent } from 'antd';
 
 interface SceneActionsProps {
   selectedCount: number;
@@ -55,6 +58,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     detectVideoTags: false,
   });
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [analysisType, setAnalysisType] = useState<'ai' | 'non-ai'>('ai');
   const [tempAnalysisOptions, setTempAnalysisOptions] =
     useState<AnalysisTypeOptions>({
       detectPerformers: true,
@@ -81,13 +85,17 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     mutationFn: async ({
       sceneIds,
       options,
+      type,
     }: {
       sceneIds: string[];
       options: AnalysisTypeOptions;
+      type: 'ai' | 'non-ai';
     }) => {
-      const response = await api.post('/analysis/generate', {
+      const endpoint =
+        type === 'ai' ? '/analysis/generate' : '/analysis/generate-non-ai';
+      const response = await api.post(endpoint, {
         scene_ids: sceneIds,
-        plan_name: `Bulk Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
+        plan_name: `${type === 'ai' ? 'AI' : 'Non-AI'} Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
         options: {
           detect_performers: options.detectPerformers,
           detect_studios: options.detectStudios,
@@ -211,18 +219,31 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const handleAnalysisModalOk = () => {
     setAnalysisOptions(tempAnalysisOptions);
 
+    // For non-AI analysis, only performers detection is available
+    const effectiveOptions =
+      analysisType === 'non-ai'
+        ? {
+            ...tempAnalysisOptions,
+            detectStudios: false,
+            detectTags: false,
+            detectDetails: false,
+            detectVideoTags: false,
+          }
+        : tempAnalysisOptions;
+
     // Check if any analysis options are selected
     if (
-      tempAnalysisOptions.detectPerformers ||
-      tempAnalysisOptions.detectStudios ||
-      tempAnalysisOptions.detectTags ||
-      tempAnalysisOptions.detectDetails ||
-      tempAnalysisOptions.detectVideoTags
+      effectiveOptions.detectPerformers ||
+      effectiveOptions.detectStudios ||
+      effectiveOptions.detectTags ||
+      effectiveOptions.detectDetails ||
+      effectiveOptions.detectVideoTags
     ) {
       // Use regular analysis endpoint for all options including video tags
       analyzeMutation.mutate({
         sceneIds: Array.from(selectedScenes),
-        options: tempAnalysisOptions,
+        options: effectiveOptions,
+        type: analysisType,
       });
     }
 
@@ -305,24 +326,47 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     });
   };
 
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    switch (key) {
+      case 'add-tags':
+        setTagAction('add');
+        handleTagAction();
+        break;
+      case 'remove-tags':
+        setTagAction('remove');
+        handleTagAction();
+        break;
+      case 'set-analyzed':
+        handleBulkAnalyzedUpdate('analyzed', true);
+        break;
+      case 'unset-analyzed':
+        handleBulkAnalyzedUpdate('analyzed', false);
+        break;
+      case 'set-video-analyzed':
+        handleBulkAnalyzedUpdate('video_analyzed', true);
+        break;
+      case 'unset-video-analyzed':
+        handleBulkAnalyzedUpdate('video_analyzed', false);
+        break;
+      case 'export-csv':
+        void handleExport('csv');
+        break;
+      case 'export-json':
+        void handleExport('json');
+        break;
+    }
+  };
+
   const bulkActions: MenuProps['items'] = [
     {
       key: 'add-tags',
       label: 'Add Tags',
       icon: <PlusOutlined />,
-      onClick: () => {
-        setTagAction('add');
-        handleTagAction();
-      },
     },
     {
       key: 'remove-tags',
       label: 'Remove Tags',
       icon: <MinusOutlined />,
-      onClick: () => {
-        setTagAction('remove');
-        handleTagAction();
-      },
     },
     {
       type: 'divider',
@@ -331,13 +375,11 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       key: 'set-analyzed',
       label: 'Set Analyzed',
       icon: <CheckCircleOutlined />,
-      onClick: () => handleBulkAnalyzedUpdate('analyzed', true),
     },
     {
       key: 'unset-analyzed',
       label: 'Unset Analyzed',
       icon: <CloseCircleOutlined />,
-      onClick: () => handleBulkAnalyzedUpdate('analyzed', false),
     },
     {
       type: 'divider',
@@ -346,13 +388,11 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       key: 'set-video-analyzed',
       label: 'Set Video Analyzed',
       icon: <VideoCameraOutlined />,
-      onClick: () => handleBulkAnalyzedUpdate('video_analyzed', true),
     },
     {
       key: 'unset-video-analyzed',
       label: 'Unset Video Analyzed',
       icon: <CloseCircleOutlined />,
-      onClick: () => handleBulkAnalyzedUpdate('video_analyzed', false),
     },
     {
       type: 'divider',
@@ -361,13 +401,11 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       key: 'export-csv',
       label: 'Export as CSV',
       icon: <ExportOutlined />,
-      onClick: () => void handleExport('csv'),
     },
     {
       key: 'export-json',
       label: 'Export as JSON',
       icon: <ExportOutlined />,
-      onClick: () => void handleExport('json'),
     },
   ];
 
@@ -397,7 +435,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
               Analyze Selected
             </Button>
 
-            <Dropdown menu={{ items: bulkActions }}>
+            <Dropdown menu={{ items: bulkActions, onClick: handleMenuClick }}>
               <Button>
                 <Space>
                   More Actions
@@ -458,21 +496,97 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
         onCancel={() => {
           setAnalysisModalVisible(false);
           setTempAnalysisOptions(analysisOptions);
+          setAnalysisType('ai');
         }}
         confirmLoading={analyzeMutation.isPending}
         okButtonProps={{
-          disabled: !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions),
+          disabled:
+            analysisType === 'ai'
+              ? !hasAtLeastOneAnalysisTypeSelected(tempAnalysisOptions)
+              : !tempAnalysisOptions.detectPerformers,
         }}
         width={500}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <p>
-            Analyze {selectedCount} selected scenes with the following options:
-          </p>
-          <AnalysisTypeSelector
-            value={tempAnalysisOptions}
-            onChange={setTempAnalysisOptions}
-          />
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <p>Analyze {selectedCount} selected scenes:</p>
+
+          <div>
+            <div style={{ marginBottom: '12px' }}>
+              <strong>Analysis Type:</strong>
+            </div>
+            <Radio.Group
+              value={analysisType}
+              onChange={(e: RadioChangeEvent) =>
+                setAnalysisType(e.target.value as 'ai' | 'non-ai')
+              }
+              style={{ width: '100%' }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio value="ai">
+                  <Space>
+                    <RobotOutlined />
+                    <span>AI Analysis</span>
+                  </Space>
+                  <div
+                    style={{
+                      marginLeft: '24px',
+                      fontSize: '12px',
+                      color: '#666',
+                    }}
+                  >
+                    Uses OpenAI to detect performers, tags, studios, and
+                    generate descriptions
+                  </div>
+                </Radio>
+                <Radio value="non-ai">
+                  <Space>
+                    <DatabaseOutlined />
+                    <span>Non-AI Analysis (Path-based)</span>
+                  </Space>
+                  <div
+                    style={{
+                      marginLeft: '24px',
+                      fontSize: '12px',
+                      color: '#666',
+                    }}
+                  >
+                    Fast detection from file paths, no API costs, performers
+                    only
+                  </div>
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </div>
+
+          {analysisType === 'ai' ? (
+            <AnalysisTypeSelector
+              value={tempAnalysisOptions}
+              onChange={setTempAnalysisOptions}
+            />
+          ) : (
+            <div
+              style={{
+                padding: '12px',
+                background: '#f0f0f0',
+                borderRadius: '4px',
+              }}
+            >
+              <Space direction="vertical">
+                <div>
+                  <strong>Non-AI analysis will:</strong>
+                </div>
+                <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                  <li>Detect performers from file paths and directory names</li>
+                  <li>Match against OFScraper directory structure</li>
+                  <li>Clean HTML from scene details</li>
+                </ul>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Note: Scenes will NOT be marked as analyzed, allowing AI
+                  analysis later
+                </div>
+              </Space>
+            </div>
+          )}
         </Space>
       </Modal>
     </>
