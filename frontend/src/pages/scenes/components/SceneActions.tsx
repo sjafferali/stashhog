@@ -93,22 +93,32 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     }) => {
       const endpoint =
         type === 'ai' ? '/analysis/generate' : '/analysis/generate-non-ai';
-      const response = await api.post(endpoint, {
-        scene_ids: sceneIds,
-        plan_name: `${type === 'ai' ? 'AI' : 'Non-AI'} Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
-        options: {
-          detect_performers: options.detectPerformers,
-          detect_studios: options.detectStudios,
-          detect_tags: options.detectTags,
-          detect_details: options.detectDetails,
-          detect_video_tags: options.detectVideoTags,
-          confidence_threshold: 0.7,
+      const response = await api.post(
+        endpoint,
+        {
+          scene_ids: sceneIds,
+          plan_name: `${type === 'ai' ? 'AI' : 'Non-AI'} Analysis - ${sceneIds.length} scenes - ${new Date().toISOString()}`,
+          options: {
+            detect_performers: options.detectPerformers,
+            detect_studios: options.detectStudios,
+            detect_tags: options.detectTags,
+            detect_details: options.detectDetails,
+            detect_video_tags: options.detectVideoTags,
+            confidence_threshold: 0.7,
+          },
         },
-      });
+        {
+          params: { background: true },
+        }
+      );
       return response.data;
     },
     onSuccess: (data) => {
-      if (data.plan_id) {
+      if (data.job_id) {
+        void message.success(
+          `Analysis job queued (Job ID: ${data.job_id}) for ${selectedCount} scenes`
+        );
+      } else if (data.plan_id) {
         void message.success(
           `Created analysis plan ${data.plan_id} for ${selectedCount} scenes`
         );
@@ -119,7 +129,8 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void queryClient.invalidateQueries({ queryKey: ['plans'] });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Analysis error:', error);
       void message.error('Failed to start analysis');
     },
   });
