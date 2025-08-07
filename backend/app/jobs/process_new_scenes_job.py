@@ -304,7 +304,7 @@ async def _analyze_batch(
                 "detect_video_tags": True,
                 "detect_performers": False,
                 "detect_studios": False,
-                "detect_tags": True,
+                "detect_tags": False,
                 "detect_details": False,
             },
             "plan_name": f"Video Tags Analysis - Batch {batch_num} - {len(scene_ids)} scenes",
