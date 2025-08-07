@@ -125,6 +125,7 @@ class JobType(str, Enum):
     SYNC = "sync"
     SYNC_SCENES = "sync_scenes"
     ANALYSIS = "analysis"
+    NON_AI_ANALYSIS = "non_ai_analysis"
     APPLY_PLAN = "apply_plan"
     VIDEO_TAG_ANALYSIS = "video_tag_analysis"
     GENERATE_DETAILS = "generate_details"

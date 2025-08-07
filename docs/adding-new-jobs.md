@@ -1,6 +1,8 @@
 # Adding New Jobs to StashHog
 
-This guide provides a comprehensive checklist and guidelines for engineers adding new job types to the StashHog system. It covers both backend and frontend changes required, with special attention to avoiding common pitfalls like greenlet errors.
+This guide provides a comprehensive checklist and guidelines for engineers adding new job types to the StashHog system. 
+
+**🎯 NEW: Centralized Job Registry** - As of v2.0, job types are centrally managed through the Job Registry, significantly reducing the number of places you need to update when adding a new job type.
 
 ## Table of Contents
 
@@ -9,34 +11,49 @@ This guide provides a comprehensive checklist and guidelines for engineers addin
 3. [Avoiding Greenlet Errors](#avoiding-greenlet-errors)
 4. [Testing Checklist](#testing-checklist)
 5. [Example Implementation](#example-implementation)
+6. [Quick Checklist](#quick-checklist)
 
 ## Backend Changes
 
-### 1. Add Job Type to Enum
+### 1. Add Job Type to Registry (NEW - Simplified!)
+
+**File**: `backend/app/core/job_registry.py`
+
+Add your new job type to the central registry:
+
+```python
+JOB_REGISTRY: Dict[str, JobMetadata] = {
+    # ... existing types ...
+    "YOUR_NEW_JOB": JobMetadata(
+        value="your_new_job",
+        label="Your Job Display Name",
+        description="Description of what your job does",
+        color="blue",  # Choose from UI colors
+        category="Your Category",  # e.g., "Synchronization", "Analysis"
+        unit="items",  # Unit for progress display (optional)
+        allow_concurrent=False,  # Can multiple instances run?
+        is_workflow=False,  # Is this a workflow job?
+    ),
+}
+```
+
+**That's it for metadata!** The registry automatically:
+- ✅ Generates the model enum value
+- ✅ Generates the schema enum value  
+- ✅ Provides the mapping function
+- ✅ Exposes metadata to frontend via API
+- ✅ Handles all UI configuration
+
+### 1b. Add to Model Enum (Temporary - Until Full Migration)
 
 **File**: `backend/app/models/job.py`
 
-Add your new job type to the `JobType` enum:
+Until we fully migrate to dynamic enums, also add to the static enum:
 
 ```python
 class JobType(str, enum.Enum):
     # ... existing types ...
     YOUR_NEW_JOB = "your_new_job"
-```
-
-Also add it to the PostgreSQL enum list in the Job model:
-
-```python
-type: Column = Column(
-    PostgreSQLEnum(
-        # ... existing types ...
-        "YOUR_NEW_JOB",
-        name="jobtype",
-        create_type=False,
-    ),
-    nullable=False,
-    index=True,
-)
 ```
 
 ### 2. Create Database Migration
@@ -197,32 +214,19 @@ def register_all_jobs(job_service: JobService) -> None:
     register_your_new_jobs(job_service)
 ```
 
-### 5. Update API Schema
+### 5. Update API Schema (Temporary - Until Full Migration)
 
 **File**: `backend/app/api/schemas/__init__.py`
 
-Add your job type to the `JobType` enum:
+Until we fully migrate to dynamic enums, also add to the static schema enum:
 
 ```python
 class JobType(str, Enum):
     # ... existing types ...
-    YOUR_NEW_JOB = "your_new_job"
+    YOUR_NEW_JOB = "your_new_job"  # MUST match the value in models/job.py
 ```
 
-### 6. Add Job Type Mapping (if needed)
-
-**File**: `backend/app/api/routes/jobs.py`
-
-If your job type needs special mapping, add it to `map_job_type_to_schema`:
-
-```python
-def map_job_type_to_schema(model_type: str) -> str:
-    mapping = {
-        # ... existing mappings ...
-        "your_new_job": "your_new_job",
-    }
-    return mapping.get(model_type, model_type)
-```
+**Note**: Once fully migrated to the registry, this step will be automatic!
 
 ### 7. Create API Endpoint (Optional)
 
@@ -281,17 +285,29 @@ async def trigger_your_job(
 
 ## Frontend Changes
 
-### 1. Update Job Type Definition
+### 1. Frontend Configuration (Automatic!)
+
+**🎉 NEW**: The frontend automatically fetches job metadata from the backend!
+
+The job metadata service (`frontend/src/services/jobMetadataService.ts`) fetches configuration from the `/api/jobs/metadata` endpoint on app startup, so:
+
+- ✅ Labels are automatically available
+- ✅ Colors are automatically applied
+- ✅ Descriptions are automatically shown
+- ✅ Progress units are automatically formatted
+
+### 1b. Update Static Definitions (Temporary - For Offline Fallback)
 
 **File**: `frontend/src/utils/jobUtils.ts`
 
-Add your job type:
+Until fully migrated, also add static fallbacks for offline mode:
 
 ```typescript
 export type JobType =
   // ... existing types ...
   | 'your_new_job';
 
+// These static definitions serve as fallbacks if the API is unavailable
 export const JOB_TYPE_LABELS: Record<string, string> = {
   // ... existing labels ...
   your_new_job: 'Your Job Display Name',
@@ -299,7 +315,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
 
 export const JOB_TYPE_COLORS: Record<string, string> = {
   // ... existing colors ...
-  your_new_job: 'blue', // Choose: blue, green, purple, orange, cyan, magenta, volcano, geekblue
+  your_new_job: 'blue',
 };
 
 export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
@@ -308,13 +324,37 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
 };
 ```
 
-Update the `formatJobProgress` function if your job has special progress formatting:
+**Note**: These are only used as fallbacks. The primary source is the backend registry!
 
 ```typescript
-} else if (type === 'your_new_job') {
-  unit = ' items'; // or whatever unit makes sense
-}
+export const formatJobProgress = (
+  type: string,
+  processed: number | undefined,
+  total: number | undefined,
+  progress: number
+): string => {
+  if (total !== undefined && processed !== undefined) {
+    let unit = '';
+    if (
+      type === 'sync' ||
+      type === 'sync_all' ||
+      type === 'sync_scenes' ||
+      type === 'scene_sync' ||
+      type === 'analysis' ||
+      type === 'your_new_job' ||  // ADD YOUR JOB HERE if it processes scenes
+      type === 'scene_analysis'
+    ) {
+      unit = ' scenes';
+    } else if (type === 'your_new_job') {  // OR add specific unit here
+      unit = ' items'; // or whatever unit makes sense
+    }
+    // ... rest of conditions
+  }
+  return `${Math.round(progress || 0)}%`;
+};
 ```
+
+⚠️ **Common Error**: Forgetting to add your job type here means progress will only show percentage, not "X / Y items".
 
 ### 2. Update Job Model Interface
 
@@ -1015,15 +1055,82 @@ When your job executes, all log messages automatically include job context:
 
 **Solution**: Review the "Avoiding Greenlet Errors" section and ensure each database operation has its own session.
 
+## Quick Checklist
+
+### 🎯 NEW Simplified Process (With Job Registry)
+
+When adding a new job type:
+
+#### Primary Steps (Required)
+1. **Add to Job Registry** (`backend/app/core/job_registry.py`)
+   - [ ] Add JobMetadata entry with all configuration
+   
+2. **Create Job Implementation** (`backend/app/jobs/your_job.py`)
+   - [ ] Implement job handler function
+   - [ ] Register with job service
+   
+3. **Database Migration**
+   - [ ] Create migration: `alembic revision -m "add_xyz_to_jobtype_enum"`
+   - [ ] Run migration: `alembic upgrade head`
+
+That's it! The registry handles the rest automatically.
+
+#### Temporary Steps (Until Full Migration)
+- [ ] `backend/app/models/job.py` - Add to JobType enum
+- [ ] `backend/app/api/schemas/__init__.py` - Add to JobType enum
+- [ ] `frontend/src/utils/jobUtils.ts` - Add static fallbacks
+
+### Legacy Process (Without Registry)
+
+If not using the centralized registry, update ALL of these locations:
+
+### Backend (Required)
+- [ ] `backend/app/models/job.py` - Add to JobType enum
+- [ ] `backend/app/models/job.py` - Add to PostgreSQL enum (if not using dynamic inclusion)
+- [ ] Create migration: `alembic revision -m "add_xyz_to_jobtype_enum"`
+- [ ] `backend/app/api/schemas/__init__.py` - Add to JobType enum (MUST match model value!)
+- [ ] `backend/app/api/routes/jobs.py` - Add to `map_job_type_to_schema` function
+- [ ] `backend/app/jobs/your_job.py` - Create job implementation
+- [ ] `backend/app/jobs/__init__.py` - Import and register your job
+
+### Frontend (Required)
+- [ ] `frontend/src/utils/jobUtils.ts` - Add to JobType type definition
+- [ ] `frontend/src/utils/jobUtils.ts` - Add to JOB_TYPE_LABELS
+- [ ] `frontend/src/utils/jobUtils.ts` - Add to JOB_TYPE_COLORS
+- [ ] `frontend/src/utils/jobUtils.ts` - Add to JOB_TYPE_DESCRIPTIONS
+- [ ] `frontend/src/utils/jobUtils.ts` - Update formatJobProgress (for unit display)
+- [ ] `frontend/src/types/models.ts` - Add to Job interface type (if exists)
+
+### Optional
+- [ ] `backend/app/api/routes/jobs.py` - Add dedicated API endpoint
+- [ ] `frontend/src/pages/Scheduler/components/RunJobForm.tsx` - Add to job definitions
+
+### Testing
+- [ ] Run migration: `alembic upgrade head`
+- [ ] Verify job appears in jobs list page without errors
+- [ ] Test job execution
+- [ ] Verify progress displays correctly (with units if applicable)
+
+## Common Errors and Solutions
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `ValueError: 'your_job' is not a valid JobType` | Missing from schema enum | Add to `backend/app/api/schemas/__init__.py` JobType enum |
+| `invalid input value for enum jobtype` | Missing from PostgreSQL enum | Create and run Alembic migration |
+| Progress shows only % not "X/Y items" | Missing from formatJobProgress | Add job type to unit conditions in `frontend/src/utils/jobUtils.ts` |
+| Job type not mapped correctly | Missing from mapping function | Add to `map_job_type_to_schema` in `backend/app/api/routes/jobs.py` |
+
 ## Summary
 
 Adding a new job requires:
-1. Backend: Define job type, implement handler, register it
-2. Frontend: Add type definitions, labels, and colors
-3. Follow session management guidelines to avoid greenlet errors
-4. Test thoroughly, especially concurrent execution and error cases
+1. Backend: Define job type in BOTH model and schema enums, implement handler, register it
+2. Frontend: Add type definitions, labels, colors, descriptions, and progress formatting
+3. Database: Create and run migration for PostgreSQL enum
+4. Follow session management guidelines to avoid greenlet errors
+5. Test thoroughly, especially the jobs list page loading
 
 Key principles:
+- Model and schema enums MUST have matching values
 - Each database operation needs its own session scope
 - Always use the provided progress callback for status updates
 - Initialize services with proper settings

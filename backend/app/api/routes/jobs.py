@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas import JobDetailResponse, JobResponse, JobsListResponse, JobStatus
 from app.api.schemas import JobType as SchemaJobType
 from app.core.dependencies import get_db, get_job_service, get_websocket_manager
+from app.core.job_registry import get_job_type_mapping, to_api_response
 from app.models import Job
 from app.models.handled_download import HandledDownload
 from app.services.job_service import JobService
@@ -31,18 +32,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/metadata")
+async def get_job_metadata() -> Dict[str, Any]:
+    """
+    Get metadata for all job types.
+
+    Returns comprehensive metadata including labels, descriptions, colors,
+    and other UI configuration for all registered job types.
+    This endpoint provides a single source of truth for job type configuration.
+    """
+    return to_api_response()
+
+
 def map_job_type_to_schema(model_type: str) -> str:
-    """Map model JobType values to schema JobType values."""
-    mapping = {
-        "sync": "sync",
-        "sync_scenes": "sync_scenes",
-        "analysis": "scene_analysis",
-        "batch_analysis": "batch_analysis",
-        "stash_scan": "stash_scan",
-        "stash_generate": "stash_generate",
-        "check_stash_generate": "check_stash_generate",
-        "process_new_scenes": "process_new_scenes",
-    }
+    """Map model JobType values to schema JobType values using the job registry."""
+    mapping = get_job_type_mapping()
     return mapping.get(model_type, model_type)
 
 

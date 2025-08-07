@@ -1,3 +1,5 @@
+import { jobMetadataService } from '../services/jobMetadataService';
+
 export type JobType =
   | 'sync'
   | 'sync_all'
@@ -19,6 +21,8 @@ export type JobType =
   | 'process_new_scenes'
   | 'test';
 
+// Legacy static definitions - kept for backward compatibility
+// These will be used as fallbacks if the metadata service is not available
 export const JOB_TYPE_LABELS: Record<string, string> = {
   sync: 'Sync',
   sync_all: 'Full Sync',
@@ -64,6 +68,13 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
 };
 
 export const getJobTypeLabel = (type: string): string => {
+  // Try to get from metadata service first
+  const metadata = jobMetadataService.getJobMetadata(type);
+  if (metadata) {
+    return metadata.label;
+  }
+
+  // Fall back to static definitions
   return (
     JOB_TYPE_LABELS[type] ||
     type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
@@ -71,6 +82,13 @@ export const getJobTypeLabel = (type: string): string => {
 };
 
 export const getJobTypeColor = (type: string): string => {
+  // Try to get from metadata service first
+  const metadata = jobMetadataService.getJobMetadata(type);
+  if (metadata) {
+    return metadata.color;
+  }
+
+  // Fall back to static definitions
   // Check exact match first
   if (JOB_TYPE_COLORS[type]) {
     return JOB_TYPE_COLORS[type];
@@ -96,31 +114,40 @@ export const formatJobProgress = (
     processed !== undefined &&
     processed !== null
   ) {
-    // Determine the unit based on job type
+    // Try to get unit from metadata service first
+    const metadata = jobMetadataService.getJobMetadata(type);
     let unit = '';
-    if (
-      type === 'sync' ||
-      type === 'sync_all' ||
-      type === 'sync_scenes' ||
-      type === 'scene_sync' ||
-      type === 'analysis' ||
-      type === 'scene_analysis'
-    ) {
-      unit = ' scenes';
-    } else if (type === 'apply_plan') {
-      unit = ' changes';
-    } else if (type === 'stash_scan') {
-      unit = ' files';
-    } else if (type === 'stash_generate') {
-      unit = ' items';
-    } else if (type === 'check_stash_generate') {
-      unit = ' resources';
-    } else if (type === 'process_downloads') {
-      unit = ' downloads';
-    } else if (type === 'process_new_scenes') {
-      unit = ' steps';
-    } else if (type === 'test') {
-      unit = ' test steps';
+
+    if (metadata && metadata.unit) {
+      unit = ` ${metadata.unit}`;
+    } else {
+      // Fall back to static definitions
+      // Determine the unit based on job type
+      if (
+        type === 'sync' ||
+        type === 'sync_all' ||
+        type === 'sync_scenes' ||
+        type === 'scene_sync' ||
+        type === 'analysis' ||
+        type === 'non_ai_analysis' ||
+        type === 'scene_analysis'
+      ) {
+        unit = ' scenes';
+      } else if (type === 'apply_plan') {
+        unit = ' changes';
+      } else if (type === 'stash_scan') {
+        unit = ' files';
+      } else if (type === 'stash_generate') {
+        unit = ' items';
+      } else if (type === 'check_stash_generate') {
+        unit = ' resources';
+      } else if (type === 'process_downloads') {
+        unit = ' downloads';
+      } else if (type === 'process_new_scenes') {
+        unit = ' steps';
+      } else if (type === 'test') {
+        unit = ' test steps';
+      }
     }
 
     return `${processed} / ${total}${unit}`;
@@ -134,6 +161,7 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   sync_all: 'Full synchronization of all entities with Stash',
   sync_scenes: 'Synchronize specific scenes with Stash',
   analysis: 'Analyze scenes with AI',
+  non_ai_analysis: 'Analyze scenes without AI (faster detection)',
   scene_analysis: 'Analyze scenes with AI',
   scene_sync: 'Synchronize scenes with Stash',
   apply_plan: 'Apply analysis plan changes',
@@ -153,5 +181,12 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const getJobTypeDescription = (type: string): string => {
+  // Try to get from metadata service first
+  const metadata = jobMetadataService.getJobMetadata(type);
+  if (metadata) {
+    return metadata.description;
+  }
+
+  // Fall back to static definitions
   return JOB_TYPE_DESCRIPTIONS[type] || 'Unknown job type';
 };
