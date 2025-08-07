@@ -55,9 +55,10 @@ RUN pip install --user --no-warn-script-location -r requirements.txt
 # Stage 4: Final production image
 FROM python-base AS production
 
-# Install runtime dependencies for PostgreSQL
+# Install runtime dependencies for PostgreSQL and ffmpeg
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

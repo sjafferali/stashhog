@@ -250,7 +250,15 @@ const jobDefinitions: JobDefinition[] = [
       'Process completed torrents from qBittorrent and copy them to the media library',
     icon: <DownloadOutlined />,
     category: 'Downloads',
-    parameters: [],
+    parameters: [
+      {
+        name: 'exclude_small_vids',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description: 'Skip video files that are under 30 seconds in duration',
+      },
+    ],
   },
   {
     type: 'process_new_scenes',
@@ -259,7 +267,16 @@ const jobDefinitions: JobDefinition[] = [
       'Complete workflow to process newly downloaded scenes: downloads → scan → sync → analyze → apply changes → generate metadata',
     icon: <PlayCircleOutlined />,
     category: 'Workflow',
-    parameters: [],
+    parameters: [
+      {
+        name: 'exclude_small_vids',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description:
+          'Skip video files that are under 30 seconds in duration during the download processing step',
+      },
+    ],
   },
   {
     type: 'stash_scan',

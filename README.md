@@ -23,6 +23,7 @@ StashHog enhances your Stash experience by providing intelligent content analysi
 - Node.js 18+
 - A running Stash instance
 - OpenAI API key
+- FFmpeg (for video duration detection) - automatically included in Docker images
 
 ### Development Setup
 

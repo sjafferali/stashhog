@@ -378,6 +378,31 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
 
+        {/* Process Downloads Result Summary */}
+        {job.type === 'process_downloads' &&
+          job.result &&
+          job.status === 'completed' && (
+            <div className={styles.resultSummary} style={{ marginTop: 16 }}>
+              <Space size="small" wrap>
+                <Tag color="green">
+                  Files Linked: {(job.result as any).total_files_linked || 0}
+                </Tag>
+                <Tag color="orange">
+                  Files Under 30s:{' '}
+                  {(job.result as any).total_files_under_duration || 0}
+                </Tag>
+                <Tag color="gray">
+                  Files Skipped: {(job.result as any).total_files_skipped || 0}
+                </Tag>
+                {(job.result as any).synced_items > 0 && (
+                  <Tag color="blue">
+                    Torrents Synced: {(job.result as any).synced_items}
+                  </Tag>
+                )}
+              </Space>
+            </div>
+          )}
+
         {/* Expandable Details Section */}
         {showDetails && (
           <div className={styles.detailsCollapse}>

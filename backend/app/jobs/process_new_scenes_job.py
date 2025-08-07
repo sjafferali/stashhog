@@ -549,6 +549,7 @@ async def _process_downloads_step(
     cancellation_token: Optional[Any],
     workflow_result: Dict[str, Any],
     created_subjobs: Optional[List[str]] = None,
+    exclude_small_vids: bool = False,
 ) -> Optional[int]:
     """Process downloads and return synced items count."""
     await progress_callback(5, "Step 1/6: Processing downloads")
@@ -557,7 +558,7 @@ async def _process_downloads_step(
     downloads_result = await _run_workflow_step(
         job_service,
         JobType.PROCESS_DOWNLOADS,
-        {},
+        {"exclude_small_vids": exclude_small_vids},
         job_id,
         "Process Downloads",
         progress_callback,
@@ -740,6 +741,8 @@ async def process_new_scenes_job(  # noqa: C901
                 await db.commit()
 
         # Step 1: Process downloads
+        # Get exclude_small_vids flag from kwargs (default to False)
+        exclude_small_vids = kwargs.get("exclude_small_vids", False)
         synced_items = await _process_downloads_step(
             job_service,
             job_id,
@@ -747,6 +750,7 @@ async def process_new_scenes_job(  # noqa: C901
             cancellation_token,
             workflow_result,
             created_subjobs,
+            exclude_small_vids,
         )
 
         if synced_items is None:

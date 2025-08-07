@@ -1,8 +1,9 @@
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import qbittorrentapi
 
@@ -25,6 +26,9 @@ def _initialize_result(job_id: str, total_items: int) -> Dict[str, Any]:
         "synced_items": 0,
         "skipped_items": 0,
         "failed_items": 0,
+        "total_files_linked": 0,
+        "total_files_under_duration": 0,
+        "total_files_skipped": 0,
         "errors": [],
     }
 
@@ -97,6 +101,157 @@ def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     return copied_files
 
 
+def _get_video_duration(file_path: Path) -> Optional[float]:
+    """Get video duration in seconds using ffprobe.
+
+    Returns:
+        Duration in seconds, or None if unable to determine.
+    """
+    try:
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(file_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, ValueError) as e:
+        logger.warning(f"Failed to get duration for {file_path}: {e}")
+    return None
+
+
+def _is_video_file(file_path: Path) -> bool:
+    """Check if file is a video based on extension."""
+    video_extensions = {
+        ".mp4",
+        ".avi",
+        ".mkv",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".m4v",
+        ".mpg",
+        ".mpeg",
+        ".3gp",
+        ".mp2",
+        ".mpe",
+        ".mpv",
+        ".m2v",
+        ".svi",
+        ".3g2",
+        ".mxf",
+        ".roq",
+        ".nsv",
+        ".f4v",
+        ".f4p",
+        ".f4a",
+        ".f4b",
+    }
+    return file_path.suffix.lower() in video_extensions
+
+
+def _analyze_file_for_duration(
+    src_file: Path,
+    dst_file: Path,
+    exclude_small_vids: bool,
+) -> Tuple[bool, bool, bool]:
+    """Analyze a file for video duration.
+
+    Returns:
+        Tuple of (should_process, is_under_duration, was_skipped_for_duration)
+    """
+    if not _is_video_file(src_file):
+        return True, False, False
+
+    duration = _get_video_duration(src_file)
+    if duration is not None and duration < 30:
+        if exclude_small_vids:
+            logger.info(
+                f"Skipping video file {src_file.name} (duration: {duration:.1f}s < 30s)"
+            )
+            return False, True, True
+        return True, True, False
+
+    return True, False, False
+
+
+def _collect_files_to_process(
+    content_path: Path,
+    dest_path: Path,
+    exclude_small_vids: bool,
+) -> Tuple[List[Tuple[Path, Path]], int, int]:
+    """Collect files to process and analyze video durations.
+
+    Returns:
+        Tuple of (files_to_process, files_under_duration_count, skipped_due_to_duration_count)
+    """
+    files_to_process: List[Tuple[Path, Path]] = []
+    files_under_duration = 0
+    skipped_due_to_duration = 0
+
+    if content_path.is_file():
+        # Single file torrent
+        should_process, is_under, was_skipped = _analyze_file_for_duration(
+            content_path, dest_path, exclude_small_vids
+        )
+        if is_under:
+            files_under_duration += 1
+        if was_skipped:
+            skipped_due_to_duration += 1
+        elif should_process:
+            files_to_process.append((content_path, dest_path))
+    else:
+        # Directory torrent - check each file
+        for src_file in content_path.rglob("*"):
+            if src_file.is_file():
+                rel_path = src_file.relative_to(content_path)
+                dst_file = dest_path / rel_path
+
+                should_process, is_under, was_skipped = _analyze_file_for_duration(
+                    src_file, dst_file, exclude_small_vids
+                )
+                if is_under:
+                    files_under_duration += 1
+                if was_skipped:
+                    skipped_due_to_duration += 1
+                elif should_process:
+                    files_to_process.append((src_file, dst_file))
+
+    return files_to_process, files_under_duration, skipped_due_to_duration
+
+
+def _link_or_copy_file(src_file: Path, dst_file: Path) -> bool:
+    """Link or copy a single file.
+
+    Returns:
+        True if file was linked/copied, False if it already exists.
+    """
+    if dst_file.exists():
+        logger.debug(f"Destination file already exists: {dst_file}")
+        return False
+
+    dst_file.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Try hardlink first
+        os.link(src_file, dst_file)
+        return True
+    except OSError as e:
+        if e.errno == 18:  # Cross-device link error
+            logger.debug(f"Cross-filesystem hardlink failed for {src_file}, using copy")
+            shutil.copy2(src_file, dst_file)
+            return True
+        else:
+            raise
+
+
 def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     """Hardlink torrent content to destination.
 
@@ -132,9 +287,21 @@ def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]
 
 
 async def _process_single_torrent(
-    torrent: Any, dest_base: Path, result: Dict[str, Any], job_id: str
+    torrent: Any,
+    dest_base: Path,
+    result: Dict[str, Any],
+    job_id: str,
+    exclude_small_vids: bool = False,
 ) -> None:
-    """Process a single torrent."""
+    """Process a single torrent.
+
+    Args:
+        torrent: The torrent to process
+        dest_base: Base destination directory
+        result: Result tracking dictionary
+        job_id: Job ID for tracking
+        exclude_small_vids: If True, skip video files under 30 seconds
+    """
     logger.info(f"Processing torrent: {torrent.name}")
     logger.debug(
         f"Torrent details - Hash: {torrent.hash}, Content path: {torrent.content_path}"
@@ -157,27 +324,32 @@ async def _process_single_torrent(
     # Determine destination path
     dest_path = dest_base / torrent.name
 
-    # Hardlink files/directories
-    logger.info(f"Hardlinking from {content_path} to {dest_path}")
-    linked_files: List[Path] = []
-    try:
-        linked_files = _hardlink_torrent_content(content_path, dest_path)
-        if linked_files:
-            logger.debug(
-                f"Successfully hardlinked {len(linked_files)} files from {content_path} to {dest_path}"
-            )
-        else:
-            logger.info(
-                f"All files already exist for {torrent.name}, skipping hardlink"
-            )
-    except OSError as e:
-        if e.errno == 18:  # Cross-device link error
-            logger.warning(
-                f"Cross-filesystem hardlink failed, falling back to copy: {e}"
-            )
-            linked_files = _copy_torrent_content(content_path, dest_path)
-        else:
-            raise
+    # Collect files to process with duration checking
+    files_to_process, files_under_duration, skipped_due_to_duration = (
+        _collect_files_to_process(content_path, dest_path, exclude_small_vids)
+    )
+
+    # Update counters
+    result["total_files_under_duration"] += files_under_duration
+    result["total_files_skipped"] += skipped_due_to_duration
+
+    # Process files
+    linked_files, files_already_exist = await _process_files(
+        files_to_process, content_path, dest_path
+    )
+
+    # Update result counters
+    result["total_files_linked"] += len(linked_files)
+    result["total_files_skipped"] += files_already_exist
+
+    if linked_files:
+        logger.debug(
+            f"Successfully processed {len(linked_files)} files from {content_path} to {dest_path}"
+        )
+    else:
+        logger.info(
+            f"No new files to process for {torrent.name} (skipped: {files_already_exist + skipped_due_to_duration})"
+        )
 
     # Record each linked/copied file in the database
     for file_path in linked_files:
@@ -190,6 +362,31 @@ async def _process_single_torrent(
 
     result["synced_items"] += 1
     result["processed_items"] += 1
+
+
+async def _process_files(
+    files_to_process: List[Tuple[Path, Path]],
+    content_path: Path,
+    dest_path: Path,
+) -> Tuple[List[Path], int]:
+    """Process (link or copy) files to destination.
+
+    Returns:
+        Tuple of (linked_files, files_already_exist_count)
+    """
+    logger.info(
+        f"Processing {len(files_to_process)} files from {content_path} to {dest_path}"
+    )
+    linked_files: List[Path] = []
+    files_already_exist = 0
+
+    for src_file, dst_file in files_to_process:
+        if _link_or_copy_file(src_file, dst_file):
+            linked_files.append(dst_file)
+        else:
+            files_already_exist += 1
+
+    return linked_files, files_already_exist
 
 
 async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
@@ -279,8 +476,18 @@ async def _process_torrents(
     result: Dict[str, Any],
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any],
+    exclude_small_vids: bool = False,
 ) -> None:
-    """Process all completed torrents."""
+    """Process all completed torrents.
+
+    Args:
+        completed_torrents: List of torrents to process
+        dest_base: Base destination directory
+        result: Result tracking dictionary
+        progress_callback: Progress callback function
+        cancellation_token: Cancellation token
+        exclude_small_vids: If True, skip video files under 30 seconds
+    """
     for idx, torrent in enumerate(completed_torrents):
         if cancellation_token and cancellation_token.is_cancelled:
             logger.info(f"Job {result['job_id']} cancelled")
@@ -295,7 +502,9 @@ async def _process_torrents(
         )
 
         try:
-            await _process_single_torrent(torrent, dest_base, result, result["job_id"])
+            await _process_single_torrent(
+                torrent, dest_base, result, result["job_id"], exclude_small_vids
+            )
         except Exception as e:
             logger.error(f"Error processing torrent '{torrent.name}': {str(e)}")
             result["failed_items"] += 1
@@ -308,9 +517,21 @@ async def process_downloads_job(
     cancellation_token: Optional[Any] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Process completed torrents from qBittorrent."""
+    """Process completed torrents from qBittorrent.
+
+    Args:
+        job_id: Job ID
+        progress_callback: Progress callback function
+        cancellation_token: Cancellation token
+        **kwargs: Additional parameters including:
+            - exclude_small_vids: If True, skip video files under 30 seconds (default: False)
+    """
     logger.info(f"Starting process_downloads job {job_id}")
     qbt_client = None
+
+    # Get exclude_small_vids flag from kwargs (default to False)
+    exclude_small_vids = kwargs.get("exclude_small_vids", False)
+    logger.info(f"Exclude small videos flag: {exclude_small_vids}")
 
     try:
         # Initial progress
@@ -339,7 +560,12 @@ async def process_downloads_job(
 
         # Process all torrents
         await _process_torrents(
-            completed_torrents, dest_base, result, progress_callback, cancellation_token
+            completed_torrents,
+            dest_base,
+            result,
+            progress_callback,
+            cancellation_token,
+            exclude_small_vids,
         )
 
         # Final updates
@@ -350,7 +576,9 @@ async def process_downloads_job(
         logger.info(
             f"Download processing completed: "
             f"{result['synced_items']} synced, "
-            f"{result['skipped_items']} skipped, "
+            f"{result['total_files_linked']} files linked, "
+            f"{result['total_files_under_duration']} files under 30s, "
+            f"{result['total_files_skipped']} files skipped, "
             f"{result['failed_items']} failed"
         )
 
