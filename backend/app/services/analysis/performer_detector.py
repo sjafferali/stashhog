@@ -140,6 +140,86 @@ class PerformerDetector:
 
         return results
 
+    async def detect_from_ofscraper_path(
+        self, file_path: str, known_performers: List[Dict[str, str]]
+    ) -> List[DetectionResult]:
+        """Detect performer from ofscraper directory structure.
+        
+        For paths like /data/ofscraper/performer_name/Posts/Videos/file.mp4,
+        extract the performer name from the 3rd directory component.
+        
+        Args:
+            file_path: Path to the video file
+            known_performers: List of known performer dictionaries with name and aliases
+            
+        Returns:
+            List of detection results
+        """
+        path = Path(file_path)
+        path_parts = path.parts
+        
+        # Check if path matches /data/ofscraper/* pattern
+        # Note: path.parts for "/data/ofscraper/name/..." gives ('/', 'data', 'ofscraper', 'name', ...)
+        # But on Windows or relative paths it might be different, so we check more robustly
+        try:
+            # Find the index of 'ofscraper' in the path
+            if 'ofscraper' not in path_parts:
+                return []
+            
+            ofscraper_idx = path_parts.index('ofscraper')
+            
+            # Check if there's a directory after 'ofscraper' and it's preceded by 'data'
+            if (ofscraper_idx < 1 or 
+                path_parts[ofscraper_idx - 1] != 'data' or 
+                ofscraper_idx + 1 >= len(path_parts)):
+                return []
+            
+            # Extract performer name from directory after 'ofscraper'
+            extracted_name = path_parts[ofscraper_idx + 1]
+        except (ValueError, IndexError):
+            return []
+        
+        # First, check for alias matches
+        for performer in known_performers:
+            aliases: Union[str, List[str]] = performer.get("aliases", [])
+            if isinstance(aliases, str):
+                aliases = [a.strip() for a in aliases.split(",") if a.strip()]
+            
+            # Check if extracted name matches any alias
+            for alias in aliases:
+                if alias.lower() == extracted_name.lower():
+                    return [
+                        DetectionResult(
+                            value=performer.get("name", ""),
+                            confidence=0.95,
+                            source="ofscraper_path",
+                            metadata={"extracted_as": extracted_name, "matched_by": "alias"}
+                        )
+                    ]
+        
+        # Second, check for exact name matches
+        for performer in known_performers:
+            name = performer.get("name", "")
+            if name.lower() == extracted_name.lower():
+                return [
+                    DetectionResult(
+                        value=name,
+                        confidence=0.9,
+                        source="ofscraper_path",
+                        metadata={"extracted_as": extracted_name, "matched_by": "name"}
+                    )
+                ]
+        
+        # If no matches found, return the extracted name as a new performer
+        return [
+            DetectionResult(
+                value=extracted_name,
+                confidence=0.85,
+                source="ofscraper_path",
+                metadata={"extracted_as": extracted_name, "matched_by": "none", "new_performer": True}
+            )
+        ]
+
     async def detect_with_ai(
         self, scene_data: Dict, ai_client: AIClient, known_performers: List[Dict]
     ) -> List[DetectionResult]:

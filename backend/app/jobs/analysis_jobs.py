@@ -120,6 +120,118 @@ async def analyze_scenes_job(
         raise
 
 
+async def analyze_scenes_non_ai_job(
+    job_id: str,
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    cancellation_token: Optional[Any] = None,
+    scene_ids: Optional[list[str]] = None,
+    options: Optional[dict[str, Any]] = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Execute non-AI scene analysis as a background job.
+    
+    This performs only non-AI detection methods:
+    - Path and title-based performer detection
+    - OFScraper path-based performer detection
+    - HTML tag removal from details
+    
+    Does NOT mark scenes as analyzed.
+    """
+    plan_id: Optional[int] = None
+    scenes_processed: int = 0
+    
+    # Check if job was cancelled before starting
+    if cancellation_token and cancellation_token.is_cancelled:
+        logger.info(f"Job {job_id} was cancelled before starting non-AI analysis")
+        raise asyncio.CancelledError("Job cancelled before starting")
+    
+    # Create a wrapper to track progress
+    async def tracking_progress_callback(progress: int, message: str) -> None:
+        nonlocal scenes_processed
+        scenes_processed = _extract_scenes_processed(message, scenes_processed)
+        await progress_callback(progress, message)
+    
+    try:
+        # Initialize services
+        services = await _initialize_services(job_id, scene_ids)
+        
+        # No OpenAI client needed for non-AI analysis
+        services["openai_client"] = None
+        
+        # Execute non-AI analysis
+        plan = await _execute_non_ai_analysis(
+            services,
+            job_id,
+            scene_ids,
+            options,
+            kwargs,
+            tracking_progress_callback,
+            cancellation_token,
+        )
+        
+        # Process results
+        result, plan_id = await _process_analysis_results(plan, job_id, scene_ids)
+        
+        return result
+        
+    except asyncio.CancelledError:
+        return await _handle_job_cancellation(
+            job_id, plan_id, scenes_processed, scene_ids
+        )
+    except Exception as e:
+        error_msg = f"Non-AI analysis failed: {str(e)}"
+        logger.error(f"Job {job_id} failed: {error_msg}", exc_info=True)
+        await progress_callback(100, error_msg)
+        raise
+
+
+async def _execute_non_ai_analysis(
+    services: dict[str, Any],
+    job_id: str,
+    scene_ids: Optional[list[str]],
+    options: Optional[dict[str, Any]],
+    kwargs: dict[str, Any],
+    progress_callback: Callable[[int, str], Awaitable[None]],
+    cancellation_token: Optional[Any],
+) -> Any:
+    """Execute the non-AI scene analysis.
+    
+    IMPORTANT: Each database operation uses its own session to avoid greenlet errors.
+    """
+    # Non-AI analysis doesn't require OpenAI client
+    analysis_options = AnalysisOptions(**options) if options else AnalysisOptions()
+    plan_name = kwargs.get("plan_name", "Non-AI Analysis")
+    
+    # Use a fresh session for the analysis operation
+    async with AsyncSessionLocal() as db:
+        analysis_service = AnalysisService(
+            openai_client=None,  # No AI needed
+            stash_service=services["stash_service"],
+            settings=services["settings"],
+        )
+        
+        logger.info(f"Creating analysis service and starting non-AI analysis for job {job_id}")
+        
+        plan = await analysis_service.analyze_scenes_non_ai(
+            scene_ids=scene_ids,
+            options=analysis_options,
+            job_id=job_id,
+            db=db,
+            progress_callback=progress_callback,
+            plan_name=plan_name,
+            cancellation_token=cancellation_token,
+        )
+        
+        logger.info(
+            f"Non-AI analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
+        )
+        
+        # Ensure we commit any pending changes
+        await db.commit()
+        
+        return plan
+
+
 def _extract_scenes_processed(message: str, current_count: int) -> int:
     """Extract scenes processed count from progress message."""
     if "Processed" in message and "/" in message:
@@ -812,6 +924,7 @@ def register_analysis_jobs(job_service: JobService) -> None:
         job_service: The job service instance to register handlers with
     """
     job_service.register_handler(JobType.ANALYSIS, analyze_scenes_job)
+    job_service.register_handler(JobType.NON_AI_ANALYSIS, analyze_scenes_non_ai_job)
     job_service.register_handler(JobType.APPLY_PLAN, apply_analysis_plan_job)
     job_service.register_handler(JobType.GENERATE_DETAILS, generate_scene_details_job)
 

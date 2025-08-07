@@ -31,6 +31,7 @@ class JobType(str, enum.Enum):
     SYNC = "sync"
     SYNC_SCENES = "sync_scenes"
     ANALYSIS = "analysis"
+    NON_AI_ANALYSIS = "non_ai_analysis"
     APPLY_PLAN = "apply_plan"
     GENERATE_DETAILS = "generate_details"
     EXPORT = "export"

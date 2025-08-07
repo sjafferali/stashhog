@@ -226,6 +226,116 @@ async def generate_analysis(
         return await _run_synchronous_analysis(scene_ids, request, analysis_service, db)
 
 
+@router.post("/generate-non-ai")
+async def generate_non_ai_analysis(
+    request: AnalysisRequest,
+    background: bool = Query(True, description="Run as background job"),
+    job_service: JobService = Depends(get_job_service),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Generate non-AI analysis plan for scenes.
+    
+    This performs only non-AI detection methods:
+    - Path and title-based performer detection
+    - OFScraper path-based performer detection (/data/ofscraper/*)
+    - HTML tag removal from details
+    
+    Does NOT mark scenes as analyzed, allowing re-analysis with AI later.
+    """
+    # Validate scene selection
+    if not request.scene_ids and not request.filters:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either scene_ids or filters must be provided",
+        )
+    
+    # Get scene IDs
+    scene_ids = request.scene_ids
+    if not scene_ids and request.filters:
+        scene_ids = await _get_scene_ids_from_filters(request.filters, db)
+    
+    if not scene_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No scenes found matching criteria"
+        )
+    
+    # Run analysis
+    if background:
+        return await _run_background_non_ai_analysis(scene_ids, request, job_service, db)
+    else:
+        return await _run_synchronous_non_ai_analysis(
+            scene_ids, request, analysis_service, db
+        )
+
+
+async def _run_background_non_ai_analysis(
+    scene_ids: list[str],
+    request: AnalysisRequest,
+    job_service: JobService,
+    db: AsyncSession,
+) -> dict[str, Any]:
+    """Queue non-AI analysis as a background job."""
+    job = await job_service.create_job(
+        job_type=ModelJobType.NON_AI_ANALYSIS,
+        db=db,
+        metadata={
+            "scene_ids": scene_ids,
+            "options": request.options.model_dump(),
+            "plan_name": request.plan_name
+            or f"Non-AI Analysis - {datetime.now(timezone.utc).isoformat()}",
+        },
+    )
+    await db.refresh(job)
+    return {
+        "job_id": job.id,
+        "status": "queued",
+        "message": f"Non-AI analysis job queued for {len(scene_ids)} scenes",
+    }
+
+
+async def _run_synchronous_non_ai_analysis(
+    scene_ids: list[str],
+    request: AnalysisRequest,
+    analysis_service: AnalysisService,
+    db: AsyncSession,
+) -> dict[str, Any]:
+    """Run non-AI analysis synchronously."""
+    from app.services.analysis.models import AnalysisOptions as ServiceAnalysisOptions
+    
+    service_options = ServiceAnalysisOptions(
+        detect_performers=True,  # Non-AI performer detection
+        detect_studios=False,  # Studios use AI as fallback
+        detect_tags=False,  # Tags use AI
+        detect_details=True,  # HTML cleaning only
+        detect_video_tags=False,  # Video analysis requires AI
+        confidence_threshold=request.options.confidence_threshold,
+    )
+    
+    plan = await analysis_service.analyze_scenes_non_ai(
+        scene_ids=scene_ids,
+        options=service_options,
+        db=db,
+        plan_name=request.plan_name,
+    )
+    
+    if plan and hasattr(plan, "id") and plan.id:
+        return {
+            "plan_id": plan.id,
+            "total_changes": len(plan.changes) if hasattr(plan, "changes") else 0,
+            "scenes_analyzed": len(scene_ids),
+            "message": f"Non-AI analysis completed for {len(scene_ids)} scenes",
+        }
+    else:
+        return {
+            "plan_id": None,
+            "total_changes": 0,
+            "scenes_analyzed": len(scene_ids),
+            "message": "No changes detected during non-AI analysis",
+        }
+
+
 @router.get("/plans", response_model=PaginatedResponse[PlanResponse])
 async def list_plans(
     pagination: PaginationParams = Depends(),
