@@ -348,7 +348,7 @@ const JobMonitor: React.FC = () => {
                   {formatDuration(record.started_at, record.completed_at)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Progress">
-                  {record.processed_items && record.total ? (
+                  {record.processed_items !== undefined && record.total ? (
                     <Text>
                       {record.processed_items} / {record.total} items
                     </Text>
@@ -624,7 +624,8 @@ const JobMonitor: React.FC = () => {
               </div>
             ) : (
               record.processed_items !== undefined &&
-              record.total && (
+              record.total &&
+              (record.processed_items > 0 || record.status === 'running') && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {record.processed_items} / {record.total} items
                 </Text>
