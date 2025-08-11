@@ -2,10 +2,12 @@
 Scene management endpoints.
 """
 
+import logging
 import os
 from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import and_, distinct, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,7 +32,25 @@ from app.repositories.job_repository import job_repository
 from app.services.job_service import JobService
 from app.services.sync.sync_service import SyncService
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Response models for tag operations
+class BulkTagOperationRequest(BaseModel):
+    """Request model for bulk tag operations."""
+
+    scene_ids: List[int]
+    tag_ids: List[int]
+
+
+class BulkTagOperationResponse(BaseModel):
+    """Response model for bulk tag operations."""
+
+    success: bool
+    message: str
+    scenes_updated: int
+    tags_affected: int
 
 
 async def parse_scene_filters(
@@ -608,6 +628,174 @@ async def bulk_update_scenes(
     updated_count = result.rowcount
 
     return {"updated_count": updated_count, "scene_ids": scene_ids, "updates": updates}
+
+
+@router.post("/add-tags", response_model=BulkTagOperationResponse)
+async def add_tags_to_scenes(
+    request: BulkTagOperationRequest = Body(..., description="Scene and tag IDs"),
+    sync_service: SyncService = Depends(get_sync_service),
+    db: AsyncSession = Depends(get_db),
+) -> BulkTagOperationResponse:
+    """
+    Add tags to multiple scenes.
+
+    This endpoint adds the specified tags to all provided scenes, updating both
+    the local Stashhog database and the Stash instance.
+
+    Args:
+        request: Contains scene_ids and tag_ids to process
+        sync_service: Service for syncing with Stash
+        db: Database session
+
+    Returns:
+        BulkTagOperationResponse with operation results
+
+    Raises:
+        HTTPException 404: If no scenes or tags found with provided IDs
+    """
+    # Convert scene_ids to strings since our DB uses string IDs
+    scene_id_strings = [str(sid) for sid in request.scene_ids]
+
+    # Get all scenes with their existing tags
+    scenes_query = (
+        select(Scene)
+        .where(Scene.id.in_(scene_id_strings))
+        .options(selectinload(Scene.tags))
+    )
+    scenes_result = await db.execute(scenes_query)
+    scenes = scenes_result.scalars().all()
+
+    if not scenes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No scenes found with provided IDs",
+        )
+
+    # Get tags to add
+    tags_query = select(Tag).where(Tag.id.in_(request.tag_ids))
+    tags_result = await db.execute(tags_query)
+    tags_to_add = tags_result.scalars().all()
+
+    if not tags_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tags found with provided IDs",
+        )
+
+    stash_service = sync_service.stash_service
+    scenes_updated = 0
+
+    # Process each scene
+    for scene in scenes:
+        # Get current tag IDs
+        current_tag_ids = [tag.id for tag in scene.tags]
+
+        # Determine which tags are new
+        new_tags = [tag for tag in tags_to_add if tag not in scene.tags]
+
+        if new_tags:
+            # Add tags to local database
+            for tag in new_tags:
+                scene.tags.append(tag)
+
+            # Prepare tag IDs for Stash update (all current + new)
+            all_tag_ids = current_tag_ids + [tag.id for tag in new_tags]
+
+            # Update scene in Stash
+            try:
+                await stash_service.update_scene(
+                    str(scene.id), {"tag_ids": all_tag_ids}
+                )
+                scenes_updated += 1
+            except Exception as e:
+                logger.error(f"Failed to update scene {scene.id} in Stash: {e}")
+                # Continue with other scenes even if one fails
+
+    # Commit database changes
+    await db.commit()
+
+    return BulkTagOperationResponse(
+        success=True,
+        message=f"Successfully added {len(tags_to_add)} tag(s) to {scenes_updated} scene(s)",
+        scenes_updated=scenes_updated,
+        tags_affected=len(tags_to_add),
+    )
+
+
+@router.post("/remove-tags", response_model=BulkTagOperationResponse)
+async def remove_tags_from_scenes(
+    request: BulkTagOperationRequest = Body(..., description="Scene and tag IDs"),
+    sync_service: SyncService = Depends(get_sync_service),
+    db: AsyncSession = Depends(get_db),
+) -> BulkTagOperationResponse:
+    """
+    Remove tags from multiple scenes.
+
+    This endpoint removes the specified tags from all provided scenes, updating both
+    the local Stashhog database and the Stash instance.
+
+    Args:
+        request: Contains scene_ids and tag_ids to process
+        sync_service: Service for syncing with Stash
+        db: Database session
+
+    Returns:
+        BulkTagOperationResponse with operation results
+
+    Raises:
+        HTTPException 404: If no scenes found with provided IDs
+    """
+    # Convert scene_ids to strings since our DB uses string IDs
+    scene_id_strings = [str(sid) for sid in request.scene_ids]
+
+    # Get all scenes with their tags
+    scenes_query = (
+        select(Scene)
+        .where(Scene.id.in_(scene_id_strings))
+        .options(selectinload(Scene.tags))
+    )
+    scenes_result = await db.execute(scenes_query)
+    scenes = scenes_result.scalars().all()
+
+    if not scenes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No scenes found with provided IDs",
+        )
+
+    stash_service = sync_service.stash_service
+    scenes_updated = 0
+
+    # Process each scene
+    for scene in scenes:
+        initial_tag_count = len(scene.tags)
+
+        # Remove tags from local database
+        scene.tags = [tag for tag in scene.tags if tag.id not in request.tag_ids]
+
+        if len(scene.tags) < initial_tag_count:
+            # Get remaining tag IDs for Stash update
+            remaining_tag_ids = [tag.id for tag in scene.tags]
+
+            # Update scene in Stash
+            try:
+                await stash_service.update_scene(
+                    str(scene.id), {"tag_ids": remaining_tag_ids}
+                )
+                scenes_updated += 1
+            except Exception as e:
+                logger.error(f"Failed to update scene {scene.id} in Stash: {e}")
+                # Continue with other scenes even if one fails
+
+    # Commit database changes
+    await db.commit()
+
+    return BulkTagOperationResponse(
+        success=True,
+        message=f"Successfully removed {len(request.tag_ids)} tag(s) from {scenes_updated} scene(s)",
+        scenes_updated=scenes_updated,
+        tags_affected=len(request.tag_ids),
+    )
 
 
 @router.patch("/{scene_id}", response_model=SceneResponse)

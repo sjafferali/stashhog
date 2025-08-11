@@ -167,14 +167,14 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       tagIds,
       action,
     }: {
-      sceneIds: string[];
+      sceneIds: number[];
       tagIds: number[];
       action: 'add' | 'remove';
     }) => {
       const endpoint =
         action === 'add' ? '/scenes/add-tags' : '/scenes/remove-tags';
       const response = await api.post(endpoint, {
-        scene_ids: sceneIds.map((id) => parseInt(id, 10)),
+        scene_ids: sceneIds,
         tag_ids: tagIds,
       });
       return response.data;
@@ -288,9 +288,12 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       return;
     }
 
+    const sceneIds = Array.from(selectedScenes).map((id) => parseInt(id, 10));
+    const tagIds = selectedTags.map((id) => parseInt(id, 10));
+
     tagMutation.mutate({
-      sceneIds: Array.from(selectedScenes),
-      tagIds: selectedTags.map((id) => parseInt(id, 10)),
+      sceneIds,
+      tagIds,
       action: tagAction,
     });
 
