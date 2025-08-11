@@ -1089,6 +1089,14 @@ async def process_new_scenes_job(  # noqa: C901
             f"{workflow_result['summary']['total_changes_applied']} changes applied"
         )
 
+        # CRITICAL: Include step 7 metadata in the result to preserve it
+        # The job service will preserve existing metadata when it marks the job complete
+        workflow_result["metadata_update"] = {
+            "current_step": 7,
+            "total_steps": 7,
+            "step_name": "Completed",
+        }
+
         return workflow_result
 
     except asyncio.CancelledError:

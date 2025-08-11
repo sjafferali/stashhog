@@ -203,6 +203,8 @@ class JobService:
                     job_status = JobStatus.COMPLETED
                     message = "Job completed successfully"
 
+                    # Check if result has metadata updates to preserve (e.g., step 7 for workflows)
+                    metadata_update = None
                     if isinstance(result, dict):
                         result_status = result.get("status", "completed")
                         if result_status == "failed":
@@ -216,6 +218,22 @@ class JobService:
                             errors = result.get("errors", [])
                             error_count = len(errors)
                             message = f"Job completed with {error_count} error(s)"
+
+                        # Extract metadata updates if present
+                        metadata_update = result.get("metadata_update")
+
+                    # If there are metadata updates, apply them before marking complete
+                    if metadata_update:
+                        job = await self.get_job(job_id, final_db)
+                        if job and job.job_metadata:
+                            current_metadata = (
+                                job.job_metadata
+                                if isinstance(job.job_metadata, dict)
+                                else {}
+                            )
+                            current_metadata.update(metadata_update)
+                            job.job_metadata = current_metadata  # type: ignore
+                            await final_db.flush()
 
                     await self._update_job_status_with_session(
                         job_id=job_id,

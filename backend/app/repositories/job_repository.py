@@ -82,6 +82,17 @@ class JobRepository:
             logger.debug(
                 f"Job {job.id} metadata before message update: {job.job_metadata}"
             )
+
+            # CRITICAL: Check if we're at step 7 before updating metadata
+            # This prevents overwriting step 7 with stale data
+            current_metadata: Dict[str, Any] = (
+                job.job_metadata if isinstance(job.job_metadata, dict) else {}
+            )
+            if current_metadata.get("current_step") == 7:
+                logger.info(
+                    f"WARNING: Job {job.id} is at step 7, preserving step metadata"
+                )
+
             # Update metadata in place to avoid losing existing values
             job.job_metadata["last_message"] = message
             # Mark the JSON column as modified so SQLAlchemy tracks the change
@@ -114,6 +125,13 @@ class JobRepository:
         job = await self._fetch_job(job_id, db)
         if not job:
             return None
+
+        # CRITICAL: Refresh the job to ensure we have the latest metadata
+        # This prevents overwriting step 7 with stale data for workflow jobs
+        if isinstance(db, AsyncSession):
+            await db.refresh(job)
+        else:
+            db.refresh(job)
 
         self._update_job_fields(job, status, progress, result, error, message)
         self._update_job_timestamps(job, status)
