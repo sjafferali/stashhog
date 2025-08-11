@@ -502,6 +502,15 @@ async def _update_parent_job_step(
             metadata: Dict[str, Any] = (
                 raw_metadata if isinstance(raw_metadata, dict) else {}
             )
+
+            # Prevent going backwards from step 7
+            current_step = metadata.get("current_step", 0)
+            if current_step == 7 and step_number < 7:
+                logger.warning(
+                    f"Ignoring attempt to go from step 7 back to step {step_number}"
+                )
+                return
+
             metadata.update(
                 {
                     "current_step": step_number,
@@ -1001,26 +1010,74 @@ async def process_new_scenes_job(  # noqa: C901
             }
 
         # Step 7: Mark workflow as completed
-        # Always update to step 7 before returning (for successful or partially successful workflows)
+        # CRITICAL: Must update to step 7 before returning to avoid race condition with job completion
         logger.info(f"Workflow status before final step: {workflow_result['status']}")
 
-        if workflow_result["status"] in ["completed", "completed_with_errors"]:
-            logger.info("Updating to Step 7: Finalizing workflow")
+        # Always attempt to update to step 7 for non-cancelled workflows
+        if workflow_result["status"] != "cancelled":
+            logger.info("Updating to Step 7: Completing workflow")
 
-            # First, update to step 7 with intermediate progress
-            await weighted_progress_callback(98, "Step 7/7: Finalizing workflow")
-            await _update_parent_job_step(job_service, job_id, 7, "Finalizing")
+            # Update progress to 98% first
+            await weighted_progress_callback(98, "Step 7/7: Completing workflow")
 
-            # Ensure the step update is committed and visible
-            await asyncio.sleep(0.3)
+            # Force update to step 7 with explicit commit and refresh
+            try:
+                async with AsyncSessionLocal() as db:
+                    parent_job = await job_service.get_job(job_id, db)
+                    if parent_job:
+                        raw_metadata: Any = parent_job.job_metadata or {}
+                        metadata: Dict[str, Any] = (
+                            raw_metadata if isinstance(raw_metadata, dict) else {}
+                        )
+                        metadata.update(
+                            {
+                                "current_step": 7,
+                                "total_steps": 7,
+                                "step_name": "Completed",
+                                "active_sub_job": None,
+                            }
+                        )
+                        parent_job.job_metadata = metadata  # type: ignore
+                        parent_job.progress = 100  # type: ignore[assignment]  # Ensure progress is 100%
 
-            # Now set final status and progress
-            logger.info("Setting Step 7 as Completed")
-            await _update_parent_job_step(job_service, job_id, 7, "Completed")
+                        # Commit the changes
+                        await db.commit()
+                        await db.refresh(parent_job)
+
+                        logger.info(
+                            "Successfully committed Step 7/7 update to database"
+                        )
+
+                        # Send WebSocket update immediately
+                        from app.services.websocket_manager import websocket_manager
+
+                        job_data = {
+                            "id": str(parent_job.id),
+                            "type": (
+                                parent_job.type.value
+                                if hasattr(parent_job.type, "value")
+                                else parent_job.type
+                            ),
+                            "status": (
+                                parent_job.status.value
+                                if hasattr(parent_job.status, "value")
+                                else parent_job.status
+                            ),
+                            "progress": 100,
+                            "metadata": metadata,
+                        }
+                        await websocket_manager.broadcast_job_update(job_data)
+                        logger.info("Broadcasted Step 7/7 update via WebSocket")
+
+            except Exception as e:
+                logger.error(f"Failed to update to step 7: {e}", exc_info=True)
+
+            # Final progress callback
             await weighted_progress_callback(100, "Step 7/7: Workflow completed")
 
-            # Final delay to ensure all updates are fully propagated
-            await asyncio.sleep(0.5)
+            # Increased delay to ensure updates are visible before job completes
+            await asyncio.sleep(1.5)
+            logger.info("Step 7 update complete, returning workflow result")
         else:
             logger.warning(
                 f"Not updating to step 7 due to workflow status: {workflow_result['status']}"
