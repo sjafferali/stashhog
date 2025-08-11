@@ -74,19 +74,27 @@ async def _create_and_run_subjob(  # noqa: C901
 
             # Update step info if provided
             if step_info:
-                updated_metadata.update(
-                    {
-                        "current_step": step_info.get("current_step", 1),
-                        "total_steps": step_info.get("total_steps", 7),
-                        "step_name": step_name,
-                        "active_sub_job": {
-                            "id": sub_job_id,
-                            "type": job_type.value,
-                            "status": "running",
-                            "progress": 0,
-                        },
-                    }
-                )
+                # Don't go backwards from step 7
+                current_step = updated_metadata.get("current_step", 0)
+                new_step = step_info.get("current_step", 1)
+                if current_step == 7 and new_step < 7:
+                    logger.warning(
+                        f"SUBJOB CREATE: Not reverting from step 7 to step {new_step} for job {parent_job_id}"
+                    )
+                else:
+                    updated_metadata.update(
+                        {
+                            "current_step": new_step,
+                            "total_steps": step_info.get("total_steps", 7),
+                            "step_name": step_name,
+                            "active_sub_job": {
+                                "id": sub_job_id,
+                                "type": job_type.value,
+                                "status": "running",
+                                "progress": 0,
+                            },
+                        }
+                    )
             else:
                 # Still update active_sub_job even without step_info
                 updated_metadata["active_sub_job"] = {
@@ -144,17 +152,39 @@ async def _create_and_run_subjob(  # noqa: C901
                     f"Sub-job {sub_job_id} finished with status: {sub_job.status}"
                 )
                 # Clear active sub-job from parent metadata
-                if parent_job and parent_job.job_metadata:
-                    job_metadata_for_clear: Dict[str, Any] = (
-                        parent_job.job_metadata
-                        if isinstance(parent_job.job_metadata, dict)
-                        else {}
-                    )
-                    if "active_sub_job" in job_metadata_for_clear:
-                        cleared_metadata = job_metadata_for_clear.copy()
-                        cleared_metadata["active_sub_job"] = None
-                        parent_job.job_metadata = cleared_metadata  # type: ignore
-                        await db.commit()
+                # CRITICAL: Re-fetch parent job to avoid race condition with step 7 updates
+                if parent_job:
+                    # Re-fetch to get latest metadata
+                    parent_job = await job_service.get_job(parent_job_id, db)
+                    if parent_job and parent_job.job_metadata:
+                        job_metadata_for_clear: Dict[str, Any] = (
+                            parent_job.job_metadata
+                            if isinstance(parent_job.job_metadata, dict)
+                            else {}
+                        )
+                        # Only clear active_sub_job if we're not already at step 7
+                        # This prevents overwriting step 7 with stale step 6 data
+                        current_step = job_metadata_for_clear.get("current_step", 0)
+                        step_name = job_metadata_for_clear.get("step_name", "")
+                        logger.info(
+                            f"SUBJOB CLEANUP: Parent job {parent_job_id} is at step {current_step} ({step_name})"
+                        )
+
+                        if "active_sub_job" in job_metadata_for_clear:
+                            cleared_metadata = job_metadata_for_clear.copy()
+                            cleared_metadata["active_sub_job"] = None
+                            # Preserve step 7 if it was already set
+                            if current_step < 7:
+                                logger.info(
+                                    f"SUBJOB CLEANUP: Clearing active_sub_job for job {parent_job_id} at step {current_step}"
+                                )
+                                parent_job.job_metadata = cleared_metadata  # type: ignore
+                                await db.flush()
+                                await db.commit()
+                            else:
+                                logger.info(
+                                    f"SUBJOB CLEANUP: Preserving step {current_step} for job {parent_job_id}, not overwriting with subjob cleanup"
+                                )
 
                 # Return the result
                 return {
@@ -507,9 +537,15 @@ async def _update_parent_job_step(
             current_step = metadata.get("current_step", 0)
             if current_step == 7 and step_number < 7:
                 logger.warning(
-                    f"Ignoring attempt to go from step 7 back to step {step_number}"
+                    f"BLOCKED: Ignoring attempt to go from step 7 back to step {step_number} for job {job_id}"
                 )
                 return
+
+            # Log step transitions for debugging
+            if step_number == 7:
+                logger.info(
+                    f"STEP 7 UPDATE: Setting job {job_id} to step 7 from step {current_step}"
+                )
 
             metadata.update(
                 {
@@ -528,6 +564,7 @@ async def _update_parent_job_step(
                 metadata["active_sub_job"] = None
                 parent_job.job_metadata = metadata  # type: ignore
 
+            await db.flush()  # Force write to database
             await db.commit()
             await db.refresh(parent_job)
 
@@ -998,6 +1035,8 @@ async def process_new_scenes_job(  # noqa: C901
             # IMMEDIATELY update to step 7 after final sync completes
             logger.info("Final sync completed, immediately updating to Step 7")
             await _update_parent_job_step(job_service, job_id, 7, "Completing")
+            # Add a small delay to ensure the update is committed before subjob cleanup
+            await asyncio.sleep(0.2)
         else:
             logger.info(
                 "No pending updates after metadata generation, skipping final sync"
@@ -1016,6 +1055,8 @@ async def process_new_scenes_job(  # noqa: C901
             # IMMEDIATELY update to step 7 even when step 6 is skipped
             logger.info("Step 6 skipped, immediately updating to Step 7")
             await _update_parent_job_step(job_service, job_id, 7, "Completing")
+            # Add a small delay to ensure the update is committed
+            await asyncio.sleep(0.2)
 
         # Step 7: Finalize workflow
         # Step 7 was already set to "Completing" after step 6, now finalize it to "Completed"
