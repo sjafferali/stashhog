@@ -193,18 +193,13 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       sceneIds: string[];
       updates: { analyzed?: boolean; video_analyzed?: boolean };
     }) => {
-      console.log('bulkUpdateMutation called with:', { sceneIds, updates });
-      const payload = {
+      const response = await api.patch('/scenes/bulk-update', {
         scene_ids: sceneIds,
         updates,
-      };
-      console.log('Sending API request with payload:', payload);
-      const response = await api.patch('/scenes/bulk-update', payload);
-      console.log('API response:', response.data);
+      });
       return response.data;
     },
     onSuccess: (data, variables) => {
-      console.log('Bulk update success:', { data, variables });
       const updateMessages = [];
       if (variables.updates.analyzed !== undefined) {
         updateMessages.push(
@@ -222,8 +217,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       onClearSelection();
       void queryClient.invalidateQueries({ queryKey: ['scenes'] });
     },
-    onError: (error) => {
-      console.error('Bulk update error:', error);
+    onError: () => {
       void message.error('Failed to update scene attributes');
     },
   });
@@ -331,21 +325,12 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     const fieldName = field === 'analyzed' ? 'Analyzed' : 'Video Analyzed';
     const action = value ? 'Set' : 'Unset';
 
-    console.log('handleBulkAnalyzedUpdate called:', { field, value });
-    console.log('Selected scenes:', Array.from(selectedScenes));
-    console.log('Selected count:', selectedCount);
-
     Modal.confirm({
       title: `${action} ${fieldName} Status`,
       content: `Are you sure you want to ${action.toLowerCase()} the ${fieldName} status for ${selectedCount} selected scenes?`,
       onOk: () => {
-        const sceneIds = Array.from(selectedScenes);
-        console.log('Modal confirmed, calling mutation with:', {
-          sceneIds,
-          updates: { [field]: value },
-        });
         bulkUpdateMutation.mutate({
-          sceneIds,
+          sceneIds: Array.from(selectedScenes),
           updates: { [field]: value },
         });
       },
