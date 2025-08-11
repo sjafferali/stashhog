@@ -455,7 +455,8 @@ const Jobsv2: React.FC = () => {
 
             {/* View Processed Files for process_downloads jobs */}
             {job.type === 'process_downloads' &&
-            job.processed_items &&
+            job.processed_items !== undefined &&
+            job.processed_items !== null &&
             job.processed_items > 0 ? (
               <Button
                 icon={<FileTextOutlined />}

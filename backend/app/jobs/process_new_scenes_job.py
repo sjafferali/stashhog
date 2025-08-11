@@ -759,7 +759,9 @@ async def process_new_scenes_job(  # noqa: C901
             # Check if cancelled
             if cancellation_token and cancellation_token.is_cancelled:
                 raise asyncio.CancelledError()
-            return workflow_result
+            # Download processing failed but not cancelled
+            workflow_result["status"] = "completed_with_errors"
+            synced_items = 0  # Set to 0 to skip subsequent steps gracefully
 
         # Step 2: Stash metadata scan (skip if no new items)
         if synced_items > 0:
@@ -998,16 +1000,31 @@ async def process_new_scenes_job(  # noqa: C901
                 "message": "No pending updates to sync",
             }
 
-        # Final progress - only set to 100% if we actually completed
-        if (
-            workflow_result["status"] == "completed"
-            or workflow_result["status"] == "completed_with_errors"
-        ):
-            # Update to step 7 first, then set progress to 100%
+        # Step 7: Mark workflow as completed
+        # Always update to step 7 before returning (for successful or partially successful workflows)
+        logger.info(f"Workflow status before final step: {workflow_result['status']}")
+
+        if workflow_result["status"] in ["completed", "completed_with_errors"]:
+            logger.info("Updating to Step 7: Finalizing workflow")
+
+            # First, update to step 7 with intermediate progress
+            await weighted_progress_callback(98, "Step 7/7: Finalizing workflow")
+            await _update_parent_job_step(job_service, job_id, 7, "Finalizing")
+
+            # Ensure the step update is committed and visible
+            await asyncio.sleep(0.3)
+
+            # Now set final status and progress
+            logger.info("Setting Step 7 as Completed")
             await _update_parent_job_step(job_service, job_id, 7, "Completed")
-            # Small delay to ensure the step update is committed and propagated
+            await weighted_progress_callback(100, "Step 7/7: Workflow completed")
+
+            # Final delay to ensure all updates are fully propagated
             await asyncio.sleep(0.5)
-            await weighted_progress_callback(100, "Workflow completed")
+        else:
+            logger.warning(
+                f"Not updating to step 7 due to workflow status: {workflow_result['status']}"
+            )
 
         logger.info(
             f"Process new scenes workflow completed: "
@@ -1015,9 +1032,6 @@ async def process_new_scenes_job(  # noqa: C901
             f"{workflow_result['summary']['total_scenes_analyzed']} scenes analyzed, "
             f"{workflow_result['summary']['total_changes_applied']} changes applied"
         )
-
-        # Final delay to ensure all updates are propagated before job completes
-        await asyncio.sleep(0.5)
 
         return workflow_result
 
