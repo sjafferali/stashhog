@@ -53,6 +53,7 @@ const WORKFLOW_STEPS = [
   { title: 'Incremental Sync', description: 'Import new scenes' },
   { title: 'Analyze Scenes', description: 'Process unanalyzed scenes' },
   { title: 'Generate Metadata', description: 'Create previews and sprites' },
+  { title: 'Final Sync', description: 'Sync any pending updates' },
   { title: 'Complete', description: 'Workflow finished' },
 ];
 
@@ -259,8 +260,8 @@ export const WorkflowJobModal: React.FC<WorkflowJobModalProps> = ({
           <div className={styles.progressInfo}>
             <Text type="secondary">Overall Progress</Text>
             <Text>
-              {currentStep > 0 && currentStep <= 6
-                ? `Step ${currentStep}/6: ${stepName}`
+              {currentStep > 0 && currentStep <= 7
+                ? `Step ${currentStep}/7: ${stepName}`
                 : 'Initializing...'}
             </Text>
           </div>

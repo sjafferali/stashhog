@@ -7,6 +7,7 @@ This job orchestrates a complete workflow for processing newly downloaded scenes
 4. Analyze unanalyzed scenes in batches
 5. Apply approved changes from analysis
 6. Generate Stash metadata
+7. Run incremental sync if changes were made
 """
 
 import asyncio
@@ -76,7 +77,7 @@ async def _create_and_run_subjob(  # noqa: C901
                 updated_metadata.update(
                     {
                         "current_step": step_info.get("current_step", 1),
-                        "total_steps": step_info.get("total_steps", 6),
+                        "total_steps": step_info.get("total_steps", 7),
                         "step_name": step_name,
                         "active_sub_job": {
                             "id": sub_job_id,
@@ -313,7 +314,7 @@ async def _analyze_batch(
         f"Analysis batch {batch_num}/{total_batches}",
         progress_callback,
         cancellation_token,
-        {"current_step": 4, "total_steps": 6},
+        {"current_step": 4, "total_steps": 7},
         created_subjobs,
     )
 
@@ -491,7 +492,7 @@ async def _update_parent_job_step(
     job_id: str,
     step_number: int,
     step_name: str,
-    total_steps: int = 6,
+    total_steps: int = 7,
 ) -> None:
     """Update parent job metadata with current step info."""
     async with AsyncSessionLocal() as db:
@@ -514,7 +515,7 @@ async def _update_parent_job_step(
             parent_job.job_metadata = metadata  # type: ignore
 
             # For the final step, clear active_sub_job
-            if step_number == 6:
+            if step_number == 7:
                 metadata["active_sub_job"] = None
                 parent_job.job_metadata = metadata  # type: ignore
 
@@ -552,7 +553,7 @@ async def _process_downloads_step(
     exclude_small_vids: bool = False,
 ) -> Optional[int]:
     """Process downloads and return synced items count."""
-    await progress_callback(5, "Step 1/6: Processing downloads")
+    await progress_callback(5, "Step 1/7: Processing downloads")
     await _update_parent_job_step(job_service, job_id, 1, "Processing downloads")
 
     downloads_result = await _run_workflow_step(
@@ -565,7 +566,7 @@ async def _process_downloads_step(
         cancellation_token,
         workflow_result,
         "process_downloads",
-        {"current_step": 1, "total_steps": 6},
+        {"current_step": 1, "total_steps": 7},
         created_subjobs,
     )
 
@@ -663,12 +664,13 @@ async def process_new_scenes_job(  # noqa: C901
 
     # Step weights for progress calculation
     STEP_WEIGHTS = {
-        1: (0, 15),  # Process Downloads: 0-15%
-        2: (15, 30),  # Stash Scan: 15-30%
-        3: (30, 45),  # Incremental Sync: 30-45%
-        4: (45, 80),  # Batch Analysis: 45-80%
-        5: (80, 95),  # Stash Generate: 80-95%
-        6: (95, 100),  # Completion: 95-100%
+        1: (0, 10),  # Process Downloads: 0-10%
+        2: (10, 20),  # Stash Scan: 10-20%
+        3: (20, 35),  # Incremental Sync: 20-35%
+        4: (35, 70),  # Batch Analysis: 35-70%
+        5: (70, 80),  # Stash Generate: 70-80%
+        6: (80, 95),  # Final Incremental Sync: 80-95%
+        7: (95, 100),  # Completion: 95-100%
     }
 
     # Track current step for weighted progress
@@ -731,7 +733,7 @@ async def process_new_scenes_job(  # noqa: C901
                 initial_metadata.update(
                     {
                         "current_step": 0,
-                        "total_steps": 6,
+                        "total_steps": 7,
                         "step_name": "Initializing",
                         "active_sub_job": None,
                         "sub_job_ids": [],  # Track all subjobs created
@@ -762,7 +764,7 @@ async def process_new_scenes_job(  # noqa: C901
         # Step 2: Stash metadata scan (skip if no new items)
         if synced_items > 0:
             await weighted_progress_callback(
-                20, f"Step 2/6: Scanning metadata ({synced_items} new items)"
+                15, f"Step 2/7: Scanning metadata ({synced_items} new items)"
             )
             await _update_parent_job_step(job_service, job_id, 2, "Scanning metadata")
             scan_result = await _run_workflow_step(
@@ -775,7 +777,7 @@ async def process_new_scenes_job(  # noqa: C901
                 cancellation_token,
                 workflow_result,
                 "stash_scan",
-                {"current_step": 2, "total_steps": 6},
+                {"current_step": 2, "total_steps": 7},
                 created_subjobs,
             )
             # Check if cancelled
@@ -788,7 +790,7 @@ async def process_new_scenes_job(  # noqa: C901
         else:
             logger.info("No new items downloaded, skipping Stash metadata scan")
             await weighted_progress_callback(
-                20, "Step 2/6: Skipped - No new items to scan"
+                20, "Step 2/7: Skipped - No new items to scan"
             )
             await _update_parent_job_step(
                 job_service, job_id, 2, "Skipped - No new items"
@@ -799,7 +801,7 @@ async def process_new_scenes_job(  # noqa: C901
         if cancellation_token and cancellation_token.is_cancelled:
             raise asyncio.CancelledError()
 
-        await weighted_progress_callback(35, "Step 3/6: Checking for pending scenes")
+        await weighted_progress_callback(25, "Step 3/7: Checking for pending scenes")
         await _update_parent_job_step(
             job_service, job_id, 3, "Checking for pending scenes"
         )
@@ -807,8 +809,8 @@ async def process_new_scenes_job(  # noqa: C901
         pending_scenes = await _check_pending_scenes_for_sync()
         if pending_scenes > 0:
             await weighted_progress_callback(
-                35,
-                f"Step 3/6: Running incremental sync ({pending_scenes} pending scenes)",
+                25,
+                f"Step 3/7: Running incremental sync ({pending_scenes} pending scenes)",
             )
             await _update_parent_job_step(
                 job_service,
@@ -826,7 +828,7 @@ async def process_new_scenes_job(  # noqa: C901
                 cancellation_token,
                 workflow_result,
                 "incremental_sync",
-                {"current_step": 3, "total_steps": 6},
+                {"current_step": 3, "total_steps": 7},
                 created_subjobs,
             )
             # Check if cancelled
@@ -839,7 +841,7 @@ async def process_new_scenes_job(  # noqa: C901
         else:
             logger.info("No pending scenes to sync, skipping incremental sync")
             await weighted_progress_callback(
-                45, "Step 3/6: Skipped - No pending scenes to sync"
+                35, "Step 3/7: Skipped - No pending scenes to sync"
             )
             await _update_parent_job_step(
                 job_service, job_id, 3, "Skipped - No pending scenes"
@@ -854,7 +856,7 @@ async def process_new_scenes_job(  # noqa: C901
         if cancellation_token and cancellation_token.is_cancelled:
             raise asyncio.CancelledError()
 
-        await weighted_progress_callback(50, "Step 4/6: Checking for unanalyzed scenes")
+        await weighted_progress_callback(40, "Step 4/7: Checking for unanalyzed scenes")
         await _update_parent_job_step(
             job_service, job_id, 4, "Checking for unanalyzed scenes"
         )
@@ -863,7 +865,7 @@ async def process_new_scenes_job(  # noqa: C901
         if scene_batches:
             total_unanalyzed = sum(len(batch) for batch in scene_batches)
             await weighted_progress_callback(
-                50, f"Step 4/6: Analyzing {total_unanalyzed} unanalyzed scenes"
+                40, f"Step 4/7: Analyzing {total_unanalyzed} unanalyzed scenes"
             )
             await _update_parent_job_step(
                 job_service, job_id, 4, f"Analyzing {total_unanalyzed} scenes"
@@ -900,7 +902,7 @@ async def process_new_scenes_job(  # noqa: C901
         else:
             logger.info("No unanalyzed scenes found, skipping analysis")
             await weighted_progress_callback(
-                80, "Step 4/6: Skipped - No unanalyzed scenes"
+                70, "Step 4/7: Skipped - No unanalyzed scenes"
             )
             await _update_parent_job_step(
                 job_service, job_id, 4, "Skipped - No unanalyzed scenes"
@@ -915,7 +917,7 @@ async def process_new_scenes_job(  # noqa: C901
         if cancellation_token and cancellation_token.is_cancelled:
             raise asyncio.CancelledError()
 
-        await weighted_progress_callback(85, "Step 5/6: Generating Stash metadata")
+        await weighted_progress_callback(75, "Step 5/7: Generating Stash metadata")
         await _update_parent_job_step(job_service, job_id, 5, "Generating metadata")
         generate_result = await _run_workflow_step(
             job_service,
@@ -927,7 +929,7 @@ async def process_new_scenes_job(  # noqa: C901
             cancellation_token,
             workflow_result,
             "stash_generate",
-            {"current_step": 5, "total_steps": 6},
+            {"current_step": 5, "total_steps": 7},
             created_subjobs,
         )
         # Check if cancelled
@@ -938,13 +940,71 @@ async def process_new_scenes_job(  # noqa: C901
         ):
             raise asyncio.CancelledError()
 
+        # Step 6: Final incremental sync (if there are pending changes)
+        # Check cancellation before proceeding
+        if cancellation_token and cancellation_token.is_cancelled:
+            raise asyncio.CancelledError()
+
+        await weighted_progress_callback(85, "Step 6/7: Checking for pending updates")
+        await _update_parent_job_step(
+            job_service, job_id, 6, "Checking for pending updates"
+        )
+
+        # Check if there are pending scenes after metadata generation
+        pending_scenes_after_gen = await _check_pending_scenes_for_sync()
+        if pending_scenes_after_gen > 0:
+            await weighted_progress_callback(
+                85,
+                f"Step 6/7: Final sync ({pending_scenes_after_gen} pending updates)",
+            )
+            await _update_parent_job_step(
+                job_service,
+                job_id,
+                6,
+                f"Final sync ({pending_scenes_after_gen} updates)",
+            )
+            final_sync_result = await _run_workflow_step(
+                job_service,
+                JobType.SYNC,
+                {"force": False},
+                job_id,
+                "Final Incremental Sync",
+                progress_callback,
+                cancellation_token,
+                workflow_result,
+                "final_sync",
+                {"current_step": 6, "total_steps": 7},
+                created_subjobs,
+            )
+            # Check if cancelled
+            if (
+                not final_sync_result
+                and cancellation_token
+                and cancellation_token.is_cancelled
+            ):
+                raise asyncio.CancelledError()
+        else:
+            logger.info(
+                "No pending updates after metadata generation, skipping final sync"
+            )
+            await weighted_progress_callback(
+                95, "Step 6/7: Skipped - No pending updates"
+            )
+            await _update_parent_job_step(
+                job_service, job_id, 6, "Skipped - No pending updates"
+            )
+            workflow_result["steps"]["final_sync"] = {
+                "status": "skipped",
+                "message": "No pending updates to sync",
+            }
+
         # Final progress - only set to 100% if we actually completed
         if (
             workflow_result["status"] == "completed"
             or workflow_result["status"] == "completed_with_errors"
         ):
-            # Update to step 6 first, then set progress to 100%
-            await _update_parent_job_step(job_service, job_id, 6, "Completed")
+            # Update to step 7 first, then set progress to 100%
+            await _update_parent_job_step(job_service, job_id, 7, "Completed")
             # Small delay to ensure the step update is committed and propagated
             await asyncio.sleep(0.5)
             await weighted_progress_callback(100, "Workflow completed")
@@ -1014,11 +1074,11 @@ async def _process_all_batches(
             break
 
         batch_num = i + 1
-        # Calculate progress for this step (50-80% range)
-        batch_progress = 50 + int((i / total_batches) * 30)
+        # Calculate progress for this step (35-70% range)
+        batch_progress = 35 + int((i / total_batches) * 35)
         await progress_callback(
             batch_progress,
-            f"Step 4/6: Processing batch {batch_num}/{total_batches}",
+            f"Step 4/7: Processing batch {batch_num}/{total_batches}",
         )
 
         batch_result = await _process_analysis_batch(

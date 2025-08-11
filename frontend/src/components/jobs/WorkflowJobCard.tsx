@@ -52,6 +52,7 @@ const WORKFLOW_STEPS = [
   { title: 'Incremental Sync', description: 'Import new scenes' },
   { title: 'Analyze Scenes', description: 'Process unanalyzed scenes' },
   { title: 'Generate Metadata', description: 'Create previews and sprites' },
+  { title: 'Final Sync', description: 'Sync any pending updates' },
   { title: 'Complete', description: 'Workflow finished' },
 ];
 
@@ -214,8 +215,8 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
           <div className={styles.stepsPreview}>
             <Text type="secondary">Current Step:</Text>
             <Text strong>
-              {currentStep > 0 && currentStep <= 6
-                ? `${currentStep}/6 - ${WORKFLOW_STEPS[currentStep - 1]?.title}`
+              {currentStep > 0 && currentStep <= 7
+                ? `${currentStep}/7 - ${WORKFLOW_STEPS[currentStep - 1]?.title}`
                 : 'Initializing...'}
             </Text>
           </div>
@@ -240,8 +241,8 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
             <div className={styles.progressInfo}>
               <Text type="secondary">Overall Progress</Text>
               <Text>
-                {currentStep > 0 && currentStep <= 6
-                  ? `Step ${currentStep}/6: ${stepName}`
+                {currentStep > 0 && currentStep <= 7
+                  ? `Step ${currentStep}/7: ${stepName}`
                   : 'Initializing...'}
               </Text>
             </div>

@@ -23,7 +23,7 @@ Workflow jobs are special job types that:
 - Handle complex multi-stage operations
 - Report detailed status for each step
 
-The `process_new_scenes` job is an example that runs 6 distinct steps: download processing, metadata scanning, syncing, analysis, applying changes, and metadata generation.
+The `process_new_scenes` job is an example that runs 7 distinct steps: download processing, metadata scanning, initial syncing, analysis, applying changes, metadata generation, and final syncing.
 
 ## Architecture Overview
 
@@ -385,12 +385,13 @@ STEP_WEIGHTS = {
     5: (95, 100),   # Step 5: 95-100%
 }
 
-# Current implementation: Manual progress points
-await progress_callback(5, "Step 1/6: Processing downloads")
-await progress_callback(20, "Step 2/6: Scanning metadata")
-await progress_callback(35, "Step 3/6: Running incremental sync")
-await progress_callback(50, "Step 4/6: Analyzing scenes")
-await progress_callback(85, "Step 5/6: Generating metadata")
+# Current implementation: Manual progress points (7 steps for process_new_scenes)
+await progress_callback(5, "Step 1/7: Processing downloads")
+await progress_callback(15, "Step 2/7: Scanning metadata")
+await progress_callback(25, "Step 3/7: Running incremental sync")
+await progress_callback(40, "Step 4/7: Analyzing scenes")
+await progress_callback(75, "Step 5/7: Generating metadata")
+await progress_callback(85, "Step 6/7: Final sync")
 await progress_callback(100, "Workflow completed")
 ```
 
@@ -429,7 +430,7 @@ await progress_callback(100, "Workflow completed")
 ```python
 {
     "current_step": 2,              # Current step number (1-based)
-    "total_steps": 6,               # Total number of steps
+    "total_steps": 7,               # Total number of steps (7 for process_new_scenes)
     "step_name": "Metadata Scan",   # Human-readable step name
     "active_sub_job": {             # Currently running sub-job
         "id": "abc-123",
@@ -658,7 +659,7 @@ export const formatJobProgress = (
   progress: number
 ): string => {
   if (type === 'your_workflow_job') {
-    return ' steps';  // Shows "Step 3/6 steps"
+    return ' steps';  // Shows "Step 3/7 steps" (7 for process_new_scenes)
   }
   // ... rest of function
 };
@@ -714,13 +715,14 @@ metadata?: Record<string, string | number | boolean | null | Record<string, any>
 The default `WorkflowJobCard` uses a generic 6-step workflow. For custom steps, modify the component:
 
 ```typescript
-// Currently hardcoded in WorkflowJobCard.tsx:
+// Currently hardcoded in WorkflowJobCard.tsx (updated for 7 steps):
 const WORKFLOW_STEPS = [
   { title: 'Process Downloads', description: 'Download and sync new content' },
   { title: 'Scan Metadata', description: 'Update Stash library metadata' },
   { title: 'Incremental Sync', description: 'Import new scenes' },
   { title: 'Analyze Scenes', description: 'Process unanalyzed scenes' },
   { title: 'Generate Metadata', description: 'Create previews and sprites' },
+  { title: 'Final Sync', description: 'Sync any pending updates' },
   { title: 'Complete', description: 'Workflow finished' },
 ];
 ```
