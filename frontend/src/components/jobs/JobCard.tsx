@@ -191,7 +191,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   if (
     onViewProcessedFiles &&
     job.type === 'process_downloads' &&
-    job.processed_items &&
+    job.processed_items !== undefined &&
+    job.processed_items !== null &&
     job.processed_items > 0
   ) {
     actions.push(

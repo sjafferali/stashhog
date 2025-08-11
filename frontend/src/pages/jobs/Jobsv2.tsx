@@ -683,7 +683,8 @@ const Jobsv2: React.FC = () => {
 
           {/* View Processed Files for process_downloads jobs */}
           {record.type === 'process_downloads' &&
-            record.processed_items &&
+            record.processed_items !== undefined &&
+            record.processed_items !== null &&
             record.processed_items > 0 && (
               <Tooltip title="View Processed Files">
                 <Button
