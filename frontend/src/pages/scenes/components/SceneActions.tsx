@@ -50,6 +50,13 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   const [tagModalVisible, setTagModalVisible] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagAction, setTagAction] = useState<'add' | 'remove'>('add');
+
+  // State for bulk update confirmation modal
+  const [bulkUpdateModalVisible, setBulkUpdateModalVisible] = useState(false);
+  const [pendingBulkUpdate, setPendingBulkUpdate] = useState<{
+    field: 'analyzed' | 'video_analyzed';
+    value: boolean;
+  } | null>(null);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
     detectPerformers: true,
     detectStudios: true,
@@ -322,19 +329,26 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     field: 'analyzed' | 'video_analyzed',
     value: boolean
   ) => {
-    const fieldName = field === 'analyzed' ? 'Analyzed' : 'Video Analyzed';
-    const action = value ? 'Set' : 'Unset';
+    // Use controlled modal instead of Modal.confirm
+    setPendingBulkUpdate({ field, value });
+    setBulkUpdateModalVisible(true);
+  };
 
-    Modal.confirm({
-      title: `${action} ${fieldName} Status`,
-      content: `Are you sure you want to ${action.toLowerCase()} the ${fieldName} status for ${selectedCount} selected scenes?`,
-      onOk: () => {
-        bulkUpdateMutation.mutate({
-          sceneIds: Array.from(selectedScenes),
-          updates: { [field]: value },
-        });
-      },
+  const handleBulkUpdateConfirm = () => {
+    if (!pendingBulkUpdate) return;
+
+    bulkUpdateMutation.mutate({
+      sceneIds: Array.from(selectedScenes),
+      updates: { [pendingBulkUpdate.field]: pendingBulkUpdate.value },
     });
+
+    setBulkUpdateModalVisible(false);
+    setPendingBulkUpdate(null);
+  };
+
+  const handleBulkUpdateCancel = () => {
+    setBulkUpdateModalVisible(false);
+    setPendingBulkUpdate(null);
   };
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -599,6 +613,32 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
             </div>
           )}
         </Space>
+      </Modal>
+
+      {/* Bulk Update Confirmation Modal */}
+      <Modal
+        title={
+          pendingBulkUpdate
+            ? `${pendingBulkUpdate.value ? 'Set' : 'Unset'} ${
+                pendingBulkUpdate.field === 'analyzed'
+                  ? 'Analyzed'
+                  : 'Video Analyzed'
+              } Status`
+            : 'Bulk Update'
+        }
+        open={bulkUpdateModalVisible}
+        onOk={handleBulkUpdateConfirm}
+        onCancel={handleBulkUpdateCancel}
+        confirmLoading={bulkUpdateMutation.isPending}
+      >
+        <p>
+          Are you sure you want to {pendingBulkUpdate?.value ? 'set' : 'unset'}{' '}
+          the{' '}
+          {pendingBulkUpdate?.field === 'analyzed'
+            ? 'Analyzed'
+            : 'Video Analyzed'}{' '}
+          status for {selectedCount} selected scenes?
+        </p>
       </Modal>
     </>
   );
