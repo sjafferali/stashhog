@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -6,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models.job import Job, JobStatus, JobType
+
+logger = logging.getLogger(__name__)
 
 
 class JobRepository:
@@ -120,18 +123,31 @@ class JobRepository:
         result: Optional[Dict[str, Any]] = None,
         error: Optional[str] = None,
         message: Optional[str] = None,
+        metadata_update: Optional[Dict[str, Any]] = None,
     ) -> Optional[Job]:
         """Update job status and related fields."""
         job = await self._fetch_job(job_id, db)
         if not job:
             return None
 
-        # CRITICAL: Refresh the job to ensure we have the latest metadata
-        # This prevents overwriting step 7 with stale data for workflow jobs
+        # Refresh the job to ensure we have the latest data
         if isinstance(db, AsyncSession):
             await db.refresh(job)
         else:
             db.refresh(job)
+
+        # Apply metadata_update if provided (e.g., to preserve step 7 for workflows)
+        if metadata_update:
+            if not job.job_metadata:
+                job.job_metadata = {}  # type: ignore[assignment]
+            current_metadata = (
+                job.job_metadata if isinstance(job.job_metadata, dict) else {}
+            )
+            current_metadata.update(metadata_update)
+            job.job_metadata = current_metadata  # type: ignore
+            logger.info(
+                f"Applied metadata_update to job {job_id}: step={metadata_update.get('current_step')}"
+            )
 
         self._update_job_fields(job, status, progress, result, error, message)
         self._update_job_timestamps(job, status)

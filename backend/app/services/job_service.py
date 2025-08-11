@@ -222,19 +222,7 @@ class JobService:
                         # Extract metadata updates if present
                         metadata_update = result.get("metadata_update")
 
-                    # If there are metadata updates, apply them before marking complete
-                    if metadata_update:
-                        job = await self.get_job(job_id, final_db)
-                        if job and job.job_metadata:
-                            current_metadata = (
-                                job.job_metadata
-                                if isinstance(job.job_metadata, dict)
-                                else {}
-                            )
-                            current_metadata.update(metadata_update)
-                            job.job_metadata = current_metadata  # type: ignore
-                            await final_db.flush()
-
+                    # Pass metadata update directly to the status update
                     await self._update_job_status_with_session(
                         job_id=job_id,
                         status=job_status,
@@ -242,6 +230,7 @@ class JobService:
                         result=result,
                         message=message,
                         db=final_db,
+                        metadata_update=metadata_update,
                     )
                     await final_db.commit()
 
@@ -415,6 +404,7 @@ class JobService:
         result: Optional[dict[str, Any]] = None,
         error: Optional[str] = None,
         message: Optional[str] = None,
+        metadata_update: Optional[dict[str, Any]] = None,
     ) -> None:
         """Update job status using provided database session."""
         job = await job_repository.update_job_status(
@@ -425,6 +415,7 @@ class JobService:
             result=result,
             error=error,
             message=message,
+            metadata_update=metadata_update,
         )
 
         if job:
