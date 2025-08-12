@@ -656,6 +656,9 @@ async def add_tags_to_scenes(
     # Convert scene_ids to strings since our DB uses string IDs
     scene_id_strings = [str(sid) for sid in request.scene_ids]
 
+    # Convert tag_ids to strings since our DB uses string IDs
+    tag_id_strings = [str(tid) for tid in request.tag_ids]
+
     # Get all scenes with their existing tags
     scenes_query = (
         select(Scene)
@@ -672,7 +675,7 @@ async def add_tags_to_scenes(
         )
 
     # Get tags to add
-    tags_query = select(Tag).where(Tag.id.in_(request.tag_ids))
+    tags_query = select(Tag).where(Tag.id.in_(tag_id_strings))
     tags_result = await db.execute(tags_query)
     tags_to_add = tags_result.scalars().all()
 
@@ -766,12 +769,15 @@ async def remove_tags_from_scenes(
     stash_service = sync_service.stash_service
     scenes_updated = 0
 
+    # Convert tag IDs to strings since our DB uses string IDs
+    tag_id_strings = [str(tid) for tid in request.tag_ids]
+
     # Process each scene
     for scene in scenes:
         initial_tag_count = len(scene.tags)
 
         # Remove tags from local database
-        scene.tags = [tag for tag in scene.tags if tag.id not in request.tag_ids]
+        scene.tags = [tag for tag in scene.tags if tag.id not in tag_id_strings]
 
         if len(scene.tags) < initial_tag_count:
             # Get remaining tag IDs for Stash update

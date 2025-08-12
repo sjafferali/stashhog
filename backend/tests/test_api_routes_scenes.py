@@ -871,3 +871,245 @@ class TestSceneRoutes:
         response = client.get("/api/scenes/?performer_ids=&tag_ids=")
 
         assert response.status_code == 200
+
+    def test_remove_tags_from_scenes_success(self, client, mock_db, mock_sync_service):
+        """Test successful removal of tags from scenes."""
+        # Create mock tags with string IDs
+        mock_tag1 = Mock()
+        mock_tag1.id = "322"
+        mock_tag1.name = "Tag to Remove"
+
+        mock_tag2 = Mock()
+        mock_tag2.id = "323"
+        mock_tag2.name = "Tag to Keep"
+
+        # Create mock scene with both tags
+        mock_scene = Mock()
+        mock_scene.id = "26804"
+        mock_scene.tags = [mock_tag1, mock_tag2]
+
+        # Mock database queries
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = [mock_scene]
+
+        mock_db.execute = AsyncMock(return_value=mock_scenes_result)
+        mock_db.commit = AsyncMock()
+
+        # Mock stash service
+        mock_sync_service.stash_service.update_scene = AsyncMock()
+
+        # Make request with integer IDs (as sent from frontend)
+        response = client.post(
+            "/api/scenes/remove-tags", json={"scene_ids": [26804], "tag_ids": [322]}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["scenes_updated"] == 1
+        assert data["tags_affected"] == 1
+        assert "Successfully removed" in data["message"]
+
+        # Verify tag was removed from scene
+        assert len(mock_scene.tags) == 1
+        assert mock_scene.tags[0].id == "323"
+
+        # Verify Stash was updated
+        mock_sync_service.stash_service.update_scene.assert_called_once()
+
+    def test_add_tags_to_scenes_success(self, client, mock_db, mock_sync_service):
+        """Test successful addition of tags to scenes."""
+        # Create mock existing tag
+        mock_existing_tag = Mock()
+        mock_existing_tag.id = "100"
+        mock_existing_tag.name = "Existing Tag"
+
+        # Create mock new tag to add
+        mock_new_tag = Mock()
+        mock_new_tag.id = "322"
+        mock_new_tag.name = "New Tag"
+
+        # Create mock scene with one existing tag
+        mock_scene = Mock()
+        mock_scene.id = "26804"
+        mock_scene.tags = [mock_existing_tag]
+
+        # Mock database queries for scenes
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = [mock_scene]
+
+        # Mock database queries for tags
+        mock_tags_result = Mock()
+        mock_tags_result.scalars.return_value.all.return_value = [mock_new_tag]
+
+        # Configure db.execute to return appropriate results
+        async def mock_execute(query):
+            query_str = str(query)
+            if "scene" in query_str.lower():
+                return mock_scenes_result
+            else:  # tag query
+                return mock_tags_result
+
+        mock_db.execute = AsyncMock(side_effect=mock_execute)
+        mock_db.commit = AsyncMock()
+
+        # Mock stash service
+        mock_sync_service.stash_service.update_scene = AsyncMock()
+
+        # Make request with integer IDs (as sent from frontend)
+        response = client.post(
+            "/api/scenes/add-tags", json={"scene_ids": [26804], "tag_ids": [322]}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["scenes_updated"] == 1
+        assert data["tags_affected"] == 1
+        assert "Successfully added" in data["message"]
+
+        # Verify tag was added to scene
+        assert len(mock_scene.tags) == 2
+
+        # Verify Stash was updated
+        mock_sync_service.stash_service.update_scene.assert_called_once()
+
+    def test_remove_tags_no_scenes_found(self, client, mock_db, mock_sync_service):
+        """Test removing tags when no scenes are found."""
+        # Mock empty scenes result
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = []
+
+        mock_db.execute = AsyncMock(return_value=mock_scenes_result)
+
+        # Make request
+        response = client.post(
+            "/api/scenes/remove-tags", json={"scene_ids": [99999], "tag_ids": [322]}
+        )
+
+        assert response.status_code == 404
+        assert "No scenes found" in response.json()["detail"]
+
+    def test_add_tags_no_tags_found(self, client, mock_db, mock_sync_service):
+        """Test adding tags when no tags are found."""
+        # Create mock scene
+        mock_scene = Mock()
+        mock_scene.id = "26804"
+        mock_scene.tags = []
+
+        # Mock database queries for scenes
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = [mock_scene]
+
+        # Mock empty tags result
+        mock_tags_result = Mock()
+        mock_tags_result.scalars.return_value.all.return_value = []
+
+        # Configure db.execute to return appropriate results
+        async def mock_execute(query):
+            query_str = str(query)
+            if "scene" in query_str.lower():
+                return mock_scenes_result
+            else:  # tag query
+                return mock_tags_result
+
+        mock_db.execute = AsyncMock(side_effect=mock_execute)
+
+        # Make request
+        response = client.post(
+            "/api/scenes/add-tags", json={"scene_ids": [26804], "tag_ids": [99999]}
+        )
+
+        assert response.status_code == 404
+        assert "No tags found" in response.json()["detail"]
+
+    def test_remove_tags_no_changes_needed(self, client, mock_db, mock_sync_service):
+        """Test removing tags that aren't on the scene."""
+        # Create mock tag
+        mock_tag = Mock()
+        mock_tag.id = "100"
+        mock_tag.name = "Existing Tag"
+
+        # Create mock scene with one tag
+        mock_scene = Mock()
+        mock_scene.id = "26804"
+        mock_scene.tags = [mock_tag]
+
+        # Mock database queries
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = [mock_scene]
+
+        mock_db.execute = AsyncMock(return_value=mock_scenes_result)
+        mock_db.commit = AsyncMock()
+
+        # Mock stash service
+        mock_sync_service.stash_service.update_scene = AsyncMock()
+
+        # Try to remove a tag that doesn't exist on the scene
+        response = client.post(
+            "/api/scenes/remove-tags",
+            json={"scene_ids": [26804], "tag_ids": [999]},  # Non-existent tag
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["scenes_updated"] == 0  # No scenes should be updated
+        assert data["tags_affected"] == 1
+
+        # Verify no changes were made
+        assert len(mock_scene.tags) == 1
+        assert mock_scene.tags[0].id == "100"
+
+        # Verify Stash was NOT called since no changes
+        mock_sync_service.stash_service.update_scene.assert_not_called()
+
+    def test_bulk_tag_operations_multiple_scenes(
+        self, client, mock_db, mock_sync_service
+    ):
+        """Test tag operations on multiple scenes."""
+        # Create mock tags
+        mock_tag = Mock()
+        mock_tag.id = "322"
+        mock_tag.name = "Tag to Remove"
+
+        # Create multiple mock scenes
+        mock_scene1 = Mock()
+        mock_scene1.id = "1001"
+        mock_scene1.tags = [mock_tag]
+
+        mock_scene2 = Mock()
+        mock_scene2.id = "1002"
+        mock_scene2.tags = [mock_tag]
+
+        # Mock database queries
+        mock_scenes_result = Mock()
+        mock_scenes_result.scalars.return_value.all.return_value = [
+            mock_scene1,
+            mock_scene2,
+        ]
+
+        mock_db.execute = AsyncMock(return_value=mock_scenes_result)
+        mock_db.commit = AsyncMock()
+
+        # Mock stash service
+        mock_sync_service.stash_service.update_scene = AsyncMock()
+
+        # Remove tag from multiple scenes
+        response = client.post(
+            "/api/scenes/remove-tags",
+            json={"scene_ids": [1001, 1002], "tag_ids": [322]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["scenes_updated"] == 2  # Both scenes should be updated
+        assert data["tags_affected"] == 1
+
+        # Verify tags were removed from both scenes
+        assert len(mock_scene1.tags) == 0
+        assert len(mock_scene2.tags) == 0
+
+        # Verify Stash was called for both scenes
+        assert mock_sync_service.stash_service.update_scene.call_count == 2
