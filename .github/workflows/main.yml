@@ -232,15 +232,12 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image-tag: ${{ steps.sha.outputs.sha }}
+      temp-tag: build-${{ github.run_id }}
+      digest: ${{ steps.build.outputs.digest }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Get commit SHA
-      id: sha
-      run: echo "sha=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
       
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -252,13 +249,14 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         
-    - name: Build with cache
+    - name: Build and push with temporary tag
+      id: build
       uses: docker/build-push-action@v6
       with:
         context: .
         file: ./Dockerfile
         push: true
-        tags: docker.io/${{ github.repository }}:${{ steps.sha.outputs.sha }}
+        tags: docker.io/${{ github.repository }}:build-${{ github.run_id }}
         # Registry cache only for performance comparison
         cache-from: type=registry,ref=docker.io/${{ github.repository }}:buildcache
         cache-to: type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
@@ -278,9 +276,6 @@ jobs:
       packages: write
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
@@ -305,19 +300,25 @@ jobs:
           type=sha,prefix=,suffix=,format=short
           type=raw,value=latest,enable={{is_default_branch}}
         
-    - name: Pull and retag image
+    - name: Create and push manifest with final tags
       run: |
-        SOURCE_IMAGE="docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}"
-        docker pull $SOURCE_IMAGE
+        SOURCE_IMAGE="docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.temp-tag }}"
         
-        # Process tags line by line
-        echo "${{ steps.meta.outputs.tags }}" | while IFS= read -r tag; do
+        # Build the tag list for imagetools
+        TAGS=""
+        while IFS= read -r tag; do
           if [ -n "$tag" ]; then
-            echo "Tagging and pushing: $tag"
-            docker tag $SOURCE_IMAGE "$tag"
-            docker push "$tag"
+            TAGS="$TAGS --tag $tag"
           fi
-        done
+        done <<< "${{ steps.meta.outputs.tags }}"
+        
+        # Create manifest with all tags at once (no pull/push of layers needed!)
+        echo "Creating manifest with tags:"
+        echo "${{ steps.meta.outputs.tags }}"
+        
+        docker buildx imagetools create \
+          $TAGS \
+          $SOURCE_IMAGE
         
     - name: Send webhook notification
       uses: distributhor/workflow-webhook@v3
