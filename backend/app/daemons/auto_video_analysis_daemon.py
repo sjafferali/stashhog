@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+import traceback
 from typing import Set
 
 from sqlalchemy import func, select
@@ -88,7 +89,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 break
             except Exception as e:
                 await self.log(
-                    LogLevel.ERROR, f"Auto Video Analysis Daemon error: {str(e)}"
+                    LogLevel.ERROR,
+                    f"Auto Video Analysis Daemon error: {str(e)}\n"
+                    f"Stack trace:\n{traceback.format_exc()}",
                 )
                 if self.is_running:
                     await asyncio.sleep(30)  # Back off on error
@@ -195,7 +198,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
         except Exception as e:
             await self.log(
-                LogLevel.ERROR, f"Failed to create video tag analysis job: {str(e)}"
+                LogLevel.ERROR,
+                f"Failed to create video tag analysis job: {str(e)}\n"
+                f"Stack trace:\n{traceback.format_exc()}",
             )
 
     async def _check_monitored_jobs(self, config: dict):
@@ -206,7 +211,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         completed_jobs = set()
 
         async with AsyncSessionLocal() as db:
-            for job_id in self._monitored_jobs:
+            # Create a copy to avoid "Set changed size during iteration" error
+            for job_id in list(self._monitored_jobs):
                 job = await db.get(Job, job_id)
                 if not job:
                     completed_jobs.add(job_id)
@@ -254,6 +260,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 await self.log(LogLevel.DEBUG, f"Job {job_id} did not generate a plan")
                 return
 
+            # Convert plan_id to integer if it's a string
+            if isinstance(plan_id, str):
+                plan_id = int(plan_id)
+
             await self.log(
                 LogLevel.INFO,
                 f"Job {job_id} generated plan {plan_id}, creating apply job",
@@ -276,7 +286,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         except Exception as e:
             await self.log(
                 LogLevel.ERROR,
-                f"Failed to handle completed analysis job {job_id}: {str(e)}",
+                f"Failed to handle completed analysis job {job_id}: {str(e)}\n"
+                f"Stack trace:\n{traceback.format_exc()}",
             )
 
     async def _create_apply_plan_job(self, plan_id: int):
@@ -322,5 +333,6 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         except Exception as e:
             await self.log(
                 LogLevel.ERROR,
-                f"Failed to create apply plan job for plan {plan_id}: {str(e)}",
+                f"Failed to create apply plan job for plan {plan_id}: {str(e)}\n"
+                f"Stack trace:\n{traceback.format_exc()}",
             )
