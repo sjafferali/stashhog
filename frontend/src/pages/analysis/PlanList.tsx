@@ -578,40 +578,39 @@ const PlanList: React.FC = () => {
           }
         >
           <Table<AnalysisPlan>
-            columns={columns}
-            dataSource={filteredAndSortedPlans}
-            loading={loading}
-            rowKey="id"
             {...({
+              columns,
+              dataSource: filteredAndSortedPlans,
+              loading,
+              rowKey: 'id',
               rowSelection: {
                 selectedRowKeys,
                 onChange: (newSelectedRowKeys: React.Key[]) => {
                   setSelectedRowKeys(newSelectedRowKeys);
                 },
               },
-            } as any)} // eslint-disable-line @typescript-eslint/no-explicit-any
-            pagination={{
-              pageSize: 20,
-              showSizeChanger: true,
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} of ${total} plans`,
-            }}
-            rowClassName={(record) =>
-              `plan-row plan-${record.status.toLowerCase()}`
-            }
-            onRow={(record) => ({
-              onClick: (e) => {
-                // Don't navigate if clicking on action buttons or checkbox
-                const target = e.target as HTMLElement;
-                if (
-                  !target.closest('button') &&
-                  !target.closest('a') &&
-                  !target.closest('.ant-checkbox-wrapper')
-                ) {
-                  void navigate(`/analysis/plans/${record.id}`);
-                }
+              pagination: {
+                pageSize: 20,
+                showSizeChanger: true,
+                showTotal: (total: number, range: [number, number]) =>
+                  `${range[0]}-${range[1]} of ${total} plans`,
               },
-            })}
+              rowClassName: (record: AnalysisPlan) =>
+                `plan-row plan-${record.status.toLowerCase()}`,
+              onRow: (record: AnalysisPlan) => ({
+                onClick: (e: React.MouseEvent) => {
+                  // Don't navigate if clicking on action buttons or checkbox
+                  const target = e.target as HTMLElement;
+                  if (
+                    !target.closest('button') &&
+                    !target.closest('a') &&
+                    !target.closest('.ant-checkbox-wrapper')
+                  ) {
+                    void navigate(`/analysis/plans/${record.id}`);
+                  }
+                },
+              }),
+            } as any)} // eslint-disable-line @typescript-eslint/no-explicit-any
           />
         </div>
       </Card>
