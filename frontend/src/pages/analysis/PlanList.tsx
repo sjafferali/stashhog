@@ -37,6 +37,9 @@ const PlanList: React.FC = () => {
     useState(false);
   const [bulkActionPlans, setBulkActionPlans] = useState<AnalysisPlan[]>([]);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [applyApprovedModalVisible, setApplyApprovedModalVisible] =
+    useState(false);
+  const [applyApprovedLoading, setApplyApprovedLoading] = useState(false);
 
   useEffect(() => {
     void fetchPlans();
@@ -212,36 +215,36 @@ const PlanList: React.FC = () => {
   };
 
   const handleApplyApprovedChanges = () => {
-    Modal.confirm({
-      title: 'Apply Approved Changes',
-      content:
-        'This will run a job to apply all approved plan changes that have not been applied yet. Continue?',
-      onOk: async () => {
-        try {
-          setCleanupLoading(true);
-          const result = await apiClient.applyAllApprovedChanges();
+    setApplyApprovedModalVisible(true);
+  };
 
-          if (result.job_id) {
-            void message.success(`Job started with ID: ${result.job_id}`);
-            void message.info(
-              `Applying ${result.total_changes} changes across ${result.plans_affected} plans`
-            );
-          } else {
-            void message.info(result.message);
-          }
+  const handleApplyApprovedConfirm = async () => {
+    setApplyApprovedLoading(true);
+    try {
+      setCleanupLoading(true);
+      const result = await apiClient.applyAllApprovedChanges();
 
-          // Refresh the plans after a short delay to show updated statuses
-          setTimeout(() => {
-            void fetchPlans();
-          }, 2000);
-        } catch (error) {
-          console.error('Failed to start apply job:', error);
-          void message.error('Failed to apply approved changes');
-        } finally {
-          setCleanupLoading(false);
-        }
-      },
-    });
+      if (result.job_id) {
+        void message.success(`Job started with ID: ${result.job_id}`);
+        void message.info(
+          `Applying ${result.total_changes} changes across ${result.plans_affected} plans`
+        );
+      } else {
+        void message.info(result.message);
+      }
+
+      // Refresh the plans after a short delay to show updated statuses
+      setTimeout(() => {
+        void fetchPlans();
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to start apply job:', error);
+      void message.error('Failed to apply approved changes');
+    } finally {
+      setCleanupLoading(false);
+      setApplyApprovedLoading(false);
+      setApplyApprovedModalVisible(false);
+    }
   };
 
   const handleBulkReject = () => {
@@ -781,6 +784,22 @@ const PlanList: React.FC = () => {
             <li key={plan.id}>{plan.name}</li>
           ))}
         </ul>
+      </Modal>
+
+      {/* Apply All Approved Changes Modal */}
+      <Modal
+        title="Apply Approved Changes"
+        open={applyApprovedModalVisible}
+        onOk={() => void handleApplyApprovedConfirm()}
+        onCancel={() => setApplyApprovedModalVisible(false)}
+        confirmLoading={applyApprovedLoading}
+        okText="Apply Changes"
+        okButtonProps={{ type: 'primary' }}
+      >
+        <p>
+          This will run a job to apply all approved plan changes that have not
+          been applied yet. Continue?
+        </p>
       </Modal>
     </div>
   );

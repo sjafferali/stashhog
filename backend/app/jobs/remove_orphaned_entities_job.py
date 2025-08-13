@@ -5,7 +5,8 @@ that no longer exist in Stash.
 """
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
+from collections.abc import Awaitable
+from typing import Any, Callable, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +29,7 @@ async def _process_entity_removal(
     cancellation_token: Optional[Any],
     dry_run: bool,
     remove_func: Callable,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Helper to process entity removal with error handling."""
     try:
         removed_count = await remove_func(
@@ -60,8 +61,8 @@ async def remove_orphaned_entities(
     remove_tags: bool = True,
     remove_studios: bool = True,
     dry_run: bool = False,
-    **kwargs: Any,
-) -> Dict[str, Any]:
+    **kwargs: Any,  # noqa: ARG001
+) -> dict[str, Any]:
     """
     Remove entities from StashHog that no longer exist in Stash.
 
@@ -130,18 +131,20 @@ async def _execute_removals(
     remove_tags: bool,
     remove_studios: bool,
     dry_run: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute the actual removal operations."""
     # Track results with proper typing
-    results: Dict[str, Any] = {
+    results: dict[str, Any] = {
         "scenes_removed": 0,
         "performers_removed": 0,
         "tags_removed": 0,
         "studios_removed": 0,
         "errors": [],
+        "total_entities_checked": 0,
+        "total_entities_found": 0,
     }
 
-    # Define removal operations
+    # Define removal operations with their progress ranges
     operations = [
         (remove_scenes, "scenes", _remove_orphaned_scenes),
         (remove_performers, "performers", _remove_orphaned_performers),
@@ -151,7 +154,16 @@ async def _execute_removals(
 
     # Calculate total steps for progress
     active_operations = [op for op in operations if op[0]]
-    total_steps = len(active_operations)
+
+    if not active_operations:
+        await progress_callback(100, "No entity types selected for removal")
+        return {
+            "job_id": job_id,
+            "status": "completed",
+            "dry_run": dry_run,
+            "total_removed": 0,
+            **results,
+        }
 
     async with AsyncSessionLocal() as db:
         # Check for cancellation
@@ -160,16 +172,8 @@ async def _execute_removals(
             return {"status": "cancelled", "job_id": job_id}
 
         # Process each entity type
-        for idx, (should_remove, entity_type, remove_func) in enumerate(
-            active_operations
-        ):
-            await _update_progress(
-                idx,
-                total_steps,
-                f"Checking for orphaned {entity_type}...",
-                progress_callback,
-            )
-
+        for _should_remove, entity_type, remove_func in active_operations:
+            # The individual removal functions now handle their own progress updates
             result = await _process_entity_removal(
                 entity_type,
                 db,
@@ -182,11 +186,12 @@ async def _execute_removals(
 
             results[f"{entity_type}_removed"] = result["removed"]
             if result["error"]:
-                errors_list: List[Dict[str, str]] = results["errors"]
+                errors_list: list[dict[str, str]] = results["errors"]
                 errors_list.append(result["error"])
 
         # Commit changes if not dry run
         if not dry_run:
+            await progress_callback(99, "Committing database changes...")
             await db.commit()
             logger.info("Database changes committed")
         else:
@@ -204,7 +209,8 @@ async def _execute_removals(
 
     mode_text = " (DRY RUN)" if dry_run else ""
     await progress_callback(
-        100, f"Completed{mode_text}: Removed {total_removed} orphaned entities"
+        100,
+        f"Completed{mode_text}: Processed {total_removed}/{total_removed} orphaned entities",
     )
 
     return {
@@ -212,17 +218,26 @@ async def _execute_removals(
         "status": "completed_with_errors" if results["errors"] else "completed",
         "dry_run": dry_run,
         "total_removed": total_removed,
+        "processed_items": total_removed,
+        "total_items": total_removed,
         **results,
     }
 
 
 async def _fetch_stash_scene_ids(
-    stash_service: StashService, cancellation_token: Optional[Any]
-) -> Set[str]:
-    """Fetch all scene IDs from Stash."""
-    stash_scene_ids: Set[str] = set()
+    stash_service: StashService,
+    cancellation_token: Optional[Any],
+    progress_callback: Optional[Callable[[int, Optional[str]], Awaitable[None]]] = None,
+) -> set[str]:
+    """Fetch all scene IDs from Stash with progress updates."""
+    stash_scene_ids: set[str] = set()
     page = 1
     per_page = 1000
+    fetched_count = 0
+
+    # First, get the total count
+    _, total_scenes = await stash_service.get_scenes(page=1, per_page=1)
+    logger.info(f"Total scenes in Stash: {total_scenes}")
 
     while True:
         if cancellation_token and cancellation_token.is_cancelled:
@@ -234,6 +249,17 @@ async def _fetch_stash_scene_ids(
             break
 
         stash_scene_ids.update(scene["id"] for scene in scenes)
+        fetched_count += len(scenes)
+
+        # Update progress during fetch
+        if progress_callback and total_scenes > 0:
+            fetch_progress = min(
+                int((fetched_count / total_scenes) * 20), 20
+            )  # 0-20% for fetching
+            await progress_callback(
+                fetch_progress,
+                f"Fetching scenes from Stash: {fetched_count}/{total_scenes}",
+            )
 
         if len(scenes) < per_page:
             break
@@ -242,7 +268,7 @@ async def _fetch_stash_scene_ids(
     return stash_scene_ids
 
 
-async def _get_db_entity_ids(db: AsyncSession, model_class: Any) -> Set[str]:
+async def _get_db_entity_ids(db: AsyncSession, model_class: Any) -> set[str]:
     """Get all entity IDs from the database."""
     stmt = select(model_class.id)
     result = await db.execute(stmt)
@@ -252,7 +278,7 @@ async def _get_db_entity_ids(db: AsyncSession, model_class: Any) -> Set[str]:
 async def _remove_entities_by_ids(
     db: AsyncSession,
     model_class: Any,
-    entity_ids: Set[str],
+    entity_ids: set[str],
     entity_name: str,
     cancellation_token: Optional[Any],
 ) -> int:
@@ -278,6 +304,51 @@ async def _remove_entities_by_ids(
     return removed_count
 
 
+async def _remove_entities_by_ids_with_progress(
+    db: AsyncSession,
+    model_class: Any,
+    entity_ids: set[str],
+    entity_name: str,
+    cancellation_token: Optional[Any],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+    start_progress: int,
+    end_progress: int,
+) -> int:
+    """Remove entities by their IDs with progress updates."""
+    removed_count = 0
+    total_to_remove = len(entity_ids)
+    entity_ids_list = list(entity_ids)
+
+    for idx, entity_id in enumerate(entity_ids_list):
+        if cancellation_token and cancellation_token.is_cancelled:
+            logger.info(f"Job cancelled during {entity_name} removal")
+            break
+
+        try:
+            stmt = select(model_class).where(model_class.id == entity_id)
+            result = await db.execute(stmt)
+            entity = result.scalar_one_or_none()
+
+            if entity:
+                await db.delete(entity)
+                removed_count += 1
+                logger.debug(f"Removed orphaned {entity_name}: {entity_id}")
+
+                # Update progress every 10 items or at specific milestones
+                if removed_count % 10 == 0 or removed_count == total_to_remove:
+                    progress = start_progress + int(
+                        ((idx + 1) / total_to_remove) * (end_progress - start_progress)
+                    )
+                    await progress_callback(
+                        progress,
+                        f"Processed {removed_count}/{total_to_remove} orphaned {entity_name}s",
+                    )
+        except Exception as e:
+            logger.error(f"Error removing {entity_name} {entity_id}: {str(e)}")
+
+    return removed_count
+
+
 async def _remove_orphaned_scenes(
     db: AsyncSession,
     stash_service: StashService,
@@ -286,15 +357,24 @@ async def _remove_orphaned_scenes(
     dry_run: bool,
 ) -> int:
     """Remove scenes that no longer exist in Stash."""
-    logger.info("Fetching all scene IDs from Stash...")
+    logger.info("Starting orphaned scene detection...")
+    await progress_callback(0, "Starting scene analysis...")
 
-    # Get all scene IDs from Stash
-    stash_scene_ids = await _fetch_stash_scene_ids(stash_service, cancellation_token)
+    # Get all scene IDs from Stash with progress
+    await progress_callback(2, "Fetching scenes from Stash...")
+    stash_scene_ids = await _fetch_stash_scene_ids(
+        stash_service, cancellation_token, progress_callback
+    )
     logger.info(f"Found {len(stash_scene_ids)} scenes in Stash")
 
     # Get all scene IDs from StashHog
+    await progress_callback(22, "Fetching scenes from StashHog database...")
     db_scene_ids = await _get_db_entity_ids(db, Scene)
     logger.info(f"Found {len(db_scene_ids)} scenes in StashHog")
+    await progress_callback(
+        24,
+        f"Comparing {len(db_scene_ids)} StashHog scenes with {len(stash_scene_ids)} Stash scenes...",
+    )
 
     # Find orphaned scenes
     orphaned_scene_ids = db_scene_ids - stash_scene_ids
@@ -304,6 +384,10 @@ async def _remove_orphaned_scenes(
         return 0
 
     logger.info(f"Found {len(orphaned_scene_ids)} orphaned scenes")
+    mode_text = " (DRY RUN)" if dry_run else ""
+    await progress_callback(
+        25, f"Found {len(orphaned_scene_ids)} orphaned scenes{mode_text}"
+    )
 
     if dry_run:
         logger.info(f"DRY RUN: Would remove {len(orphaned_scene_ids)} scenes")
@@ -313,9 +397,16 @@ async def _remove_orphaned_scenes(
             logger.info(f"  ... and {len(orphaned_scene_ids) - 10} more")
         return len(orphaned_scene_ids)
 
-    # Remove orphaned scenes
-    removed_count = await _remove_entities_by_ids(
-        db, Scene, orphaned_scene_ids, "scene", cancellation_token
+    # Remove orphaned scenes with progress
+    removed_count = await _remove_entities_by_ids_with_progress(
+        db,
+        Scene,
+        orphaned_scene_ids,
+        "scene",
+        cancellation_token,
+        progress_callback,
+        25,
+        50,
     )
 
     logger.info(f"Removed {removed_count} orphaned scenes")
@@ -330,16 +421,23 @@ async def _remove_orphaned_performers(
     dry_run: bool,
 ) -> int:
     """Remove performers that no longer exist in Stash."""
-    logger.info("Fetching all performer IDs from Stash...")
+    logger.info("Starting orphaned performer detection...")
+    await progress_callback(50, "Fetching performers from Stash...")
 
     # Get all performers from Stash
     stash_performers = await stash_service.get_all_performers()
     stash_performer_ids = {p["id"] for p in stash_performers}
     logger.info(f"Found {len(stash_performer_ids)} performers in Stash")
+    await progress_callback(55, f"Found {len(stash_performer_ids)} performers in Stash")
 
     # Get all performer IDs from StashHog
+    await progress_callback(56, "Fetching performers from StashHog database...")
     db_performer_ids = await _get_db_entity_ids(db, Performer)
     logger.info(f"Found {len(db_performer_ids)} performers in StashHog")
+    await progress_callback(
+        58,
+        f"Comparing {len(db_performer_ids)} StashHog performers with {len(stash_performer_ids)} Stash performers...",
+    )
 
     # Find orphaned performers
     orphaned_performer_ids = db_performer_ids - stash_performer_ids
@@ -349,14 +447,25 @@ async def _remove_orphaned_performers(
         return 0
 
     logger.info(f"Found {len(orphaned_performer_ids)} orphaned performers")
+    mode_text = " (DRY RUN)" if dry_run else ""
+    await progress_callback(
+        60, f"Found {len(orphaned_performer_ids)} orphaned performers{mode_text}"
+    )
 
     if dry_run:
         logger.info(f"DRY RUN: Would remove {len(orphaned_performer_ids)} performers")
         return len(orphaned_performer_ids)
 
-    # Remove orphaned performers
-    removed_count = await _remove_entities_by_ids(
-        db, Performer, orphaned_performer_ids, "performer", cancellation_token
+    # Remove orphaned performers with progress
+    removed_count = await _remove_entities_by_ids_with_progress(
+        db,
+        Performer,
+        orphaned_performer_ids,
+        "performer",
+        cancellation_token,
+        progress_callback,
+        60,
+        70,
     )
 
     logger.info(f"Removed {removed_count} orphaned performers")
@@ -371,16 +480,23 @@ async def _remove_orphaned_tags(
     dry_run: bool,
 ) -> int:
     """Remove tags that no longer exist in Stash."""
-    logger.info("Fetching all tag IDs from Stash...")
+    logger.info("Starting orphaned tag detection...")
+    await progress_callback(70, "Fetching tags from Stash...")
 
     # Get all tags from Stash
     stash_tags = await stash_service.get_all_tags()
     stash_tag_ids = {t["id"] for t in stash_tags}
     logger.info(f"Found {len(stash_tag_ids)} tags in Stash")
+    await progress_callback(75, f"Found {len(stash_tag_ids)} tags in Stash")
 
     # Get all tag IDs from StashHog
+    await progress_callback(76, "Fetching tags from StashHog database...")
     db_tag_ids = await _get_db_entity_ids(db, Tag)
     logger.info(f"Found {len(db_tag_ids)} tags in StashHog")
+    await progress_callback(
+        78,
+        f"Comparing {len(db_tag_ids)} StashHog tags with {len(stash_tag_ids)} Stash tags...",
+    )
 
     # Find orphaned tags
     orphaned_tag_ids = db_tag_ids - stash_tag_ids
@@ -390,14 +506,18 @@ async def _remove_orphaned_tags(
         return 0
 
     logger.info(f"Found {len(orphaned_tag_ids)} orphaned tags")
+    mode_text = " (DRY RUN)" if dry_run else ""
+    await progress_callback(
+        80, f"Found {len(orphaned_tag_ids)} orphaned tags{mode_text}"
+    )
 
     if dry_run:
         logger.info(f"DRY RUN: Would remove {len(orphaned_tag_ids)} tags")
         return len(orphaned_tag_ids)
 
-    # Remove orphaned tags
-    removed_count = await _remove_entities_by_ids(
-        db, Tag, orphaned_tag_ids, "tag", cancellation_token
+    # Remove orphaned tags with progress
+    removed_count = await _remove_entities_by_ids_with_progress(
+        db, Tag, orphaned_tag_ids, "tag", cancellation_token, progress_callback, 80, 85
     )
 
     logger.info(f"Removed {removed_count} orphaned tags")
@@ -412,16 +532,23 @@ async def _remove_orphaned_studios(
     dry_run: bool,
 ) -> int:
     """Remove studios that no longer exist in Stash."""
-    logger.info("Fetching all studio IDs from Stash...")
+    logger.info("Starting orphaned studio detection...")
+    await progress_callback(85, "Fetching studios from Stash...")
 
     # Get all studios from Stash
     stash_studios = await stash_service.get_all_studios()
     stash_studio_ids = {s["id"] for s in stash_studios}
     logger.info(f"Found {len(stash_studio_ids)} studios in Stash")
+    await progress_callback(88, f"Found {len(stash_studio_ids)} studios in Stash")
 
     # Get all studio IDs from StashHog
+    await progress_callback(89, "Fetching studios from StashHog database...")
     db_studio_ids = await _get_db_entity_ids(db, Studio)
     logger.info(f"Found {len(db_studio_ids)} studios in StashHog")
+    await progress_callback(
+        90,
+        f"Comparing {len(db_studio_ids)} StashHog studios with {len(stash_studio_ids)} Stash studios...",
+    )
 
     # Find orphaned studios
     orphaned_studio_ids = db_studio_ids - stash_studio_ids
@@ -431,14 +558,25 @@ async def _remove_orphaned_studios(
         return 0
 
     logger.info(f"Found {len(orphaned_studio_ids)} orphaned studios")
+    mode_text = " (DRY RUN)" if dry_run else ""
+    await progress_callback(
+        92, f"Found {len(orphaned_studio_ids)} orphaned studios{mode_text}"
+    )
 
     if dry_run:
         logger.info(f"DRY RUN: Would remove {len(orphaned_studio_ids)} studios")
         return len(orphaned_studio_ids)
 
-    # Remove orphaned studios
-    removed_count = await _remove_entities_by_ids(
-        db, Studio, orphaned_studio_ids, "studio", cancellation_token
+    # Remove orphaned studios with progress
+    removed_count = await _remove_entities_by_ids_with_progress(
+        db,
+        Studio,
+        orphaned_studio_ids,
+        "studio",
+        cancellation_token,
+        progress_callback,
+        92,
+        98,
     )
 
     logger.info(f"Removed {removed_count} orphaned studios")

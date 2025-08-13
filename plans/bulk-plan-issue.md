@@ -1,10 +1,10 @@
 # Bulk Plan Actions Issue - Analysis Plans Page
 
 ## Issue Description
-The bulk action buttons on the Analysis Plans page are not functioning properly. When users select plans using checkboxes and click on the bulk action buttons ("Accept All Changes", "Reject All Changes", "Accept and Apply All Changes"), no action is taken in the UI and no API requests are made.
+The bulk action buttons on the Analysis Plans page were not functioning properly. When users selected plans using checkboxes and clicked on the bulk action buttons ("Accept All Changes", "Reject All Changes", "Accept and Apply All Changes"), no modals appeared and no actions were taken.
 
 ## Root Cause Analysis
-The issue stems from TypeScript type incompatibilities with the Ant Design Table component's `rowSelection` prop. The Table component's TypeScript definitions don't properly recognize `rowSelection` as a valid prop when using the generic `Table<T>` syntax, even though it works at runtime.
+The issue was caused by `Modal.confirm` being tree-shaken out or not properly bundled during the build process, resulting in a no-op function. While the code appeared to execute correctly (handlers were called with proper state), the Modal.confirm calls did nothing - no modal elements were created in the DOM. This was confirmed through live debugging which showed that Modal.confirm was being invoked but produced no UI elements.
 
 ## Attempted Fixes
 
@@ -56,15 +56,17 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   - Applied various type assertions
 - **Result**: Type errors persist with rowSelection prop
 
-## Current State
+## Current State - RESOLVED ✅
 - TypeScript compiles successfully  
 - ESLint passes without warnings
-- **ISSUE ISOLATED**: 
-  - ✅ Button clicks are working (onClick handlers fire)
-  - ✅ Handlers are being called with correct state
-  - ✅ selectedRowKeys contains the correct plan IDs
-  - ❌ Modal.confirm is not showing (likely due to filtering logic)
+- **ALL FEATURES WORKING**: 
+  - ✅ Button clicks trigger handlers correctly
+  - ✅ Modals appear when bulk action buttons are clicked
+  - ✅ "Accept All Changes" works correctly
+  - ✅ "Reject All Changes" works correctly
   - ✅ "Accept and Apply All Changes" works correctly
+  - ✅ Proper loading states and error handling
+  - ✅ Plans refresh after successful operations
 
 ## Additional Debugging Attempts (Latest Session)
 
@@ -448,13 +450,65 @@ Add breakpoints or console.logs directly in these methods.
 ### 8. **Consider Using Ant Design's useTable Hook**
 If available in the version being used, consider refactoring to use Ant Design's table hooks which might handle selection state more reliably.
 
+### 18. **FINAL FIX: Converted Modal.confirm to Controlled Modal Components**
+- **Root Cause Confirmed**: Modal.confirm was being tree-shaken out or not properly bundled, resulting in a no-op function that appeared to work but never displayed any modals
+- **What was fixed**: Completely replaced Modal.confirm with controlled modal state management pattern:
+  1. **Added state variables** for each bulk action modal:
+     ```tsx
+     const [bulkAcceptModalVisible, setBulkAcceptModalVisible] = useState(false);
+     const [bulkRejectModalVisible, setBulkRejectModalVisible] = useState(false);
+     const [bulkAcceptApplyModalVisible, setBulkAcceptApplyModalVisible] = useState(false);
+     const [bulkActionPlans, setBulkActionPlans] = useState<AnalysisPlan[]>([]);
+     const [bulkActionLoading, setBulkActionLoading] = useState(false);
+     ```
+  2. **Refactored handlers** to use controlled approach:
+     - `handleBulkAccept` - Now just sets state and shows modal (no longer async)
+     - `handleBulkReject` - Now just sets state and shows modal (no longer async)
+     - `handleBulkAcceptAndApply` - Uses controlled state for multiple plans
+     - Added separate confirmation handlers (`handleBulkAcceptConfirm`, `handleBulkRejectConfirm`, `handleBulkAcceptApplyConfirm`) that execute the actual operations
+  3. **Added Modal components** to the render:
+     ```tsx
+     <Modal
+       title="Accept All Changes"
+       open={bulkAcceptModalVisible}
+       onOk={() => void handleBulkAcceptConfirm()}
+       onCancel={() => {
+         setBulkAcceptModalVisible(false);
+         setBulkActionPlans([]);
+       }}
+       confirmLoading={bulkActionLoading}
+       okText="Accept All"
+     >
+       <p>Are you sure you want to accept all changes for {bulkActionPlans.length} plan(s)?</p>
+       <ul>
+         {bulkActionPlans.map((plan) => (
+           <li key={plan.id}>{plan.name}</li>
+         ))}
+       </ul>
+     </Modal>
+     ```
+  4. **Cleaned up code**:
+     - Removed all debug console.log statements
+     - Removed test buttons
+     - Simplified button onClick handlers to call functions directly
+- **Implementation pattern**: This follows the same pattern used in other components like `SceneActions.tsx` which also moved away from Modal.confirm
+- **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
+- **Result**: **✅ FULLY RESOLVED** - All bulk actions now work correctly:
+  - Modals properly appear in the DOM when buttons are clicked
+  - Proper async handling with loading states
+  - All three bulk actions (Accept, Reject, Accept & Apply) function as expected
+  - TypeScript compiles without errors
+  - ESLint passes without warnings
+
 ## Files Modified
 - `/frontend/src/pages/analysis/PlanList.tsx` - Main component with bulk actions and table
-  - Added extensive debugging logs
-  - Simplified Table implementation
-  - Added test debug button
+  - Added controlled modal state management
+  - Replaced Modal.confirm with controlled Modal components
+  - Split handlers into trigger and confirmation functions
+  - Removed all debugging code and test buttons
   - Fixed TypeScript compilation issues
 
 ## Related Components
 - `/frontend/src/services/apiClient.ts` - API client methods for bulk operations
 - `/frontend/src/types/models.ts` - AnalysisPlan type definition
+- `/frontend/src/components/common/ConfirmModal.tsx` - Example of controlled modal pattern
