@@ -59,10 +59,7 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
 ## Current State
 - TypeScript compiles successfully
 - ESLint passes without warnings
-- **FULLY FIXED**: All bulk actions now work correctly after:
-  1. Fixing type conversion for selectedRowKeys comparison
-  2. Fixing Modal.confirm async handling with IIFE pattern
-  3. Fixing apply endpoint to use specific change IDs instead of empty array
+- **PARTIALLY FIXED**: "Accept and Apply All Changes" works, but "Accept All Changes" and "Reject All Changes" still don't work
 
 ## Additional Debugging Attempts (Latest Session)
 
@@ -184,22 +181,61 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   - Updated `handleBulkAcceptAndApply()` for multiple plans - Now fetches full plan data and extracts change IDs
   - Updated the ApplyPlanModal's onApply handler - Now fetches full plan data and extracts change IDs  
   - Removed debug logging after confirming the fix works
-- **Result**: **ISSUE FULLY RESOLVED** - All bulk action buttons now work correctly:
-  - "Accept All Changes" - Shows modal and processes changes correctly
-  - "Reject All Changes" - Shows modal and processes changes correctly
-  - "Accept and Apply All Changes" - Shows modal, accepts changes, then applies them with the correct change IDs
+- **Result**: **PARTIALLY RESOLVED** - Only "Accept and Apply All Changes" works correctly
+
+### 13. **Removed Async from Non-Async Handlers**
+- **What was tried**: Removed the `async` keyword from handlers that don't await anything before showing Modal.confirm:
+  - Changed `handleBulkAccept`, `handleBulkReject`, and `handleApplyApprovedChanges` from async to regular functions
+  - Updated onClick handlers to call them directly without the `void` operator
+  - Kept `handleBulkAcceptAndApply` as async since it performs async operations before showing the modal
+- **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
+- **Result**: **STILL NOT WORKING** - "Accept All Changes" and "Reject All Changes" buttons still don't trigger any action
+
+### 14. **Added Extensive Debugging and useCallback Hooks**
+- **What was tried**: 
+  - Added console.log statements at the beginning of handlers to verify they're being called
+  - Added alert() calls to ensure handlers are triggered
+  - Wrapped handlers in useCallback hooks with proper dependencies to ensure stable references
+  - Changed button onClick handlers to use arrow functions with inline console.log
+  - Added test buttons that directly call the handlers and test Modal.confirm independently
+- **Implementation**:
+  ```tsx
+  const handleBulkAccept = useCallback(() => {
+    console.log('[DEBUG] handleBulkAccept called!');
+    // ... handler logic
+  }, [selectedRowKeys, plans]);
+  
+  // Button with inline logging
+  <Button 
+    onClick={() => {
+      console.log('[INLINE] Accept button clicked');
+      handleBulkAccept();
+    }}
+  >
+    Accept All Changes
+  </Button>
+  ```
+- **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
+- **Result**: **READY FOR TESTING** - Added comprehensive debugging to identify where the issue occurs
 
 ## Debugging Instructions
 To use the debugging setup:
 1. Open the browser console (F12)
 2. Navigate to the Analysis Plans page
 3. Try selecting checkboxes in the table
-4. Click the "Test Selection (Debug)" button to see current state
-5. Look for console logs with these prefixes:
-   - `[RENDER]` - Shows component render state
-   - `[DEBUG]` - Shows selectedRowKeys changes and onChange calls
-   - `[TEST]` - Shows state when test button is clicked
-   - `[handleBulkAccept]` - Shows execution flow when bulk accept is clicked
+4. Click on the bulk action buttons and check console for:
+   - `[INLINE]` - Shows if the button onClick handler is triggered
+   - `[DEBUG]` - Shows if the actual handler function is called
+5. Test buttons (always visible):
+   - **Purple "TEST: Direct Call handleBulkAccept"** - Directly calls the handleBulkAccept function
+   - **Cyan "TEST: Direct Modal.confirm"** - Tests if Modal.confirm works independently
+6. Expected console output when clicking "Accept All Changes":
+   ```
+   [INLINE] Accept button clicked
+   [DEBUG] handleBulkAccept called!
+   [DEBUG] selectedRowKeys: [...]
+   [DEBUG] plans: [...]
+   ```
 
 ## Potential Root Causes
 Based on the debugging setup, the issue is likely one of:

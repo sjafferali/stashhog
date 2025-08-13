@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Card, Table, Button, Space, Tag, message, Modal, Tooltip } from 'antd';
 import {
   EditOutlined,
@@ -134,7 +134,11 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const handleBulkAccept = () => {
+  const handleBulkAccept = useCallback(() => {
+    console.log('[DEBUG] handleBulkAccept called!');
+    console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
+    console.log('[DEBUG] plans:', plans);
+
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
@@ -205,7 +209,7 @@ const PlanList: React.FC = () => {
         })(); // Close and execute the async IIFE
       },
     });
-  };
+  }, [selectedRowKeys, plans]);
 
   const handleApplyApprovedChanges = () => {
     Modal.confirm({
@@ -240,7 +244,11 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleBulkReject = () => {
+  const handleBulkReject = useCallback(() => {
+    console.log('[DEBUG] handleBulkReject called!');
+    console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
+    console.log('[DEBUG] plans:', plans);
+
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
@@ -311,7 +319,7 @@ const PlanList: React.FC = () => {
         })(); // Close and execute the async IIFE
       },
     });
-  };
+  }, [selectedRowKeys, plans]);
 
   const handleBulkAcceptAndApply = async () => {
     // Convert both to strings for comparison to handle any type mismatches
@@ -582,13 +590,22 @@ const PlanList: React.FC = () => {
           {selectedRowKeys.length > 0 && (
             <>
               <span>{selectedRowKeys.length} plan(s) selected</span>
-              <Button icon={<CheckCircleOutlined />} onClick={handleBulkAccept}>
+              <Button
+                icon={<CheckCircleOutlined />}
+                onClick={() => {
+                  console.log('[INLINE] Accept button clicked');
+                  handleBulkAccept();
+                }}
+              >
                 Accept All Changes
               </Button>
               <Button
                 danger
                 icon={<CloseCircleOutlined />}
-                onClick={handleBulkReject}
+                onClick={() => {
+                  console.log('[INLINE] Reject button clicked');
+                  handleBulkReject();
+                }}
               >
                 Reject All Changes
               </Button>
@@ -601,6 +618,33 @@ const PlanList: React.FC = () => {
               </Button>
             </>
           )}
+          {/* Debug test buttons - always visible */}
+          <Button
+            style={{ backgroundColor: '#f0f', color: 'white' }}
+            onClick={() => {
+              console.log('[TEST] Direct button click test');
+              alert('Test button clicked!');
+              handleBulkAccept();
+            }}
+          >
+            TEST: Direct Call handleBulkAccept
+          </Button>
+          <Button
+            style={{ backgroundColor: '#0ff', color: 'black' }}
+            onClick={() => {
+              console.log('[TEST] Testing Modal.confirm directly');
+              Modal.confirm({
+                title: 'Test Modal',
+                content: 'This is a test modal. Does it show?',
+                onOk: () => {
+                  console.log('Test modal OK clicked');
+                  alert('Test modal OK was clicked!');
+                },
+              });
+            }}
+          >
+            TEST: Direct Modal.confirm
+          </Button>
         </Space>
       </div>
 
