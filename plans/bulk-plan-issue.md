@@ -216,7 +216,41 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   </Button>
   ```
 - **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
-- **Result**: **READY FOR TESTING** - Added comprehensive debugging to identify where the issue occurs
+- **Result**: **CRITICAL FINDING** - The handlers ARE being called successfully with correct selectedRowKeys!
+  - Console shows: `[INLINE] Accept button clicked`
+  - Console shows: `[DEBUG] handleBulkAccept called!`
+  - Console shows: `[DEBUG] selectedRowKeys: (2) [167, 166]`
+  - Console shows: `[DEBUG] plans: (2) [...]`
+  - This proves the button click works and handlers execute with proper state
+
+### 15. **Enhanced Debugging to Track Filter Logic**
+- **What was tried**: Added more granular logging to track the filtering process:
+  ```tsx
+  const selectedPlans = plans.filter((plan) =>
+    selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
+  );
+  console.log('[DEBUG] selectedPlans:', selectedPlans);
+
+  const eligiblePlans = selectedPlans.filter(
+    (plan) =>
+      plan.status.toLowerCase() === 'reviewing' ||
+      plan.status.toLowerCase() === 'draft'
+  );
+  console.log('[DEBUG] eligiblePlans:', eligiblePlans);
+
+  if (eligiblePlans.length === 0) {
+    console.log('[DEBUG] No eligible plans found!');
+    // ...
+  }
+
+  console.log('[DEBUG] About to show Modal.confirm...');
+  ```
+- **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
+- **Purpose**: To identify whether:
+  1. Plans are being filtered correctly by ID (selectedPlans)
+  2. Plans are passing the status eligibility check
+  3. Modal.confirm is being reached
+- **Result**: **AWAITING TEST RESULTS** - This will pinpoint the exact failure point
 
 ## Debugging Instructions
 To use the debugging setup:

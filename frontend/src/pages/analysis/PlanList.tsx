@@ -143,20 +143,24 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
+    console.log('[DEBUG] selectedPlans:', selectedPlans);
 
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
         plan.status.toLowerCase() === 'draft'
     );
+    console.log('[DEBUG] eligiblePlans:', eligiblePlans);
 
     if (eligiblePlans.length === 0) {
+      console.log('[DEBUG] No eligible plans found!');
       void message.warning(
         'Please select plans that are in reviewing or draft status'
       );
       return;
     }
 
+    console.log('[DEBUG] About to show Modal.confirm...');
     Modal.confirm({
       title: 'Accept All Changes',
       content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
@@ -253,20 +257,24 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
+    console.log('[DEBUG] selectedPlans:', selectedPlans);
 
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
         plan.status.toLowerCase() === 'draft'
     );
+    console.log('[DEBUG] eligiblePlans:', eligiblePlans);
 
     if (eligiblePlans.length === 0) {
+      console.log('[DEBUG] No eligible plans found!');
       void message.warning(
         'Please select plans that are in reviewing or draft status'
       );
       return;
     }
 
+    console.log('[DEBUG] About to show Modal.confirm...');
     Modal.confirm({
       title: 'Reject All Changes',
       content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
