@@ -154,15 +154,11 @@ jobs:
         file: ./Dockerfile
         push: false
         tags: stashhog:pr-${{ github.event.pull_request.number }}
-        # Multi-layer cache strategy with scope isolation
+        # Optimized cache strategy - GHA first for speed, registry as fallback
         cache-from: |
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache-frontend
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache-python
           type=gha,scope=buildkit-pr
           type=gha,scope=buildkit-${{ github.workflow }}
-          type=gha,scope=frontend-deps
-          type=gha,scope=python-deps
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache
         cache-to: |
           type=gha,scope=buildkit-pr,mode=max
         build-args: |

@@ -259,18 +259,13 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: docker.io/${{ github.repository }}:${{ steps.sha.outputs.sha }}
-        # Multi-layer cache strategy for maximum performance
-        # Includes stage-specific caches for better granularity
+        # Optimized cache strategy - GHA first for speed, registry as fallback
         cache-from: |
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache-frontend
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache-python
           type=gha,scope=buildkit-${{ github.workflow }}
-          type=gha,scope=frontend-deps
-          type=gha,scope=python-deps
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache
         cache-to: |
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
           type=gha,scope=buildkit-${{ github.workflow }},mode=max
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
         build-args: |
           BUILDTIME=${{ fromJSON('{"timestamp":""}').timestamp || github.event.head_commit.timestamp }}
           VERSION=${{ github.ref_name }}
@@ -322,11 +317,11 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        # Use the previously built image as cache source
+        # Optimized cache order - use built image first, then GHA, then registry
         cache-from: |
           type=registry,ref=docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache
           type=gha,scope=buildkit-${{ github.workflow }}
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache
         # Embed cache metadata directly in the production images
         cache-to: |
           type=inline
