@@ -226,7 +226,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 ]:
                     await self.log(
                         LogLevel.INFO,
-                        f"Video analysis job {job_id} completed with status: {job.status}",
+                        f"Job {job_id} (type: {job.job_type}) completed with status: {job.status}",
                     )
 
                     await self.track_job_action(
@@ -235,9 +235,11 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         reason=f"Job completed with status {job.status}",
                     )
 
-                    # If job completed successfully, check for generated plan
+                    # Only handle completed analysis jobs for plan creation
+                    # APPLY_PLAN jobs should not trigger another apply
                     if (
                         job.status == JobStatus.COMPLETED.value
+                        and job.job_type == JobType.ANALYSIS.value
                         and config["auto_approve_plans"]
                     ):
                         await self._handle_completed_analysis_job(job_id, job)
@@ -276,8 +278,39 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                     await self.log(LogLevel.WARNING, f"Plan {plan_id} not found")
                     return
 
-                if plan.status == PlanStatus.APPLIED:
-                    await self.log(LogLevel.DEBUG, f"Plan {plan_id} already applied")
+                # Check if plan has already been applied or is being applied
+                if plan.status in [PlanStatus.APPLIED, PlanStatus.REVIEWING]:
+                    await self.log(
+                        LogLevel.INFO,
+                        f"Plan {plan_id} already applied or being applied (status: {plan.status})",
+                    )
+                    return
+
+                # Check if there are any approved changes to apply
+                from sqlalchemy import func, or_, select
+
+                from app.models import PlanChange
+                from app.models.plan_change import ChangeStatus
+
+                count_query = select(func.count(PlanChange.id)).where(
+                    PlanChange.plan_id == plan_id,
+                    or_(
+                        PlanChange.status == ChangeStatus.APPROVED,
+                        PlanChange.accepted.is_(True),
+                    ),
+                    PlanChange.applied.is_(False),
+                )
+                count_result = await db.execute(count_query)
+                unapplied_changes = count_result.scalar_one()
+
+                if unapplied_changes == 0:
+                    await self.log(
+                        LogLevel.INFO,
+                        f"Plan {plan_id} has no unapplied changes to apply",
+                    )
+                    # Mark plan as applied if all changes have been processed
+                    plan.status = PlanStatus.APPLIED
+                    await db.commit()
                     return
 
             # Create apply plan job

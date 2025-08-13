@@ -2446,6 +2446,27 @@ class AnalysisService:
                 if progress_callback:
                     await progress_callback(5, f"Applied 0/{total_changes} changes")
 
+                # If auto_approve is True and no specific change_ids, get all approved changes
+                if auto_approve and not change_ids:
+                    from sqlalchemy import or_
+
+                    from app.models.plan_change import ChangeStatus
+
+                    # Get all approved changes for this plan
+                    approved_changes_query = select(PlanChange.id).where(
+                        PlanChange.plan_id == plan_id_int,
+                        or_(
+                            PlanChange.status == ChangeStatus.APPROVED,
+                            PlanChange.accepted.is_(True),
+                        ),
+                        PlanChange.applied.is_(False),
+                    )
+                    approved_result = await db.execute(approved_changes_query)
+                    change_ids = [row[0] for row in approved_result]
+
+                    if not change_ids:
+                        logger.warning(f"No approved changes found for plan {plan_id}")
+
                 # Apply the plan
                 result = await self.plan_manager.apply_plan(
                     plan_id=plan_id_int,
