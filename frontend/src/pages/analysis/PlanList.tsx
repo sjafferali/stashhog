@@ -163,59 +163,71 @@ const PlanList: React.FC = () => {
     console.log('[DEBUG] About to show Modal.confirm...');
     // Use setTimeout to break out of current execution context
     setTimeout(() => {
-      Modal.confirm({
-        title: 'Accept All Changes',
-        content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
-        onOk: () => {
-          return (async () => {
-            let successCount = 0;
-            let errorCount = 0;
-            let totalChangesUpdated = 0;
+      console.log('[DEBUG] Inside setTimeout, calling Modal.confirm now');
+      try {
+        const modalInstance = Modal.confirm({
+          title: 'Accept All Changes',
+          content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
+          onOk: () => {
+            return (async () => {
+              let successCount = 0;
+              let errorCount = 0;
+              let totalChangesUpdated = 0;
 
-            for (const plan of eligiblePlans) {
-              try {
-                const result = await apiClient.bulkUpdateAnalysisPlan(
-                  plan.id,
-                  'accept_all'
-                );
-                if (result.updated_count > 0) {
-                  successCount++;
-                  totalChangesUpdated += result.updated_count;
-                } else {
-                  void message.info(
-                    `Plan "${plan.name}" has no pending changes to accept`
+              for (const plan of eligiblePlans) {
+                try {
+                  const result = await apiClient.bulkUpdateAnalysisPlan(
+                    plan.id,
+                    'accept_all'
                   );
+                  if (result.updated_count > 0) {
+                    successCount++;
+                    totalChangesUpdated += result.updated_count;
+                  } else {
+                    void message.info(
+                      `Plan "${plan.name}" has no pending changes to accept`
+                    );
+                  }
+                } catch (error) {
+                  console.error(
+                    `Failed to accept changes for plan ${plan.id}:`,
+                    error
+                  );
+                  errorCount++;
                 }
-              } catch (error) {
-                console.error(
-                  `Failed to accept changes for plan ${plan.id}:`,
-                  error
-                );
-                errorCount++;
               }
-            }
 
-            if (successCount > 0) {
-              void message.success(
-                `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            } else if (totalChangesUpdated === 0 && errorCount === 0) {
-              void message.info(
-                'No pending changes to accept in selected plans'
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            }
-            if (errorCount > 0) {
-              void message.error(
-                `Failed to accept changes for ${errorCount} plan(s)`
-              );
-            }
-          })();
-        },
-      });
+              if (successCount > 0) {
+                void message.success(
+                  `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
+                );
+                void fetchPlans();
+                setSelectedRowKeys([]);
+              } else if (totalChangesUpdated === 0 && errorCount === 0) {
+                void message.info(
+                  'No pending changes to accept in selected plans'
+                );
+                void fetchPlans();
+                setSelectedRowKeys([]);
+              }
+              if (errorCount > 0) {
+                void message.error(
+                  `Failed to accept changes for ${errorCount} plan(s)`
+                );
+              }
+            })();
+          },
+        });
+        console.log('[DEBUG] Modal.confirm returned:', modalInstance);
+        // Modal instance has a destroy method if successful
+        if (modalInstance && modalInstance.destroy) {
+          console.log('[DEBUG] Modal instance created successfully');
+        } else {
+          console.error('[ERROR] Modal instance not created properly');
+        }
+      } catch (error) {
+        console.error('[ERROR] Failed to show Modal.confirm:', error);
+      }
     }, 0); // setTimeout with 0 delay
   };
 
