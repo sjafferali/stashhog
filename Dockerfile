@@ -1,91 +1,89 @@
-# Multi-stage Dockerfile for StashHog
+# Multi-stage Dockerfile for StashHog - Optimized Version
 
-# Stage 1: Build frontend
+# Stage 1: Frontend Builder
 FROM node:24-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install build dependencies for native modules
+# Install build dependencies for native modules (combine layers)
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy only package files for better cache utilization
 COPY frontend/package*.json ./
 
-# Install dependencies (including dev dependencies for build)
-# Fix for Rollup native module issues in Alpine Linux
-# Following the error message recommendation to remove package-lock.json and node_modules
-RUN rm -rf node_modules package-lock.json && \
-    npm cache clean --force && \
-    npm install @rollup/rollup-linux-x64-musl && \
-    npm install
+# Install dependencies with proper platform-specific handling
+RUN npm ci --only=production && \
+    npm install @rollup/rollup-linux-x64-musl
 
-# Copy source code
+# Copy source and build
 COPY frontend/ ./
+RUN npm run build && \
+    # Clean up unnecessary files after build
+    rm -rf node_modules src tests *.config.* *.json
 
-# Build the frontend
-RUN npm run build
+# Stage 2: Python Dependencies Builder
+FROM python:3.13-slim AS python-builder
 
-# Stage 2: Python base
-FROM python:3.13-slim AS python-base
-
+# Set environment for build
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Stage 3: Build backend dependencies
-FROM python-base AS backend-builder
+WORKDIR /app
+
+# Install build dependencies in single layer
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        python3-dev \
+        libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY backend/requirements.txt ./
+
+# Create wheels for better caching and faster installs
+RUN pip wheel --wheel-dir=/app/wheels -r requirements.txt
+
+# Stage 3: Production Image
+FROM python:3.13-slim AS production
+
+# Set runtime environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    curl \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY backend/requirements.txt ./
-
-# Install Python dependencies
-RUN pip install --user --no-warn-script-location -r requirements.txt
-
-# Stage 4: Final production image
-FROM python-base AS production
-
-# Install runtime dependencies for PostgreSQL and ffmpeg
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Install Python dependencies globally so any user can access them
-COPY backend/requirements.txt ./
-RUN pip install --no-warn-script-location -r requirements.txt
-
-# Copy backend code
-COPY backend/ ./
-
-# Copy frontend build to static directory
-COPY --from=frontend-builder /app/frontend/dist ./static
-
-# Create a group for the app and set permissions
-RUN groupadd -g 1000 appgroup && \
-    chmod -R 755 /app && \
-    # Make the app directory writable for any user in the group
-    chmod -R 775 /app && \
-    # Ensure Python can write bytecode if needed
+# Install runtime dependencies in single layer
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libpq5 \
+        ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    # Create app group and directories
+    groupadd -g 1000 appgroup && \
     mkdir -p /app/__pycache__ && \
     chmod 777 /app/__pycache__
 
-# Set up environment
-ENV PYTHONPATH=/app
+# Copy wheels from builder and install
+COPY --from=python-builder /app/wheels /wheels
+RUN pip install --no-deps /wheels/*.whl && \
+    rm -rf /wheels
 
-# Don't switch to a specific user - let Docker Compose handle it
+# Copy application code
+COPY backend/ ./
+
+# Copy frontend build
+COPY --from=frontend-builder /app/frontend/dist ./static
+
+# Set permissions in single layer
+RUN chmod -R 755 /app && \
+    chmod -R 775 /app
 
 # Expose port
 EXPOSE 8000
@@ -94,7 +92,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-# Set build arguments for labels
+# Build arguments for labels
 ARG BUILDTIME
 ARG VERSION
 ARG REVISION
@@ -108,5 +106,5 @@ LABEL org.opencontainers.image.created="${BUILDTIME}" \
       org.opencontainers.image.vendor="StashHog Project" \
       org.opencontainers.image.licenses="MIT"
 
-# Start the application
+# Start application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

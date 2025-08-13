@@ -306,10 +306,16 @@ jobs:
         
     - name: Pull and retag image
       run: |
-        docker pull docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}
-        for tag in ${{ steps.meta.outputs.tags }}; do
-          docker tag docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }} $tag
-          docker push $tag
+        SOURCE_IMAGE="docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}"
+        docker pull $SOURCE_IMAGE
+        
+        # Process tags line by line
+        echo "${{ steps.meta.outputs.tags }}" | while IFS= read -r tag; do
+          if [ -n "$tag" ]; then
+            echo "Tagging and pushing: $tag"
+            docker tag $SOURCE_IMAGE "$tag"
+            docker push "$tag"
+          fi
         done
         
     - name: Send webhook notification
