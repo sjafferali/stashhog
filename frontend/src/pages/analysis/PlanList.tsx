@@ -156,50 +156,53 @@ const PlanList: React.FC = () => {
     Modal.confirm({
       title: 'Accept All Changes',
       content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
-      onOk: async () => {
-        let successCount = 0;
-        let errorCount = 0;
-        let totalChangesUpdated = 0;
+      onOk: () => {
+        // Return a promise to handle async operations
+        return (async () => {
+          let successCount = 0;
+          let errorCount = 0;
+          let totalChangesUpdated = 0;
 
-        for (const plan of eligiblePlans) {
-          try {
-            const result = await apiClient.bulkUpdateAnalysisPlan(
-              plan.id,
-              'accept_all'
-            );
-            if (result.updated_count > 0) {
-              successCount++;
-              totalChangesUpdated += result.updated_count;
-            } else {
-              void message.info(
-                `Plan "${plan.name}" has no pending changes to accept`
+          for (const plan of eligiblePlans) {
+            try {
+              const result = await apiClient.bulkUpdateAnalysisPlan(
+                plan.id,
+                'accept_all'
               );
+              if (result.updated_count > 0) {
+                successCount++;
+                totalChangesUpdated += result.updated_count;
+              } else {
+                void message.info(
+                  `Plan "${plan.name}" has no pending changes to accept`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Failed to accept changes for plan ${plan.id}:`,
+                error
+              );
+              errorCount++;
             }
-          } catch (error) {
-            console.error(
-              `Failed to accept changes for plan ${plan.id}:`,
-              error
-            );
-            errorCount++;
           }
-        }
 
-        if (successCount > 0) {
-          void message.success(
-            `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
-          );
-          void fetchPlans();
-          setSelectedRowKeys([]);
-        } else if (totalChangesUpdated === 0 && errorCount === 0) {
-          void message.info('No pending changes to accept in selected plans');
-          void fetchPlans();
-          setSelectedRowKeys([]);
-        }
-        if (errorCount > 0) {
-          void message.error(
-            `Failed to accept changes for ${errorCount} plan(s)`
-          );
-        }
+          if (successCount > 0) {
+            void message.success(
+              `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
+            );
+            void fetchPlans();
+            setSelectedRowKeys([]);
+          } else if (totalChangesUpdated === 0 && errorCount === 0) {
+            void message.info('No pending changes to accept in selected plans');
+            void fetchPlans();
+            setSelectedRowKeys([]);
+          }
+          if (errorCount > 0) {
+            void message.error(
+              `Failed to accept changes for ${errorCount} plan(s)`
+            );
+          }
+        })(); // Close and execute the async IIFE
       },
     });
   };
@@ -242,6 +245,7 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
+
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
@@ -258,50 +262,53 @@ const PlanList: React.FC = () => {
     Modal.confirm({
       title: 'Reject All Changes',
       content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
-      onOk: async () => {
-        let successCount = 0;
-        let errorCount = 0;
-        let totalChangesUpdated = 0;
+      onOk: () => {
+        // Return a promise to handle async operations
+        return (async () => {
+          let successCount = 0;
+          let errorCount = 0;
+          let totalChangesUpdated = 0;
 
-        for (const plan of eligiblePlans) {
-          try {
-            const result = await apiClient.bulkUpdateAnalysisPlan(
-              plan.id,
-              'reject_all'
-            );
-            if (result.updated_count > 0) {
-              successCount++;
-              totalChangesUpdated += result.updated_count;
-            } else {
-              void message.info(
-                `Plan "${plan.name}" has no pending changes to reject`
+          for (const plan of eligiblePlans) {
+            try {
+              const result = await apiClient.bulkUpdateAnalysisPlan(
+                plan.id,
+                'reject_all'
               );
+              if (result.updated_count > 0) {
+                successCount++;
+                totalChangesUpdated += result.updated_count;
+              } else {
+                void message.info(
+                  `Plan "${plan.name}" has no pending changes to reject`
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Failed to reject changes for plan ${plan.id}:`,
+                error
+              );
+              errorCount++;
             }
-          } catch (error) {
-            console.error(
-              `Failed to reject changes for plan ${plan.id}:`,
-              error
-            );
-            errorCount++;
           }
-        }
 
-        if (successCount > 0) {
-          void message.success(
-            `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
-          );
-          void fetchPlans();
-          setSelectedRowKeys([]);
-        } else if (totalChangesUpdated === 0 && errorCount === 0) {
-          void message.info('No pending changes to reject in selected plans');
-          void fetchPlans();
-          setSelectedRowKeys([]);
-        }
-        if (errorCount > 0) {
-          void message.error(
-            `Failed to reject changes for ${errorCount} plan(s)`
-          );
-        }
+          if (successCount > 0) {
+            void message.success(
+              `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
+            );
+            void fetchPlans();
+            setSelectedRowKeys([]);
+          } else if (totalChangesUpdated === 0 && errorCount === 0) {
+            void message.info('No pending changes to reject in selected plans');
+            void fetchPlans();
+            setSelectedRowKeys([]);
+          }
+          if (errorCount > 0) {
+            void message.error(
+              `Failed to reject changes for ${errorCount} plan(s)`
+            );
+          }
+        })(); // Close and execute the async IIFE
       },
     });
   };
@@ -311,6 +318,7 @@ const PlanList: React.FC = () => {
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
+
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
@@ -329,61 +337,91 @@ const PlanList: React.FC = () => {
       Modal.confirm({
         title: 'Accept and Apply All Changes',
         content: `Are you sure you want to accept and apply all changes for ${eligiblePlans.length} plan(s)? This will update the scenes in Stash.`,
-        onOk: async () => {
-          let successCount = 0;
-          let errorCount = 0;
-          let totalChangesAccepted = 0;
+        onOk: () => {
+          // Return a promise to handle async operations
+          return (async () => {
+            let successCount = 0;
+            let errorCount = 0;
+            let totalChangesAccepted = 0;
 
-          for (const plan of eligiblePlans) {
-            try {
-              // First accept all changes
-              const acceptResult = await apiClient.bulkUpdateAnalysisPlan(
-                plan.id,
-                'accept_all'
-              );
-
-              if (acceptResult.updated_count > 0) {
-                totalChangesAccepted += acceptResult.updated_count;
-
-                // Then apply the changes
-                await api.post(`/analysis/plans/${plan.id}/apply`, {
-                  change_ids: [], // Empty array means apply all accepted changes
-                  background: true,
-                });
-
-                successCount++;
-              } else {
-                void message.info(
-                  `Plan "${plan.name}" has no pending changes to accept and apply`
+            for (const plan of eligiblePlans) {
+              try {
+                // First accept all changes
+                const acceptResult = await apiClient.bulkUpdateAnalysisPlan(
+                  plan.id,
+                  'accept_all'
                 );
-              }
-            } catch (error) {
-              console.error(
-                `Failed to accept and apply changes for plan ${plan.id}:`,
-                error
-              );
-              errorCount++;
-            }
-          }
 
-          if (successCount > 0) {
-            void message.success(
-              `Accepted and started applying ${totalChangesAccepted} changes across ${successCount} plan(s)`
-            );
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          } else if (totalChangesAccepted === 0 && errorCount === 0) {
-            void message.info(
-              'No pending changes to accept and apply in selected plans'
-            );
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          }
-          if (errorCount > 0) {
-            void message.error(
-              `Failed to accept and apply changes for ${errorCount} plan(s)`
-            );
-          }
+                if (acceptResult.updated_count > 0) {
+                  totalChangesAccepted += acceptResult.updated_count;
+
+                  // Get the full plan data with all changes (like PlanDetail does)
+                  const fullPlanResponse = await api.get(
+                    `/analysis/plans/${plan.id}`
+                  );
+                  const fullPlan = fullPlanResponse.data;
+
+                  // Extract all accepted but not applied change IDs
+                  const changeIds: number[] = [];
+                  if (fullPlan.scenes && Array.isArray(fullPlan.scenes)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    fullPlan.scenes.forEach((scene: any) => {
+                      if (scene.changes && Array.isArray(scene.changes)) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        scene.changes.forEach((change: any) => {
+                          if (change.accepted && !change.applied && change.id) {
+                            changeIds.push(change.id);
+                          }
+                        });
+                      }
+                    });
+                  }
+
+                  if (changeIds.length > 0) {
+                    // Apply the changes with specific IDs
+                    await api.post(`/analysis/plans/${plan.id}/apply`, {
+                      change_ids: changeIds,
+                      background: true,
+                    });
+                    successCount++;
+                  } else {
+                    void message.warning(
+                      `Plan "${plan.name}" has no accepted changes to apply`
+                    );
+                  }
+                } else {
+                  void message.info(
+                    `Plan "${plan.name}" has no pending changes to accept and apply`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to accept and apply changes for plan ${plan.id}:`,
+                  error
+                );
+                errorCount++;
+              }
+            }
+
+            if (successCount > 0) {
+              void message.success(
+                `Accepted and started applying ${totalChangesAccepted} changes across ${successCount} plan(s)`
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            } else if (totalChangesAccepted === 0 && errorCount === 0) {
+              void message.info(
+                'No pending changes to accept and apply in selected plans'
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            }
+            if (errorCount > 0) {
+              void message.error(
+                `Failed to accept and apply changes for ${errorCount} plan(s)`
+              );
+            }
+          })(); // Close and execute the async IIFE
         },
       });
     } else {
@@ -633,11 +671,33 @@ const PlanList: React.FC = () => {
             setApplyModalData(null);
           }}
           onApply={async () => {
-            // Call API to apply changes
+            // Get the full plan data with all changes (like PlanDetail does)
+            const fullPlanResponse = await api.get(
+              `/analysis/plans/${applyModalData.planId}`
+            );
+            const fullPlan = fullPlanResponse.data;
+
+            // Extract all accepted but not applied change IDs
+            const changeIds: number[] = [];
+            if (fullPlan.scenes && Array.isArray(fullPlan.scenes)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              fullPlan.scenes.forEach((scene: any) => {
+                if (scene.changes && Array.isArray(scene.changes)) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  scene.changes.forEach((change: any) => {
+                    if (change.accepted && !change.applied && change.id) {
+                      changeIds.push(change.id);
+                    }
+                  });
+                }
+              });
+            }
+
+            // Call API to apply changes with specific IDs
             const response = await api.post(
               `/analysis/plans/${applyModalData.planId}/apply`,
               {
-                change_ids: [], // Empty array means apply all accepted changes
+                change_ids: changeIds,
                 background: true,
               }
             );

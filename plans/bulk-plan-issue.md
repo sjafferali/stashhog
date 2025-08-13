@@ -59,7 +59,10 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
 ## Current State
 - TypeScript compiles successfully
 - ESLint passes without warnings
-- **FIXED**: Bulk actions now work correctly
+- **FULLY FIXED**: All bulk actions now work correctly after:
+  1. Fixing type conversion for selectedRowKeys comparison
+  2. Fixing Modal.confirm async handling with IIFE pattern
+  3. Fixing apply endpoint to use specific change IDs instead of empty array
 
 ## Additional Debugging Attempts (Latest Session)
 
@@ -118,7 +121,7 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   ```
 - **Result**: Will help identify if there's a type mismatch issue (string vs number)
 
-### 10. **FINAL FIX: Type Conversion in Comparison**
+### 10. **Type Conversion Fix**
 - **Root Cause Identified**: The `selectedRowKeys` array (React.Key[]) and `plan.id` (number) were not matching in the `includes()` check even though both appeared to be numbers
 - **What was fixed**: Modified all bulk action handlers to convert both values to strings before comparison:
   ```tsx
@@ -126,12 +129,65 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
     selectedRowKeys.map(key => String(key)).includes(String(plan.id))
   );
   ```
+- **Result**: **PARTIALLY RESOLVED** - Selection worked but Modal.confirm buttons still didn't work
+
+### 11. **Modal.confirm Async Handling Fix**
+- **Root Cause Identified**: Ant Design's Modal.confirm wasn't properly handling async callbacks. The `onOk: async () => {}` pattern wasn't working correctly.
+- **What was fixed**: Changed the Modal.confirm onOk callbacks to return a Promise using an async IIFE pattern:
+  ```tsx
+  Modal.confirm({
+    title: 'Accept All Changes',
+    content: `...`,
+    onOk: () => {
+      // Return a promise to handle async operations
+      return (async () => {
+        // async operations here
+      })(); // Close and execute the async IIFE
+    },
+  });
+  ```
+- **Result**: **PARTIALLY RESOLVED** - Modal buttons worked but apply was not actually applying changes
+
+### 12. **FINAL FIX: Apply Endpoint Requires Specific Change IDs**
+- **Root Cause Identified**: The `/analysis/plans/{id}/apply` endpoint requires specific change IDs, not an empty array. The comment "Empty array means apply all accepted changes" was incorrect.
+- **What was fixed**: Modified the apply logic to:
+  1. Accept all changes using `bulkUpdateAnalysisPlan`
+  2. Fetch the full plan data with all changes (like PlanDetail page does)
+  3. Extract the IDs of changes that are `accepted && !applied`
+  4. Send those specific IDs to the apply endpoint
+  ```tsx
+  // Get the full plan data with all changes
+  const fullPlanResponse = await api.get(`/analysis/plans/${plan.id}`);
+  const fullPlan = fullPlanResponse.data;
+  
+  // Extract all accepted but not applied change IDs
+  const changeIds: number[] = [];
+  if (fullPlan.scenes && Array.isArray(fullPlan.scenes)) {
+    fullPlan.scenes.forEach((scene: any) => {
+      if (scene.changes && Array.isArray(scene.changes)) {
+        scene.changes.forEach((change: any) => {
+          if (change.accepted && !change.applied && change.id) {
+            changeIds.push(change.id);
+          }
+        });
+      }
+    });
+  }
+  
+  // Apply with specific IDs
+  await api.post(`/analysis/plans/${plan.id}/apply`, {
+    change_ids: changeIds,
+    background: true,
+  });
+  ```
 - **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
-  - Updated `handleBulkAccept()`
-  - Updated `handleBulkReject()`
-  - Updated `handleBulkAcceptAndApply()`
+  - Updated `handleBulkAcceptAndApply()` for multiple plans - Now fetches full plan data and extracts change IDs
+  - Updated the ApplyPlanModal's onApply handler - Now fetches full plan data and extracts change IDs  
   - Removed debug logging after confirming the fix works
-- **Result**: **ISSUE RESOLVED** - Bulk actions now work correctly. The type conversion ensures that the comparison works regardless of whether the Table component provides string or number keys.
+- **Result**: **ISSUE FULLY RESOLVED** - All bulk action buttons now work correctly:
+  - "Accept All Changes" - Shows modal and processes changes correctly
+  - "Reject All Changes" - Shows modal and processes changes correctly
+  - "Accept and Apply All Changes" - Shows modal, accepts changes, then applies them with the correct change IDs
 
 ## Debugging Instructions
 To use the debugging setup:
