@@ -154,13 +154,9 @@ jobs:
         file: ./Dockerfile
         push: false
         tags: stashhog:pr-${{ github.event.pull_request.number }}
-        # Optimized cache strategy - GHA first for speed, registry as fallback
-        cache-from: |
-          type=gha,scope=buildkit-pr
-          type=gha,scope=buildkit-${{ github.workflow }}
-          type=registry,ref=docker.io/${{ github.repository }}:buildcache
-        cache-to: |
-          type=gha,scope=buildkit-pr,mode=max
+        # Simplified - GHA only for maximum speed
+        cache-from: type=gha,scope=buildkit-${{ github.workflow }}
+        cache-to: type=gha,scope=buildkit-${{ github.workflow }},mode=max
         build-args: |
           BUILDTIME=${{ github.event.pull_request.updated_at }}
           VERSION=pr-${{ github.event.pull_request.number }}
