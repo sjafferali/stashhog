@@ -4,7 +4,7 @@ API routes for daemon management.
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
@@ -292,7 +292,7 @@ async def test_daemon_broadcast(daemon_id: str):
         "daemon_id": daemon_id,
         "level": "INFO",
         "message": "Test broadcast message",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     logger.info(f"About to broadcast test log: {test_log}")

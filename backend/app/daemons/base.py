@@ -1,6 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from app.core.database import AsyncSessionLocal
@@ -44,7 +44,7 @@ class BaseDaemon(ABC):
 
         self.is_running = True
         self.status = DaemonStatus.RUNNING
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(timezone.utc)
 
         # Update daemon status in database
         async with AsyncSessionLocal() as db:
@@ -166,7 +166,7 @@ class BaseDaemon(ABC):
         async with AsyncSessionLocal() as db:
             daemon = await db.get(Daemon, self.daemon_id)
             if daemon:
-                daemon.last_heartbeat = datetime.utcnow()
+                daemon.last_heartbeat = datetime.now(timezone.utc)
                 await db.commit()
 
     async def track_job_action(
@@ -192,6 +192,6 @@ class BaseDaemon(ABC):
 
     def get_uptime_seconds(self) -> float:
         """Get daemon uptime in seconds."""
-        if not self._start_time or not self.is_running:
+        if not self._start_time:
             return 0
-        return (datetime.utcnow() - self._start_time).total_seconds()
+        return (datetime.now(timezone.utc) - self._start_time).total_seconds()

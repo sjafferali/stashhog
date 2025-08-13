@@ -193,7 +193,7 @@ class TestDaemon(BaseDaemon):
 
                     await self.track_job_action(
                         job_id=job_id,
-                        action=DaemonJobAction.MONITORED,
+                        action=DaemonJobAction.FINISHED,
                         reason=f"Job completed with status {job.status}",
                     )
 

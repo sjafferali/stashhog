@@ -45,7 +45,7 @@ export interface DaemonJobHistory {
 export enum DaemonJobAction {
   LAUNCHED = 'LAUNCHED',
   CANCELLED = 'CANCELLED',
-  MONITORED = 'MONITORED',
+  FINISHED = 'FINISHED',
 }
 
 export interface DaemonUpdateRequest {

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import desc, select
@@ -165,7 +165,7 @@ class DaemonService:
         if auto_start is not None:
             setattr(daemon_record, "auto_start", auto_start)
 
-        setattr(daemon_record, "updated_at", datetime.utcnow())
+        setattr(daemon_record, "updated_at", datetime.now(timezone.utc))
         await db.commit()
 
         # If daemon is running, it will pick up new config on restart
@@ -227,7 +227,9 @@ class DaemonService:
                 if daemon_id in self._daemons:
                     # Check heartbeat
                     if daemon.last_heartbeat:
-                        time_since_heartbeat = datetime.utcnow() - daemon.last_heartbeat
+                        time_since_heartbeat = (
+                            datetime.now(timezone.utc) - daemon.last_heartbeat
+                        )
                         if time_since_heartbeat < timedelta(minutes=2):
                             health_status["healthy"].append(
                                 {

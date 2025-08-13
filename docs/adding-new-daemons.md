@@ -255,6 +255,24 @@ async def run(self):
         await asyncio.sleep(1)
 ```
 
+**Important Timezone Considerations**:
+- Always use timezone-aware datetimes to avoid display issues in the UI
+- Use `datetime.now(timezone.utc)` instead of `datetime.utcnow()` 
+- The base daemon's `update_heartbeat()` method handles this correctly
+- Database timestamps should always be stored in UTC
+
+```python
+# ❌ WRONG: Naive datetime without timezone
+from datetime import datetime
+timestamp = datetime.utcnow()  # No timezone info!
+
+# ✅ CORRECT: Timezone-aware datetime
+from datetime import datetime, timezone
+timestamp = datetime.now(timezone.utc)  # Includes timezone info
+```
+
+When the frontend receives timestamps without timezone info, it may interpret them incorrectly, causing issues like "Last heartbeat: in about 7 hours" instead of "Last heartbeat: 5 seconds ago".
+
 ### 4. Configuration Handling
 
 Always provide sensible defaults:
@@ -279,7 +297,7 @@ StashHog tracks three types of job actions that daemons can record:
 
 - **LAUNCHED**: When a daemon creates or starts a job
 - **CANCELLED**: When a daemon cancels a job
-- **MONITORED**: When a daemon detects a job it was tracking has completed
+- **FINISHED**: When a daemon detects a job it was tracking has finished (completed, failed, or cancelled)
 
 **Important**: Job monitoring is NOT automatic. Each daemon must explicitly implement monitoring for jobs it cares about.
 
@@ -370,10 +388,10 @@ class YourDaemon(BaseDaemon):
                         f"Job {job_id} completed with status: {job.status}"
                     )
                     
-                    # Track the monitoring action
+                    # Track that we've detected the job has finished
                     await self.track_job_action(
                         job_id=job_id,
-                        action=DaemonJobAction.MONITORED,
+                        action=DaemonJobAction.FINISHED,
                         reason=f"Job completed with status {job.status}"
                     )
                     
@@ -518,7 +536,27 @@ async def test_daemon_service_integration():
 
 ## Common Pitfalls to Avoid
 
-### 1. Session Leaks
+### 1. Timezone Issues
+
+```python
+# ❌ WRONG: Using naive datetimes
+from datetime import datetime
+
+class BadDaemon(BaseDaemon):
+    async def custom_timestamp(self):
+        timestamp = datetime.utcnow()  # No timezone info!
+        # This will cause display issues in the UI
+
+# ✅ CORRECT: Using timezone-aware datetimes
+from datetime import datetime, timezone
+
+class GoodDaemon(BaseDaemon):
+    async def custom_timestamp(self):
+        timestamp = datetime.now(timezone.utc)  # Has timezone info
+        # Will display correctly in the UI
+```
+
+### 2. Session Leaks
 
 ```python
 # ❌ WRONG: Session leak
@@ -527,7 +565,7 @@ class BadDaemon(BaseDaemon):
         self.db = AsyncSessionLocal()  # This will cause greenlet errors!
 ```
 
-### 2. Blocking Operations
+### 3. Blocking Operations
 
 ```python
 # ❌ WRONG: Blocking I/O
@@ -538,7 +576,7 @@ time.sleep(10)  # This blocks the event loop!
 await asyncio.sleep(10)
 ```
 
-### 3. Unhandled Exceptions
+### 4. Unhandled Exceptions
 
 ```python
 # ❌ WRONG: Daemon crashes on error
@@ -555,7 +593,7 @@ async def run(self):
             await self.log(LogLevel.ERROR, str(e))
 ```
 
-### 4. Resource Exhaustion
+### 5. Resource Exhaustion
 
 ```python
 # ❌ WRONG: Unbounded growth
@@ -598,12 +636,13 @@ if self.config.get("debug", False):
 Before deploying your daemon:
 
 - [ ] All database operations use dedicated sessions
-- [ ] Heartbeat updates are implemented
+- [ ] Heartbeat updates are implemented with timezone-aware datetimes
+- [ ] All datetime operations use `datetime.now(timezone.utc)` not `datetime.utcnow()`
 - [ ] Graceful shutdown is handled
 - [ ] Errors are logged but don't crash the daemon
 - [ ] Configuration has sensible defaults
 - [ ] Job monitoring is implemented if daemon launches jobs
-- [ ] Job actions (LAUNCHED, MONITORED, CANCELLED) are tracked appropriately
+- [ ] Job actions (LAUNCHED, FINISHED, CANCELLED) are tracked appropriately
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Documentation is updated

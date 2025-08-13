@@ -225,7 +225,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
                     await self.track_job_action(
                         job_id=job_id,
-                        action=DaemonJobAction.MONITORED,
+                        action=DaemonJobAction.FINISHED,
                         reason=f"Job completed with status {job.status}",
                     )
 
@@ -245,11 +245,11 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         """Handle a completed analysis job by checking for and applying any generated plan."""
         try:
             # Check if job generated a plan
-            if not job.job_result or not isinstance(job.job_result, dict):
+            if not job.result or not isinstance(job.result, dict):
                 await self.log(LogLevel.DEBUG, f"Job {job_id} has no result data")
                 return
 
-            plan_id = job.job_result.get("plan_id")
+            plan_id = job.result.get("plan_id")
             if not plan_id:
                 await self.log(LogLevel.DEBUG, f"Job {job_id} did not generate a plan")
                 return

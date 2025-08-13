@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, Text
@@ -45,7 +45,7 @@ class LogLevel(str, enum.Enum):
 class DaemonJobAction(str, enum.Enum):
     LAUNCHED = "LAUNCHED"
     CANCELLED = "CANCELLED"
-    MONITORED = "MONITORED"
+    FINISHED = "FINISHED"
 
 
 class Daemon(BaseModel):
@@ -60,9 +60,14 @@ class Daemon(BaseModel):
     configuration = Column(JSONBType, nullable=True, default=dict)
     started_at = Column(DateTime, nullable=True)
     last_heartbeat = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     # Relationships
@@ -100,7 +105,9 @@ class DaemonLog(Base):
     )
     level = Column(String(20), nullable=False)
     message = Column(Text, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     # Relationships
     daemon = relationship("Daemon", back_populates="logs")
@@ -125,7 +132,9 @@ class DaemonJobHistory(Base):
     job_id = Column(String, ForeignKey("job.id", ondelete="CASCADE"), nullable=False)
     action = Column(String(50), nullable=False)
     reason = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     # Relationships
     daemon = relationship("Daemon", back_populates="job_history")
