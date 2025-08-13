@@ -259,8 +259,18 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: docker.io/${{ github.repository }}:${{ steps.sha.outputs.sha }}
-        cache-from: type=registry,ref=docker.io/${{ github.repository }}:buildcache
-        cache-to: type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
+        # Multi-layer cache strategy for maximum performance
+        # Includes stage-specific caches for better granularity
+        cache-from: |
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache-frontend
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache-python
+          type=gha,scope=buildkit-${{ github.workflow }}
+          type=gha,scope=frontend-deps
+          type=gha,scope=python-deps
+        cache-to: |
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
+          type=gha,scope=buildkit-${{ github.workflow }},mode=max
         build-args: |
           BUILDTIME=${{ fromJSON('{"timestamp":""}').timestamp || github.event.head_commit.timestamp }}
           VERSION=${{ github.ref_name }}
@@ -304,19 +314,26 @@ jobs:
           type=sha,prefix=,suffix=,format=short
           type=raw,value=latest,enable={{is_default_branch}}
         
-    - name: Pull and retag image
-      run: |
-        SOURCE_IMAGE="docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}"
-        docker pull $SOURCE_IMAGE
-        
-        # Process tags line by line
-        echo "${{ steps.meta.outputs.tags }}" | while IFS= read -r tag; do
-          if [ -n "$tag" ]; then
-            echo "Tagging and pushing: $tag"
-            docker tag $SOURCE_IMAGE "$tag"
-            docker push "$tag"
-          fi
-        done
+    - name: Re-build with inline cache for production tags
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        # Use the previously built image as cache source
+        cache-from: |
+          type=registry,ref=docker.io/${{ github.repository }}:${{ needs.docker-build.outputs.image-tag }}
+          type=registry,ref=docker.io/${{ github.repository }}:buildcache
+          type=gha,scope=buildkit-${{ github.workflow }}
+        # Embed cache metadata directly in the production images
+        cache-to: |
+          type=inline
+        build-args: |
+          BUILDTIME=${{ fromJSON('{"timestamp":""}').timestamp || github.event.head_commit.timestamp }}
+          VERSION=${{ github.ref_name }}
+          REVISION=${{ github.sha }}
         
     - name: Send webhook notification
       uses: distributhor/workflow-webhook@v3
