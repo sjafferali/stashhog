@@ -134,7 +134,7 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const handleBulkAccept = async () => {
+  const handleBulkAccept = () => {
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
@@ -207,7 +207,7 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleApplyApprovedChanges = async () => {
+  const handleApplyApprovedChanges = () => {
     Modal.confirm({
       title: 'Apply Approved Changes',
       content:
@@ -240,7 +240,7 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleBulkReject = async () => {
+  const handleBulkReject = () => {
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
@@ -563,7 +563,7 @@ const PlanList: React.FC = () => {
             icon={<SyncOutlined />}
             loading={cleanupLoading}
             disabled={!hasApprovedChanges || cleanupLoading}
-            onClick={() => void handleApplyApprovedChanges()}
+            onClick={handleApplyApprovedChanges}
           >
             Apply All Approved Changes
           </Button>
@@ -582,16 +582,13 @@ const PlanList: React.FC = () => {
           {selectedRowKeys.length > 0 && (
             <>
               <span>{selectedRowKeys.length} plan(s) selected</span>
-              <Button
-                icon={<CheckCircleOutlined />}
-                onClick={() => void handleBulkAccept()}
-              >
+              <Button icon={<CheckCircleOutlined />} onClick={handleBulkAccept}>
                 Accept All Changes
               </Button>
               <Button
                 danger
                 icon={<CloseCircleOutlined />}
-                onClick={() => void handleBulkReject()}
+                onClick={handleBulkReject}
               >
                 Reject All Changes
               </Button>
