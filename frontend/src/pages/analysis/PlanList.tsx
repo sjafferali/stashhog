@@ -21,11 +21,6 @@ const PlanList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-
-  // Debug: Log selectedRowKeys whenever it changes
-  useEffect(() => {
-    console.log('[DEBUG] selectedRowKeys changed:', selectedRowKeys);
-  }, [selectedRowKeys]);
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [applyModalData, setApplyModalData] = useState<{
@@ -140,24 +135,16 @@ const PlanList: React.FC = () => {
   };
 
   const handleBulkAccept = async () => {
-    console.log('[handleBulkAccept] Called');
-    console.log('[handleBulkAccept] selectedRowKeys:', selectedRowKeys);
-    console.log('[handleBulkAccept] plans:', plans);
-
-    const selectedPlans = plans.filter((plan) => {
-      console.log(
-        `[handleBulkAccept] Checking plan.id ${plan.id} (type: ${typeof plan.id}) against selectedRowKeys`
-      );
-      return selectedRowKeys.includes(plan.id);
-    });
-    console.log('[handleBulkAccept] selectedPlans:', selectedPlans);
+    // Convert both to strings for comparison to handle any type mismatches
+    const selectedPlans = plans.filter((plan) =>
+      selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
+    );
 
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
         plan.status.toLowerCase() === 'draft'
     );
-    console.log('[handleBulkAccept] eligiblePlans:', eligiblePlans);
 
     if (eligiblePlans.length === 0) {
       void message.warning(
@@ -251,8 +238,9 @@ const PlanList: React.FC = () => {
   };
 
   const handleBulkReject = async () => {
+    // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
-      selectedRowKeys.includes(plan.id)
+      selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
@@ -319,8 +307,9 @@ const PlanList: React.FC = () => {
   };
 
   const handleBulkAcceptAndApply = async () => {
+    // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
-      selectedRowKeys.includes(plan.id)
+      selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
@@ -508,15 +497,6 @@ const PlanList: React.FC = () => {
     return filtered;
   }, [plans, statusFilter]);
 
-  // Debug logs to understand state
-  console.log('[RENDER] Component rendering with:');
-  console.log('[RENDER] - plans:', plans.length);
-  console.log('[RENDER] - selectedRowKeys:', selectedRowKeys);
-  console.log(
-    '[RENDER] - filteredAndSortedPlans:',
-    filteredAndSortedPlans.length
-  );
-
   return (
     <div>
       <h1>Analysis Plans</h1>
@@ -561,18 +541,6 @@ const PlanList: React.FC = () => {
         }}
       >
         <Space>
-          {/* Test button to verify state */}
-          <Button
-            onClick={() => {
-              console.log('[TEST] Current selectedRowKeys:', selectedRowKeys);
-              console.log('[TEST] Current plans:', plans);
-              alert(
-                `Selected: ${selectedRowKeys.length} items. Keys: ${selectedRowKeys.join(', ')}`
-              );
-            }}
-          >
-            Test Selection (Debug)
-          </Button>
           {selectedRowKeys.length > 0 && (
             <>
               <span>{selectedRowKeys.length} plan(s) selected</span>
@@ -622,10 +590,6 @@ const PlanList: React.FC = () => {
               rowSelection: {
                 selectedRowKeys,
                 onChange: (newSelectedRowKeys: React.Key[]) => {
-                  console.log(
-                    '[DEBUG] onChange called with:',
-                    newSelectedRowKeys
-                  );
                   setSelectedRowKeys(newSelectedRowKeys);
                 },
               },
