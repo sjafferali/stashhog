@@ -134,24 +134,25 @@ class TestDescriptionCleaning:
 
         assert result == "Description with HTML tags."
 
-    def test_clean_description_url_removal(self):
-        """Test URL removal for privacy."""
+    def test_clean_description_url_preservation(self):
+        """Test that URLs are preserved in descriptions."""
         generator = DetailsGenerator()
 
         desc = "Visit https://example.com or http://test.org for more"
         result = generator._clean_description(desc)
 
-        # URLs are removed, leaving double spaces
-        assert result == "Visit  or  for more."
+        # URLs are now preserved
+        assert result == "Visit https://example.com or http://test.org for more."
 
-    def test_clean_description_email_removal(self):
-        """Test email removal for privacy."""
+    def test_clean_description_email_preservation(self):
+        """Test that email addresses are preserved in descriptions."""
         generator = DetailsGenerator()
 
         desc = "Contact us at test@example.com for info"
         result = generator._clean_description(desc)
 
-        assert result == "Contact us at  for info."
+        # Email addresses are now preserved
+        assert result == "Contact us at test@example.com for info."
 
     def test_clean_description_sentence_ending(self):
         """Test proper sentence ending addition."""

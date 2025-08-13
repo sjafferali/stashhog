@@ -1,7 +1,6 @@
 """Details/description generation module for scene analysis."""
 
 import logging
-import re
 from html.parser import HTMLParser
 from typing import Dict, List
 
@@ -84,12 +83,6 @@ class DetailsGenerator:
 
         # Remove excessive whitespace
         cleaned = " ".join(cleaned.split())
-
-        # Remove any URLs (privacy/security)
-        cleaned = re.sub(r"https?://\S+", "", cleaned)
-
-        # Remove email addresses
-        cleaned = re.sub(r"\S+@\S+", "", cleaned)
 
         # Ensure proper sentence endings
         if cleaned and not cleaned[-1] in ".!?":

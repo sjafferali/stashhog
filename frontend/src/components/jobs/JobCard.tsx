@@ -588,15 +588,21 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         {/* Action Buttons */}
         {(job.result &&
-          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          (job.type === 'scene_analysis' ||
+            job.type === 'analysis' ||
+            job.type === 'non_ai_analysis') &&
           'plan_id' in job.result &&
           job.result.plan_id) ||
         (job.metadata &&
-          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          (job.type === 'scene_analysis' ||
+            job.type === 'analysis' ||
+            job.type === 'non_ai_analysis') &&
           'plan_id' in job.metadata &&
           job.metadata.plan_id) ||
         (job.parameters &&
-          (job.type === 'scene_analysis' || job.type === 'analysis') &&
+          (job.type === 'scene_analysis' ||
+            job.type === 'analysis' ||
+            job.type === 'non_ai_analysis') &&
           'plan_id' in job.parameters &&
           job.parameters.plan_id) ? (
           <div className={styles.planLink}>

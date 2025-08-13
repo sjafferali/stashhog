@@ -226,6 +226,7 @@ export interface Job {
     | 'sync'
     | 'sync_scenes'
     | 'analysis'
+    | 'non_ai_analysis'
     | 'apply_plan'
     | 'stash_scan'
     | 'stash_generate'

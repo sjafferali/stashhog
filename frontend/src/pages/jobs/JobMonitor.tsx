@@ -464,7 +464,9 @@ const JobMonitor: React.FC = () => {
               </Button>
             }
           >
-            {record.type === 'scene_analysis' || record.type === 'analysis' ? (
+            {record.type === 'scene_analysis' ||
+            record.type === 'analysis' ||
+            record.type === 'non_ai_analysis' ? (
               <>
                 <AnalysisJobResult
                   result={record.result as unknown as AnalysisJobResultData}
@@ -674,7 +676,9 @@ const JobMonitor: React.FC = () => {
             />
           </Tooltip>
 
-          {(record.type === 'scene_analysis' || record.type === 'analysis') &&
+          {(record.type === 'scene_analysis' ||
+            record.type === 'analysis' ||
+            record.type === 'non_ai_analysis') &&
           ((record.status === 'completed' &&
             record.result &&
             'plan_id' in record.result &&
@@ -1119,7 +1123,8 @@ const JobMonitor: React.FC = () => {
                 Object.keys(selectedJob.result).length > 0 && (
                   <Collapse.Panel header="Result" key="result">
                     {selectedJob.type === 'scene_analysis' ||
-                    selectedJob.type === 'analysis' ? (
+                    selectedJob.type === 'analysis' ||
+                    selectedJob.type === 'non_ai_analysis' ? (
                       <>
                         <AnalysisJobResult
                           result={
