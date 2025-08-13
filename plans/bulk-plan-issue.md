@@ -282,7 +282,46 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   - `handleBulkReject` - Wrapped Modal.confirm in setTimeout
   - Test Modal button - Also wrapped in setTimeout for consistency
 - **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
-- **Result**: **TESTING PENDING** - This is a common fix for React modal rendering issues
+- **Result**: **FAILED** - Modal still doesn't appear
+
+### 17. **Live Debugging with Playwright MCP** 
+- **What was done**: Used Playwright to debug the live application at https://stashhog.home.samir.network/analysis/plans
+- **Test sequence**:
+  1. Selected 2 Draft plans (IDs 167 and 166)
+  2. Clicked "Accept All Changes" button
+  3. Observed console output showing handler execution
+  4. Inspected DOM for modal elements
+- **Console findings**:
+  ```
+  [INLINE] Accept button clicked
+  [DEBUG] handleBulkAccept called!
+  [DEBUG] selectedRowKeys: [167, 166]
+  [DEBUG] plans: [Object, Object, ...]
+  [DEBUG] selectedPlans: [Object, Object]
+  [DEBUG] eligiblePlans: [Object, Object]
+  [DEBUG] About to show Modal.confirm...
+  ```
+- **DOM Inspection Results**: **CRITICAL DISCOVERY**
+  ```javascript
+  // Check for modal elements
+  document.querySelectorAll('.ant-modal, .ant-modal-wrap, .ant-modal-mask')
+  // Result: 0 elements found
+  
+  // Check for modal root
+  document.querySelector('.ant-modal-root')
+  // Result: null
+  
+  // Check if Modal is globally available
+  typeof window.Modal
+  // Result: "undefined"
+  ```
+- **Key findings**:
+  - ✅ Handler executes correctly with proper data
+  - ✅ Code reaches Modal.confirm call
+  - ❌ **NO modal elements are created in the DOM**
+  - ❌ **Modal is NOT available as window.Modal**
+  - ❌ **No Ant Design modal containers exist**
+- **Conclusion**: **Modal.confirm is being called but it's not the Ant Design Modal** - The import is likely broken or Modal is being tree-shaken out
 
 ## Debugging Instructions
 To use the debugging setup:
@@ -315,43 +354,58 @@ To use the debugging setup:
 7. ✅ **Modal.confirm is called** - Code reaches the Modal.confirm invocation
 
 ### THE ACTUAL ISSUE:
-**Modal.confirm is being called but the modal is NOT appearing on screen!**
+**Modal.confirm is being called but it's NOT the Ant Design Modal - it's a no-op function!**
 
-This is likely due to one of these reasons:
-1. **useCallback closure issue** - The Modal.confirm call inside useCallback might not work properly
-2. **Ant Design Modal issue** - There might be a problem with how Modal is imported or configured
-3. **React rendering issue** - The modal might be rendering but not visible (z-index, display, etc.)
-4. **Async/Promise issue** - The way the promise is returned in onOk might be preventing the modal from showing
-5. **React execution context issue** - Modal.confirm needs to be called outside the current execution context
+Based on DOM inspection:
+1. **No modal elements in DOM** - Not a single `.ant-modal` element exists after Modal.confirm is called
+2. **No modal containers** - No React portal containers for modals
+3. **Modal not globally available** - window.Modal is undefined
+4. **Import issue confirmed** - The Modal being imported is not the actual Ant Design Modal component
 
-## Next Steps to Try
+### Root Cause:
+The Modal import is broken. Possible reasons:
+1. **Tree-shaking issue** - Modal might be incorrectly tree-shaken out during build
+2. **Import path issue** - Modal might be imported from wrong location
+3. **Module resolution issue** - Bundler might be resolving to a different Modal
+4. **Build configuration issue** - Webpack/Vite might be excluding Modal
 
-### 1. **Check React DevTools**
-- Inspect the component tree to verify `selectedRowKeys` state is updating
-- Check if the button onClick handlers are properly attached
-- Verify the Table's rowSelection prop is being passed correctly
+## Next Steps to Fix
 
-### 2. **Alternative Table Implementation**
-Consider replacing the complex spread pattern with a more straightforward approach:
+### 1. **Check Modal Import in PlanList.tsx**
+- Verify the import statement: `import { Modal } from 'antd';`
+- Check if Modal is actually being imported from 'antd'
+- Look for any custom Modal wrappers or mocks that might be overriding it
+
+### 2. **Find Working Modal Examples**
+- The "Accept and Apply All Changes" button WORKS - investigate why
+- Search for other files that successfully use Modal.confirm
+- Compare import patterns and usage
+
+### 3. **Try Alternative Modal Approaches**
 ```tsx
-const tableProps = {
-  columns,
-  dataSource: filteredAndSortedPlans,
-  loading,
-  rowKey: 'id' as const,
-  rowSelection: {
-    selectedRowKeys,
-    onChange: setSelectedRowKeys,
-  },
-  // other props...
-};
+// Option 1: Use message API instead
+import { message } from 'antd';
+message.success('Changes accepted');
 
-return <Table {...tableProps as any} />
+// Option 2: Use App.useApp() hook pattern (Ant Design 5.x)
+import { App } from 'antd';
+const { modal } = App.useApp();
+modal.confirm({ ... });
+
+// Option 3: Direct modal import
+import Modal from 'antd/es/modal';
+Modal.confirm({ ... });
 ```
 
-### 3. **Check Ant Design Version Compatibility**
-- Current version: `antd@^5.27.0`
-- Verify if there are known issues with rowSelection in this version
+### 4. **Check Build Configuration**
+- Verify Vite/Webpack isn't tree-shaking Modal incorrectly
+- Check if antd CSS is properly imported
+- Current version: `antd@^5.27.0` - verify Modal.confirm is supported
+
+### 5. **Debug the Working Button**
+- "Accept and Apply All Changes" works - trace why it succeeds
+- It might be using a different Modal or different import path
+- Copy its exact pattern to the non-working buttons
 - Consider checking if the Table API has changed
 
 ### 4. **Test with Simpler Implementation**

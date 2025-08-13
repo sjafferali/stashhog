@@ -30,6 +30,14 @@ const PlanList: React.FC = () => {
     totalScenes: number;
   } | null>(null);
 
+  // Bulk action modal states
+  const [bulkAcceptModalVisible, setBulkAcceptModalVisible] = useState(false);
+  const [bulkRejectModalVisible, setBulkRejectModalVisible] = useState(false);
+  const [bulkAcceptApplyModalVisible, setBulkAcceptApplyModalVisible] =
+    useState(false);
+  const [bulkActionPlans, setBulkActionPlans] = useState<AnalysisPlan[]>([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+
   useEffect(() => {
     void fetchPlans();
   }, []);
@@ -134,101 +142,73 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const handleBulkAccept = async () => {
-    console.log('[DEBUG] handleBulkAccept called!');
-    console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
-    console.log('[DEBUG] plans:', plans);
-
+  const handleBulkAccept = () => {
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
-    console.log('[DEBUG] selectedPlans:', selectedPlans);
 
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
         plan.status.toLowerCase() === 'draft'
     );
-    console.log('[DEBUG] eligiblePlans:', eligiblePlans);
 
     if (eligiblePlans.length === 0) {
-      console.log('[DEBUG] No eligible plans found!');
       void message.warning(
         'Please select plans that are in reviewing or draft status'
       );
       return;
     }
 
-    console.log('[DEBUG] About to show Modal.confirm...');
-    // Use setTimeout to break out of current execution context
-    setTimeout(() => {
-      console.log('[DEBUG] Inside setTimeout, calling Modal.confirm now');
+    setBulkActionPlans(eligiblePlans);
+    setBulkAcceptModalVisible(true);
+  };
+
+  const handleBulkAcceptConfirm = async () => {
+    setBulkActionLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let totalChangesUpdated = 0;
+
+    for (const plan of bulkActionPlans) {
       try {
-        const modalInstance = Modal.confirm({
-          title: 'Accept All Changes',
-          content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
-          onOk: () => {
-            return (async () => {
-              let successCount = 0;
-              let errorCount = 0;
-              let totalChangesUpdated = 0;
-
-              for (const plan of eligiblePlans) {
-                try {
-                  const result = await apiClient.bulkUpdateAnalysisPlan(
-                    plan.id,
-                    'accept_all'
-                  );
-                  if (result.updated_count > 0) {
-                    successCount++;
-                    totalChangesUpdated += result.updated_count;
-                  } else {
-                    void message.info(
-                      `Plan "${plan.name}" has no pending changes to accept`
-                    );
-                  }
-                } catch (error) {
-                  console.error(
-                    `Failed to accept changes for plan ${plan.id}:`,
-                    error
-                  );
-                  errorCount++;
-                }
-              }
-
-              if (successCount > 0) {
-                void message.success(
-                  `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
-                );
-                void fetchPlans();
-                setSelectedRowKeys([]);
-              } else if (totalChangesUpdated === 0 && errorCount === 0) {
-                void message.info(
-                  'No pending changes to accept in selected plans'
-                );
-                void fetchPlans();
-                setSelectedRowKeys([]);
-              }
-              if (errorCount > 0) {
-                void message.error(
-                  `Failed to accept changes for ${errorCount} plan(s)`
-                );
-              }
-            })();
-          },
-        });
-        console.log('[DEBUG] Modal.confirm returned:', modalInstance);
-        // Modal instance has a destroy method if successful
-        if (modalInstance && modalInstance.destroy) {
-          console.log('[DEBUG] Modal instance created successfully');
+        const result = await apiClient.bulkUpdateAnalysisPlan(
+          plan.id,
+          'accept_all'
+        );
+        if (result.updated_count > 0) {
+          successCount++;
+          totalChangesUpdated += result.updated_count;
         } else {
-          console.error('[ERROR] Modal instance not created properly');
+          void message.info(
+            `Plan "${plan.name}" has no pending changes to accept`
+          );
         }
       } catch (error) {
-        console.error('[ERROR] Failed to show Modal.confirm:', error);
+        console.error(`Failed to accept changes for plan ${plan.id}:`, error);
+        errorCount++;
       }
-    }, 0); // setTimeout with 0 delay
+    }
+
+    if (successCount > 0) {
+      void message.success(
+        `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
+      );
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    } else if (totalChangesUpdated === 0 && errorCount === 0) {
+      void message.info('No pending changes to accept in selected plans');
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    }
+    if (errorCount > 0) {
+      void message.error(`Failed to accept changes for ${errorCount} plan(s)`);
+    }
+
+    setBulkActionLoading(false);
+    setBulkAcceptModalVisible(false);
+    setBulkActionPlans([]);
   };
 
   const handleApplyApprovedChanges = () => {
@@ -264,89 +244,73 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleBulkReject = async () => {
-    console.log('[DEBUG] handleBulkReject called!');
-    console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
-    console.log('[DEBUG] plans:', plans);
-
+  const handleBulkReject = () => {
     // Convert both to strings for comparison to handle any type mismatches
     const selectedPlans = plans.filter((plan) =>
       selectedRowKeys.map((key) => String(key)).includes(String(plan.id))
     );
-    console.log('[DEBUG] selectedPlans:', selectedPlans);
 
     const eligiblePlans = selectedPlans.filter(
       (plan) =>
         plan.status.toLowerCase() === 'reviewing' ||
         plan.status.toLowerCase() === 'draft'
     );
-    console.log('[DEBUG] eligiblePlans:', eligiblePlans);
 
     if (eligiblePlans.length === 0) {
-      console.log('[DEBUG] No eligible plans found!');
       void message.warning(
         'Please select plans that are in reviewing or draft status'
       );
       return;
     }
 
-    console.log('[DEBUG] About to show Modal.confirm...');
-    // Use setTimeout to break out of current execution context
-    setTimeout(() => {
-      Modal.confirm({
-        title: 'Reject All Changes',
-        content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
-        onOk: () => {
-          return (async () => {
-            let successCount = 0;
-            let errorCount = 0;
-            let totalChangesUpdated = 0;
+    setBulkActionPlans(eligiblePlans);
+    setBulkRejectModalVisible(true);
+  };
 
-            for (const plan of eligiblePlans) {
-              try {
-                const result = await apiClient.bulkUpdateAnalysisPlan(
-                  plan.id,
-                  'reject_all'
-                );
-                if (result.updated_count > 0) {
-                  successCount++;
-                  totalChangesUpdated += result.updated_count;
-                } else {
-                  void message.info(
-                    `Plan "${plan.name}" has no pending changes to reject`
-                  );
-                }
-              } catch (error) {
-                console.error(
-                  `Failed to reject changes for plan ${plan.id}:`,
-                  error
-                );
-                errorCount++;
-              }
-            }
+  const handleBulkRejectConfirm = async () => {
+    setBulkActionLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let totalChangesUpdated = 0;
 
-            if (successCount > 0) {
-              void message.success(
-                `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            } else if (totalChangesUpdated === 0 && errorCount === 0) {
-              void message.info(
-                'No pending changes to reject in selected plans'
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            }
-            if (errorCount > 0) {
-              void message.error(
-                `Failed to reject changes for ${errorCount} plan(s)`
-              );
-            }
-          })();
-        },
-      });
-    }, 0); // setTimeout with 0 delay
+    for (const plan of bulkActionPlans) {
+      try {
+        const result = await apiClient.bulkUpdateAnalysisPlan(
+          plan.id,
+          'reject_all'
+        );
+        if (result.updated_count > 0) {
+          successCount++;
+          totalChangesUpdated += result.updated_count;
+        } else {
+          void message.info(
+            `Plan "${plan.name}" has no pending changes to reject`
+          );
+        }
+      } catch (error) {
+        console.error(`Failed to reject changes for plan ${plan.id}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      void message.success(
+        `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
+      );
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    } else if (totalChangesUpdated === 0 && errorCount === 0) {
+      void message.info('No pending changes to reject in selected plans');
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    }
+    if (errorCount > 0) {
+      void message.error(`Failed to reject changes for ${errorCount} plan(s)`);
+    }
+
+    setBulkActionLoading(false);
+    setBulkRejectModalVisible(false);
+    setBulkActionPlans([]);
   };
 
   const handleBulkAcceptAndApply = async () => {
@@ -368,98 +332,10 @@ const PlanList: React.FC = () => {
       return;
     }
 
-    // For multiple plans, we'll process them sequentially
+    // For multiple plans, show confirmation modal
     if (eligiblePlans.length > 1) {
-      Modal.confirm({
-        title: 'Accept and Apply All Changes',
-        content: `Are you sure you want to accept and apply all changes for ${eligiblePlans.length} plan(s)? This will update the scenes in Stash.`,
-        onOk: () => {
-          // Return a promise to handle async operations
-          return (async () => {
-            let successCount = 0;
-            let errorCount = 0;
-            let totalChangesAccepted = 0;
-
-            for (const plan of eligiblePlans) {
-              try {
-                // First accept all changes
-                const acceptResult = await apiClient.bulkUpdateAnalysisPlan(
-                  plan.id,
-                  'accept_all'
-                );
-
-                if (acceptResult.updated_count > 0) {
-                  totalChangesAccepted += acceptResult.updated_count;
-
-                  // Get the full plan data with all changes (like PlanDetail does)
-                  const fullPlanResponse = await api.get(
-                    `/analysis/plans/${plan.id}`
-                  );
-                  const fullPlan = fullPlanResponse.data;
-
-                  // Extract all accepted but not applied change IDs
-                  const changeIds: number[] = [];
-                  if (fullPlan.scenes && Array.isArray(fullPlan.scenes)) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    fullPlan.scenes.forEach((scene: any) => {
-                      if (scene.changes && Array.isArray(scene.changes)) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        scene.changes.forEach((change: any) => {
-                          if (change.accepted && !change.applied && change.id) {
-                            changeIds.push(change.id);
-                          }
-                        });
-                      }
-                    });
-                  }
-
-                  if (changeIds.length > 0) {
-                    // Apply the changes with specific IDs
-                    await api.post(`/analysis/plans/${plan.id}/apply`, {
-                      change_ids: changeIds,
-                      background: true,
-                    });
-                    successCount++;
-                  } else {
-                    void message.warning(
-                      `Plan "${plan.name}" has no accepted changes to apply`
-                    );
-                  }
-                } else {
-                  void message.info(
-                    `Plan "${plan.name}" has no pending changes to accept and apply`
-                  );
-                }
-              } catch (error) {
-                console.error(
-                  `Failed to accept and apply changes for plan ${plan.id}:`,
-                  error
-                );
-                errorCount++;
-              }
-            }
-
-            if (successCount > 0) {
-              void message.success(
-                `Accepted and started applying ${totalChangesAccepted} changes across ${successCount} plan(s)`
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            } else if (totalChangesAccepted === 0 && errorCount === 0) {
-              void message.info(
-                'No pending changes to accept and apply in selected plans'
-              );
-              void fetchPlans();
-              setSelectedRowKeys([]);
-            }
-            if (errorCount > 0) {
-              void message.error(
-                `Failed to accept and apply changes for ${errorCount} plan(s)`
-              );
-            }
-          })(); // Close and execute the async IIFE
-        },
-      });
+      setBulkActionPlans(eligiblePlans);
+      setBulkAcceptApplyModalVisible(true);
     } else {
       // For a single plan, show the apply modal
       const plan = eligiblePlans[0];
@@ -499,6 +375,93 @@ const PlanList: React.FC = () => {
         void message.error('Failed to accept changes');
       }
     }
+  };
+
+  const handleBulkAcceptApplyConfirm = async () => {
+    setBulkActionLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let totalChangesAccepted = 0;
+
+    for (const plan of bulkActionPlans) {
+      try {
+        // First accept all changes
+        const acceptResult = await apiClient.bulkUpdateAnalysisPlan(
+          plan.id,
+          'accept_all'
+        );
+
+        if (acceptResult.updated_count > 0) {
+          totalChangesAccepted += acceptResult.updated_count;
+
+          // Get the full plan data with all changes (like PlanDetail does)
+          const fullPlanResponse = await api.get(`/analysis/plans/${plan.id}`);
+          const fullPlan = fullPlanResponse.data;
+
+          // Extract all accepted but not applied change IDs
+          const changeIds: number[] = [];
+          if (fullPlan.scenes && Array.isArray(fullPlan.scenes)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            fullPlan.scenes.forEach((scene: any) => {
+              if (scene.changes && Array.isArray(scene.changes)) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                scene.changes.forEach((change: any) => {
+                  if (change.accepted && !change.applied && change.id) {
+                    changeIds.push(change.id);
+                  }
+                });
+              }
+            });
+          }
+
+          if (changeIds.length > 0) {
+            // Apply the changes with specific IDs
+            await api.post(`/analysis/plans/${plan.id}/apply`, {
+              change_ids: changeIds,
+              background: true,
+            });
+            successCount++;
+          } else {
+            void message.warning(
+              `Plan "${plan.name}" has no accepted changes to apply`
+            );
+          }
+        } else {
+          void message.info(
+            `Plan "${plan.name}" has no pending changes to accept and apply`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Failed to accept and apply changes for plan ${plan.id}:`,
+          error
+        );
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      void message.success(
+        `Accepted and started applying ${totalChangesAccepted} changes across ${successCount} plan(s)`
+      );
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    } else if (totalChangesAccepted === 0 && errorCount === 0) {
+      void message.info(
+        'No pending changes to accept and apply in selected plans'
+      );
+      await fetchPlans();
+      setSelectedRowKeys([]);
+    }
+    if (errorCount > 0) {
+      void message.error(
+        `Failed to accept and apply changes for ${errorCount} plan(s)`
+      );
+    }
+
+    setBulkActionLoading(false);
+    setBulkAcceptApplyModalVisible(false);
+    setBulkActionPlans([]);
   };
 
   const statusCounts = useMemo(() => {
@@ -618,22 +581,13 @@ const PlanList: React.FC = () => {
           {selectedRowKeys.length > 0 && (
             <>
               <span>{selectedRowKeys.length} plan(s) selected</span>
-              <Button
-                icon={<CheckCircleOutlined />}
-                onClick={() => {
-                  console.log('[INLINE] Accept button clicked');
-                  void handleBulkAccept();
-                }}
-              >
+              <Button icon={<CheckCircleOutlined />} onClick={handleBulkAccept}>
                 Accept All Changes
               </Button>
               <Button
                 danger
                 icon={<CloseCircleOutlined />}
-                onClick={() => {
-                  console.log('[INLINE] Reject button clicked');
-                  void handleBulkReject();
-                }}
+                onClick={handleBulkReject}
               >
                 Reject All Changes
               </Button>
@@ -646,35 +600,6 @@ const PlanList: React.FC = () => {
               </Button>
             </>
           )}
-          {/* Debug test buttons - always visible */}
-          <Button
-            style={{ backgroundColor: '#f0f', color: 'white' }}
-            onClick={() => {
-              console.log('[TEST] Direct button click test');
-              alert('Test button clicked!');
-              void handleBulkAccept();
-            }}
-          >
-            TEST: Direct Call handleBulkAccept
-          </Button>
-          <Button
-            style={{ backgroundColor: '#0ff', color: 'black' }}
-            onClick={() => {
-              console.log('[TEST] Testing Modal.confirm directly');
-              setTimeout(() => {
-                Modal.confirm({
-                  title: 'Test Modal',
-                  content: 'This is a test modal. Does it show?',
-                  onOk: () => {
-                    console.log('Test modal OK clicked');
-                    alert('Test modal OK was clicked!');
-                  },
-                });
-              }, 0);
-            }}
-          >
-            TEST: Direct Modal.confirm
-          </Button>
         </Space>
       </div>
 
@@ -785,6 +710,78 @@ const PlanList: React.FC = () => {
           }}
         />
       )}
+
+      {/* Bulk Accept Modal */}
+      <Modal
+        title="Accept All Changes"
+        open={bulkAcceptModalVisible}
+        onOk={() => void handleBulkAcceptConfirm()}
+        onCancel={() => {
+          setBulkAcceptModalVisible(false);
+          setBulkActionPlans([]);
+        }}
+        confirmLoading={bulkActionLoading}
+        okText="Accept All"
+      >
+        <p>
+          Are you sure you want to accept all changes for{' '}
+          {bulkActionPlans.length} plan(s)?
+        </p>
+        <ul>
+          {bulkActionPlans.map((plan) => (
+            <li key={plan.id}>{plan.name}</li>
+          ))}
+        </ul>
+      </Modal>
+
+      {/* Bulk Reject Modal */}
+      <Modal
+        title="Reject All Changes"
+        open={bulkRejectModalVisible}
+        onOk={() => void handleBulkRejectConfirm()}
+        onCancel={() => {
+          setBulkRejectModalVisible(false);
+          setBulkActionPlans([]);
+        }}
+        confirmLoading={bulkActionLoading}
+        okText="Reject All"
+        okButtonProps={{ danger: true }}
+      >
+        <p>
+          Are you sure you want to reject all changes for{' '}
+          {bulkActionPlans.length} plan(s)? This will cancel the plans.
+        </p>
+        <ul>
+          {bulkActionPlans.map((plan) => (
+            <li key={plan.id}>{plan.name}</li>
+          ))}
+        </ul>
+      </Modal>
+
+      {/* Bulk Accept and Apply Modal */}
+      <Modal
+        title="Accept and Apply All Changes"
+        open={bulkAcceptApplyModalVisible}
+        onOk={() => void handleBulkAcceptApplyConfirm()}
+        onCancel={() => {
+          setBulkAcceptApplyModalVisible(false);
+          setBulkActionPlans([]);
+        }}
+        confirmLoading={bulkActionLoading}
+        okText="Accept and Apply"
+        okButtonProps={{ type: 'primary' }}
+      >
+        <p>
+          Are you sure you want to accept and apply all changes for{' '}
+          {bulkActionPlans.length} plan(s)? This will update the scenes in
+          Stash.
+        </p>
+        <ul>
+          {bulkActionPlans.map((plan) => (
+            <li key={plan.id}>{plan.name}</li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   );
 };

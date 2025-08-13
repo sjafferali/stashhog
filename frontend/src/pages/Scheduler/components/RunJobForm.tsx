@@ -277,6 +277,52 @@ const jobDefinitions: JobDefinition[] = [
     parameters: [],
   },
   {
+    type: 'remove_orphaned_entities',
+    name: 'Remove Orphaned Entities',
+    description:
+      'Remove scenes, tags, performers, and studios from StashHog that no longer exist in Stash',
+    icon: <DeleteOutlined />,
+    category: 'Maintenance',
+    parameters: [
+      {
+        name: 'remove_scenes',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Remove orphaned scenes that no longer exist in Stash',
+      },
+      {
+        name: 'remove_performers',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Remove orphaned performers that no longer exist in Stash',
+      },
+      {
+        name: 'remove_tags',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Remove orphaned tags that no longer exist in Stash',
+      },
+      {
+        name: 'remove_studios',
+        type: 'boolean',
+        required: false,
+        default: true,
+        description: 'Remove orphaned studios that no longer exist in Stash',
+      },
+      {
+        name: 'dry_run',
+        type: 'boolean',
+        required: false,
+        default: false,
+        description:
+          'Preview what would be deleted without actually deleting (dry run mode)',
+      },
+    ],
+  },
+  {
     type: 'process_downloads',
     name: 'Process Downloads',
     description:
