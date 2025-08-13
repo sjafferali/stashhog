@@ -80,9 +80,15 @@ class AutoStashSyncDaemon(BaseDaemon):
                 # If no jobs are being monitored, check for pending scenes
                 if not self._monitored_jobs:
                     await self._check_and_sync_scenes(config)
-
-                # Sleep for configured interval
-                await asyncio.sleep(config["job_interval_seconds"])
+                    # Only sleep for the full interval if no job was created
+                    if not self._monitored_jobs:
+                        await asyncio.sleep(config["job_interval_seconds"])
+                    else:
+                        # Job was created, check more frequently
+                        await asyncio.sleep(5)
+                else:
+                    # Jobs are being monitored, check status frequently
+                    await asyncio.sleep(5)
 
             except asyncio.CancelledError:
                 await self.log(
@@ -212,8 +218,18 @@ class AutoStashSyncDaemon(BaseDaemon):
             for job_id in list(self._monitored_jobs):
                 job = await db.get(Job, job_id)
                 if not job:
+                    await self.log(
+                        LogLevel.WARNING,
+                        f"Job {job_id} not found in database, removing from monitoring",
+                    )
                     completed_jobs.add(job_id)
                     continue
+
+                # Log current job status for debugging
+                await self.log(
+                    LogLevel.DEBUG,
+                    f"Monitoring job {job_id}: status={job.status}",
+                )
 
                 # Check if job has finished
                 if job.status in [
@@ -247,4 +263,10 @@ class AutoStashSyncDaemon(BaseDaemon):
                     completed_jobs.add(job_id)
 
         # Remove completed jobs from monitoring
-        self._monitored_jobs -= completed_jobs
+        if completed_jobs:
+            self._monitored_jobs -= completed_jobs
+            await self.log(
+                LogLevel.DEBUG,
+                f"Removed {len(completed_jobs)} completed jobs from monitoring. "
+                f"Still monitoring {len(self._monitored_jobs)} jobs.",
+            )
