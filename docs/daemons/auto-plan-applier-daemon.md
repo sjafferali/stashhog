@@ -19,7 +19,7 @@ This daemon addresses the need for automated plan application by:
 |--------|------|---------|-------------|
 | `heartbeat_interval` | integer | 30 | Seconds between daemon heartbeat updates. Used for health monitoring. |
 | `job_interval_seconds` | integer | 60 | Seconds to sleep between checking for plans to apply (1 minute default). |
-| `plan_prefix_filter` | array | [] | List of name prefixes to filter plans. Only plans whose names start with one of these strings will be processed. Empty array means all plans are processed. |
+| `plan_prefix_filter` | array | [] | List of name prefixes to filter plans. Only plans whose names start with one of these strings will be processed. **Important:** An empty array means ALL plans in DRAFT/REVIEWING status will be processed - use with caution! |
 | `auto_approve_all_changes` | boolean | false | Whether to automatically approve and apply ALL changes in filtered plans. If false, only applies changes already marked as approved. |
 
 ## How It Works
@@ -33,9 +33,10 @@ This daemon addresses the need for automated plan application by:
 
 2. **Apply Prefix Filter**
    - Filters retrieved plans based on `plan_prefix_filter` configuration
-   - If filter is empty, all plans are considered
+   - **If filter is empty (default), ALL plans in DRAFT/REVIEWING status are considered for processing**
    - If filter has values, only plans with names starting with those prefixes are processed
    - Example: Filter `["Auto Video Analysis"]` would only process plans starting with "Auto Video Analysis"
+   - To prevent processing any plans automatically, set a prefix that won't match any plan names
 
 3. **Determine Processing Mode**
    - **If `auto_approve_all_changes = true`**:
@@ -58,13 +59,15 @@ This daemon addresses the need for automated plan application by:
    - Tracks the job for monitoring
 
 6. **Monitor Job Completion**
-   - Continuously checks the status of launched apply jobs
-   - Waits for jobs to complete (COMPLETED, FAILED, or CANCELLED status)
+   - **IMPORTANT: The daemon processes plans sequentially** - it waits for each apply job to complete before moving to the next plan
+   - This prevents concurrent modifications and ensures orderly processing
+   - Continuously checks the status of the current apply job
+   - Waits for job to complete (COMPLETED, FAILED, or CANCELLED status)
    - Logs the final status of each job
    - Reports any errors from failed jobs
 
 7. **Process Results and Repeat**
-   - After all monitored jobs complete
+   - After all filtered plans have been processed
    - Logs the count of plans processed
    - Sleeps for `job_interval_seconds` before next check
    - Process repeats indefinitely while daemon is running
@@ -168,8 +171,8 @@ Check the daemon logs to see:
 
 - **Check Interval**: Shorter intervals (30-60s) provide faster response to new plans but increase database load. Longer intervals (300-600s) reduce overhead.
 - **Auto-approval**: Enabling auto-approval processes plans faster but removes the review step. Use with caution for untrusted sources.
-- **Prefix Filtering**: Using specific prefixes reduces the number of plans checked, improving performance and providing better control.
-- **Concurrent Processing**: The daemon processes plans sequentially to avoid conflicts. Each apply job must complete before the next starts.
+- **Prefix Filtering**: Using specific prefixes reduces the number of plans checked, improving performance and providing better control. **An empty filter will process ALL plans!**
+- **Sequential Processing**: The daemon processes plans one at a time, waiting for each apply job to complete before starting the next. This ensures orderly processing but means large batches of plans will take longer to complete.
 
 ## Integration with Other Daemons
 

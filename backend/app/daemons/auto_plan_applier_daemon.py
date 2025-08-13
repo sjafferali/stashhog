@@ -3,7 +3,7 @@
 import asyncio
 import time
 import traceback
-from typing import List, Set
+from typing import List, Optional, Set
 
 from sqlalchemy import func, or_, select
 
@@ -145,9 +145,13 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 f"Found {len(filtered_plans)} plan(s) matching filters",
             )
 
-            # Process each filtered plan
+            # Process filtered plans one at a time, waiting for each to complete
             plans_processed = 0
             for plan in filtered_plans:
+                # Stop processing if daemon is shutting down
+                if not self.is_running:
+                    break
+
                 # Extract the integer ID value from the plan instance
                 plan_id: int = int(plan.id)  # type: ignore[arg-type]
                 should_process = await self._should_process_plan(
@@ -155,10 +159,11 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 )
 
                 if should_process:
-                    await self._create_apply_plan_job(
+                    job_id = await self._create_and_wait_for_job(
                         plan_id, config["auto_approve_all_changes"]
                     )
-                    plans_processed += 1
+                    if job_id:
+                        plans_processed += 1
 
             return plans_processed
 
@@ -218,8 +223,10 @@ class AutoPlanApplierDaemon(BaseDaemon):
         )
         return True
 
-    async def _create_apply_plan_job(self, plan_id: int, auto_approve: bool):
-        """Create a job to apply an analysis plan."""
+    async def _create_and_wait_for_job(
+        self, plan_id: int, auto_approve: bool
+    ) -> Optional[str]:
+        """Create a job to apply an analysis plan and wait for it to complete."""
         try:
             from app.core.dependencies import get_job_service
 
@@ -259,12 +266,18 @@ class AutoPlanApplierDaemon(BaseDaemon):
             self._monitored_jobs.add(job_id)
             self._job_to_plan_mapping[job_id] = plan_id
 
+            # Wait for the job to complete
+            await self._wait_for_job_completion(job_id, plan_id)
+
+            return job_id
+
         except Exception as e:
             await self.log(
                 LogLevel.ERROR,
                 f"Failed to create apply plan job for plan {plan_id}: {str(e)}\n"
                 f"Stack trace:\n{traceback.format_exc()}",
             )
+            return None
 
     async def _check_monitored_jobs(self):
         """Check status of monitored jobs and handle completion."""
@@ -314,3 +327,55 @@ class AutoPlanApplierDaemon(BaseDaemon):
         for job_id in completed_jobs:
             self._monitored_jobs.discard(job_id)
             self._job_to_plan_mapping.pop(job_id, None)
+
+    async def _wait_for_job_completion(self, job_id: str, plan_id: int):
+        """Wait for a specific job to complete."""
+        await self.log(
+            LogLevel.INFO,
+            f"Waiting for apply plan job {job_id} for plan {plan_id} to complete",
+        )
+
+        while self.is_running and job_id in self._monitored_jobs:
+            async with AsyncSessionLocal() as db:
+                job = await db.get(Job, job_id)
+                if not job:
+                    await self.log(
+                        LogLevel.WARNING, f"Job {job_id} not found in database"
+                    )
+                    self._monitored_jobs.discard(job_id)
+                    self._job_to_plan_mapping.pop(job_id, None)
+                    break
+
+                # Check if job has finished
+                if job.status in [
+                    JobStatus.COMPLETED.value,
+                    JobStatus.FAILED.value,
+                    JobStatus.CANCELLED.value,
+                ]:
+                    await self.log(
+                        LogLevel.INFO,
+                        f"Apply plan job {job_id} for plan {plan_id} "
+                        f"completed with status: {job.status}",
+                    )
+
+                    await self.track_job_action(
+                        job_id=job_id,
+                        action=DaemonJobAction.FINISHED,
+                        reason=f"Job completed with status {job.status}",
+                    )
+
+                    # Log any errors from the job result
+                    if job.status == JobStatus.FAILED.value and job.result:
+                        error_msg = job.result.get("error", "Unknown error")
+                        await self.log(
+                            LogLevel.ERROR,
+                            f"Apply plan job {job_id} failed: {error_msg}",
+                        )
+
+                    # Remove from monitoring
+                    self._monitored_jobs.discard(job_id)
+                    self._job_to_plan_mapping.pop(job_id, None)
+                    break
+
+            # Sleep a bit before checking again
+            await asyncio.sleep(2)
