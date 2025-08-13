@@ -259,9 +259,9 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: docker.io/${{ github.repository }}:${{ steps.sha.outputs.sha }}
-        # Simplified - GHA only for maximum speed
-        cache-from: type=gha,scope=buildkit-${{ github.workflow }}
-        cache-to: type=gha,scope=buildkit-${{ github.workflow }},mode=max
+        # Registry cache only for performance comparison
+        cache-from: type=registry,ref=docker.io/${{ github.repository }}:buildcache
+        cache-to: type=registry,ref=docker.io/${{ github.repository }}:buildcache,mode=max
         build-args: |
           BUILDTIME=${{ fromJSON('{"timestamp":""}').timestamp || github.event.head_commit.timestamp }}
           VERSION=${{ github.ref_name }}
