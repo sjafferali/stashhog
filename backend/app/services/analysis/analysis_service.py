@@ -2393,6 +2393,46 @@ class AnalysisService:
             f"Batch {completed_batches}/{total_batches} completed with {processed_scenes}/{total_scenes} scenes total"
         )
 
+    async def _get_changes_to_apply(
+        self, plan_id_int: int, auto_approve: bool, db: Any
+    ) -> list[int]:
+        """Get the list of change IDs to apply based on auto_approve setting.
+
+        Args:
+            plan_id_int: Integer plan ID
+            auto_approve: Whether to auto-approve changes
+            db: Database session
+
+        Returns:
+            List of change IDs to apply
+        """
+        from sqlalchemy import or_, select
+
+        from app.models import PlanChange
+        from app.models.plan_change import ChangeStatus
+
+        # Query for changes based on auto_approve setting
+        if auto_approve:
+            # When auto_approve=True, apply APPROVED and PENDING changes
+            changes_query = select(PlanChange.id).where(
+                PlanChange.plan_id == plan_id_int,
+                or_(
+                    PlanChange.status == ChangeStatus.APPROVED,
+                    PlanChange.status == ChangeStatus.PENDING,
+                ),
+                PlanChange.applied.is_(False),
+            )
+        else:
+            # When auto_approve=False, only apply APPROVED changes
+            changes_query = select(PlanChange.id).where(
+                PlanChange.plan_id == plan_id_int,
+                PlanChange.status == ChangeStatus.APPROVED,
+                PlanChange.applied.is_(False),
+            )
+
+        changes_result = await db.execute(changes_query)
+        return [row[0] for row in changes_result]
+
     async def apply_plan(
         self,
         plan_id: str,
@@ -2446,26 +2486,15 @@ class AnalysisService:
                 if progress_callback:
                     await progress_callback(5, f"Applied 0/{total_changes} changes")
 
-                # If auto_approve is True and no specific change_ids, get all approved changes
-                if auto_approve and not change_ids:
-                    from sqlalchemy import or_
-
-                    from app.models.plan_change import ChangeStatus
-
-                    # Get all approved changes for this plan
-                    approved_changes_query = select(PlanChange.id).where(
-                        PlanChange.plan_id == plan_id_int,
-                        or_(
-                            PlanChange.status == ChangeStatus.APPROVED,
-                            PlanChange.accepted.is_(True),
-                        ),
-                        PlanChange.applied.is_(False),
+                # Get change IDs if not provided
+                if not change_ids:
+                    change_ids = await self._get_changes_to_apply(
+                        plan_id_int, auto_approve, db
                     )
-                    approved_result = await db.execute(approved_changes_query)
-                    change_ids = [row[0] for row in approved_result]
-
                     if not change_ids:
-                        logger.warning(f"No approved changes found for plan {plan_id}")
+                        logger.warning(
+                            f"No applicable changes found for plan {plan_id} (auto_approve={auto_approve})"
+                        )
 
                 # Apply the plan
                 result = await self.plan_manager.apply_plan(

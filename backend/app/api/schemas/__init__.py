@@ -426,11 +426,8 @@ class ChangePreview(BaseSchema):
     current_value: Any = Field(..., description="Current value")
     proposed_value: Any = Field(..., description="Proposed value")
     confidence: float = Field(..., description="Confidence score")
-    accepted: Optional[bool] = Field(
-        None, description="Whether the change has been accepted for application"
-    )
-    rejected: Optional[bool] = Field(
-        None, description="Whether the change has been rejected"
+    status: Optional[str] = Field(
+        None, description="Change status (pending, approved, rejected, applied)"
     )
     applied: Optional[bool] = Field(
         None, description="Whether the change has been applied to Stash"

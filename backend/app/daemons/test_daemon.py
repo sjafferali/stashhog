@@ -28,14 +28,14 @@ class TestDaemon(BaseDaemon):
 
     daemon_type = DaemonType.TEST_DAEMON
 
-    async def on_start(self):
+    async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()
         self._monitored_jobs: set[str] = set()
         self._test_job_created = False  # Track if we've created a test job
         await self.log(LogLevel.INFO, "TestDaemon initialized successfully")
 
-    async def on_stop(self):
+    async def on_stop(self) -> None:
         """Clean up daemon-specific resources."""
         await self.log(
             LogLevel.INFO,

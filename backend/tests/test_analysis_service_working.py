@@ -374,9 +374,18 @@ class TestAnalysisService:
 
         # Create a mock async context manager for AsyncSessionLocal
         mock_db_context = AsyncMock()
+        # Mock for count query
         mock_count_result = Mock()
         mock_count_result.scalar.return_value = 1
-        mock_db_context.execute.return_value = mock_count_result
+        # Mock for changes query
+        mock_changes_result = Mock()
+        mock_changes_result.__iter__ = Mock(
+            return_value=iter([(1,)])
+        )  # Return one change ID
+        # Set up execute to return different results for each call
+        mock_db_context.execute = AsyncMock(
+            side_effect=[mock_count_result, mock_changes_result]
+        )
         mock_db_context.commit = AsyncMock()
         mock_db_context.flush = AsyncMock()
 

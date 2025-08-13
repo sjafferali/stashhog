@@ -36,14 +36,14 @@ class AutoPlanApplierDaemon(BaseDaemon):
 
     daemon_type = DaemonType.AUTO_PLAN_APPLIER_DAEMON
 
-    async def on_start(self):
+    async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._job_to_plan_mapping: dict[str, int] = {}  # job_id -> plan_id mapping
         await self.log(LogLevel.INFO, "Auto Plan Applier Daemon initialized")
 
-    async def on_stop(self):
+    async def on_stop(self) -> None:
         """Clean up daemon-specific resources."""
         await self.log(
             LogLevel.INFO,
@@ -190,19 +190,20 @@ class AutoPlanApplierDaemon(BaseDaemon):
         """Check if a plan should be processed based on configuration."""
         # Build query based on configuration
         if auto_approve_all:
-            # Check for any unapproved changes (auto-approve mode will approve them)
-            count_query = select(func.count(PlanChange.id)).where(
-                PlanChange.plan_id == plan_id,
-                PlanChange.applied.is_(False),
-            )
-        else:
-            # Check for approved but unapplied changes
+            # When auto_approve=True, check for APPROVED and PENDING changes
             count_query = select(func.count(PlanChange.id)).where(
                 PlanChange.plan_id == plan_id,
                 or_(
                     PlanChange.status == ChangeStatus.APPROVED,
-                    PlanChange.accepted.is_(True),
+                    PlanChange.status == ChangeStatus.PENDING,
                 ),
+                PlanChange.applied.is_(False),
+            )
+        else:
+            # When auto_approve=False, only check for APPROVED changes
+            count_query = select(func.count(PlanChange.id)).where(
+                PlanChange.plan_id == plan_id,
+                PlanChange.status == ChangeStatus.APPROVED,
                 PlanChange.applied.is_(False),
             )
 

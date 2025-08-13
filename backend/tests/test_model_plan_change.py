@@ -188,7 +188,7 @@ class TestPlanChange:
         """Test can_be_applied when change can be applied."""
         plan_change.plan = mock_plan
         plan_change.applied = False
-        plan_change.rejected = False
+        plan_change.status = ChangeStatus.PENDING
 
         assert plan_change.can_be_applied() is True
 
@@ -196,7 +196,7 @@ class TestPlanChange:
         """Test can_be_applied when already applied."""
         plan_change.plan = mock_plan
         plan_change.applied = True
-        plan_change.rejected = False
+        plan_change.status = ChangeStatus.PENDING
 
         assert plan_change.can_be_applied() is False
 
@@ -204,7 +204,7 @@ class TestPlanChange:
         """Test can_be_applied when rejected."""
         plan_change.plan = mock_plan
         plan_change.applied = False
-        plan_change.rejected = True
+        plan_change.status = ChangeStatus.REJECTED
 
         assert plan_change.can_be_applied() is False
 
@@ -212,7 +212,7 @@ class TestPlanChange:
         """Test can_be_applied when plan cannot be applied."""
         plan_change.plan = mock_plan
         plan_change.applied = False
-        plan_change.rejected = False
+        plan_change.status = ChangeStatus.PENDING
         mock_plan.can_be_applied.return_value = False
 
         assert plan_change.can_be_applied() is False
@@ -331,22 +331,20 @@ class TestPlanChangeEdgeCases:
         assert len(display) == 1000
         assert display == long_text
 
-    def test_legacy_field_compatibility(self):
-        """Test legacy field behavior."""
+    def test_status_field_behavior(self):
+        """Test status field behavior."""
         change = PlanChange(
             plan_id=1,
             scene_id="test",
             field="title",
             action=ChangeAction.SET,
             proposed_value="Test",
-            accepted=True,
-            rejected=False,
+            status=ChangeStatus.APPROVED,
             applied=True,
             applied_at=datetime.now(timezone.utc),
         )
 
-        assert change.accepted is True
-        assert change.rejected is False
+        assert change.status == ChangeStatus.APPROVED
         assert change.applied is True
         assert change.applied_at is not None
 

@@ -607,11 +607,12 @@ async def _count_total_changes_if_needed(
         from app.models.plan_change import ChangeStatus
 
         for plan_id in plan_ids:
+            # For bulk apply, we use auto_approve=True, so count APPROVED and PENDING changes
             count_query = select(func.count(PlanChange.id)).where(
                 PlanChange.plan_id == plan_id,
                 or_(
                     PlanChange.status == ChangeStatus.APPROVED,
-                    PlanChange.accepted.is_(True),
+                    PlanChange.status == ChangeStatus.PENDING,
                 ),
                 PlanChange.applied.is_(False),
             )

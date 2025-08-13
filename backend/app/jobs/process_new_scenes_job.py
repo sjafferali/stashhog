@@ -367,17 +367,15 @@ async def _approve_plan_changes(plan_id: int, batch_num: int) -> int:
         # to avoid greenlet errors
         changes_to_approve = 0
 
-        # Query for unapproved changes directly
+        # Query for pending changes directly
         changes_query = select(PlanChange).where(
             PlanChange.plan_id == plan_id,
-            PlanChange.accepted.is_(False),
-            PlanChange.rejected.is_(False),
+            PlanChange.status == ChangeStatus.PENDING,
         )
         changes_result = await db.execute(changes_query)
-        unapproved_changes = changes_result.scalars().all()
+        pending_changes = changes_result.scalars().all()
 
-        for change in unapproved_changes:
-            change.accepted = True  # type: ignore[assignment]
+        for change in pending_changes:
             change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
             changes_to_approve += 1
 

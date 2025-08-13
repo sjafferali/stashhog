@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AnalysisPlan, ChangeAction, PlanChange, PlanStatus, Scene
+from app.models.plan_change import ChangeStatus
 from app.services.stash_service import StashService
 
 from .models import ApplyResult, SceneChanges
@@ -276,7 +277,10 @@ class PlanManager:
             # Check if any changes have been approved or rejected
             approved_or_rejected_query = select(func.count()).where(
                 PlanChange.plan_id == plan_id,
-                or_(PlanChange.accepted.is_(True), PlanChange.rejected.is_(True)),
+                or_(
+                    PlanChange.status == ChangeStatus.APPROVED,
+                    PlanChange.status == ChangeStatus.REJECTED,
+                ),
             )
             result = await db.execute(approved_or_rejected_query)
             approved_or_rejected_count = result.scalar() or 0
@@ -511,13 +515,13 @@ class PlanManager:
             if change.id not in change_ids:
                 return False
         else:
-            # If no change_ids provided, only apply explicitly accepted changes
-            if not change.accepted:
+            # If no change_ids provided, only apply approved changes
+            if change.status != ChangeStatus.APPROVED:
                 return False
 
         if not apply_filters.get(str(change.field), True):
             return False
-        if change.rejected:
+        if change.status == ChangeStatus.REJECTED:
             return False
         if change.applied:
             return False
@@ -577,10 +581,12 @@ class PlanManager:
         )
         applied = applied_result.scalar() or 0
 
-        # Accepted changes
+        # Accepted changes (approved but not applied)
         accepted_result = await db.execute(
             select(func.count()).where(
-                PlanChange.plan_id == plan.id, PlanChange.accepted.is_(True)
+                PlanChange.plan_id == plan.id,
+                PlanChange.status == ChangeStatus.APPROVED,
+                PlanChange.applied.is_(False),
             )
         )
         accepted = accepted_result.scalar() or 0
@@ -588,7 +594,8 @@ class PlanManager:
         # Rejected changes
         rejected_result = await db.execute(
             select(func.count()).where(
-                PlanChange.plan_id == plan.id, PlanChange.rejected.is_(True)
+                PlanChange.plan_id == plan.id,
+                PlanChange.status == ChangeStatus.REJECTED,
             )
         )
         rejected = rejected_result.scalar() or 0
@@ -597,8 +604,7 @@ class PlanManager:
         pending_result = await db.execute(
             select(func.count()).where(
                 PlanChange.plan_id == plan.id,
-                PlanChange.accepted.is_(False),
-                PlanChange.rejected.is_(False),
+                PlanChange.status == ChangeStatus.PENDING,
             )
         )
         pending = pending_result.scalar() or 0

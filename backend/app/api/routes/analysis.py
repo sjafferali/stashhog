@@ -481,8 +481,11 @@ async def get_plan(
                 current_value=change.current_value,
                 proposed_value=change.proposed_value,
                 confidence=change.confidence,
-                accepted=change.accepted,
-                rejected=change.rejected,
+                status=(
+                    change.status.value
+                    if hasattr(change.status, "value")
+                    else change.status
+                ),
                 applied=change.applied,
             )
         )
@@ -741,25 +744,24 @@ async def _get_plan_change_counts(
 
     # Rejected changes count
     rejected_query = select(func.count(PlanChange.id)).where(
-        PlanChange.plan_id == plan_id, PlanChange.rejected.is_(True)
+        PlanChange.plan_id == plan_id, PlanChange.status == ChangeStatus.REJECTED
     )
     rejected_result = await db.execute(rejected_query)
     rejected = rejected_result.scalar_one()
 
-    # Accepted changes count (accepted but not yet applied)
+    # Accepted changes count (approved but not yet applied)
     accepted_query = select(func.count(PlanChange.id)).where(
         PlanChange.plan_id == plan_id,
-        PlanChange.accepted.is_(True),
+        PlanChange.status == ChangeStatus.APPROVED,
         PlanChange.applied.is_(False),
     )
     accepted_result = await db.execute(accepted_query)
     accepted = accepted_result.scalar_one()
 
-    # Pending changes count (not accepted and not rejected)
+    # Pending changes count
     pending_query = select(func.count(PlanChange.id)).where(
         PlanChange.plan_id == plan_id,
-        PlanChange.accepted.is_(False),
-        PlanChange.rejected.is_(False),
+        PlanChange.status == ChangeStatus.PENDING,
     )
     pending_result = await db.execute(pending_query)
     pending = pending_result.scalar_one()
@@ -850,10 +852,9 @@ def _build_bulk_update_query(
         query = query.where(PlanChange.confidence >= confidence_threshold)
         logger.debug(f"Added confidence filter: >= {confidence_threshold}")
 
-    # Only update pending changes (not accepted and not rejected)
+    # Only update pending changes
     query = query.where(
-        PlanChange.accepted.is_(False),
-        PlanChange.rejected.is_(False),
+        PlanChange.status == ChangeStatus.PENDING,
     )
     logger.debug("Added pending changes filter")
 
@@ -872,12 +873,8 @@ def _apply_bulk_action(changes: Sequence[PlanChange], action: str) -> int:
     for change in changes:
         # Type ignore needed because MyPy doesn't understand SQLAlchemy attribute assignment
         if is_accept_action:
-            change.accepted = True  # type: ignore[assignment]
-            change.rejected = False  # type: ignore[assignment]
             change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
         else:
-            change.accepted = False  # type: ignore[assignment]
-            change.rejected = True  # type: ignore[assignment]
             change.status = ChangeStatus.REJECTED  # type: ignore[assignment]
         updated_count += 1
 
@@ -1054,17 +1051,13 @@ async def update_change_status(
 
     # Update status
     if accepted is not None:
-        change.accepted = accepted  # type: ignore[assignment]
         if accepted:
-            change.rejected = False  # type: ignore[assignment]
             change.status = ChangeStatus.APPROVED  # type: ignore[assignment]
         else:
             change.status = ChangeStatus.PENDING  # type: ignore[assignment]
 
     if rejected is not None:
-        change.rejected = rejected  # type: ignore[assignment]
         if rejected:
-            change.accepted = False  # type: ignore[assignment]
             change.status = ChangeStatus.REJECTED  # type: ignore[assignment]
         else:
             change.status = ChangeStatus.PENDING  # type: ignore[assignment]
@@ -1097,8 +1090,10 @@ async def update_change_status(
         "current_value": change.current_value,
         "proposed_value": change.proposed_value,
         "confidence": change.confidence,
+        "status": (
+            change.status.value if hasattr(change.status, "value") else change.status
+        ),
         "applied": change.applied,
-        "rejected": change.rejected,
         "plan_status": (
             plan.status.value if hasattr(plan.status, "value") else plan.status
         ),
@@ -1170,10 +1165,7 @@ async def apply_all_approved_changes(
         select(AnalysisPlan)
         .join(PlanChange)
         .where(
-            or_(
-                PlanChange.status == ChangeStatus.APPROVED,
-                PlanChange.accepted.is_(True),
-            ),
+            PlanChange.status == ChangeStatus.APPROVED,
             PlanChange.applied.is_(False),
             AnalysisPlan.status != PlanStatus.CANCELLED,
             AnalysisPlan.status != PlanStatus.APPLIED,
@@ -1192,7 +1184,7 @@ async def apply_all_approved_changes(
 
     # Count total approved changes
     count_query = select(func.count(PlanChange.id)).where(
-        or_(PlanChange.status == ChangeStatus.APPROVED, PlanChange.accepted.is_(True)),
+        PlanChange.status == ChangeStatus.APPROVED,
         PlanChange.applied.is_(False),
     )
     count_result = await db.execute(count_query)
@@ -1227,10 +1219,7 @@ async def apply_all_approved_changes(
                 # Get approved changes for this plan
                 changes_query = select(PlanChange).where(
                     PlanChange.plan_id == plan.id,
-                    or_(
-                        PlanChange.status == ChangeStatus.APPROVED,
-                        PlanChange.accepted.is_(True),
-                    ),
+                    PlanChange.status == ChangeStatus.APPROVED,
                     PlanChange.applied.is_(False),
                 )
                 changes_result = await db.execute(changes_query)

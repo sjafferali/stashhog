@@ -354,7 +354,7 @@ async def _process_single_torrent(
     # Record each linked/copied file in the database
     for file_path in linked_files:
         await _record_handled_download(
-            download_name=file_path.name, destination_path=str(file_path), job_id=job_id
+            download_name=torrent.name, destination_path=str(file_path), job_id=job_id
         )
 
     # Add "synced" tag to torrent

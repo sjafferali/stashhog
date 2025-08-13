@@ -13,12 +13,12 @@ The Apply Plan job (`JobType.APPLY_PLAN`) is responsible for applying approved c
 ### Primary Parameters
 
 - **`plan_id`** (str, required): The ID of the analysis plan to apply
-- **`auto_approve`** (bool, default=False): Whether to automatically apply all approved changes
-  - When `True`: Applies all changes with `status=APPROVED` or `accepted=True` 
-  - When `False`: Only applies changes explicitly marked as `accepted=True`
+- **`auto_approve`** (bool, default=False): Controls which changes are automatically applied
+  - When `True`: Applies all changes with `status=APPROVED` or `status=PENDING`
+  - When `False`: Only applies changes with `status=APPROVED`
 - **`change_ids`** (list[int], optional): Specific change IDs to apply
   - If provided, only these specific changes will be applied
-  - Overrides the `auto_approve` behavior
+  - If not provided, all changes on the plan will be processed based on `auto_approve` setting
 
 ### Job Metadata Structure
 
@@ -37,14 +37,14 @@ The Apply Plan job (`JobType.APPLY_PLAN`) is responsible for applying approved c
 
 The job uses the following logic to determine which changes to apply:
 
-1. **If `change_ids` is provided**: Only those specific changes are applied
-2. **If `auto_approve=True` and no `change_ids`**: 
-   - Queries for all changes where:
-     - `status == ChangeStatus.APPROVED` OR `accepted == True`
+1. **If `change_ids` is provided**: Only those specific changes are processed
+2. **If `change_ids` is NOT provided**: All changes on the plan are queried, then:
+   - **If `auto_approve=True`**: Applies changes where:
+     - `status == ChangeStatus.APPROVED` OR `status == ChangeStatus.PENDING`
      - AND `applied == False`
-   - Applies all matching changes
-3. **If `auto_approve=False` and no `change_ids`**:
-   - Only applies changes where `accepted == True`
+   - **If `auto_approve=False`**: Applies changes where:
+     - `status == ChangeStatus.APPROVED`
+     - AND `applied == False`
 
 ### Plan Status Requirements
 
@@ -105,15 +105,25 @@ The job returns a dictionary with the following structure:
 
 3. **Verify Unapplied Changes Exist**
    ```python
-   # Check for unapplied approved changes before creating job
-   count_query = select(func.count(PlanChange.id)).where(
-       PlanChange.plan_id == plan_id,
-       or_(
+   # Check for unapplied changes before creating job
+   # For auto_approve=True, check APPROVED and PENDING
+   # For auto_approve=False, check only APPROVED
+   if auto_approve:
+       count_query = select(func.count(PlanChange.id)).where(
+           PlanChange.plan_id == plan_id,
+           or_(
+               PlanChange.status == ChangeStatus.APPROVED,
+               PlanChange.status == ChangeStatus.PENDING,
+           ),
+           PlanChange.applied.is_(False),
+       )
+   else:
+       count_query = select(func.count(PlanChange.id)).where(
+           PlanChange.plan_id == plan_id,
            PlanChange.status == ChangeStatus.APPROVED,
-           PlanChange.accepted.is_(True),
-       ),
-       PlanChange.applied.is_(False),
-   )
+           PlanChange.applied.is_(False),
+       )
+   
    unapplied_count = await db.execute(count_query).scalar_one()
    
    if unapplied_count == 0:
@@ -133,11 +143,11 @@ The job returns a dictionary with the following structure:
    }
    ```
 
-5. **Handle Both Legacy and New Status Fields**
-   - The system supports both `accepted` (legacy) and `status` fields
-   - Always check both when determining if changes should be applied
-   - UI typically sets `status=APPROVED`
-   - Some older code may set `accepted=True`
+5. **Understanding Status Field**
+   - Changes use the `status` field (enum) to track their state
+   - Possible values: `PENDING`, `APPROVED`, `REJECTED`, `APPLIED`
+   - The UI sets `status=APPROVED` when changes are accepted
+   - Auto-approve systems can process `PENDING` changes
 
 ### Common Pitfalls to Avoid
 
@@ -148,8 +158,8 @@ The job returns a dictionary with the following structure:
 
 2. **Missing `auto_approve` Parameter**
    - Automated systems MUST set `auto_approve=True`
-   - Without it, only explicitly accepted changes (legacy field) are applied
-   - This can result in jobs that run but apply 0 changes
+   - Without it, only `APPROVED` changes are applied (not `PENDING`)
+   - This can result in jobs that run but apply 0 changes if no changes are explicitly approved
 
 3. **Not Checking Plan Status**
    - Always verify plan is in an applicable state (`DRAFT` or `REVIEWING`)

@@ -34,14 +34,14 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
     daemon_type = DaemonType.AUTO_VIDEO_ANALYSIS_DAEMON
 
-    async def on_start(self):
+    async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._pending_plan_jobs: dict[str, int] = {}  # job_id -> plan_id mapping
         await self.log(LogLevel.INFO, "Auto Video Analysis Daemon initialized")
 
-    async def on_stop(self):
+    async def on_stop(self) -> None:
         """Clean up daemon-specific resources."""
         await self.log(
             LogLevel.INFO,
@@ -292,11 +292,12 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 from app.models import PlanChange
                 from app.models.plan_change import ChangeStatus
 
+                # For auto_approve=True, we check for APPROVED and PENDING changes
                 count_query = select(func.count(PlanChange.id)).where(
                     PlanChange.plan_id == plan_id,
                     or_(
                         PlanChange.status == ChangeStatus.APPROVED,
-                        PlanChange.accepted.is_(True),
+                        PlanChange.status == ChangeStatus.PENDING,
                     ),
                     PlanChange.applied.is_(False),
                 )

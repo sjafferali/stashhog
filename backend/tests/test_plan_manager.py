@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
-from app.models.plan_change import ChangeAction, PlanChange
+from app.models.plan_change import ChangeAction, ChangeStatus, PlanChange
 from app.models.scene import Scene
 from app.services.analysis.models import ProposedChange, SceneChanges
 from app.services.analysis.plan_manager import PlanManager
@@ -388,7 +388,7 @@ class TestPlanApplication:
             current_value="Old Title",
             proposed_value="New Title",
             confidence=0.9,
-            accepted=True,
+            status=ChangeStatus.APPROVED,
         )
         change2 = PlanChange(
             plan_id=plan.id,
@@ -398,7 +398,7 @@ class TestPlanApplication:
             current_value=None,
             proposed_value="Scene details",
             confidence=0.8,
-            accepted=True,
+            status=ChangeStatus.APPROVED,
         )
 
         test_async_session.add_all([change1, change2])
@@ -447,7 +447,7 @@ class TestPlanApplication:
                 current_value=[],
                 proposed_value=["performer1"],
                 confidence=0.9,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
             PlanChange(
                 plan_id=plan.id,
@@ -457,7 +457,7 @@ class TestPlanApplication:
                 current_value=[],
                 proposed_value=["tag1"],
                 confidence=0.8,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
             PlanChange(
                 plan_id=plan.id,
@@ -467,7 +467,7 @@ class TestPlanApplication:
                 current_value="Old",
                 proposed_value="New",
                 confidence=0.7,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
         ]
 
@@ -519,7 +519,7 @@ class TestPlanApplication:
                 current_value=f"Old {i}",
                 proposed_value=f"New {i}",
                 confidence=0.9,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             )
             test_async_session.add(change)
 
@@ -1028,7 +1028,7 @@ class TestBulkOperations:
                 current_value=f"Old Title {i}",
                 proposed_value=f"New Title {i}",
                 confidence=0.9,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             )
             test_async_session.add(change)
 
@@ -1143,7 +1143,7 @@ class TestBulkOperations:
                 current_value="Old Title",
                 proposed_value="New Title",
                 confidence=0.9,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
             PlanChange(
                 plan_id=plan.id,
@@ -1153,7 +1153,7 @@ class TestBulkOperations:
                 current_value=3,
                 proposed_value=5,
                 confidence=0.85,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
             PlanChange(
                 plan_id=plan.id,
@@ -1163,7 +1163,7 @@ class TestBulkOperations:
                 current_value="Old details",
                 proposed_value="New detailed description",
                 confidence=0.8,
-                accepted=True,
+                status=ChangeStatus.APPROVED,
             ),
         ]
 

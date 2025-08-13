@@ -18,7 +18,7 @@ from app.core.dependencies import (
 )
 from app.main import app
 from app.models.analysis_plan import AnalysisPlan, PlanStatus
-from app.models.plan_change import ChangeAction, PlanChange
+from app.models.plan_change import ChangeAction, ChangeStatus, PlanChange
 
 
 @pytest.fixture
@@ -205,8 +205,10 @@ class TestAnalysisRoutes:
         mock_change1.current_value = "Old Title"
         mock_change1.proposed_value = "New Title"
         mock_change1.confidence = 0.95
-        mock_change1.accepted = False
-        mock_change1.rejected = False
+        # Create a proper mock for status enum - use spec to prevent auto-creation of attributes
+        from app.models.plan_change import ChangeStatus
+
+        mock_change1.status = ChangeStatus.PENDING
         mock_change1.applied = False
 
         mock_change2 = Mock()
@@ -216,8 +218,7 @@ class TestAnalysisRoutes:
         mock_change2.current_value = None
         mock_change2.proposed_value = "New details"
         mock_change2.confidence = 0.85
-        mock_change2.accepted = True
-        mock_change2.rejected = False
+        mock_change2.status = ChangeStatus.APPROVED
         mock_change2.applied = False
 
         # Mock query results
@@ -282,12 +283,12 @@ class TestAnalysisRoutes:
         assert change1["current_value"] == "Old Title"
         assert change1["proposed_value"] == "New Title"
         assert change1["confidence"] == 0.95
-        assert change1["accepted"] is False
+        assert change1["status"] == "pending"
 
         change2 = scene_data["changes"][1]
         assert change2["field"] == "details"
         assert change2["proposed_value"] == "New details"
-        assert change2["accepted"] is True
+        assert change2["status"] == "approved"
 
     def test_list_plans_with_pagination(self, client, mock_db):
         """Test listing plans with pagination and filtering."""
@@ -590,8 +591,7 @@ class TestAnalysisRoutes:
 
         # Verify changes were updated
         for change in mock_changes:
-            assert change.accepted is True
-            assert change.rejected is False
+            assert change.status == ChangeStatus.APPROVED
 
     def test_bulk_update_changes_by_field(self, client, mock_db):
         """Test bulk accepting changes for a specific field."""
@@ -652,7 +652,7 @@ class TestAnalysisRoutes:
         data = response.json()
         assert data["action"] == "accept_by_field"
         assert data["updated_count"] == 1
-        assert title_change.accepted is True
+        assert title_change.status == ChangeStatus.APPROVED
 
     def test_bulk_update_changes_by_confidence(self, client, mock_db):
         """Test bulk accepting changes above a confidence threshold."""
@@ -710,7 +710,7 @@ class TestAnalysisRoutes:
         data = response.json()
         assert data["action"] == "accept_by_confidence"
         assert data["updated_count"] == 1
-        assert high_conf_change.accepted is True
+        assert high_conf_change.status == ChangeStatus.APPROVED
 
     def test_bulk_update_missing_params(self, client, mock_db):
         """Test bulk update with missing required parameters."""

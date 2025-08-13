@@ -673,8 +673,9 @@ class TestAnalysisRoutes:
         change.current_value = []  # Should be actual list, not string
         change.proposed_value = ["tag1"]  # Should be actual list, not string
         change.confidence = 0.9
-        change.accepted = False
-        change.rejected = False
+        from app.models.plan_change import ChangeStatus
+
+        change.status = ChangeStatus.PENDING
         change.applied = False
         mock_changes_result = Mock()
         mock_changes_result.all = Mock(return_value=[(change, scene)])

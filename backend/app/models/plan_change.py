@@ -83,9 +83,7 @@ class PlanChange(BaseModel):
         default=ChangeStatus.PENDING,
         index=True,
     )
-    # Legacy fields for backward compatibility (to be removed after migration)
-    accepted: Column = Column(Boolean(), default=False, nullable=False, index=True)
-    rejected: Column = Column(Boolean(), default=False, nullable=False, index=True)
+    # Tracking fields
     applied: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
@@ -137,7 +135,11 @@ class PlanChange(BaseModel):
 
     def can_be_applied(self) -> bool:
         """Check if this change can be applied."""
-        return not self.applied and not self.rejected and self.plan.can_be_applied()
+        return bool(
+            not self.applied
+            and self.status != ChangeStatus.REJECTED
+            and self.plan.can_be_applied()
+        )
 
     def to_dict(self, exclude: Optional[set] = None) -> dict[str, Any]:
         """Convert to dictionary with additional fields."""

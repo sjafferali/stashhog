@@ -186,8 +186,14 @@ class TestAnalysisServiceCore:
             # Mock plan manager
             service.plan_manager.get_plan = AsyncMock(return_value=plan)
 
-            # Mock count query
-            db.execute = AsyncMock(return_value=Mock(scalar=Mock(return_value=1)))
+            # Mock count query and changes query
+            # First call is for count, second is for fetching changes
+            mock_result_count = Mock(scalar=Mock(return_value=1))
+            mock_result_changes = Mock()
+            mock_result_changes.__iter__ = Mock(
+                return_value=iter([(1,), (2,)])
+            )  # Return change IDs
+            db.execute = AsyncMock(side_effect=[mock_result_count, mock_result_changes])
             db.commit = AsyncMock()
 
             # Mock apply result
