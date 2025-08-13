@@ -26,7 +26,6 @@ class JSONBType(sqltypes.TypeDecorator):
 
 class DaemonType(str, enum.Enum):
     TEST_DAEMON = "test_daemon"
-    METADATA_GENERATE_WATCHER = "metadata_generate_watcher"
     AUTO_VIDEO_ANALYSIS_DAEMON = "auto_video_analysis_daemon"
 
 

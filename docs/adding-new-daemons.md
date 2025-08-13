@@ -28,9 +28,10 @@ Add your daemon type to the `DaemonType` enum in `backend/app/models/daemon.py`:
 ```python
 class DaemonType(str, enum.Enum):
     TEST_DAEMON = "test_daemon"
-    METADATA_GENERATE_WATCHER = "metadata_generate_watcher"
     YOUR_NEW_DAEMON = "your_new_daemon"  # Add your type here
 ```
+
+**Note**: The `DaemonType` enum is used for type safety in Python code. The database stores daemon types as plain strings in a `String(100)` column, not as a PostgreSQL enum type.
 
 ### 2. Create the Daemon Class
 
@@ -159,17 +160,24 @@ DAEMON_CLASSES = {
 Add a data migration to create the daemon record:
 
 ```python
-# backend/alembic/versions/xxx_add_your_daemon.py
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+# backend/alembic/versions/xxx_add_your_daemon_record.py
 import uuid
+from typing import Sequence, Union
 
-def upgrade():
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = 'xxx'
+down_revision: Union[str, None] = 'previous_revision'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+def upgrade() -> None:
     # Insert daemon record
+    # Note: daemons.type is a String column, not an enum
     op.execute(
         f"""
-        INSERT INTO daemons (id, name, type, enabled, auto_start, status, configuration)
+        INSERT INTO daemons (id, name, type, enabled, auto_start, status, configuration, created_at, updated_at)
         VALUES (
             '{uuid.uuid4()}',
             'Your Daemon Name',
@@ -177,14 +185,23 @@ def upgrade():
             false,
             false,
             'STOPPED',
-            '{{"check_interval": 10, "other_config": "value"}}'::jsonb
+            '{{"check_interval": 10, "other_config": "value"}}'::jsonb,
+            NOW(),
+            NOW()
         )
+        ON CONFLICT (name) DO NOTHING
         """
     )
 
-def downgrade():
+def downgrade() -> None:
     op.execute("DELETE FROM daemons WHERE type = 'your_new_daemon'")
 ```
+
+**Important Notes**:
+- The `type` column in the database is a plain `String(100)`, not a PostgreSQL enum type
+- No enum alteration is needed when adding new daemon types
+- The `ON CONFLICT (name) DO NOTHING` clause prevents duplicate entries if the migration runs multiple times
+- Always include `created_at` and `updated_at` timestamps in the INSERT statement
 
 ## Best Practices
 
@@ -590,7 +607,8 @@ Before deploying your daemon:
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Documentation is updated
-- [ ] Migration creates initial daemon record
+- [ ] Migration creates initial daemon record (data only, no schema changes)
+- [ ] Daemon type added to DaemonType enum in Python code
 - [ ] Daemon is registered in the registry
 
 ## Example: Complete TestDaemon
