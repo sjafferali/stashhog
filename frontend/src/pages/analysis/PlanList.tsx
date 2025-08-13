@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Table, Button, Space, Tag, message, Modal, Tooltip } from 'antd';
 import {
   EditOutlined,
@@ -134,7 +134,7 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const handleBulkAccept = useCallback(() => {
+  const handleBulkAccept = () => {
     console.log('[DEBUG] handleBulkAccept called!');
     console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
     console.log('[DEBUG] plans:', plans);
@@ -213,7 +213,7 @@ const PlanList: React.FC = () => {
         })(); // Close and execute the async IIFE
       },
     });
-  }, [selectedRowKeys, plans]);
+  };
 
   const handleApplyApprovedChanges = () => {
     Modal.confirm({
@@ -248,7 +248,7 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleBulkReject = useCallback(() => {
+  const handleBulkReject = () => {
     console.log('[DEBUG] handleBulkReject called!');
     console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
     console.log('[DEBUG] plans:', plans);
@@ -327,7 +327,7 @@ const PlanList: React.FC = () => {
         })(); // Close and execute the async IIFE
       },
     });
-  }, [selectedRowKeys, plans]);
+  };
 
   const handleBulkAcceptAndApply = async () => {
     // Convert both to strings for comparison to handle any type mismatches

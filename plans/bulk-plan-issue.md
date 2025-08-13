@@ -57,9 +57,14 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
 - **Result**: Type errors persist with rowSelection prop
 
 ## Current State
-- TypeScript compiles successfully
+- TypeScript compiles successfully  
 - ESLint passes without warnings
-- **PARTIALLY FIXED**: "Accept and Apply All Changes" works, but "Accept All Changes" and "Reject All Changes" still don't work
+- **ISSUE ISOLATED**: 
+  - ✅ Button clicks are working (onClick handlers fire)
+  - ✅ Handlers are being called with correct state
+  - ✅ selectedRowKeys contains the correct plan IDs
+  - ❌ Modal.confirm is not showing (likely due to filtering logic)
+  - ✅ "Accept and Apply All Changes" works correctly
 
 ## Additional Debugging Attempts (Latest Session)
 
@@ -246,11 +251,13 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   console.log('[DEBUG] About to show Modal.confirm...');
   ```
 - **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
-- **Purpose**: To identify whether:
-  1. Plans are being filtered correctly by ID (selectedPlans)
-  2. Plans are passing the status eligibility check
-  3. Modal.confirm is being reached
-- **Result**: **AWAITING TEST RESULTS** - This will pinpoint the exact failure point
+- **Test Results**: **CRITICAL DISCOVERY**
+  - ✅ selectedPlans: Successfully found 2 plans with IDs [167, 166]
+  - ✅ eligiblePlans: Both plans passed status check (status: "DRAFT")
+  - ✅ Code reaches "About to show Modal.confirm..."
+  - ❌ **Modal.confirm is called but NOT displaying!**
+  - The issue is NOT in the filtering logic - all data is correct
+  - Modal.confirm is being invoked but the modal doesn't appear on screen
 
 ## Debugging Instructions
 To use the debugging setup:
@@ -271,13 +278,25 @@ To use the debugging setup:
    [DEBUG] plans: [...]
    ```
 
-## Potential Root Causes
-Based on the debugging setup, the issue is likely one of:
-1. **rowSelection prop not being recognized** - The Ant Design Table might not be accepting the rowSelection prop due to version or import issues
-2. **ID type mismatch** - plan.id might be a different type (string/number) than what's stored in selectedRowKeys
-3. **onChange not firing** - The checkbox onChange handler might not be called at all
-4. **State not updating** - setSelectedRowKeys might not be updating the state correctly
-5. **Component re-rendering issue** - The component might be re-rendering and losing state
+## Root Cause Analysis (Based on Test Results)
+
+### Confirmed Working:
+1. ✅ **Button onClick handlers** - Clicking buttons successfully triggers the onClick functions
+2. ✅ **Handler execution** - The handleBulkAccept and handleBulkReject functions are being called
+3. ✅ **State management** - selectedRowKeys contains the correct plan IDs [167, 166]
+4. ✅ **useCallback hooks** - Functions have stable references with proper dependencies
+5. ✅ **Plan filtering by ID** - selectedPlans correctly finds 2 plans matching IDs 167 and 166
+6. ✅ **Status eligibility check** - Both plans have status "DRAFT" and pass the eligibility filter
+7. ✅ **Modal.confirm is called** - Code reaches the Modal.confirm invocation
+
+### THE ACTUAL ISSUE:
+**Modal.confirm is being called but the modal is NOT appearing on screen!**
+
+This is likely due to one of these reasons:
+1. **useCallback closure issue** - The Modal.confirm call inside useCallback might not work properly
+2. **Ant Design Modal issue** - There might be a problem with how Modal is imported or configured
+3. **React rendering issue** - The modal might be rendering but not visible (z-index, display, etc.)
+4. **Async/Promise issue** - The way the promise is returned in onOk might be preventing the modal from showing
 
 ## Next Steps to Try
 
