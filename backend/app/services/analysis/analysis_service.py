@@ -314,8 +314,21 @@ class AnalysisService:
 
         except Exception as e:
             logger.error(
-                f"Error in non-AI analysis for scene {scene_data.get('id')}: {e}"
+                f"Error in non-AI analysis for scene {scene_data.get('id')}: {e}",
+                exc_info=True,
             )
+            # Roll back the transaction to prevent "Can't reconnect until invalid transaction is rolled back" errors
+            if db:
+                try:
+                    await db.rollback()
+                    logger.debug(
+                        f"Rolled back transaction for scene {scene_data.get('id')} after error"
+                    )
+                except Exception as rollback_error:
+                    logger.warning(
+                        f"Error during rollback for scene {scene_data.get('id')}: {rollback_error}",
+                        exc_info=True,
+                    )
             return self._create_error_scene_changes(scene_data, e)
 
     async def _perform_non_ai_analysis(
@@ -760,13 +773,14 @@ class AnalysisService:
         logger.debug(f"Video tag detection enabled for scene {scene.id}")
         logger.debug(f"Scene data keys: {list(scene_data.keys())}")
         logger.debug(f"Scene file_path: {scene_data.get('file_path')}")
-        logger.debug(f"Scene path: {scene_data.get('path')}")
 
         try:
             video_tag_changes = await self._detect_video_tags(scene_data, options)
             changes.extend(video_tag_changes)
         except Exception as e:
-            logger.error(f"Error detecting video tags for scene {scene.id}: {e}")
+            logger.error(
+                f"Error detecting video tags for scene {scene.id}: {e}", exc_info=True
+            )
             video_detection_error = True
 
         # Handle AI status tags
@@ -872,7 +886,9 @@ class AnalysisService:
                 )
 
             except Exception as e:
-                logger.error(f"Error analyzing scene {scene_data.get('id')}: {e}")
+                logger.error(
+                    f"Error analyzing scene {scene_data.get('id')}: {e}", exc_info=True
+                )
                 results.append(
                     SceneChanges(
                         scene_id=scene_data.get("id", "unknown"),
@@ -977,7 +993,21 @@ class AnalysisService:
             return scene_changes
 
         except Exception as e:
-            logger.error(f"Error analyzing scene {scene_data.get('id')}: {e}")
+            logger.error(
+                f"Error analyzing scene {scene_data.get('id')}: {e}", exc_info=True
+            )
+            # Roll back the transaction to prevent "Can't reconnect until invalid transaction is rolled back" errors
+            if db:
+                try:
+                    await db.rollback()
+                    logger.debug(
+                        f"Rolled back transaction for scene {scene_data.get('id')} after error"
+                    )
+                except Exception as rollback_error:
+                    logger.warning(
+                        f"Error during rollback for scene {scene_data.get('id')}: {rollback_error}",
+                        exc_info=True,
+                    )
             return self._create_error_scene_changes(scene_data, e)
 
     def _create_scene_like(self, scene_data: dict) -> Any:
@@ -1441,7 +1471,7 @@ class AnalysisService:
                     changes.append(change)
 
         except Exception as e:
-            logger.error(f"Error detecting video tags: {e}")
+            logger.error(f"Error detecting video tags: {e}", exc_info=True)
             # If we're ONLY doing video tag detection, propagate the error
             # Otherwise, don't fail the entire analysis if video detection fails
             if (
