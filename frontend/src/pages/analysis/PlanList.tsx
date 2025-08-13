@@ -610,7 +610,8 @@ const PlanList: React.FC = () => {
                   }
                 },
               }),
-            } as any)} // eslint-disable-line @typescript-eslint/no-explicit-any
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)}
           />
         </div>
       </Card>
