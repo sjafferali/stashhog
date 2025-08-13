@@ -150,6 +150,15 @@ JOB_REGISTRY: Dict[str, JobMetadata] = {
         color="magenta",
         category="Maintenance",
     ),
+    "REMOVE_ORPHANED_ENTITIES": JobMetadata(
+        value="remove_orphaned_entities",
+        label="Remove Orphaned Entities",
+        description="Remove scenes, tags, performers, and studios that no longer exist in Stash",
+        color="red",
+        category="Maintenance",
+        unit="entities",
+        allow_concurrent=False,
+    ),
     # Import/Export
     "EXPORT": JobMetadata(
         value="export",

@@ -293,7 +293,7 @@ const DaemonDetail: React.FC = () => {
       case 'CANCELLED':
         return 'error';
       case 'FINISHED':
-        return 'processing';
+        return 'blue';
       default:
         return 'default';
     }

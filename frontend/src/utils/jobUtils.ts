@@ -11,6 +11,7 @@ export type JobType =
   | 'export'
   | 'import'
   | 'cleanup'
+  | 'remove_orphaned_entities'
   | 'settings_test'
   | 'scene_sync'
   | 'scene_analysis'
@@ -36,6 +37,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   export: 'Export',
   import: 'Import',
   cleanup: 'Cleanup',
+  remove_orphaned_entities: 'Remove Orphaned Entities',
   settings_test: 'Settings Test',
   stash_scan: 'Stash Metadata Scan',
   stash_generate: 'Stash Generate Metadata',
@@ -58,6 +60,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   export: 'cyan',
   import: 'cyan',
   cleanup: 'magenta',
+  remove_orphaned_entities: 'red',
   settings_test: 'purple',
   stash_scan: 'volcano',
   stash_generate: 'geekblue',
@@ -147,6 +150,8 @@ export const formatJobProgress = (
         unit = ' steps';
       } else if (type === 'test') {
         unit = ' test steps';
+      } else if (type === 'remove_orphaned_entities') {
+        unit = ' entities';
       }
     }
 
@@ -169,6 +174,8 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   export: 'Export data',
   import: 'Import data',
   cleanup: 'Clean up old jobs, stuck plans, and download logs',
+  remove_orphaned_entities:
+    'Remove scenes, tags, performers, and studios that no longer exist in Stash',
   settings_test: 'Test system settings',
   stash_scan: 'Scan and update metadata in Stash library',
   stash_generate:

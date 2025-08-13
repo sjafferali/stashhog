@@ -101,9 +101,7 @@ const PlanList: React.FC = () => {
           <Button
             type="link"
             icon={<EditOutlined />}
-            onClick={() => {
-              void navigate(`/analysis/plans/${record.id}`);
-            }}
+            onClick={() => void navigate(`/analysis/plans/${record.id}`)}
           >
             View
           </Button>
@@ -111,9 +109,7 @@ const PlanList: React.FC = () => {
             type="link"
             danger
             icon={<CloseOutlined />}
-            onClick={() => {
-              void handleCancel(record.id);
-            }}
+            onClick={() => void handleCancel(record.id)}
             disabled={
               record.status.toLowerCase() === 'applied' ||
               record.status.toLowerCase() === 'cancelled' ||
@@ -525,9 +521,7 @@ const PlanList: React.FC = () => {
             icon={<SyncOutlined />}
             loading={cleanupLoading}
             disabled={!hasApprovedChanges || cleanupLoading}
-            onClick={() => {
-              void handleApplyApprovedChanges();
-            }}
+            onClick={() => void handleApplyApprovedChanges()}
           >
             Apply All Approved Changes
           </Button>
@@ -548,27 +542,21 @@ const PlanList: React.FC = () => {
               <span>{selectedRowKeys.length} plan(s) selected</span>
               <Button
                 icon={<CheckCircleOutlined />}
-                onClick={() => {
-                  void handleBulkAccept();
-                }}
+                onClick={() => void handleBulkAccept()}
               >
                 Accept All Changes
               </Button>
               <Button
                 danger
                 icon={<CloseCircleOutlined />}
-                onClick={() => {
-                  void handleBulkReject();
-                }}
+                onClick={() => void handleBulkReject()}
               >
                 Reject All Changes
               </Button>
               <Button
                 type="primary"
                 icon={<PlayCircleOutlined />}
-                onClick={() => {
-                  void handleBulkAcceptAndApply();
-                }}
+                onClick={() => void handleBulkAcceptAndApply()}
               >
                 Accept and Apply All Changes
               </Button>

@@ -37,6 +37,7 @@ class JobType(str, enum.Enum):
     EXPORT = "export"
     IMPORT = "import"
     CLEANUP = "cleanup"
+    REMOVE_ORPHANED_ENTITIES = "remove_orphaned_entities"
     PROCESS_DOWNLOADS = "process_downloads"
     STASH_SCAN = "stash_scan"
     STASH_GENERATE = "stash_generate"

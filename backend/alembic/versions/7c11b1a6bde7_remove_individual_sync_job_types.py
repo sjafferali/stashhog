@@ -18,62 +18,83 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Update existing jobs with removed types to sync type
-    # Note: We're updating both lowercase and uppercase versions to handle any legacy data
-    # Since metadata is JSON (not JSONB), we need to cast and handle it differently
-    op.execute(
-        """
-        UPDATE job
-        SET type = 'sync',
-            metadata = CASE
-                WHEN metadata IS NULL THEN json_build_object('migrated_from', type)::json
-                ELSE (metadata::jsonb || json_build_object('migrated_from', type)::jsonb)::json
-            END
-        WHERE type IN ('sync_performers', 'sync_tags', 'sync_studios', 'SYNC_PERFORMERS', 'SYNC_TAGS', 'SYNC_STUDIOS')
-    """
-    )
+    # Get database connection to check dialect
+    connection = op.get_bind()
 
-    # Update sync_all to sync
-    op.execute(
+    if connection.dialect.name == "postgresql":
+        # PostgreSQL version with JSONB operations
+        # Update existing jobs with removed types to sync type
+        op.execute(
+            """
+            UPDATE job
+            SET type = 'sync',
+                metadata = CASE
+                    WHEN metadata IS NULL THEN json_build_object('migrated_from', type)::json
+                    ELSE (metadata::jsonb || json_build_object('migrated_from', type)::jsonb)::json
+                END
+            WHERE type IN ('sync_performers', 'sync_tags', 'sync_studios', 'SYNC_PERFORMERS', 'SYNC_TAGS', 'SYNC_STUDIOS')
         """
-        UPDATE job
-        SET type = 'sync'
-        WHERE type IN ('sync_all', 'SYNC_ALL')
-    """
-    )
-
-    # Update job metadata for 'force' parameter to 'full_resync'
-    # For JSON type, we need to reconstruct the object
-    op.execute(
-        """
-        UPDATE job
-        SET metadata = (
-            SELECT json_object_agg(
-                CASE WHEN key = 'force' THEN 'full_resync' ELSE key END,
-                value
-            )::json
-            FROM json_each(metadata)
         )
-        WHERE type = 'sync'
-        AND metadata IS NOT NULL
-        AND metadata::jsonb ? 'force'
-    """
-    )
 
-    # Remove 'force' parameter from sync_scenes jobs
-    op.execute(
+        # Update sync_all to sync
+        op.execute(
+            """
+            UPDATE job
+            SET type = 'sync'
+            WHERE type IN ('sync_all', 'SYNC_ALL')
         """
-        UPDATE job
-        SET metadata = (
-            SELECT json_object_agg(key, value)::json
-            FROM json_each(metadata)
-            WHERE key != 'force'
         )
-        WHERE type = 'sync_scenes'
-        AND metadata IS NOT NULL
-        AND metadata::jsonb ? 'force'
-    """
-    )
+
+        # Update job metadata for 'force' parameter to 'full_resync'
+        op.execute(
+            """
+            UPDATE job
+            SET metadata = (
+                SELECT json_object_agg(
+                    CASE WHEN key = 'force' THEN 'full_resync' ELSE key END,
+                    value
+                )::json
+                FROM json_each(metadata)
+            )
+            WHERE type = 'sync'
+            AND metadata IS NOT NULL
+            AND metadata::jsonb ? 'force'
+        """
+        )
+
+        # Remove 'force' parameter from sync_scenes jobs
+        op.execute(
+            """
+            UPDATE job
+            SET metadata = (
+                SELECT json_object_agg(key, value)::json
+                FROM json_each(metadata)
+                WHERE key != 'force'
+            )
+            WHERE type = 'sync_scenes'
+            AND metadata IS NOT NULL
+            AND metadata::jsonb ? 'force'
+        """
+        )
+    else:
+        # SQLite version - simpler JSON operations
+        # Update existing jobs with removed types to sync type
+        op.execute(
+            """
+            UPDATE job
+            SET type = 'sync'
+            WHERE type IN ('sync_performers', 'sync_tags', 'sync_studios', 'SYNC_PERFORMERS', 'SYNC_TAGS', 'SYNC_STUDIOS')
+        """
+        )
+
+        # Update sync_all to sync
+        op.execute(
+            """
+            UPDATE job
+            SET type = 'sync'
+            WHERE type IN ('sync_all', 'SYNC_ALL')
+        """
+        )
 
 
 def downgrade() -> None:

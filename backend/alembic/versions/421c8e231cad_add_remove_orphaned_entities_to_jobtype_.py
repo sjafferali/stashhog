@@ -1,8 +1,8 @@
-"""add_process_new_scenes_to_jobtype_enum
+"""add_remove_orphaned_entities_to_jobtype_enum
 
-Revision ID: 6dfe201bd8a3
-Revises: fc61222b7dc6
-Create Date: 2025-07-29 22:15:40.084480
+Revision ID: 421c8e231cad
+Revises: 423d516aebb3
+Create Date: 2025-08-12 21:10:27.255840
 
 """
 
@@ -11,8 +11,8 @@ from typing import Sequence, Union
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "6dfe201bd8a3"
-down_revision: Union[str, None] = "fc61222b7dc6"
+revision: str = "421c8e231cad"
+down_revision: Union[str, None] = "423d516aebb3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -23,11 +23,13 @@ def upgrade() -> None:
 
     # Only execute for PostgreSQL - SQLite doesn't have enum types
     if connection.dialect.name == "postgresql":
-        # Add new enum values for process_new_scenes job type
-        op.execute("ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'process_new_scenes'")
+        # Add new enum values for remove_orphaned_entities job type
         op.execute(
-            "ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'PROCESS_NEW_SCENES'"
-        )  # Include uppercase for compatibility
+            "ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'remove_orphaned_entities'"
+        )
+        op.execute(
+            "ALTER TYPE jobtype ADD VALUE IF NOT EXISTS 'REMOVE_ORPHANED_ENTITIES'"
+        )
 
 
 def downgrade() -> None:
