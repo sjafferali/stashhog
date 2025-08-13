@@ -134,7 +134,7 @@ const PlanList: React.FC = () => {
     }
   };
 
-  const handleBulkAccept = () => {
+  const handleBulkAccept = async () => {
     console.log('[DEBUG] handleBulkAccept called!');
     console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
     console.log('[DEBUG] plans:', plans);
@@ -161,58 +161,62 @@ const PlanList: React.FC = () => {
     }
 
     console.log('[DEBUG] About to show Modal.confirm...');
-    Modal.confirm({
-      title: 'Accept All Changes',
-      content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
-      onOk: () => {
-        // Return a promise to handle async operations
-        return (async () => {
-          let successCount = 0;
-          let errorCount = 0;
-          let totalChangesUpdated = 0;
+    // Use setTimeout to break out of current execution context
+    setTimeout(() => {
+      Modal.confirm({
+        title: 'Accept All Changes',
+        content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
+        onOk: () => {
+          return (async () => {
+            let successCount = 0;
+            let errorCount = 0;
+            let totalChangesUpdated = 0;
 
-          for (const plan of eligiblePlans) {
-            try {
-              const result = await apiClient.bulkUpdateAnalysisPlan(
-                plan.id,
-                'accept_all'
-              );
-              if (result.updated_count > 0) {
-                successCount++;
-                totalChangesUpdated += result.updated_count;
-              } else {
-                void message.info(
-                  `Plan "${plan.name}" has no pending changes to accept`
+            for (const plan of eligiblePlans) {
+              try {
+                const result = await apiClient.bulkUpdateAnalysisPlan(
+                  plan.id,
+                  'accept_all'
                 );
+                if (result.updated_count > 0) {
+                  successCount++;
+                  totalChangesUpdated += result.updated_count;
+                } else {
+                  void message.info(
+                    `Plan "${plan.name}" has no pending changes to accept`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to accept changes for plan ${plan.id}:`,
+                  error
+                );
+                errorCount++;
               }
-            } catch (error) {
-              console.error(
-                `Failed to accept changes for plan ${plan.id}:`,
-                error
-              );
-              errorCount++;
             }
-          }
 
-          if (successCount > 0) {
-            void message.success(
-              `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
-            );
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          } else if (totalChangesUpdated === 0 && errorCount === 0) {
-            void message.info('No pending changes to accept in selected plans');
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          }
-          if (errorCount > 0) {
-            void message.error(
-              `Failed to accept changes for ${errorCount} plan(s)`
-            );
-          }
-        })(); // Close and execute the async IIFE
-      },
-    });
+            if (successCount > 0) {
+              void message.success(
+                `Accepted ${totalChangesUpdated} changes across ${successCount} plan(s)`
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            } else if (totalChangesUpdated === 0 && errorCount === 0) {
+              void message.info(
+                'No pending changes to accept in selected plans'
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            }
+            if (errorCount > 0) {
+              void message.error(
+                `Failed to accept changes for ${errorCount} plan(s)`
+              );
+            }
+          })();
+        },
+      });
+    }, 0); // setTimeout with 0 delay
   };
 
   const handleApplyApprovedChanges = () => {
@@ -248,7 +252,7 @@ const PlanList: React.FC = () => {
     });
   };
 
-  const handleBulkReject = () => {
+  const handleBulkReject = async () => {
     console.log('[DEBUG] handleBulkReject called!');
     console.log('[DEBUG] selectedRowKeys:', selectedRowKeys);
     console.log('[DEBUG] plans:', plans);
@@ -275,58 +279,62 @@ const PlanList: React.FC = () => {
     }
 
     console.log('[DEBUG] About to show Modal.confirm...');
-    Modal.confirm({
-      title: 'Reject All Changes',
-      content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
-      onOk: () => {
-        // Return a promise to handle async operations
-        return (async () => {
-          let successCount = 0;
-          let errorCount = 0;
-          let totalChangesUpdated = 0;
+    // Use setTimeout to break out of current execution context
+    setTimeout(() => {
+      Modal.confirm({
+        title: 'Reject All Changes',
+        content: `Are you sure you want to reject all changes for ${eligiblePlans.length} plan(s)? This will cancel the plans.`,
+        onOk: () => {
+          return (async () => {
+            let successCount = 0;
+            let errorCount = 0;
+            let totalChangesUpdated = 0;
 
-          for (const plan of eligiblePlans) {
-            try {
-              const result = await apiClient.bulkUpdateAnalysisPlan(
-                plan.id,
-                'reject_all'
-              );
-              if (result.updated_count > 0) {
-                successCount++;
-                totalChangesUpdated += result.updated_count;
-              } else {
-                void message.info(
-                  `Plan "${plan.name}" has no pending changes to reject`
+            for (const plan of eligiblePlans) {
+              try {
+                const result = await apiClient.bulkUpdateAnalysisPlan(
+                  plan.id,
+                  'reject_all'
                 );
+                if (result.updated_count > 0) {
+                  successCount++;
+                  totalChangesUpdated += result.updated_count;
+                } else {
+                  void message.info(
+                    `Plan "${plan.name}" has no pending changes to reject`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to reject changes for plan ${plan.id}:`,
+                  error
+                );
+                errorCount++;
               }
-            } catch (error) {
-              console.error(
-                `Failed to reject changes for plan ${plan.id}:`,
-                error
-              );
-              errorCount++;
             }
-          }
 
-          if (successCount > 0) {
-            void message.success(
-              `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
-            );
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          } else if (totalChangesUpdated === 0 && errorCount === 0) {
-            void message.info('No pending changes to reject in selected plans');
-            void fetchPlans();
-            setSelectedRowKeys([]);
-          }
-          if (errorCount > 0) {
-            void message.error(
-              `Failed to reject changes for ${errorCount} plan(s)`
-            );
-          }
-        })(); // Close and execute the async IIFE
-      },
-    });
+            if (successCount > 0) {
+              void message.success(
+                `Rejected ${totalChangesUpdated} changes across ${successCount} plan(s)`
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            } else if (totalChangesUpdated === 0 && errorCount === 0) {
+              void message.info(
+                'No pending changes to reject in selected plans'
+              );
+              void fetchPlans();
+              setSelectedRowKeys([]);
+            }
+            if (errorCount > 0) {
+              void message.error(
+                `Failed to reject changes for ${errorCount} plan(s)`
+              );
+            }
+          })();
+        },
+      });
+    }, 0); // setTimeout with 0 delay
   };
 
   const handleBulkAcceptAndApply = async () => {
@@ -602,7 +610,7 @@ const PlanList: React.FC = () => {
                 icon={<CheckCircleOutlined />}
                 onClick={() => {
                   console.log('[INLINE] Accept button clicked');
-                  handleBulkAccept();
+                  void handleBulkAccept();
                 }}
               >
                 Accept All Changes
@@ -612,7 +620,7 @@ const PlanList: React.FC = () => {
                 icon={<CloseCircleOutlined />}
                 onClick={() => {
                   console.log('[INLINE] Reject button clicked');
-                  handleBulkReject();
+                  void handleBulkReject();
                 }}
               >
                 Reject All Changes
@@ -632,7 +640,7 @@ const PlanList: React.FC = () => {
             onClick={() => {
               console.log('[TEST] Direct button click test');
               alert('Test button clicked!');
-              handleBulkAccept();
+              void handleBulkAccept();
             }}
           >
             TEST: Direct Call handleBulkAccept
@@ -641,14 +649,16 @@ const PlanList: React.FC = () => {
             style={{ backgroundColor: '#0ff', color: 'black' }}
             onClick={() => {
               console.log('[TEST] Testing Modal.confirm directly');
-              Modal.confirm({
-                title: 'Test Modal',
-                content: 'This is a test modal. Does it show?',
-                onOk: () => {
-                  console.log('Test modal OK clicked');
-                  alert('Test modal OK was clicked!');
-                },
-              });
+              setTimeout(() => {
+                Modal.confirm({
+                  title: 'Test Modal',
+                  content: 'This is a test modal. Does it show?',
+                  onOk: () => {
+                    console.log('Test modal OK clicked');
+                    alert('Test modal OK was clicked!');
+                  },
+                });
+              }, 0);
             }}
           >
             TEST: Direct Modal.confirm

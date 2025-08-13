@@ -259,6 +259,31 @@ The issue stems from TypeScript type incompatibilities with the Ant Design Table
   - The issue is NOT in the filtering logic - all data is correct
   - Modal.confirm is being invoked but the modal doesn't appear on screen
 
+### 16. **setTimeout Wrapper for Modal.confirm (Execution Context Fix)**
+- **Root Cause Hypothesis**: Modal.confirm might be failing because it's being called within React's synchronous execution context, which can prevent Ant Design modals from rendering properly
+- **What was tried**: Wrapped Modal.confirm calls in `setTimeout(..., 0)` to break out of the current execution context:
+  ```tsx
+  console.log('[DEBUG] About to show Modal.confirm...');
+  // Use setTimeout to break out of current execution context
+  setTimeout(() => {
+    Modal.confirm({
+      title: 'Accept All Changes',
+      content: `Are you sure you want to accept all changes for ${eligiblePlans.length} plan(s)?`,
+      onOk: () => {
+        return (async () => {
+          // ... async operations
+        })();
+      },
+    });
+  }, 0); // setTimeout with 0 delay
+  ```
+- **Applied to**:
+  - `handleBulkAccept` - Wrapped Modal.confirm in setTimeout
+  - `handleBulkReject` - Wrapped Modal.confirm in setTimeout
+  - Test Modal button - Also wrapped in setTimeout for consistency
+- **Files modified**: `/frontend/src/pages/analysis/PlanList.tsx`
+- **Result**: **TESTING PENDING** - This is a common fix for React modal rendering issues
+
 ## Debugging Instructions
 To use the debugging setup:
 1. Open the browser console (F12)
@@ -297,6 +322,7 @@ This is likely due to one of these reasons:
 2. **Ant Design Modal issue** - There might be a problem with how Modal is imported or configured
 3. **React rendering issue** - The modal might be rendering but not visible (z-index, display, etc.)
 4. **Async/Promise issue** - The way the promise is returned in onOk might be preventing the modal from showing
+5. **React execution context issue** - Modal.confirm needs to be called outside the current execution context
 
 ## Next Steps to Try
 
