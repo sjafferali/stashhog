@@ -58,13 +58,15 @@ class Daemon(BaseModel):
     auto_start = Column(Boolean, nullable=False, default=False)
     status = Column(String(50), nullable=False, default=DaemonStatus.STOPPED.value)
     configuration = Column(JSONBType, nullable=True, default=dict)
-    started_at = Column(DateTime, nullable=True)
-    last_heartbeat = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    last_heartbeat = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
@@ -106,7 +108,9 @@ class DaemonLog(Base):
     level = Column(String(20), nullable=False)
     message = Column(Text, nullable=False)
     created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     # Relationships
@@ -133,7 +137,9 @@ class DaemonJobHistory(Base):
     action = Column(String(50), nullable=False)
     reason = Column(Text, nullable=True)
     created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     # Relationships

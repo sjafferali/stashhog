@@ -19,23 +19,49 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Insert test daemon record
-    op.execute(
-        f"""
-        INSERT INTO daemons (id, name, type, enabled, auto_start, status, configuration, created_at, updated_at)
-        VALUES (
-            '{uuid.uuid4()}',
-            'Test Daemon',
-            'test_daemon',
-            false,
-            false,
-            'STOPPED',
-            '{{"log_interval": 5, "job_interval": 30, "heartbeat_interval": 10, "simulate_errors": false}}'::jsonb,
-            NOW(),
-            NOW()
+    # Get database dialect
+    connection = op.get_bind()
+    dialect_name = connection.dialect.name
+
+    # Insert test daemon record with appropriate syntax for the database
+    daemon_id = str(uuid.uuid4())
+    config_json = '{"log_interval": 5, "job_interval": 30, "heartbeat_interval": 10, "simulate_errors": false}'
+
+    if dialect_name == "postgresql":
+        op.execute(
+            f"""
+            INSERT INTO daemons (id, name, type, enabled, auto_start, status, configuration, created_at, updated_at)
+            VALUES (
+                '{daemon_id}',
+                'Test Daemon',
+                'test_daemon',
+                false,
+                false,
+                'STOPPED',
+                '{config_json}'::jsonb,
+                NOW(),
+                NOW()
+            )
+            """
         )
-        """
-    )
+    else:
+        # SQLite and others
+        op.execute(
+            f"""
+            INSERT INTO daemons (id, name, type, enabled, auto_start, status, configuration, created_at, updated_at)
+            VALUES (
+                '{daemon_id}',
+                'Test Daemon',
+                'test_daemon',
+                0,
+                0,
+                'STOPPED',
+                '{config_json}',
+                datetime('now'),
+                datetime('now')
+            )
+            """
+        )
 
 
 def downgrade() -> None:

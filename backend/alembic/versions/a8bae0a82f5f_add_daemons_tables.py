@@ -6,6 +6,7 @@ Create Date: 2025-08-01 10:52:13.849686
 
 """
 
+import uuid
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -21,25 +22,42 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Get database dialect
+    connection = op.get_bind()
+    dialect_name = connection.dialect.name
+
+    # Use appropriate types based on database
+    if dialect_name == "postgresql":
+        uuid_type = postgresql.UUID(as_uuid=True)
+        json_type = postgresql.JSONB(astext_type=sa.Text())
+    else:
+        # For SQLite and others
+        uuid_type = sa.String(36)
+        json_type = sa.JSON()
+
     # Create daemons table
     op.create_table(
         "daemons",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("id", uuid_type, nullable=False, default=lambda: str(uuid.uuid4())),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("type", sa.String(100), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("auto_start", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("status", sa.String(50), nullable=False),
+        sa.Column("configuration", json_type, nullable=True),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_heartbeat", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
-            "configuration", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
-        sa.Column("started_at", sa.DateTime(), nullable=True),
-        sa.Column("last_heartbeat", sa.DateTime(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name"),
@@ -53,12 +71,15 @@ def upgrade() -> None:
     # Create daemon_logs table
     op.create_table(
         "daemon_logs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("daemon_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("id", uuid_type, nullable=False, default=lambda: str(uuid.uuid4())),
+        sa.Column("daemon_id", uuid_type, nullable=False),
         sa.Column("level", sa.String(20), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.ForeignKeyConstraint(["daemon_id"], ["daemons.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -72,13 +93,16 @@ def upgrade() -> None:
     # Create daemon_job_history table
     op.create_table(
         "daemon_job_history",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("daemon_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("id", uuid_type, nullable=False, default=lambda: str(uuid.uuid4())),
+        sa.Column("daemon_id", uuid_type, nullable=False),
         sa.Column("job_id", sa.String(), nullable=False),
         sa.Column("action", sa.String(50), nullable=False),
         sa.Column("reason", sa.Text(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.ForeignKeyConstraint(["daemon_id"], ["daemons.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["job_id"], ["job.id"], ondelete="CASCADE"),
