@@ -226,7 +226,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 ]:
                     await self.log(
                         LogLevel.INFO,
-                        f"Job {job_id} (type: {job.job_type}) completed with status: {job.status}",
+                        f"Job {job_id} (type: {job.type}) completed with status: {job.status}",
                     )
 
                     await self.track_job_action(
@@ -239,7 +239,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                     # APPLY_PLAN jobs should not trigger another apply
                     if (
                         job.status == JobStatus.COMPLETED.value
-                        and job.job_type == JobType.ANALYSIS.value
+                        and job.type == JobType.ANALYSIS.value
                         and config["auto_approve_plans"]
                     ):
                         await self._handle_completed_analysis_job(job_id, job)

@@ -610,9 +610,11 @@ class PlanManager:
         if plan.status == PlanStatus.DRAFT and (accepted > 0 or rejected > 0):
             plan.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
-        # Plan is fully applied when all accepted changes are applied
-        # and there are no pending changes
-        if accepted > 0 and accepted == applied and pending == 0:
+        # Plan is fully applied when:
+        # 1. There are no pending changes (all changes have been reviewed)
+        # 2. There are no approved changes left (all approved changes have been applied)
+        # 3. There's at least one applied change
+        if pending == 0 and accepted == 0 and applied > 0:
             plan.status = PlanStatus.APPLIED  # type: ignore[assignment]
             plan.applied_at = datetime.utcnow()  # type: ignore[assignment]
 

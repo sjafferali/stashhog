@@ -220,9 +220,13 @@ class TestAnalysisPlan:
 
         with (
             patch.object(analysis_plan, "get_change_count", return_value=5),
-            patch.object(analysis_plan, "get_accepted_change_count", return_value=3),
+            patch.object(
+                analysis_plan, "get_accepted_change_count", return_value=0
+            ),  # All approved changes have been applied
             patch.object(analysis_plan, "get_rejected_change_count", return_value=2),
-            patch.object(analysis_plan, "get_applied_change_count", return_value=3),
+            patch.object(
+                analysis_plan, "get_applied_change_count", return_value=3
+            ),  # Those 3 changes are now APPLIED
             patch.object(analysis_plan, "get_pending_change_count", return_value=0),
         ):
 
@@ -358,9 +362,13 @@ class TestAnalysisPlanEdgeCases:
 
         with (
             patch.object(analysis_plan, "get_change_count", return_value=5),
-            patch.object(analysis_plan, "get_accepted_change_count", return_value=3),
+            patch.object(
+                analysis_plan, "get_accepted_change_count", return_value=0
+            ),  # All approved changes have been applied
             patch.object(analysis_plan, "get_rejected_change_count", return_value=2),
-            patch.object(analysis_plan, "get_applied_change_count", return_value=3),
+            patch.object(
+                analysis_plan, "get_applied_change_count", return_value=3
+            ),  # Those 3 changes are now APPLIED
             patch.object(analysis_plan, "get_pending_change_count", return_value=0),
         ):
 

@@ -132,18 +132,15 @@ class AnalysisPlan(BaseModel):
             self.status = PlanStatus.REVIEWING  # type: ignore[assignment]
 
         # Only mark as APPLIED when:
-        # 1. There are no pending changes (all changes have been either accepted or rejected)
-        # 2. All accepted changes have been applied
+        # 1. There are no pending changes (all changes have been reviewed)
+        # 2. There are no approved changes left (all approved changes have been applied)
         # 3. There's at least one applied change
-        if pending == 0 and applied > 0:
-            # Check if all accepted changes have been applied
-            unapplied_accepted = accepted - applied
-            if unapplied_accepted == 0:
-                self.status = PlanStatus.APPLIED  # type: ignore[assignment]
-                if not self.applied_at:
-                    from datetime import datetime, timezone
+        if pending == 0 and accepted == 0 and applied > 0:
+            self.status = PlanStatus.APPLIED  # type: ignore[assignment]
+            if not self.applied_at:
+                from datetime import datetime, timezone
 
-                    self.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+                self.applied_at = datetime.now(timezone.utc)  # type: ignore[assignment]
 
     def can_be_applied(self) -> bool:
         """Check if plan can be applied."""
