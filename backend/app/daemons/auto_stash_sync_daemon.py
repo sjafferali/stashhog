@@ -239,7 +239,9 @@ class AutoStashSyncDaemon(BaseDaemon):
                 ]:
                     # Get the number of scenes that were pending
                     pending_scenes = (
-                        job.metadata.get("pending_scenes", 0) if job.metadata else 0
+                        job.job_metadata.get("pending_scenes", 0)
+                        if job.job_metadata
+                        else 0
                     )
 
                     if job.status == JobStatus.COMPLETED.value:
