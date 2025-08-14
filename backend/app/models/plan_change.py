@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import (
     JSON,
-    Boolean,
     Column,
     DateTime,
     Enum,
@@ -84,7 +83,6 @@ class PlanChange(BaseModel):
         index=True,
     )
     # Tracking fields
-    applied: Column = Column(Boolean(), default=False, nullable=False, index=True)
     applied_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     # Relationships
@@ -95,7 +93,6 @@ class PlanChange(BaseModel):
     __table_args__ = (
         Index("idx_change_plan_field", "plan_id", "field"),
         Index("idx_change_scene_field", "scene_id", "field"),
-        Index("idx_change_applied_plan", "applied", "plan_id"),
         Index("idx_change_status_plan", "status", "plan_id"),
         Index("idx_change_confidence", "confidence"),
     )
@@ -136,8 +133,7 @@ class PlanChange(BaseModel):
     def can_be_applied(self) -> bool:
         """Check if this change can be applied."""
         return bool(
-            not self.applied
-            and self.status != ChangeStatus.REJECTED
+            self.status not in [ChangeStatus.REJECTED, ChangeStatus.APPLIED]
             and self.plan.can_be_applied()
         )
 

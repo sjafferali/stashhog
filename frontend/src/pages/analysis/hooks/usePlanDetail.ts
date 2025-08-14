@@ -24,6 +24,7 @@ interface RawChange {
     | Record<string, unknown>
     | null;
   confidence: number;
+  status?: 'pending' | 'approved' | 'rejected' | 'applied';
   accepted?: boolean;
   rejected?: boolean;
   applied?: boolean;
@@ -168,9 +169,10 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
             proposedValue: change.proposed_value,
             confidence: change.confidence,
             type: getFieldType(change.field, change.proposed_value),
-            accepted: change.accepted || false,
-            rejected: change.rejected || false,
-            applied: change.applied || false,
+            accepted:
+              change.status === 'approved' || change.status === 'applied',
+            rejected: change.status === 'rejected',
+            applied: change.status === 'applied' || change.applied || false,
           })),
         })),
       };
@@ -453,7 +455,7 @@ export function usePlanDetail(planId: number): UsePlanDetailReturn {
         totalChanges++;
         if (change.accepted) acceptedChanges++;
         else if (change.rejected) rejectedChanges++;
-        if (change.applied) appliedChanges++;
+        if (change.status === 'applied' || change.applied) appliedChanges++;
         totalConfidence += change.confidence;
       });
     });

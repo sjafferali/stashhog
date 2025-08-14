@@ -187,7 +187,6 @@ class TestPlanChange:
     def test_can_be_applied_success(self, plan_change, mock_plan):
         """Test can_be_applied when change can be applied."""
         plan_change.plan = mock_plan
-        plan_change.applied = False
         plan_change.status = ChangeStatus.PENDING
 
         assert plan_change.can_be_applied() is True
@@ -195,15 +194,13 @@ class TestPlanChange:
     def test_can_be_applied_already_applied(self, plan_change, mock_plan):
         """Test can_be_applied when already applied."""
         plan_change.plan = mock_plan
-        plan_change.applied = True
-        plan_change.status = ChangeStatus.PENDING
+        plan_change.status = ChangeStatus.APPLIED
 
         assert plan_change.can_be_applied() is False
 
     def test_can_be_applied_rejected(self, plan_change, mock_plan):
         """Test can_be_applied when rejected."""
         plan_change.plan = mock_plan
-        plan_change.applied = False
         plan_change.status = ChangeStatus.REJECTED
 
         assert plan_change.can_be_applied() is False
@@ -211,7 +208,6 @@ class TestPlanChange:
     def test_can_be_applied_plan_cannot_be_applied(self, plan_change, mock_plan):
         """Test can_be_applied when plan cannot be applied."""
         plan_change.plan = mock_plan
-        plan_change.applied = False
         plan_change.status = ChangeStatus.PENDING
         mock_plan.can_be_applied.return_value = False
 
@@ -272,13 +268,12 @@ class TestPlanChange:
         """Test that proper indexes are defined."""
         # Check that the table args define the expected indexes
         table_args = PlanChange.__table_args__
-        assert len(table_args) == 5
+        assert len(table_args) == 4  # Updated after removing idx_change_applied_plan
 
         # Check index names
         index_names = [idx.name for idx in table_args]
         assert "idx_change_plan_field" in index_names
         assert "idx_change_scene_field" in index_names
-        assert "idx_change_applied_plan" in index_names
         assert "idx_change_status_plan" in index_names
         assert "idx_change_confidence" in index_names
 
@@ -339,13 +334,11 @@ class TestPlanChangeEdgeCases:
             field="title",
             action=ChangeAction.SET,
             proposed_value="Test",
-            status=ChangeStatus.APPROVED,
-            applied=True,
+            status=ChangeStatus.APPLIED,
             applied_at=datetime.now(timezone.utc),
         )
 
-        assert change.status == ChangeStatus.APPROVED
-        assert change.applied is True
+        assert change.status == ChangeStatus.APPLIED
         assert change.applied_at is not None
 
     def test_status_transitions(self, plan_change):

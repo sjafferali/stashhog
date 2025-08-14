@@ -88,7 +88,9 @@ class TestAnalysisPlan:
             mock_changes.return_value = mock_changes_query
             count = analysis_plan.get_applied_change_count()
             assert count == 2
-            mock_changes_query.filter_by.assert_called_with(applied=True)
+            from app.models.plan_change import ChangeStatus
+
+            mock_changes_query.filter_by.assert_called_with(status=ChangeStatus.APPLIED)
 
     def test_get_accepted_change_count(self, analysis_plan, mock_changes_query):
         """Test get_accepted_change_count."""
@@ -100,7 +102,11 @@ class TestAnalysisPlan:
             mock_changes.return_value = mock_changes_query
             count = analysis_plan.get_accepted_change_count()
             assert count == 3
-            mock_changes_query.filter_by.assert_called_with(accepted=True)
+            from app.models.plan_change import ChangeStatus
+
+            mock_changes_query.filter_by.assert_called_with(
+                status=ChangeStatus.APPROVED
+            )
 
     def test_get_pending_change_count(self, analysis_plan, mock_changes_query):
         """Test get_pending_change_count."""
@@ -112,9 +118,9 @@ class TestAnalysisPlan:
             mock_changes.return_value = mock_changes_query
             count = analysis_plan.get_pending_change_count()
             assert count == 4
-            mock_changes_query.filter_by.assert_called_with(
-                accepted=False, rejected=False
-            )
+            from app.models.plan_change import ChangeStatus
+
+            mock_changes_query.filter_by.assert_called_with(status=ChangeStatus.PENDING)
 
     def test_get_rejected_change_count(self, analysis_plan, mock_changes_query):
         """Test get_rejected_change_count."""
@@ -126,7 +132,11 @@ class TestAnalysisPlan:
             mock_changes.return_value = mock_changes_query
             count = analysis_plan.get_rejected_change_count()
             assert count == 1
-            mock_changes_query.filter_by.assert_called_with(rejected=True)
+            from app.models.plan_change import ChangeStatus
+
+            mock_changes_query.filter_by.assert_called_with(
+                status=ChangeStatus.REJECTED
+            )
 
     def test_get_changes_by_field(self, analysis_plan, mock_changes_query):
         """Test get_changes_by_field."""

@@ -55,6 +55,7 @@ export interface ProposedChange {
     | null;
   confidence: number;
   type: 'text' | 'array' | 'object' | 'date' | 'number';
+  status?: 'pending' | 'approved' | 'rejected' | 'applied';
   accepted?: boolean;
   rejected?: boolean;
   applied?: boolean;

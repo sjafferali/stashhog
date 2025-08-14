@@ -409,7 +409,11 @@ const PlanList: React.FC = () => {
               if (scene.changes && Array.isArray(scene.changes)) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 scene.changes.forEach((change: any) => {
-                  if (change.accepted && !change.applied && change.id) {
+                  if (
+                    (change.status === 'approved' ||
+                      (change.accepted && !change.applied)) &&
+                    change.id
+                  ) {
                     changeIds.push(change.id);
                   }
                 });
@@ -684,7 +688,11 @@ const PlanList: React.FC = () => {
                 if (scene.changes && Array.isArray(scene.changes)) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   scene.changes.forEach((change: any) => {
-                    if (change.accepted && !change.applied && change.id) {
+                    if (
+                      (change.status === 'approved' ||
+                        (change.accepted && !change.applied)) &&
+                      change.id
+                    ) {
                       changeIds.push(change.id);
                     }
                   });

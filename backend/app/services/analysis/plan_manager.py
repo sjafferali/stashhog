@@ -521,9 +521,7 @@ class PlanManager:
 
         if not apply_filters.get(str(change.field), True):
             return False
-        if change.status == ChangeStatus.REJECTED:
-            return False
-        if change.applied:
+        if change.status in [ChangeStatus.REJECTED, ChangeStatus.APPLIED]:
             return False
         return True
 
@@ -576,7 +574,7 @@ class PlanManager:
         # Applied changes
         applied_result = await db.execute(
             select(func.count()).where(
-                PlanChange.plan_id == plan.id, PlanChange.applied.is_(True)
+                PlanChange.plan_id == plan.id, PlanChange.status == ChangeStatus.APPLIED
             )
         )
         applied = applied_result.scalar() or 0
@@ -586,7 +584,6 @@ class PlanManager:
             select(func.count()).where(
                 PlanChange.plan_id == plan.id,
                 PlanChange.status == ChangeStatus.APPROVED,
-                PlanChange.applied.is_(False),
             )
         )
         accepted = accepted_result.scalar() or 0
@@ -645,7 +642,7 @@ class PlanManager:
             if change.field == "markers":
                 await self._prepare_markers_update(change, scene, stash_service)
                 # Mark change as applied
-                change.applied = True  # type: ignore[assignment]
+                change.status = ChangeStatus.APPLIED  # type: ignore[assignment]
                 change.applied_at = datetime.utcnow()  # type: ignore[assignment]
                 await db.flush()
                 return True
@@ -658,7 +655,7 @@ class PlanManager:
                 await stash_service.update_scene(str(change.scene_id), update_data)
 
                 # Mark change as applied
-                change.applied = True  # type: ignore[assignment]
+                change.status = ChangeStatus.APPLIED  # type: ignore[assignment]
                 change.applied_at = datetime.utcnow()  # type: ignore[assignment]
                 await db.flush()
 

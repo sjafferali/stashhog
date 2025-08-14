@@ -1146,12 +1146,14 @@ class TestAnalysisRoutes:
 
     def test_update_change_status_applied_error(self, client, mock_db):
         """Test error when trying to update an already applied change."""
+        from app.models.plan_change import ChangeStatus
+
         change_id = 1
 
         # Mock applied change
         mock_change = Mock()
         mock_change.id = change_id
-        mock_change.applied = True
+        mock_change.status = ChangeStatus.APPLIED
 
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = mock_change

@@ -723,7 +723,7 @@ class TestPlanExecution:
         )
 
         assert result is True
-        assert change.applied is True
+        assert change.status == ChangeStatus.APPLIED
         assert change.applied_at is not None
         stash_service.update_scene.assert_called_once_with(
             "scene1", {"title": "New Title"}
@@ -756,7 +756,7 @@ class TestPlanExecution:
 
         assert result is False
         # Check that change wasn't marked as applied
-        assert change.applied is None or change.applied is False
+        assert change.status != ChangeStatus.APPLIED
 
     @pytest.mark.asyncio
     async def test_prepare_studio_update(self, test_async_session):

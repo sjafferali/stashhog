@@ -74,19 +74,27 @@ class AnalysisPlan(BaseModel):
 
     def get_applied_change_count(self) -> int:
         """Get number of applied changes."""
-        return int(self.changes.filter_by(applied=True).count())
+        from app.models.plan_change import ChangeStatus
+
+        return int(self.changes.filter_by(status=ChangeStatus.APPLIED).count())
 
     def get_accepted_change_count(self) -> int:
-        """Get number of accepted changes (may or may not be applied yet)."""
-        return int(self.changes.filter_by(accepted=True).count())
+        """Get number of accepted changes (approved but not yet applied)."""
+        from app.models.plan_change import ChangeStatus
+
+        return int(self.changes.filter_by(status=ChangeStatus.APPROVED).count())
 
     def get_pending_change_count(self) -> int:
-        """Get number of pending changes (not accepted, not rejected)."""
-        return int(self.changes.filter_by(accepted=False, rejected=False).count())
+        """Get number of pending changes (not yet reviewed)."""
+        from app.models.plan_change import ChangeStatus
+
+        return int(self.changes.filter_by(status=ChangeStatus.PENDING).count())
 
     def get_rejected_change_count(self) -> int:
         """Get number of rejected changes."""
-        return int(self.changes.filter_by(rejected=True).count())
+        from app.models.plan_change import ChangeStatus
+
+        return int(self.changes.filter_by(status=ChangeStatus.REJECTED).count())
 
     def get_changes_by_field(self, field: str) -> list["PlanChange"]:
         """Get all changes for a specific field."""

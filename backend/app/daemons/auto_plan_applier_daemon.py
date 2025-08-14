@@ -190,21 +190,19 @@ class AutoPlanApplierDaemon(BaseDaemon):
         """Check if a plan should be processed based on configuration."""
         # Build query based on configuration
         if auto_approve_all:
-            # When auto_approve=True, check for APPROVED and PENDING changes
+            # When auto_approve=True, check for APPROVED and PENDING changes (not yet APPLIED)
             count_query = select(func.count(PlanChange.id)).where(
                 PlanChange.plan_id == plan_id,
                 or_(
                     PlanChange.status == ChangeStatus.APPROVED,
                     PlanChange.status == ChangeStatus.PENDING,
                 ),
-                PlanChange.applied.is_(False),
             )
         else:
-            # When auto_approve=False, only check for APPROVED changes
+            # When auto_approve=False, only check for APPROVED changes (not yet APPLIED)
             count_query = select(func.count(PlanChange.id)).where(
                 PlanChange.plan_id == plan_id,
                 PlanChange.status == ChangeStatus.APPROVED,
-                PlanChange.applied.is_(False),
             )
 
         result = await db.execute(count_query)

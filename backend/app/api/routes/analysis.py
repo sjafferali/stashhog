@@ -385,7 +385,6 @@ async def list_plans(
         approved_count_query = select(func.count(PlanChange.id)).where(
             PlanChange.plan_id == plan.id,  # type: ignore[attr-defined]
             PlanChange.status == ChangeStatus.APPROVED,
-            PlanChange.applied.is_(False),
         )
         approved_result = await db.execute(approved_count_query)
         approved_changes = approved_result.scalar_one()
@@ -486,7 +485,7 @@ async def get_plan(
                     if hasattr(change.status, "value")
                     else change.status
                 ),
-                applied=change.applied,
+                applied=(change.status == ChangeStatus.APPLIED),
             )
         )
 
@@ -502,7 +501,6 @@ async def get_plan(
     approved_count_query = select(func.count(PlanChange.id)).where(
         PlanChange.plan_id == plan_id,
         PlanChange.status == ChangeStatus.APPROVED,
-        PlanChange.applied.is_(False),
     )
     approved_result = await db.execute(approved_count_query)
     approved_changes = approved_result.scalar_one()
@@ -702,7 +700,7 @@ async def update_change(
         )
 
     # Check if change can be modified
-    if change.applied:
+    if change.status == ChangeStatus.APPLIED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot modify an applied change",
@@ -737,7 +735,7 @@ async def _get_plan_change_counts(
 
     # Applied changes count
     applied_query = select(func.count(PlanChange.id)).where(
-        PlanChange.plan_id == plan_id, PlanChange.applied.is_(True)
+        PlanChange.plan_id == plan_id, PlanChange.status == ChangeStatus.APPLIED
     )
     applied_result = await db.execute(applied_query)
     applied = applied_result.scalar_one()
@@ -753,7 +751,6 @@ async def _get_plan_change_counts(
     accepted_query = select(func.count(PlanChange.id)).where(
         PlanChange.plan_id == plan_id,
         PlanChange.status == ChangeStatus.APPROVED,
-        PlanChange.applied.is_(False),
     )
     accepted_result = await db.execute(accepted_query)
     accepted = accepted_result.scalar_one()
@@ -782,7 +779,7 @@ async def _update_plan_status_based_on_counts(
         return
 
     # Calculate total accepted (both applied and not applied)
-    total_accepted = applied + accepted
+    total_accepted = int(applied) + int(accepted)
 
     # If we're in DRAFT and any changes have been reviewed, move to REVIEWING
     if plan.status == PlanStatus.DRAFT and (total_accepted > 0 or rejected > 0):
@@ -836,7 +833,8 @@ def _build_bulk_update_query(
 
     query = select(PlanChange).where(
         PlanChange.plan_id == plan_id,
-        PlanChange.applied.is_(False),  # Don't modify already applied changes
+        PlanChange.status
+        != ChangeStatus.APPLIED,  # Don't modify already applied changes
     )
 
     # Add scene filter if provided
@@ -1043,7 +1041,7 @@ async def update_change_status(
         )
 
     # Check if change can be modified
-    if change.applied:
+    if change.status == ChangeStatus.APPLIED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot modify an applied change",
@@ -1093,7 +1091,7 @@ async def update_change_status(
         "status": (
             change.status.value if hasattr(change.status, "value") else change.status
         ),
-        "applied": change.applied,
+        "applied": (change.status == ChangeStatus.APPLIED),
         "plan_status": (
             plan.status.value if hasattr(plan.status, "value") else plan.status
         ),
@@ -1166,7 +1164,6 @@ async def apply_all_approved_changes(
         .join(PlanChange)
         .where(
             PlanChange.status == ChangeStatus.APPROVED,
-            PlanChange.applied.is_(False),
             AnalysisPlan.status != PlanStatus.CANCELLED,
             AnalysisPlan.status != PlanStatus.APPLIED,
         )
@@ -1185,7 +1182,6 @@ async def apply_all_approved_changes(
     # Count total approved changes
     count_query = select(func.count(PlanChange.id)).where(
         PlanChange.status == ChangeStatus.APPROVED,
-        PlanChange.applied.is_(False),
     )
     count_result = await db.execute(count_query)
     total_changes = count_result.scalar_one()

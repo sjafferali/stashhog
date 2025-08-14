@@ -2413,21 +2413,19 @@ class AnalysisService:
 
         # Query for changes based on auto_approve setting
         if auto_approve:
-            # When auto_approve=True, apply APPROVED and PENDING changes
+            # When auto_approve=True, apply APPROVED and PENDING changes (not yet APPLIED)
             changes_query = select(PlanChange.id).where(
                 PlanChange.plan_id == plan_id_int,
                 or_(
                     PlanChange.status == ChangeStatus.APPROVED,
                     PlanChange.status == ChangeStatus.PENDING,
                 ),
-                PlanChange.applied.is_(False),
             )
         else:
-            # When auto_approve=False, only apply APPROVED changes
+            # When auto_approve=False, only apply APPROVED changes (not yet APPLIED)
             changes_query = select(PlanChange.id).where(
                 PlanChange.plan_id == plan_id_int,
                 PlanChange.status == ChangeStatus.APPROVED,
-                PlanChange.applied.is_(False),
             )
 
         changes_result = await db.execute(changes_query)

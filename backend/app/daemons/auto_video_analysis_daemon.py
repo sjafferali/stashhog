@@ -292,14 +292,13 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 from app.models import PlanChange
                 from app.models.plan_change import ChangeStatus
 
-                # For auto_approve=True, we check for APPROVED and PENDING changes
+                # For auto_approve=True, we check for APPROVED and PENDING changes (not yet APPLIED)
                 count_query = select(func.count(PlanChange.id)).where(
                     PlanChange.plan_id == plan_id,
                     or_(
                         PlanChange.status == ChangeStatus.APPROVED,
                         PlanChange.status == ChangeStatus.PENDING,
                     ),
-                    PlanChange.applied.is_(False),
                 )
                 count_result = await db.execute(count_query)
                 unapplied_changes = count_result.scalar_one()
