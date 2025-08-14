@@ -71,6 +71,20 @@ def _add_synced_tag(torrent: Any) -> None:
         logger.warning("Continuing despite tag addition failure")
 
 
+def _add_error_syncing_tag(torrent: Any) -> None:
+    """Add 'error_syncing' tag to torrent that failed processing."""
+    try:
+        logger.debug(f"Adding 'error_syncing' tag to torrent: {torrent.name}")
+        torrent.add_tags("error_syncing")
+        logger.info(f"Marked torrent as error_syncing: {torrent.name}")
+    except Exception as e:
+        logger.error(
+            f"Failed to add 'error_syncing' tag to torrent '{torrent.name}': {str(e)}"
+        )
+        # Don't fail the whole process just because we couldn't add a tag
+        logger.warning("Continuing despite tag addition failure")
+
+
 def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     """Copy torrent content when hardlinking fails.
 
@@ -319,6 +333,8 @@ async def _process_single_torrent(
                 "error": f"Content path does not exist: {content_path}",
             }
         )
+        # Add error_syncing tag when content path doesn't exist
+        _add_error_syncing_tag(torrent)
         return
 
     # Determine destination path
@@ -390,7 +406,7 @@ async def _process_files(
 
 
 async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
-    """Get all completed torrents with category 'xxx' that don't have 'synced' tag."""
+    """Get all completed torrents with category 'xxx' that don't have 'synced' or 'error_syncing' tags."""
     try:
         # Get all completed torrents in xxx category
         logger.info("Fetching completed torrents with category 'xxx'")
@@ -398,7 +414,7 @@ async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
         torrents = qbt_client.torrents_info(status_filter="completed", category="xxx")
         logger.info(f"Found {len(torrents)} completed torrents in category 'xxx'")
 
-        # Filter out torrents that already have the "synced" tag
+        # Filter out torrents that already have the "synced" or "error_syncing" tags
         filtered_torrents = []
         for t in torrents:
             logger.debug(
@@ -410,24 +426,30 @@ async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
                 # If tags is a comma-separated string
                 tags_list = [tag.strip() for tag in t.tags.split(",") if tag.strip()]
                 has_synced = "synced" in tags_list
+                has_error = "error_syncing" in tags_list
             elif isinstance(t.tags, list):
                 # If tags is already a list
                 has_synced = "synced" in t.tags
+                has_error = "error_syncing" in t.tags
             else:
                 # If tags is None or some other type
                 logger.warning(
                     f"Unexpected tags type for torrent '{t.name}': {type(t.tags)}"
                 )
                 has_synced = False
+                has_error = False
 
-            if not has_synced:
+            if not has_synced and not has_error:
                 filtered_torrents.append(t)
-                logger.debug(f"Including torrent '{t.name}' (no 'synced' tag)")
+                logger.debug(
+                    f"Including torrent '{t.name}' (no 'synced' or 'error_syncing' tag)"
+                )
             else:
-                logger.debug(f"Skipping torrent '{t.name}' (has 'synced' tag)")
+                skip_reason = "synced" if has_synced else "error_syncing"
+                logger.debug(f"Skipping torrent '{t.name}' (has '{skip_reason}' tag)")
 
         logger.info(
-            f"Filtered to {len(filtered_torrents)} torrents without 'synced' tag"
+            f"Filtered to {len(filtered_torrents)} torrents without 'synced' or 'error_syncing' tags"
         )
         return filtered_torrents
 
@@ -509,6 +531,8 @@ async def _process_torrents(
             logger.error(f"Error processing torrent '{torrent.name}': {str(e)}")
             result["failed_items"] += 1
             result["errors"].append({"torrent": torrent.name, "error": str(e)})
+            # Add error_syncing tag to failed torrent
+            _add_error_syncing_tag(torrent)
 
 
 async def process_downloads_job(

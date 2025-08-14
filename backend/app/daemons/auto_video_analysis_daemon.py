@@ -39,6 +39,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._pending_plan_jobs: dict[str, int] = {}  # job_id -> plan_id mapping
+        self._batch_counter = 0  # Track batch numbers across processing cycles
+        self._initial_total_pending = (
+            0  # Track initial total for consistent batch count
+        )
         await self.log(LogLevel.INFO, "Auto Video Analysis Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -117,7 +121,19 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
             if total_pending == 0:
                 await self.log(LogLevel.DEBUG, "No scenes pending video analysis")
+                # Reset counters when all scenes are processed
+                self._batch_counter = 0
+                self._initial_total_pending = 0
                 return
+
+            # Initialize or update total pending tracking
+            if (
+                self._initial_total_pending == 0
+                or total_pending > self._initial_total_pending
+            ):
+                # New batch sequence starting or more scenes added
+                self._initial_total_pending = total_pending
+                self._batch_counter = 0
 
             await self.log(
                 LogLevel.INFO,
@@ -137,13 +153,15 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             if not scene_ids:
                 return
 
-            # Calculate batch info
-            total_batches = (total_pending + batch_size - 1) // batch_size
-            current_batch = 1  # This is simplified - in production you might track this
+            # Increment batch counter for this processing cycle
+            self._batch_counter += 1
+
+            # Calculate total batches based on initial total
+            total_batches = (self._initial_total_pending + batch_size - 1) // batch_size
 
             await self.log(
                 LogLevel.INFO,
-                f"Processing batch {current_batch} of {total_batches} "
+                f"Processing batch {self._batch_counter} of {total_batches} "
                 f"({len(scene_ids)} scenes)",
             )
 
