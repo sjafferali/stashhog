@@ -29,6 +29,7 @@ class DaemonType(str, enum.Enum):
     AUTO_VIDEO_ANALYSIS_DAEMON = "auto_video_analysis_daemon"
     AUTO_PLAN_APPLIER_DAEMON = "auto_plan_applier_daemon"
     AUTO_STASH_SYNC_DAEMON = "auto_stash_sync_daemon"
+    DOWNLOAD_PROCESSOR_DAEMON = "download_processor_daemon"
 
 
 class DaemonStatus(str, enum.Enum):

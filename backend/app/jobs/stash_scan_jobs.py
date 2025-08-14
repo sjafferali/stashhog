@@ -108,8 +108,17 @@ async def _poll_job_status(
     stash_job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
     cancellation_token: Optional[Any] = None,
+    is_metadata_scan: bool = False,
 ) -> Dict[str, Any]:
-    """Poll Stash job status until completion."""
+    """Poll Stash job status until completion.
+
+    Args:
+        stash_service: The Stash service instance
+        stash_job_id: The Stash job ID to poll
+        progress_callback: Callback for progress updates
+        cancellation_token: Token to check for cancellation
+        is_metadata_scan: If True, do NOT cancel Stash job on cancellation to prevent data corruption
+    """
     last_progress: float = 0
     poll_interval = 2  # seconds
     cancellation_requested = False
@@ -121,19 +130,34 @@ async def _poll_job_status(
             and cancellation_token.is_cancelled
             and not cancellation_requested
         ):
-            logger.info(f"Cancellation requested for Stash job {stash_job_id}")
-            try:
-                await stash_service.execute_graphql(
-                    STOP_JOB_MUTATION, {"job_id": stash_job_id}
+            if is_metadata_scan:
+                # For metadata scan, DO NOT cancel the Stash job to prevent data corruption
+                logger.warning(
+                    f"Cancellation requested for metadata scan job {stash_job_id}, "
+                    f"but NOT cancelling Stash server job to prevent data corruption. "
+                    f"The Stash metadata scan job will continue running on the server."
                 )
-                cancellation_requested = True
-                logger.info(
-                    f"Sent cancellation request to Stash for job {stash_job_id}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to stop Stash job {stash_job_id}: {e}")
-                # Even if the stop request fails, mark as requested to avoid retrying
-                cancellation_requested = True
+                # Return cancelled status without stopping the Stash job
+                return {
+                    "status": "cancelled",
+                    "message": "StashHog job cancelled (Stash server job continues to prevent data corruption)",
+                    "stash_job_id": stash_job_id,
+                }
+            else:
+                # For other job types, cancel normally
+                logger.info(f"Cancellation requested for Stash job {stash_job_id}")
+                try:
+                    await stash_service.execute_graphql(
+                        STOP_JOB_MUTATION, {"job_id": stash_job_id}
+                    )
+                    cancellation_requested = True
+                    logger.info(
+                        f"Sent cancellation request to Stash for job {stash_job_id}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to stop Stash job {stash_job_id}: {e}")
+                    # Even if the stop request fails, mark as requested to avoid retrying
+                    cancellation_requested = True
 
         try:
             result = await stash_service.execute_graphql(
@@ -219,8 +243,13 @@ async def stash_scan_job(
         await progress_callback(10, f"Stash job started: {stash_job_id}")
 
         # Poll job status until completion
+        # Pass is_metadata_scan=True to prevent cancelling Stash server job
         poll_result = await _poll_job_status(
-            stash_service, stash_job_id, progress_callback, cancellation_token
+            stash_service,
+            stash_job_id,
+            progress_callback,
+            cancellation_token,
+            is_metadata_scan=True,
         )
 
         # Final progress
