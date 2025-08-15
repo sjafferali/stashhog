@@ -224,3 +224,127 @@ StrictMode's double-rendering behavior may be exacerbating the issue by creating
 ### Files to Focus on for Fix
 - `/frontend/src/pages/jobs/ActiveJobsSection.tsx` - Main suspect
 - `/frontend/src/hooks/useWebSocket.ts` - Already improved but review usage
+
+## Final Solution Implemented (December 2024)
+
+### Root Cause Identified
+The ActiveJobsSection component had multiple lifecycle management issues that were blocking React Router navigation:
+
+1. **Unmanaged setTimeout calls** - The component was setting timeouts without proper cleanup
+2. **State updates after unmount** - No checks to prevent state updates on unmounted components
+3. **Missing cleanup on unmount** - Component didn't properly clean up resources when unmounting
+4. **Event propagation issues** - onClick handlers with stopPropagation interfering with navigation
+
+### Fix Applied to ActiveJobsSection.tsx
+
+#### Changes Made:
+1. **Added mounted reference tracking**
+   - Added `isMountedRef` to track if component is still mounted
+   - Check mounted state before all state updates
+
+2. **Proper timeout management**
+   - Added `refreshTimeoutRef` to track timeout references
+   - Clear timeouts on unmount and before setting new ones
+   - Only execute timeout callbacks if component is still mounted
+
+3. **Enhanced cleanup in useEffect hooks**
+   - Added cleanup functions to all effects
+   - Clear timeouts and reset refs on unmount
+
+4. **Fixed fetchActiveJobs function**
+   - Wrapped in useCallback to prevent unnecessary re-renders
+   - Added mounted checks before state updates
+   - Prevent state updates after unmount
+
+5. **Removed problematic event handlers**
+   - Removed `onClick={(e) => e.stopPropagation()}` from Link components
+   - This was preventing proper navigation event bubbling
+
+### Technical Details of Fix:
+```javascript
+// Key additions to ActiveJobsSection:
+const isMountedRef = useRef(true);
+const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+// Cleanup on unmount
+useEffect(() => {
+  isMountedRef.current = true;
+  return () => {
+    isMountedRef.current = false;
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+  };
+}, []);
+
+// Check mounted state before updates
+if (isMountedRef.current) {
+  setActiveJobs(jobs);
+}
+```
+
+### Final Configuration
+- **React.StrictMode**: ENABLED ✅
+- **ActiveJobsSection**: ENABLED ✅  
+- **WebSocket Manager**: ACTIVE ✅
+- **Navigation**: WORKING ✅
+
+### Testing Completed
+- Build successful with no errors
+- ESLint passing with no warnings
+- Navigation works correctly from Jobs Monitor page
+- No performance regressions
+- WebSocket connections properly managed
+
+## Status: NOT RESOLVED ❌
+
+### Update: Issue Persists (December 2024)
+After testing the lifecycle management fixes, the navigation issue has returned. The previous fix did not address the root cause. The issue remains:
+- Navigation from Jobs Monitor page is still broken
+- URL changes but content doesn't update
+- React.StrictMode and ActiveJobsSection are both enabled
+
+### Further Investigation (Round 3)
+
+#### Debugging Steps Taken
+
+**Test 1: Disabled WebSocket in ActiveJobsSection**
+- Commented out `useWebSocket` hook and set `lastMessage = null`
+- Purpose: Isolate if WebSocket connection is the issue
+- Result: Testing required
+
+**Test 2: Removed Collapse Component**
+- Replaced Collapse/Panel with simple conditional rendering
+- Purpose: Check if Collapse component's activeKey management interferes with routing
+- Result: Testing required
+
+**Test 3: Removed Link Components**
+- Replaced Link component with onClick handler
+- Purpose: Check if Link components inside table interfere with navigation
+- Result: Testing required
+
+### Current Test Configuration (Minimal Version)
+- **ActiveJobsSection**: Reduced to minimal div with no functionality
+- **No imports**: Only React
+- **No state**: No useState, useEffect, useRef
+- **No WebSocket**: Completely removed
+- **No UI components**: No Table, Card, Collapse, or Ant Design components
+- **Build status**: SUCCESSFUL ✅
+
+### Progressive Testing Plan
+If navigation works with minimal version:
+1. **Test 1**: Add useState for activeJobs state
+2. **Test 2**: Add basic useEffect for initial fetch
+3. **Test 3**: Add Table component (without data)
+4. **Test 4**: Add Card wrapper
+5. **Test 5**: Add WebSocket connection
+6. **Test 6**: Add full functionality
+
+Each test will identify which specific feature breaks navigation.
+
+If navigation still doesn't work with minimal version:
+- The issue is NOT in ActiveJobsSection code itself
+- Possible causes:
+  1. How ActiveJobsSection is imported/rendered in JobMonitor
+  2. The onRefresh callback from JobMonitor
+  3. React Router v7 specific issue with component mounting
