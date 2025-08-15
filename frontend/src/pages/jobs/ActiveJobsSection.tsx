@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   Card,
@@ -54,29 +54,50 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const [previousActiveJobIds, setPreviousActiveJobIds] = useState<Set<string>>(
     new Set()
   );
+  const isMountedRef = useRef(true);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
-  const fetchActiveJobs = async () => {
+  const fetchActiveJobs = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
     try {
       setLoading(true);
       const jobs = await apiClient.getActiveJobs();
-      setActiveJobs(jobs);
+      if (isMountedRef.current) {
+        setActiveJobs(jobs);
+      }
     } catch (error) {
       console.error('Failed to fetch active jobs:', error);
-      void message.error('Failed to fetch active jobs');
-      setActiveJobs([]);
+      if (isMountedRef.current) {
+        void message.error('Failed to fetch active jobs');
+        setActiveJobs([]);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
-
-  // Initial fetch only
-  useEffect(() => {
-    void fetchActiveJobs();
   }, []);
+
+  // Initial fetch and cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    void fetchActiveJobs();
+
+    return () => {
+      isMountedRef.current = false;
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
+  }, [fetchActiveJobs]);
 
   // Handle WebSocket updates for real-time active job changes
   useEffect(() => {
+    if (!isMountedRef.current) return;
+
     if (lastMessage && typeof lastMessage === 'object') {
       const update = lastMessage as { type: string; job: Job };
 
@@ -88,34 +109,38 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
           job.status
         );
 
-        setActiveJobs((prevJobs) => {
-          const jobIndex = prevJobs.findIndex((j) => j.id === job.id);
+        if (isMountedRef.current) {
+          setActiveJobs((prevJobs) => {
+            const jobIndex = prevJobs.findIndex((j) => j.id === job.id);
 
-          if (isActiveJob) {
-            if (jobIndex >= 0) {
-              // Update existing active job
-              const newJobs = [...prevJobs];
-              newJobs[jobIndex] = job;
-              return newJobs;
+            if (isActiveJob) {
+              if (jobIndex >= 0) {
+                // Update existing active job
+                const newJobs = [...prevJobs];
+                newJobs[jobIndex] = job;
+                return newJobs;
+              } else {
+                // Add new active job
+                return [...prevJobs, job];
+              }
             } else {
-              // Add new active job
-              return [...prevJobs, job];
+              // Job completed/failed/cancelled - remove from active jobs
+              if (jobIndex >= 0) {
+                return prevJobs.filter((j) => j.id !== job.id);
+              }
             }
-          } else {
-            // Job completed/failed/cancelled - remove from active jobs
-            if (jobIndex >= 0) {
-              return prevJobs.filter((j) => j.id !== job.id);
-            }
-          }
 
-          return prevJobs;
-        });
+            return prevJobs;
+          });
+        }
       }
     }
   }, [lastMessage]);
 
   // Detect when jobs complete and refresh historical jobs
   useEffect(() => {
+    if (!isMountedRef.current) return;
+
     const currentActiveJobIds = new Set(activeJobs.map((job) => job.id));
 
     // Check if any jobs that were previously active are no longer active
@@ -124,17 +149,33 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     );
 
     // If jobs completed, refresh the historical jobs list
-    // Use a timeout to avoid interfering with navigation
     if (completedJobs.length > 0 && previousActiveJobIds.size > 0) {
-      const timeoutId = setTimeout(() => {
-        onRefresh();
-      }, 100);
+      // Clear any existing timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
 
-      return () => clearTimeout(timeoutId);
+      // Only set new timeout if component is still mounted
+      if (isMountedRef.current) {
+        refreshTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            onRefresh();
+          }
+          refreshTimeoutRef.current = null;
+        }, 100);
+      }
     }
 
     // Update the previous job IDs
     setPreviousActiveJobIds(currentActiveJobIds);
+
+    // Cleanup function
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
   }, [activeJobs, previousActiveJobIds, onRefresh]);
 
   const getStatusIcon = (status: string) => {
@@ -306,10 +347,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
 
           {shouldShowViewScenesButton(record) && (
             <Tooltip title="View Scenes">
-              <Link
-                to={`/scenes?job_ids=${record.id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
+              <Link to={`/scenes?job_ids=${record.id}`}>
                 <Button
                   type="text"
                   icon={<VideoCameraOutlined />}

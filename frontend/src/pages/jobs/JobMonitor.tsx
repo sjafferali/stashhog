@@ -55,7 +55,7 @@ import {
 import { JobCard } from '@/components/jobs/JobCard';
 import { WorkflowJobModal } from '@/components/jobs/WorkflowJobModal';
 import { HandledDownloadsModal } from '@/components/jobs/HandledDownloadsModal';
-// import ActiveJobsSection from './ActiveJobsSection';
+import ActiveJobsSection from './ActiveJobsSection';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -925,12 +925,11 @@ const JobMonitor: React.FC = () => {
         <Title level={2}>Job Monitor</Title>
       </div>
 
-      {/* Temporarily disabled to debug navigation issue
       <ActiveJobsSection
         onCancel={handleCancel}
         onRetry={handleRetry}
         onRefresh={() => void fetchJobs()}
-      /> */}
+      />
 
       <Card
         title={`Job History (${totalJobs} total)`}
