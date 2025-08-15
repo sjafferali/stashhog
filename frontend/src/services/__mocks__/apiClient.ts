@@ -37,7 +37,12 @@ const apiClient = {
   applyAllApprovedChanges: jest.fn(),
 
   // Jobs
-  getJobs: jest.fn(),
+  getJobs: jest.fn().mockResolvedValue({
+    jobs: [],
+    total: 0,
+    offset: 0,
+    limit: 20,
+  }),
   getJob: jest.fn(),
   cancelJob: jest.fn(),
   retryJob: jest.fn(),

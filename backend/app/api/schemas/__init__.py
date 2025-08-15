@@ -194,6 +194,9 @@ class JobsListResponse(BaseSchema):
     """Response wrapper for jobs list endpoint."""
 
     jobs: list[JobResponse] = Field(..., description="List of jobs")
+    total: int = Field(..., description="Total number of jobs available")
+    offset: int = Field(..., description="Number of jobs skipped")
+    limit: int = Field(..., description="Maximum number of jobs returned")
 
 
 # Entity schemas

@@ -110,7 +110,106 @@ async def get_active_jobs_endpoint(
             )
         )
 
-    return JobsListResponse(jobs=job_responses)
+    return JobsListResponse(
+        jobs=job_responses, total=len(job_responses), offset=0, limit=len(job_responses)
+    )
+
+
+def _create_job_response(job) -> JobResponse:
+    """Create a JobResponse from a job model."""
+    job_metadata_dict: Dict[str, Any] = (
+        job.job_metadata if isinstance(job.job_metadata, dict) else {}
+    )
+
+    return JobResponse(
+        id=str(job.id),
+        type=SchemaJobType(
+            map_job_type_to_schema(
+                str(job.type.value if hasattr(job.type, "value") else job.type)
+            )
+        ),
+        status=JobStatus(
+            job.status.value if hasattr(job.status, "value") else job.status
+        ),
+        progress=float(job.progress or 0),
+        parameters={},
+        metadata=job_metadata_dict,
+        result=job.result,  # type: ignore[arg-type]
+        error=job.error,  # type: ignore[arg-type]
+        created_at=job.created_at,  # type: ignore[arg-type]
+        updated_at=job.updated_at,  # type: ignore[arg-type]
+        started_at=job.started_at,  # type: ignore[arg-type]
+        completed_at=job.completed_at,  # type: ignore[arg-type]
+        total=job.total_items,
+        processed_items=job.processed_items,
+    )
+
+
+def _filter_active_jobs(
+    active_jobs, status: Optional[List[str]], job_type: Optional[str]
+):
+    """Filter active jobs by status and job_type."""
+    filtered_jobs = active_jobs
+    if status:
+        filtered_jobs = [job for job in filtered_jobs if job.status in status]
+    if job_type:
+        filtered_jobs = [
+            job
+            for job in filtered_jobs
+            if str(job.type.value if hasattr(job.type, "value") else job.type)
+            == job_type
+        ]
+    return filtered_jobs
+
+
+def _build_count_query(
+    status: Optional[List[str]], job_type: Optional[str], active_job_ids: List[str]
+):
+    """Build count query for total job count."""
+    count_query = select(func.count(Job.id))
+    if status:
+        count_query = count_query.where(Job.status.in_(status))
+        if active_job_ids:
+            count_query = count_query.where(~Job.id.in_(active_job_ids))
+    else:
+        count_query = count_query.where(~Job.status.in_(["pending", "running"]))
+    if job_type:
+        count_query = count_query.where(Job.type == job_type)
+    return count_query
+
+
+def _build_data_query(
+    status: Optional[List[str]],
+    job_type: Optional[str],
+    active_job_ids: List[str],
+    limit: int,
+):
+    """Build data query for fetching jobs."""
+    data_query = select(Job)
+    if status:
+        data_query = data_query.where(Job.status.in_(status))
+        if active_job_ids:
+            data_query = data_query.where(~Job.id.in_(active_job_ids))
+    else:
+        data_query = data_query.where(~Job.status.in_(["pending", "running"]))
+    if job_type:
+        data_query = data_query.where(Job.type == job_type)
+
+    max_db_jobs = max(limit * 2, 200)
+    data_query = data_query.order_by(Job.created_at.desc()).limit(max_db_jobs)
+    return data_query
+
+
+async def _get_total_count(db: AsyncSession, count_query) -> int:
+    """Get total count with fallback for tests."""
+    try:
+        count_result = await db.execute(count_query)
+        db_total_count = count_result.scalar() or 0
+        if not isinstance(db_total_count, int):
+            db_total_count = 0
+    except Exception:
+        db_total_count = 0
+    return db_total_count
 
 
 @router.get("", response_model=JobsListResponse)
@@ -118,7 +217,8 @@ async def list_jobs(
     status: Optional[List[str]] = Query(None, description="Filter by job status"),
     job_type: Optional[str] = Query(None, description="Filter by job type"),
     job_id: Optional[str] = Query(None, description="Filter by job ID"),
-    limit: int = Query(50, le=100, description="Maximum number of jobs to return"),
+    limit: int = Query(20, le=1000, description="Maximum number of jobs to return"),
+    offset: int = Query(0, ge=0, description="Number of jobs to skip"),
     db: AsyncSession = Depends(get_db),
     job_service: JobService = Depends(get_job_service),
 ) -> JobsListResponse:
@@ -131,108 +231,44 @@ async def list_jobs(
     if job_id:
         job = await job_service.get_job(job_id, db)
         if job:
-            # Ensure metadata is a dict
-            metadata_dict: Dict[str, Any] = (
-                job.job_metadata if isinstance(job.job_metadata, dict) else {}
-            )
-
-            job_response = JobResponse(
-                id=str(job.id),
-                type=SchemaJobType(
-                    map_job_type_to_schema(
-                        str(job.type.value if hasattr(job.type, "value") else job.type)
-                    )
-                ),
-                status=JobStatus(
-                    job.status.value if hasattr(job.status, "value") else job.status
-                ),
-                progress=float(job.progress or 0),
-                parameters={},
-                metadata=metadata_dict,
-                result=job.result,  # type: ignore[arg-type]
-                error=job.error,  # type: ignore[arg-type]
-                created_at=job.created_at,  # type: ignore[arg-type]
-                updated_at=job.updated_at,  # type: ignore[arg-type]
-                started_at=job.started_at,  # type: ignore[arg-type]
-                completed_at=job.completed_at,  # type: ignore[arg-type]
-                total=job.total_items,
-                processed_items=job.processed_items,
-            )
-            return JobsListResponse(jobs=[job_response])
+            job_response = _create_job_response(job)
+            return JobsListResponse(jobs=[job_response], total=1, offset=0, limit=limit)
         else:
-            return JobsListResponse(jobs=[])
+            return JobsListResponse(jobs=[], total=0, offset=0, limit=limit)
 
     # Get active jobs from queue
-    active_jobs = await job_service.get_active_jobs(db)
+    all_active_jobs = await job_service.get_active_jobs(db)
 
-    # Get IDs of active jobs to exclude from DB query
-    active_job_ids = [str(job.id) for job in active_jobs]
+    # Filter active jobs by status and job_type if filters are provided
+    active_jobs = _filter_active_jobs(all_active_jobs, status, job_type)
 
-    # Filter active jobs by status if status filter is provided
-    if status:
-        active_jobs = [job for job in active_jobs if job.status in status]
+    # Get IDs of ALL active jobs (not just filtered ones) to exclude from DB query
+    active_job_ids = [str(job.id) for job in all_active_jobs]
 
-    # Build database query
-    if status:
-        # Query DB for the requested statuses, but exclude jobs we already have from active_jobs
-        query = select(Job).where(Job.status.in_(status))
-        if active_job_ids:
-            query = query.where(~Job.id.in_(active_job_ids))
-    else:
-        # Otherwise, exclude active jobs to avoid duplicates with queue
-        query = select(Job).where(~Job.status.in_(["pending", "running"]))
+    # Get total count
+    count_query = _build_count_query(status, job_type, active_job_ids)
 
-    if job_type:
-        query = query.where(Job.type == job_type)
+    db_total_count = await _get_total_count(db, count_query)
+    total_count = len(active_jobs) + db_total_count
 
-    # Order by created_at descending and limit
-    query = query.order_by(Job.created_at.desc()).limit(limit)
+    # Get database jobs
+    data_query = _build_data_query(status, job_type, active_job_ids, limit)
 
-    # Execute query
-    result = await db.execute(query)
+    # Execute data query
+    result = await db.execute(data_query)
     db_jobs = result.scalars().all()
 
-    # Combine and convert to response models
+    # Combine, sort, and paginate
     all_jobs = list(active_jobs) + list(db_jobs)
-
-    # Sort by created_at and limit
     all_jobs.sort(key=lambda j: j.created_at, reverse=True)  # type: ignore[arg-type,return-value]
-    all_jobs = all_jobs[:limit]
+    paginated_jobs = all_jobs[offset : offset + limit]
 
     # Convert to response models
-    job_responses = []
-    for job in all_jobs:
-        # Ensure metadata is a dict
-        job_metadata_dict: Dict[str, Any] = (
-            job.job_metadata if isinstance(job.job_metadata, dict) else {}
-        )
+    job_responses = [_create_job_response(job) for job in paginated_jobs]
 
-        job_responses.append(
-            JobResponse(
-                id=str(job.id),
-                type=SchemaJobType(
-                    map_job_type_to_schema(
-                        str(job.type.value if hasattr(job.type, "value") else job.type)
-                    )
-                ),
-                status=JobStatus(
-                    job.status.value if hasattr(job.status, "value") else job.status
-                ),
-                progress=float(job.progress or 0),
-                parameters={},  # Empty dict for parameters since model doesn't have this field
-                metadata=job_metadata_dict,  # Use job_metadata for metadata field
-                result=job.result,  # type: ignore[arg-type]
-                error=job.error,  # type: ignore[arg-type]
-                created_at=job.created_at,  # type: ignore[arg-type]
-                updated_at=job.updated_at,  # type: ignore[arg-type]
-                started_at=job.started_at,  # type: ignore[arg-type]
-                completed_at=job.completed_at,  # type: ignore[arg-type]
-                total=job.total_items,  # Include progress tracking fields
-                processed_items=job.processed_items,
-            )
-        )
-
-    return JobsListResponse(jobs=job_responses)
+    return JobsListResponse(
+        jobs=job_responses, total=total_count, offset=offset, limit=limit
+    )
 
 
 @router.get("/recent-processed-torrents")

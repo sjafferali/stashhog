@@ -176,7 +176,7 @@ class ApiClient {
       jobs,
       total: response.data.total || jobs.length,
       offset: response.data.offset || 0,
-      limit: response.data.limit || 50,
+      limit: response.data.limit || 20,
     };
   }
 

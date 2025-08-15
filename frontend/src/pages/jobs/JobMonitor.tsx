@@ -70,7 +70,7 @@ const JobMonitor: React.FC = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [totalJobs, setTotalJobs] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(100);
+  const [pageSize, setPageSize] = useState<number>(20);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [workflowModalVisible, setWorkflowModalVisible] = useState(false);
