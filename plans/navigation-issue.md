@@ -157,8 +157,57 @@ The WebSocket manager singleton didn't fix the issue, which means the problem is
 - Location check: ENABLED
 - WebSocket Manager: ACTIVE
 
-### Next Steps
-Deploy and test with these changes to isolate the issue:
-1. If navigation works with ActiveJobsSection disabled, the issue is in that component
-2. If navigation still doesn't work, the issue is deeper in JobMonitor itself
-3. Check browser console for any errors during navigation attempts
+### Test Results - NAVIGATION WORKS! ✅
+
+With the debugging configuration:
+- ActiveJobsSection: DISABLED
+- React.StrictMode: DISABLED
+- Navigation is now functioning correctly!
+
+This confirms that either ActiveJobsSection or React.StrictMode (or both) are causing the navigation issue.
+
+## Root Cause Analysis
+
+### Most Likely Culprit: ActiveJobsSection
+Since both JobMonitor and ActiveJobsSection use WebSocket connections to the same endpoint (`/api/jobs/ws`), and disabling ActiveJobsSection fixes navigation, the issue is likely in how ActiveJobsSection handles its lifecycle or WebSocket connection.
+
+### Possible Contributing Factor: React.StrictMode
+StrictMode's double-rendering behavior may be exacerbating the issue by creating additional component instances or effect runs that interfere with navigation.
+
+## Next Steps for Resolution
+
+1. **Re-enable React.StrictMode** while keeping ActiveJobsSection disabled
+   - Test if navigation still works
+   - If yes: ActiveJobsSection is the sole culprit
+   - If no: Both StrictMode and ActiveJobsSection contribute to the issue
+
+2. **Fix ActiveJobsSection**
+   - Review how it handles WebSocket connections
+   - Ensure proper cleanup on unmount
+   - Check for any event handlers that might block navigation
+   - Consider using the WebSocket manager pattern there too
+
+3. **Re-enable both components** once fixed
+   - Verify navigation works with everything enabled
+   - Ensure no performance regressions
+
+## Current State of Codebase
+
+### Modified Files (Debugging Changes)
+1. `/frontend/src/pages/jobs/JobMonitor.tsx`
+   - Line 58: ActiveJobsSection import commented out
+   - Lines 74, 112-121: Added location-based cleanup
+   - Lines 928-933: ActiveJobsSection render commented out
+
+2. `/frontend/src/main.tsx`
+   - Lines 1, 31-44: React.StrictMode commented out
+
+3. `/frontend/src/services/websocketManager.ts`
+   - New singleton WebSocket manager (keep this - it's good architecture)
+
+4. `/frontend/src/hooks/useWebSocket.ts`
+   - Refactored to use WebSocket manager (keep this)
+
+### Files to Focus on for Fix
+- `/frontend/src/pages/jobs/ActiveJobsSection.tsx` - Main suspect
+- `/frontend/src/hooks/useWebSocket.ts` - Already improved but review usage
