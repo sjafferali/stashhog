@@ -5,12 +5,10 @@ import subprocess
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
-import qbittorrentapi
-
 from app.core.database import AsyncSessionLocal
-from app.core.settings_loader import load_settings_with_db_overrides
 from app.models.handled_download import HandledDownload
 from app.models.job import JobType
+from app.services.download_check_service import download_check_service
 from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
@@ -405,93 +403,6 @@ async def _process_files(
     return linked_files, files_already_exist
 
 
-async def _get_completed_torrents(qbt_client: Any) -> List[Any]:
-    """Get all completed torrents with category 'xxx' that don't have 'synced' or 'error_syncing' tags."""
-    try:
-        # Get all completed torrents in xxx category
-        logger.info("Fetching completed torrents with category 'xxx'")
-        # Note: status_filter should be a string, not a list
-        torrents = qbt_client.torrents_info(status_filter="completed", category="xxx")
-        logger.info(f"Found {len(torrents)} completed torrents in category 'xxx'")
-
-        # Filter out torrents that already have the "synced" or "error_syncing" tags
-        filtered_torrents = []
-        for t in torrents:
-            logger.debug(
-                f"Torrent '{t.name}' has tags: {t.tags} (type: {type(t.tags)})"
-            )
-
-            # Handle different possible types for tags
-            if isinstance(t.tags, str):
-                # If tags is a comma-separated string
-                tags_list = [tag.strip() for tag in t.tags.split(",") if tag.strip()]
-                has_synced = "synced" in tags_list
-                has_error = "error_syncing" in tags_list
-            elif isinstance(t.tags, list):
-                # If tags is already a list
-                has_synced = "synced" in t.tags
-                has_error = "error_syncing" in t.tags
-            else:
-                # If tags is None or some other type
-                logger.warning(
-                    f"Unexpected tags type for torrent '{t.name}': {type(t.tags)}"
-                )
-                has_synced = False
-                has_error = False
-
-            if not has_synced and not has_error:
-                filtered_torrents.append(t)
-                logger.debug(
-                    f"Including torrent '{t.name}' (no 'synced' or 'error_syncing' tag)"
-                )
-            else:
-                skip_reason = "synced" if has_synced else "error_syncing"
-                logger.debug(f"Skipping torrent '{t.name}' (has '{skip_reason}' tag)")
-
-        logger.info(
-            f"Filtered to {len(filtered_torrents)} torrents without 'synced' or 'error_syncing' tags"
-        )
-        return filtered_torrents
-
-    except Exception as e:
-        logger.error(f"Error getting completed torrents: {str(e)}", exc_info=True)
-        raise
-
-
-async def _connect_to_qbittorrent() -> Any:
-    """Connect and authenticate to qBittorrent."""
-    settings = await load_settings_with_db_overrides()
-
-    logger.info(
-        f"Attempting to connect to qBittorrent at {settings.qbittorrent.host}:{settings.qbittorrent.port}"
-    )
-
-    qbt_client = qbittorrentapi.Client(
-        host=settings.qbittorrent.host,
-        port=settings.qbittorrent.port,
-        username=settings.qbittorrent.username,
-        password=settings.qbittorrent.password,
-    )
-
-    try:
-        qbt_client.auth_log_in()
-    except qbittorrentapi.LoginFailed as e:
-        logger.error(f"Failed to authenticate with qBittorrent: {str(e)}")
-        raise Exception(
-            f"Failed to authenticate with qBittorrent. Invalid credentials: {str(e)}"
-        )
-    except Exception as e:
-        logger.error(
-            f"Failed to connect to qBittorrent at {settings.qbittorrent.host}:{settings.qbittorrent.port}. Error: {str(e)}"
-        )
-        raise Exception(
-            f"Failed to connect to qBittorrent. Connection Error: {type(e).__name__}({str(e)})"
-        )
-
-    logger.info("Successfully connected to qBittorrent")
-    return qbt_client
-
-
 async def _process_torrents(
     completed_torrents: List[Any],
     dest_base: Path,
@@ -551,7 +462,6 @@ async def process_downloads_job(
             - exclude_small_vids: If True, skip video files under 30 seconds (default: False)
     """
     logger.info(f"Starting process_downloads job {job_id}")
-    qbt_client = None
 
     # Get exclude_small_vids flag from kwargs (default to False)
     exclude_small_vids = kwargs.get("exclude_small_vids", False)
@@ -561,18 +471,11 @@ async def process_downloads_job(
         # Initial progress
         await progress_callback(0, "Starting download processing job")
 
-        # Connect to qBittorrent
-        logger.debug("Connecting to qBittorrent...")
-        await progress_callback(5, "Connecting to qBittorrent...")
-        qbt_client = await _connect_to_qbittorrent()
-
-        # Get completed torrents without 'synced' tag
-        logger.debug("Getting completed torrents...")
-        await progress_callback(10, "Fetching completed torrents...")
-        completed_torrents = await _get_completed_torrents(qbt_client)
-        logger.info(
-            f"Found {len(completed_torrents)} completed torrents with category 'xxx' to process"
-        )
+        # Get pending downloads using centralized service
+        logger.debug("Getting pending downloads...")
+        await progress_callback(10, "Fetching pending downloads...")
+        completed_torrents = await download_check_service.get_pending_downloads()
+        logger.info(f"Found {len(completed_torrents)} completed torrents to process")
 
         if not completed_torrents:
             return _initialize_result(job_id, 0)
@@ -613,10 +516,6 @@ async def process_downloads_job(
         logger.error(error_msg, exc_info=True)
         await progress_callback(100, error_msg)
         raise
-    finally:
-        # Clean up qBittorrent client connection
-        if qbt_client is not None:
-            qbt_client.auth_log_out()
 
 
 def register_download_jobs(job_service: JobService) -> None:

@@ -9,16 +9,16 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-import pytz
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession as AsyncDBSession
 
-from app.models import AnalysisPlan, Performer, Scene, Studio, SyncHistory, Tag
+from app.models import AnalysisPlan, Performer, Scene, Studio, Tag
 from app.models.analysis_plan import PlanStatus
 from app.models.job import Job, JobStatus
 from app.models.job import JobType as ModelJobType
 from app.services.download_check_service import download_check_service
 from app.services.stash_service import StashService
+from app.services.sync_status_service import SyncStatusService
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class DashboardStatusService:
 
     def __init__(self, stash_service: StashService):
         self.stash_service = stash_service
+        self.sync_status_service = SyncStatusService(stash_service)
 
     async def get_all_status_data(self, db: AsyncDBSession) -> Dict[str, Any]:
         """
@@ -100,77 +101,18 @@ class DashboardStatusService:
 
     async def _get_sync_status(self, db: AsyncDBSession) -> Dict[str, Any]:
         """Get sync status including pending scenes."""
-        # Get last sync times
-        last_syncs = {}
-        for entity_type in ["scene", "performer", "tag", "studio"]:
-            query = (
-                select(SyncHistory)
-                .where(
-                    SyncHistory.entity_type == entity_type,
-                    SyncHistory.status == "completed",
-                )
-                .order_by(SyncHistory.completed_at.desc())
-                .limit(1)
-            )
-            result = await db.execute(query)
-            last_sync = result.scalar_one_or_none()
-            if last_sync:
-                last_syncs[entity_type] = last_sync.completed_at.isoformat()
-
-        # Get pending scenes count
-        pending_scenes = await self._get_pending_scenes_count(last_syncs.get("scene"))
+        # Use centralized sync status service
+        sync_status = await self.sync_status_service.get_sync_status(db)
 
         # Check if sync is running
         is_syncing = await self._is_job_running(
             db, [ModelJobType.SYNC, ModelJobType.SYNC_SCENES]
         )
 
-        return {
-            "last_scene_sync": last_syncs.get("scene"),
-            "last_performer_sync": last_syncs.get("performer"),
-            "last_tag_sync": last_syncs.get("tag"),
-            "last_studio_sync": last_syncs.get("studio"),
-            "pending_scenes": pending_scenes,
-            "is_syncing": is_syncing,
-        }
+        # Add is_syncing to the status
+        sync_status["is_syncing"] = is_syncing
 
-    async def _get_pending_scenes_count(self, last_sync_iso: str | None) -> int:
-        """Get count of scenes pending sync."""
-        try:
-            if last_sync_iso:
-                # Parse and format timestamp for Stash
-                dt = datetime.fromisoformat(last_sync_iso.replace("Z", "+00:00"))
-                dt_no_microseconds = dt.replace(microsecond=0)
-
-                # Convert to Pacific timezone for Stash filter
-                pacific_tz = pytz.timezone("America/Los_Angeles")
-                dt_pacific = dt_no_microseconds.astimezone(pacific_tz)
-                formatted_timestamp = dt_pacific.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-                filter_dict = {
-                    "updated_at": {
-                        "value": formatted_timestamp,
-                        "modifier": "GREATER_THAN",
-                    }
-                }
-                logger.info(f"Checking for scenes updated after: {formatted_timestamp}")
-            else:
-                # No previous sync, count all scenes as pending
-                filter_dict = {}
-                logger.info(
-                    "No previous scene sync found, counting all scenes as pending"
-                )
-
-            scenes, total_count = await self.stash_service.get_scenes(
-                page=1,
-                per_page=1,
-                filter=filter_dict,
-            )
-            return total_count
-
-        except Exception as e:
-            logger.error(f"Error getting pending scenes count: {str(e)}", exc_info=True)
-            return 0
+        return sync_status
 
     async def _get_analysis_status(self, db: AsyncDBSession) -> Dict[str, Any]:
         """Get analysis status metrics."""

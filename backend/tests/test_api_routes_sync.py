@@ -673,87 +673,58 @@ class TestSyncStatsEndpoint:
 
     def test_get_sync_stats_with_active_sync(self, client, mock_db, mock_stash_service):
         """Test getting sync stats with active sync job."""
-        # Mock responses
-        call_count = 0
+        # Create the active job
+        active_job = Mock()
+        active_job.id = "job-123"
+        active_job.type = JobType.SYNC
+        active_job.status = JobStatus.RUNNING
+        active_job.progress = 50
+        active_job.created_at = datetime.now(timezone.utc)
+        active_job.completed_at = None
+        active_job.error = None
+        active_job.result = {}
+        active_job.job_metadata = {}
 
         def mock_execute(query):
-            nonlocal call_count
             result = Mock()
-
-            # Set up default mocks first to prevent errors
+            # Set up default mocks
             mock_scalars = Mock()
             mock_scalars.all.return_value = []
             result.scalars.return_value = mock_scalars
             result.scalar_one.return_value = 0
             result.scalar_one_or_none.return_value = None
 
-            # Entity counts (scene, performer, tag, studio) - 4 calls
-            if call_count < 4:
-                result.scalar_one.return_value = 0
-            # Sync history queries - 4 calls
-            elif call_count < 8:
-                result.scalar_one_or_none.return_value = None
-            # Active sync jobs query - 1 call
-            elif call_count == 8:
-                active_job = Mock()
-                active_job.id = "job-123"
-                active_job.type = JobType.SYNC
-                active_job.status = JobStatus.RUNNING
-                active_job.progress = 50
-                active_job.created_at = datetime.now(timezone.utc)
-                active_job.completed_at = None
-                active_job.error = None
-                active_job.result = {}
-                active_job.job_metadata = {}
-                mock_scalars = Mock()
-                mock_scalars.all.return_value = [active_job]
-                result.scalars.return_value = mock_scalars
-            # Analysis metrics (not analyzed, not video analyzed, unorganized) - 3 calls
-            elif call_count < 12:
-                result.scalar_one.return_value = 0
-            # Plan counts (draft, reviewing) - 2 calls
-            elif call_count < 14:
-                result.scalar_one.return_value = 0
-            # Active analysis jobs - 1 call
-            elif call_count == 14:
-                mock_scalars = Mock()
-                mock_scalars.all.return_value = []
-                result.scalars.return_value = mock_scalars
-            # Running/completed jobs queries - 2 calls
-            elif call_count < 17:
-                # Return mock that has all() method
-                mock_scalars = Mock()
-                if call_count == 15:  # First is running jobs query
-                    # Return the active job created earlier
-                    active_job = Mock()
-                    active_job.id = "job-123"
-                    active_job.type = JobType.SYNC
-                    active_job.status = JobStatus.RUNNING
-                    active_job.progress = 50
-                    active_job.created_at = datetime.now(timezone.utc)
-                    active_job.completed_at = None
-                    active_job.error = None
-                    active_job.result = {}
-                    active_job.job_metadata = {}
-                    mock_scalars.all.return_value = [active_job]
-                else:
-                    # Second is completed jobs query - empty
-                    mock_scalars.all.return_value = []
-                result.scalars.return_value = mock_scalars
-            # All remaining queries - rest of calls
-            else:
-                # Default mock setup for scalars queries
-                mock_scalars = Mock()
-                mock_scalars.all.return_value = []
-                result.scalars.return_value = mock_scalars
-                # And for scalar queries
-                result.scalar_one.return_value = 0
-                result.scalar_one_or_none.return_value = None
+            # Check query type by string representation
+            query_str = str(query)
 
-            call_count += 1
+            # Check for Job queries (for active sync/analysis jobs)
+            if "FROM job" in query_str or "FROM public.job" in query_str:
+                # Check if it's looking for SYNC or SYNC_SCENES jobs
+                if ("job.type IN" in query_str or "type IN" in query_str) and (
+                    "job.status IN" in query_str or "status IN" in query_str
+                ):
+                    # This is the active jobs check - return the active sync job
+                    mock_scalars = Mock()
+                    mock_scalars.all.return_value = [active_job]
+                    result.scalars.return_value = mock_scalars
+                else:
+                    # Other job queries (running/completed jobs for display)
+                    mock_scalars = Mock()
+                    mock_scalars.all.return_value = []
+                    result.scalars.return_value = mock_scalars
+            elif "sync_history" in query_str.lower():
+                # Sync history queries
+                result.scalar_one_or_none.return_value = None
+            elif "count" in query_str.lower():
+                # All count queries return 0
+                result.scalar_one.return_value = 0
+
             return result
 
         mock_db.execute.side_effect = mock_execute
+
+        # Mock Stash service to return 0 pending scenes (not needed for this test)
+        mock_stash_service.get_scenes.return_value = ([], 0)
 
         response = client.get("/api/sync/stats")
 

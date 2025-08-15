@@ -37,6 +37,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 import { SyncStatus, ActionableItem } from '@/types/models';
+import { jobMetadataService } from '@/services/jobMetadataService';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -83,7 +84,12 @@ const Dashboard: React.FC = () => {
     const loadInitialStats = async () => {
       try {
         setLoading(true);
-        await Promise.all([fetchStats(), fetchRecentTorrents()]);
+        // Fetch job metadata and stats in parallel
+        await Promise.all([
+          jobMetadataService.fetchMetadata(),
+          fetchStats(),
+          fetchRecentTorrents(),
+        ]);
       } finally {
         setLoading(false);
       }
@@ -216,22 +222,8 @@ const Dashboard: React.FC = () => {
   };
 
   const getJobTypeLabel = (type: string) => {
-    switch (type) {
-      case 'sync':
-      case 'sync_all':
-        return 'Full Sync';
-      case 'sync_scenes':
-      case 'scene_sync':
-        return 'Scene Sync';
-      case 'analysis':
-        return 'Scene Analysis';
-      case 'apply_plan':
-        return 'Apply Analysis Plan';
-      case 'process_downloads':
-        return 'Process Downloads';
-      default:
-        return type;
-    }
+    // Use centralized job metadata service
+    return jobMetadataService.getJobLabel(type);
   };
 
   const getJobStatusColor = (status: string) => {

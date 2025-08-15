@@ -7,6 +7,30 @@ jest.mock('dayjs');
 // Mock apiClient
 jest.mock('@/services/apiClient');
 
+// Mock job metadata service
+jest.mock('@/services/jobMetadataService', () => ({
+  jobMetadataService: {
+    fetchMetadata: jest.fn().mockResolvedValue({
+      job_types: [],
+      categories: [],
+    }),
+    getJobLabel: jest.fn().mockImplementation((type: string) => {
+      return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    }),
+    getJobColor: jest.fn().mockReturnValue('blue'),
+    getJobDescription: jest.fn().mockReturnValue('Mock description'),
+    getJobMetadata: jest.fn().mockReturnValue(null),
+    formatJobProgress: jest
+      .fn()
+      .mockImplementation((_type, processed, total, progress) => {
+        if (processed !== undefined && total !== undefined) {
+          return `${processed} / ${total}`;
+        }
+        return `${Math.round(progress || 0)}%`;
+      }),
+  },
+}));
+
 // Mock hooks
 jest.mock('@/hooks/useRunningJobs');
 jest.mock('@/hooks/useWebSocket');

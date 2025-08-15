@@ -11,8 +11,8 @@ from app.core.settings_loader import load_settings_with_db_overrides
 from app.daemons.base import BaseDaemon
 from app.models.daemon import DaemonJobAction, DaemonType, LogLevel
 from app.models.job import Job, JobStatus, JobType
-from app.services.dashboard_status_service import DashboardStatusService
 from app.services.stash_service import StashService
+from app.services.sync_status_service import SyncStatusService
 
 
 class AutoStashSyncDaemon(BaseDaemon):
@@ -37,7 +37,7 @@ class AutoStashSyncDaemon(BaseDaemon):
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._stash_service: Optional[StashService] = None
-        self._dashboard_service: Optional[DashboardStatusService] = None
+        self._sync_status_service: Optional[SyncStatusService] = None
         await self.log(LogLevel.INFO, "Auto Stash Sync Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -112,14 +112,14 @@ class AutoStashSyncDaemon(BaseDaemon):
         }
 
     async def _initialize_services(self):
-        """Initialize Stash and Dashboard services."""
+        """Initialize Stash and Sync Status services."""
         try:
             settings = await load_settings_with_db_overrides()
 
             self._stash_service = StashService(
                 stash_url=settings.stash.url, api_key=settings.stash.api_key
             )
-            self._dashboard_service = DashboardStatusService(self._stash_service)
+            self._sync_status_service = SyncStatusService(self._stash_service)
         except Exception as e:
             await self.log(
                 LogLevel.ERROR,
@@ -131,17 +131,18 @@ class AutoStashSyncDaemon(BaseDaemon):
     async def _check_and_sync_scenes(self, config: dict):
         """Check for scenes pending sync and create job if needed."""
         try:
-            if not self._dashboard_service:
+            if not self._sync_status_service:
                 await self.log(
                     LogLevel.ERROR,
-                    "Dashboard service not initialized",
+                    "Sync status service not initialized",
                 )
                 return
 
             async with AsyncSessionLocal() as db:
-                # Get sync status from dashboard service
-                sync_status = await self._dashboard_service._get_sync_status(db)
-                pending_scenes = sync_status.get("pending_scenes", 0)
+                # Get pending scenes count from centralized service
+                pending_scenes = (
+                    await self._sync_status_service.get_pending_scenes_count(db)
+                )
 
                 if pending_scenes == 0:
                     await self.log(LogLevel.DEBUG, "No scenes pending sync from Stash")
