@@ -106,7 +106,7 @@ const JobMonitor: React.FC = () => {
     useState(false);
   const [selectedHandledDownloadsJobId, setSelectedHandledDownloadsJobId] =
     useState<string | null>(null);
-  const { lastMessage } = useWebSocket('/api/jobs/ws');
+  const { lastMessage, disconnect } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -183,15 +183,32 @@ const JobMonitor: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Ensure WebSocket is disconnected when component unmounts
+      disconnect();
+
+      // Clear any pending intervals
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [disconnect]);
+
   // Store fetchJobs in a ref to avoid recreation issues
   const fetchJobsRef = useRef(fetchJobs);
   fetchJobsRef.current = fetchJobs;
 
   // Set up auto-refresh interval (only on mount/unmount, respects page visibility)
   useEffect(() => {
+    // Don't set up interval if page is not visible
+    if (!isPageVisible) return;
+
     const interval = setInterval(() => {
-      // Only fetch if page is visible
-      if (isPageVisible) {
+      // Double-check page is still visible before fetching
+      if (document.hidden === false) {
         void fetchJobsRef.current();
       }
     }, 10000);

@@ -144,23 +144,44 @@ export function useWebSocket(
 
   // Connect on mount and cleanup on unmount
   useEffect(() => {
+    if (!endpoint) return;
+
+    // Connect to WebSocket
     connect();
 
+    // Cleanup function
     return () => {
-      disconnect();
-    };
-  }, [connect, disconnect]);
+      // Clear any reconnect timeouts
+      if (reconnectTimeout.current) {
+        clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
 
-  // Update ready state
+      // Close WebSocket connection
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
+
+      setReadyState(WebSocket.CLOSED);
+    };
+  }, [endpoint, connect]); // Include connect in dependencies
+
+  // Update ready state with proper cleanup
   useEffect(() => {
+    // Only set up the interval if we have an endpoint
+    if (!endpoint) return;
+
     const interval = setInterval(() => {
       if (ws.current) {
         setReadyState(ws.current.readyState);
       }
-    }, 100);
+    }, 500); // Reduced frequency from 100ms to 500ms to reduce overhead
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [endpoint]); // Depend on endpoint to ensure cleanup when component unmounts
 
   return {
     sendMessage,
