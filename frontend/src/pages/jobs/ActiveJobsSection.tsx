@@ -1,4 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+interface Job {
+  id: string;
+  type: string;
+  status: string;
+  progress?: number;
+}
 
 interface ActiveJobsSectionProps {
   onCancel: (jobId: string) => Promise<void>;
@@ -8,7 +15,11 @@ interface ActiveJobsSectionProps {
 }
 
 const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
-  // MINIMAL VERSION FOR DEBUGGING NAVIGATION ISSUE
+  // TEST 2: Adding useState to test if state management breaks navigation
+  const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div
       className={className}
@@ -20,11 +31,21 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
         backgroundColor: '#fff',
       }}
     >
-      <h3>Active Jobs Section (Minimal Debug Version)</h3>
-      <p>This is a minimal version to test navigation.</p>
-      <p>
-        If navigation works with this version, the issue is in the removed code.
-      </p>
+      <h3>Test 2: With useState</h3>
+      <p>Active Jobs: {activeJobs.length}</p>
+      <p>Loading: {loading ? 'Yes' : 'No'}</p>
+      <p>Collapsed: {collapsed ? 'Yes' : 'No'}</p>
+      <button onClick={() => setCollapsed(!collapsed)}>Toggle Collapsed</button>
+      <button
+        onClick={() =>
+          setActiveJobs([
+            { id: '1', type: 'test', status: 'running', progress: 50 },
+          ])
+        }
+      >
+        Add Test Job
+      </button>
+      <button onClick={() => setLoading(!loading)}>Toggle Loading</button>
     </div>
   );
 };
