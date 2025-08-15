@@ -186,16 +186,19 @@ const JobMonitor: React.FC = () => {
   // Cleanup on component unmount
   useEffect(() => {
     return () => {
-      // Ensure WebSocket is disconnected when component unmounts
-      disconnect();
-
       // Clear any pending intervals
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
+
+      // Disconnect WebSocket
+      if (disconnect) {
+        disconnect();
+      }
     };
-  }, [disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on unmount
 
   // Store fetchJobs in a ref to avoid recreation issues
   const fetchJobsRef = useRef(fetchJobs);
@@ -1001,7 +1004,7 @@ const JobMonitor: React.FC = () => {
               expandedRowRender,
               expandedRowKeys,
               onExpandedRowsChange: setExpandedRowKeys,
-              expandRowByClick: true,
+              expandRowByClick: false, // Disabled to prevent navigation issues
               rowExpandable: (record: JobWithExpanded) =>
                 !!record.metadata?.last_message ||
                 !!record.error ||
