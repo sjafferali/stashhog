@@ -50,6 +50,69 @@ def map_job_type_to_schema(model_type: str) -> str:
     return mapping.get(model_type, model_type)
 
 
+@router.get("/active", response_model=JobsListResponse)
+async def get_active_jobs_endpoint(
+    job_type: Optional[str] = Query(None, description="Filter by job type"),
+    job_service: JobService = Depends(get_job_service),
+    db: AsyncSession = Depends(get_db),
+) -> JobsListResponse:
+    """
+    Get currently active jobs (running, pending, cancelling).
+
+    This endpoint returns only jobs that are currently active and need user attention.
+    These jobs are updated in real-time and should be displayed prominently.
+    """
+    # Get active jobs from queue
+    active_jobs = await job_service.get_active_jobs(db)
+
+    # Filter by job_type if provided
+    if job_type:
+        active_jobs = [
+            job
+            for job in active_jobs
+            if str(job.type.value if hasattr(job.type, "value") else job.type)
+            == job_type
+        ]
+
+    # Sort by created_at descending (newest first)
+    active_jobs.sort(key=lambda j: j.created_at, reverse=True)  # type: ignore[arg-type,return-value]
+
+    # Convert to response models
+    job_responses = []
+    for job in active_jobs:
+        # Ensure metadata is a dict
+        job_metadata_dict: Dict[str, Any] = (
+            job.job_metadata if isinstance(job.job_metadata, dict) else {}
+        )
+
+        job_responses.append(
+            JobResponse(
+                id=str(job.id),
+                type=SchemaJobType(
+                    map_job_type_to_schema(
+                        str(job.type.value if hasattr(job.type, "value") else job.type)
+                    )
+                ),
+                status=JobStatus(
+                    job.status.value if hasattr(job.status, "value") else job.status
+                ),
+                progress=float(job.progress or 0),
+                parameters={},
+                metadata=job_metadata_dict,
+                result=job.result,  # type: ignore[arg-type]
+                error=job.error,  # type: ignore[arg-type]
+                created_at=job.created_at,  # type: ignore[arg-type]
+                updated_at=job.updated_at,  # type: ignore[arg-type]
+                started_at=job.started_at,  # type: ignore[arg-type]
+                completed_at=job.completed_at,  # type: ignore[arg-type]
+                total=job.total_items,
+                processed_items=job.processed_items,
+            )
+        )
+
+    return JobsListResponse(jobs=job_responses)
+
+
 @router.get("", response_model=JobsListResponse)
 async def list_jobs(
     status: Optional[List[str]] = Query(None, description="Filter by job status"),

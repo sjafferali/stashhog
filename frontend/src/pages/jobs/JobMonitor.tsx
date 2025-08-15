@@ -49,6 +49,7 @@ import {
 import { JobCard } from '@/components/jobs/JobCard';
 import { WorkflowJobModal } from '@/components/jobs/WorkflowJobModal';
 import { HandledDownloadsModal } from '@/components/jobs/HandledDownloadsModal';
+import ActiveJobsSection from './ActiveJobsSection';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -67,6 +68,9 @@ const JobMonitor: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+  const [totalJobs, setTotalJobs] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [workflowModalVisible, setWorkflowModalVisible] = useState(false);
@@ -122,23 +126,37 @@ const JobMonitor: React.FC = () => {
           }
 
           setJobs(jobsToShow);
+          setTotalJobs(jobsToShow.length);
         } catch (error) {
           console.error('Failed to fetch job by ID:', error);
           void message.error('Failed to fetch job by ID');
           setJobs([]);
+          setTotalJobs(0);
         }
       } else {
-        // Normal job list fetch
-        const response = await apiClient.getJobs({ limit: 50 });
-        // Ensure we always have an array
-        const jobsArray = Array.isArray(response) ? response : [];
+        // Normal job list fetch with pagination
+        const offset = (currentPage - 1) * pageSize;
+        const params: Record<
+          string,
+          string | number | boolean | string[] | undefined
+        > = {
+          limit: pageSize,
+          offset: offset,
+        };
 
-        setJobs(jobsArray);
+        if (statusFilter) params.status = statusFilter;
+        if (typeFilter) params.job_type = typeFilter;
+
+        const response = await apiClient.getJobs(params);
+
+        setJobs(response.jobs);
+        setTotalJobs(response.total);
       }
     } catch (error) {
       console.error('Failed to fetch jobs:', error);
       void message.error('Failed to fetch jobs');
       setJobs([]); // Ensure state is always an array
+      setTotalJobs(0);
     }
   };
 
@@ -157,31 +175,40 @@ const JobMonitor: React.FC = () => {
         clearInterval(interval);
       }
     };
-  }, [jobIdFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobIdFilter, currentPage, pageSize, statusFilter, typeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle WebSocket updates for real-time job changes
+  // Handle WebSocket updates for real-time job changes (historical jobs only)
   useEffect(() => {
     if (lastMessage && typeof lastMessage === 'object') {
       const update = lastMessage as { type: string; job: Job };
 
       if (update.type === 'job_update' && update.job) {
-        setJobs((prevJobs) => {
-          const jobIndex = prevJobs.findIndex((j) => j.id === update.job.id);
+        const job = update.job;
 
-          if (jobIndex >= 0) {
-            // Update existing job
-            const newJobs = [...prevJobs];
-            newJobs[jobIndex] = update.job;
-            return newJobs;
-          } else {
-            // Add new job at the beginning
-            return [update.job, ...prevJobs];
-          }
-        });
+        // Only handle historical job statuses (completed, failed, cancelled)
+        const isHistoricalJob = ['completed', 'failed', 'cancelled'].includes(
+          job.status
+        );
 
-        // Also update selected job if it's the same one
-        if (selectedJob && selectedJob.id === update.job.id) {
-          setSelectedJob(update.job);
+        if (isHistoricalJob) {
+          setJobs((prevJobs) => {
+            const jobIndex = prevJobs.findIndex((j) => j.id === job.id);
+
+            if (jobIndex >= 0) {
+              // Update existing job
+              const newJobs = [...prevJobs];
+              newJobs[jobIndex] = job;
+              return newJobs;
+            } else {
+              // Add newly completed job at the beginning
+              return [job, ...prevJobs];
+            }
+          });
+        }
+
+        // Always update selected job if it's the same one (for modal details)
+        if (selectedJob && selectedJob.id === job.id) {
+          setSelectedJob(job);
         }
       }
     }
@@ -793,12 +820,11 @@ const JobMonitor: React.FC = () => {
     return filtered;
   }, [jobsWithKeys, statusFilter, typeFilter, jobIdFilter]);
 
-  const runningJobs = jobsWithKeys.filter((job) => job.status === 'running');
-  const pendingJobs = jobsWithKeys.filter((job) => job.status === 'pending');
-  const failedJobs = jobsWithKeys.filter((job) => job.status === 'failed');
+  // Note: failedJobs removed since we no longer display failed job count in header
 
   const handleStatusFilterChange = (value: string | undefined) => {
     setStatusFilter(value);
+    setCurrentPage(1); // Reset to first page when changing filters
     updateSearchParams({
       status: value,
       type: typeFilter,
@@ -808,6 +834,7 @@ const JobMonitor: React.FC = () => {
 
   const handleTypeFilterChange = (value: string | undefined) => {
     setTypeFilter(value);
+    setCurrentPage(1); // Reset to first page when changing filters
     updateSearchParams({
       status: statusFilter,
       type: value,
@@ -818,6 +845,7 @@ const JobMonitor: React.FC = () => {
   const handleJobIdFilterChange = (value: string) => {
     const trimmedValue = value.trim();
     setJobIdFilter(trimmedValue || undefined);
+    setCurrentPage(1); // Reset to first page when changing filters
     updateSearchParams({
       status: statusFilter,
       type: typeFilter,
@@ -842,20 +870,16 @@ const JobMonitor: React.FC = () => {
     <div className={styles.jobMonitor}>
       <div className={styles.header}>
         <Title level={2}>Job Monitor</Title>
-        <Space>
-          <Badge count={runningJobs.length} showZero color="blue">
-            <Tag color="blue">Running</Tag>
-          </Badge>
-          <Badge count={pendingJobs.length} showZero color="orange">
-            <Tag color="orange">Pending</Tag>
-          </Badge>
-          <Badge count={failedJobs.length} showZero color="red">
-            <Tag color="red">Failed</Tag>
-          </Badge>
-        </Space>
       </div>
 
+      <ActiveJobsSection
+        onCancel={handleCancel}
+        onRetry={handleRetry}
+        onRefresh={() => void fetchJobs()}
+      />
+
       <Card
+        title={`Job History (${totalJobs} total)`}
         className={styles.mainCard}
         extra={
           <Space>
@@ -879,9 +903,7 @@ const JobMonitor: React.FC = () => {
               onChange={handleStatusFilterChange}
               style={{ width: 150 }}
               options={[
-                { label: 'All', value: undefined },
-                { label: 'Pending', value: 'pending' },
-                { label: 'Running', value: 'running' },
+                { label: 'All Historical', value: undefined },
                 { label: 'Completed', value: 'completed' },
                 { label: 'Failed', value: 'failed' },
                 { label: 'Cancelled', value: 'cancelled' },
@@ -936,14 +958,24 @@ const JobMonitor: React.FC = () => {
                 !!record.result,
             }}
             pagination={{
-              pageSize: 20,
+              current: currentPage,
+              pageSize: pageSize,
+              total: totalJobs,
               showSizeChanger: true,
-              showTotal: (total) => `Total ${total} jobs`,
+              showTotal: (total: number, range: [number, number]) =>
+                `${range[0]}-${range[1]} of ${total} historical jobs`,
+              onChange: (page: number, size?: number) => {
+                setCurrentPage(page);
+                if (size && size !== pageSize) {
+                  setPageSize(size);
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }
+              },
             }}
             locale={{
               emptyText: (
                 <Empty
-                  description="No jobs found"
+                  description="No historical jobs found"
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                 />
               ),
@@ -960,7 +992,7 @@ const JobMonitor: React.FC = () => {
               </div>
             ) : filteredJobs.length === 0 ? (
               <Empty
-                description="No jobs found"
+                description="No historical jobs found"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             ) : (

@@ -164,8 +164,24 @@ class ApiClient {
   }
 
   // Jobs
-  async getJobs(params?: FilterParams): Promise<Job[]> {
+  async getJobs(params?: FilterParams): Promise<{
+    jobs: Job[];
+    total: number;
+    offset: number;
+    limit: number;
+  }> {
     const response = await api.get('/jobs', { params });
+    const jobs = response.data.jobs || [];
+    return {
+      jobs,
+      total: response.data.total || jobs.length,
+      offset: response.data.offset || 0,
+      limit: response.data.limit || 50,
+    };
+  }
+
+  async getActiveJobs(params?: { job_type?: string }): Promise<Job[]> {
+    const response = await api.get('/jobs/active', { params });
     return response.data.jobs || [];
   }
 
