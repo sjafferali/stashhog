@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import {
   Card,
   Table,
@@ -81,8 +87,8 @@ const JobMonitor: React.FC = () => {
   const [selectedRawDataJob, setSelectedRawDataJob] = useState<Job | null>(
     null
   );
-  const [_refreshInterval, setRefreshInterval] =
-    useState<NodeJS.Timeout | null>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isPageVisible, setIsPageVisible] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     searchParams.get('status') || undefined
@@ -102,7 +108,7 @@ const JobMonitor: React.FC = () => {
     useState<string | null>(null);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     try {
       // If job ID filter is set, fetch that specific job and its sub-jobs
       if (jobIdFilter) {
@@ -158,35 +164,42 @@ const JobMonitor: React.FC = () => {
       setJobs([]); // Ensure state is always an array
       setTotalJobs(0);
     }
-  };
+  }, [jobIdFilter, currentPage, pageSize, statusFilter, typeFilter]);
 
+  // Initial fetch when dependencies change
   useEffect(() => {
     setLoading(true);
     void fetchJobs().finally(() => setLoading(false));
-
-    // Set up auto-refresh every 5 seconds
-    const interval = setInterval(() => {
-      void fetchJobs();
-    }, 5000);
-    setRefreshInterval(interval);
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-      setRefreshInterval(null);
-    };
   }, [jobIdFilter, currentPage, pageSize, statusFilter, typeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cleanup interval on unmount
+  // Page visibility detection
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPageVisible(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Set up auto-refresh interval (only on mount/unmount, respects page visibility)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Only fetch if page is visible
+      if (isPageVisible) {
+        void fetchJobs();
+      }
+    }, 10000); // Reduced from 5s to 10s
+    refreshIntervalRef.current = interval;
+
     return () => {
-      if (_refreshInterval) {
-        clearInterval(_refreshInterval);
-        setRefreshInterval(null);
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
       }
     };
-  }, [_refreshInterval]);
+  }, [isPageVisible, fetchJobs]); // Re-run when visibility changes
 
   // Handle WebSocket updates for real-time job changes (historical jobs only)
   useEffect(() => {
@@ -942,13 +955,18 @@ const JobMonitor: React.FC = () => {
               allowClear
               style={{ width: 200 }}
             />
-            <Button
-              icon={<SyncOutlined />}
-              onClick={() => void fetchJobs()}
-              loading={loading}
+            <Tooltip
+              title={`Refresh Historical Jobs ${!isPageVisible ? '(Auto-refresh paused)' : '(Auto-refresh: 10s)'}`}
             >
-              Refresh
-            </Button>
+              <Button
+                icon={<SyncOutlined />}
+                onClick={() => void fetchJobs()}
+                loading={loading}
+                style={{ opacity: !isPageVisible ? 0.6 : 1 }}
+              >
+                Refresh
+              </Button>
+            </Tooltip>
           </Space>
         }
       >

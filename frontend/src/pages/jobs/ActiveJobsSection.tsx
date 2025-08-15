@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   Card,
   Badge,
@@ -25,6 +26,7 @@ import {
   LoadingOutlined,
   UpOutlined,
   DownOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
@@ -52,6 +54,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const [previousActiveJobIds, setPreviousActiveJobIds] = useState<Set<string>>(
     new Set()
   );
+  const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchActiveJobs = async () => {
     try {
@@ -67,18 +70,49 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     }
   };
 
+  // Initial fetch only
   useEffect(() => {
     void fetchActiveJobs();
-
-    // Set up auto-refresh every 2 seconds for active jobs
-    const interval = setInterval(() => {
-      void fetchActiveJobs();
-    }, 2000);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, []);
+
+  // Handle WebSocket updates for real-time active job changes
+  useEffect(() => {
+    if (lastMessage && typeof lastMessage === 'object') {
+      const update = lastMessage as { type: string; job: Job };
+
+      if (update.type === 'job_update' && update.job) {
+        const job = update.job;
+
+        // Handle active job statuses (pending, running, cancelling)
+        const isActiveJob = ['pending', 'running', 'cancelling'].includes(
+          job.status
+        );
+
+        setActiveJobs((prevJobs) => {
+          const jobIndex = prevJobs.findIndex((j) => j.id === job.id);
+
+          if (isActiveJob) {
+            if (jobIndex >= 0) {
+              // Update existing active job
+              const newJobs = [...prevJobs];
+              newJobs[jobIndex] = job;
+              return newJobs;
+            } else {
+              // Add new active job
+              return [...prevJobs, job];
+            }
+          } else {
+            // Job completed/failed/cancelled - remove from active jobs
+            if (jobIndex >= 0) {
+              return prevJobs.filter((j) => j.id !== job.id);
+            }
+          }
+
+          return prevJobs;
+        });
+      }
+    }
+  }, [lastMessage]);
 
   // Detect when jobs complete and refresh historical jobs
   useEffect(() => {
@@ -90,8 +124,13 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     );
 
     // If jobs completed, refresh the historical jobs list
+    // Use a timeout to avoid interfering with navigation
     if (completedJobs.length > 0 && previousActiveJobIds.size > 0) {
-      onRefresh();
+      const timeoutId = setTimeout(() => {
+        onRefresh();
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
 
     // Update the previous job IDs
@@ -343,13 +382,23 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
           >
             {collapsed ? 'Show' : 'Hide'}
           </Button>
-          <Button
-            type="text"
-            size="small"
-            icon={<LoadingOutlined />}
-            onClick={onRefresh}
-            loading={loading}
-          />
+          <Tooltip title="Refresh Active Jobs">
+            <Button
+              type="text"
+              size="small"
+              icon={<SyncOutlined />}
+              onClick={() => void fetchActiveJobs()}
+              loading={loading}
+            />
+          </Tooltip>
+          <Tooltip title="Refresh Historical Jobs">
+            <Button
+              type="text"
+              size="small"
+              icon={<LoadingOutlined />}
+              onClick={onRefresh}
+            />
+          </Tooltip>
         </Space>
       }
       size="small"
