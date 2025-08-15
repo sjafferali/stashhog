@@ -8,11 +8,11 @@ import {
   Tooltip,
   Tag,
   Typography,
-  Row,
-  Col,
   Collapse,
+  Table,
   message,
 } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import {
   PlayCircleOutlined,
   ClockCircleOutlined,
@@ -158,6 +158,155 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     return sceneIds !== null && sceneIds.length > 0;
   };
 
+  const getActiveJobColumns = (): ColumnsType<Job> => [
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: string, record: Job) => {
+        const icon = getStatusIcon(status);
+        const lastMessage = record.metadata?.last_message;
+
+        return (
+          <Space>
+            {icon}
+            <Tag
+              color={
+                status === 'running'
+                  ? 'processing'
+                  : status === 'pending'
+                    ? 'orange'
+                    : status === 'cancelling'
+                      ? 'warning'
+                      : 'default'
+              }
+            >
+              {status.toUpperCase()}
+            </Tag>
+            {lastMessage && status === 'running' && (
+              <Tooltip title={lastMessage}>
+                <Badge status="processing" />
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Job Type',
+      dataIndex: 'type',
+      key: 'type',
+      width: 150,
+      render: (type: string) => {
+        return <Tag color={getJobTypeColor(type)}>{getJobTypeLabel(type)}</Tag>;
+      },
+    },
+    {
+      title: 'Progress',
+      key: 'progress',
+      width: 200,
+      render: (_: unknown, record: Job) => {
+        const percent = Math.round(record.progress || 0);
+        const hasMessage = record.metadata?.last_message;
+
+        return (
+          <div style={{ minWidth: 150 }}>
+            <Progress
+              percent={percent}
+              status={
+                record.status === 'running'
+                  ? 'active'
+                  : record.status === 'cancelling'
+                    ? 'exception'
+                    : 'normal'
+              }
+              size="small"
+              format={(percent: number | undefined) => (
+                <Space size={4}>
+                  <span>{percent}%</span>
+                  {hasMessage && record.status === 'running' && (
+                    <Tooltip
+                      title={record.metadata?.last_message}
+                      placement="top"
+                    >
+                      <FileTextOutlined style={{ fontSize: 12 }} />
+                    </Tooltip>
+                  )}
+                </Space>
+              )}
+            />
+            {record.processed_items !== undefined &&
+              record.total !== undefined &&
+              record.total !== null && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {record.processed_items} / {record.total} items
+                </Text>
+              )}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Duration',
+      key: 'duration',
+      width: 120,
+      render: (_: unknown, record: Job) => (
+        <Text type="secondary">{formatDuration(record.started_at)}</Text>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 150,
+      render: (_: unknown, record: Job) => (
+        <Space size="small">
+          <Tooltip title="View Details">
+            <Button type="text" icon={<InfoCircleOutlined />} size="small" />
+          </Tooltip>
+
+          {shouldShowViewScenesButton(record) && (
+            <Tooltip title="View Scenes">
+              <Link
+                to={`/scenes?job_ids=${record.id}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  type="text"
+                  icon={<VideoCameraOutlined />}
+                  size="small"
+                />
+              </Link>
+            </Tooltip>
+          )}
+
+          {['running', 'pending'].includes(record.status) && (
+            <Tooltip title="Cancel Job">
+              <Button
+                type="text"
+                danger
+                icon={<CloseCircleOutlined />}
+                size="small"
+                onClick={() => void onCancel(record.id)}
+              />
+            </Tooltip>
+          )}
+
+          {record.status === 'failed' && (
+            <Tooltip title="Retry Job">
+              <Button
+                type="text"
+                icon={<RedoOutlined />}
+                size="small"
+                onClick={() => void onRetry(record.id)}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   if (activeJobs.length === 0) {
     return null; // Don't show section if no active jobs
   }
@@ -217,148 +366,13 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
               <LoadingOutlined style={{ fontSize: 24 }} />
             </div>
           ) : (
-            <Row gutter={[16, 16]}>
-              {activeJobs.map((job) => (
-                <Col key={job.id} xs={24} sm={24} md={12} lg={8} xl={6}>
-                  <Card
-                    size="small"
-                    style={{
-                      borderLeft: `4px solid ${
-                        job.status === 'running'
-                          ? '#1890ff'
-                          : job.status === 'pending'
-                            ? '#faad14'
-                            : '#ff7a45'
-                      }`,
-                    }}
-                  >
-                    <div style={{ marginBottom: 8 }}>
-                      <Space>
-                        {getStatusIcon(job.status)}
-                        <Tag color={getJobTypeColor(job.type)}>
-                          {getJobTypeLabel(job.type)}
-                        </Tag>
-                      </Space>
-                    </div>
-
-                    <div style={{ marginBottom: 12 }}>
-                      <Progress
-                        percent={Math.round(job.progress || 0)}
-                        status={
-                          job.status === 'running'
-                            ? 'active'
-                            : job.status === 'cancelling'
-                              ? 'exception'
-                              : 'normal'
-                        }
-                        size="small"
-                        format={(percent: number) => `${percent}%`}
-                      />
-
-                      {job.processed_items !== undefined &&
-                        job.total !== undefined &&
-                        job.total !== null && (
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {job.processed_items} / {job.total} items
-                          </Text>
-                        )}
-                    </div>
-
-                    {job.metadata?.last_message && (
-                      <div style={{ marginBottom: 8 }}>
-                        <Text
-                          type="secondary"
-                          style={{
-                            fontSize: 12,
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                          title={job.metadata.last_message}
-                        >
-                          {job.metadata.last_message}
-                        </Text>
-                      </div>
-                    )}
-
-                    <div style={{ marginBottom: 8 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        Running for {formatDuration(job.started_at)}
-                      </Text>
-                    </div>
-
-                    <Space size="small" wrap>
-                      <Tooltip title="View Details">
-                        <Button
-                          type="text"
-                          icon={<InfoCircleOutlined />}
-                          size="small"
-                        />
-                      </Tooltip>
-
-                      {(job.type === 'scene_analysis' ||
-                        job.type === 'analysis' ||
-                        job.type === 'non_ai_analysis') &&
-                        job.metadata &&
-                        'plan_id' in job.metadata &&
-                        job.metadata.plan_id && (
-                          <Tooltip title="View Plan">
-                            <Link
-                              to={`/analysis/plans/${String(job.metadata.plan_id)}`}
-                            >
-                              <Button
-                                type="text"
-                                icon={<FileTextOutlined />}
-                                size="small"
-                                style={{ color: '#1890ff' }}
-                              />
-                            </Link>
-                          </Tooltip>
-                        )}
-
-                      {shouldShowViewScenesButton(job) && (
-                        <Tooltip title="View Impacted Scenes">
-                          <Link
-                            to={`/scenes?scene_ids=${getJobSceneIds(job)?.join(',') || ''}`}
-                          >
-                            <Button
-                              type="text"
-                              icon={<VideoCameraOutlined />}
-                              size="small"
-                              style={{ color: '#52c41a' }}
-                            />
-                          </Link>
-                        </Tooltip>
-                      )}
-
-                      {['running', 'pending'].includes(job.status) && (
-                        <Tooltip title="Cancel Job">
-                          <Button
-                            type="text"
-                            danger
-                            icon={<CloseCircleOutlined />}
-                            size="small"
-                            onClick={() => void onCancel(job.id)}
-                          />
-                        </Tooltip>
-                      )}
-
-                      {job.status === 'failed' && (
-                        <Tooltip title="Retry Job">
-                          <Button
-                            type="text"
-                            icon={<RedoOutlined />}
-                            size="small"
-                            onClick={() => void onRetry(job.id)}
-                          />
-                        </Tooltip>
-                      )}
-                    </Space>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+            <Table
+              columns={getActiveJobColumns()}
+              dataSource={activeJobs.map((job) => ({ ...job, key: job.id }))}
+              pagination={false}
+              size="small"
+              scroll={{ x: 800 }}
+            />
           )}
         </Collapse.Panel>
       </Collapse>

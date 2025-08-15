@@ -24,6 +24,7 @@ The centralized services pattern ensures that critical business logic exists in 
 - `DashboardStatusService` - For displaying sync status on the dashboard
 - `AutoStashSyncDaemon` - For checking if an incremental sync is needed
 - Frontend sync pages - For displaying sync information to users
+- Various job handlers - For determining sync requirements
 
 **When to Use:**
 - When you need to determine how many scenes are pending sync from Stash
@@ -89,7 +90,57 @@ for torrent in torrents:
 
 **Singleton Instance:** The service is available as a singleton instance `download_check_service` that should be imported and used directly.
 
-### 3. Job Registry
+### 3. JobService Integration
+
+**Location:** `backend/app/services/job_service.py`
+
+**Purpose:** The `JobService` is used by several centralized services for job management and status checking, particularly for determining if specific job types are currently active.
+
+**Key Methods Used by Other Services:**
+
+- `get_active_jobs(db)` - Returns all currently running or pending jobs
+- `create_job(job_type, metadata, db)` - Creates new background jobs
+- `cancel_job(job_id, db)` - Cancels running jobs
+
+**Integration with DashboardStatusService:**
+
+The `DashboardStatusService` requires `JobService` as a dependency and uses it to:
+- Check if sync jobs are currently running (`_is_job_running()`)
+- Get active jobs for display (`_get_job_status()`)
+- Determine processing states for various dashboard sections
+
+**Example Usage in Services:**
+```python
+# In DashboardStatusService
+class DashboardStatusService:
+    def __init__(self, stash_service: StashService, job_service: JobService):
+        self.stash_service = stash_service
+        self.job_service = job_service
+    
+    async def _is_job_running(self, db: AsyncDBSession, job_types: List[ModelJobType]) -> bool:
+        """Check if any jobs of the given types are running."""
+        active_jobs = await self.job_service.get_active_jobs(db)
+        for job in active_jobs:
+            job_type_value = job.type.value if hasattr(job.type, 'value') else job.type
+            if job_type_value in [jt.value for jt in job_types]:
+                return True
+        return False
+```
+
+**API Endpoint Integration:**
+```python
+# In routes that use DashboardStatusService
+@router.get("/stats")
+async def get_sync_stats(
+    db: AsyncDBSession = Depends(get_db),
+    stash_service: StashService = Depends(get_stash_service),
+    job_service: JobService = Depends(get_job_service),  # Required dependency
+):
+    dashboard_service = DashboardStatusService(stash_service, job_service)
+    return await dashboard_service.get_all_status_data(db)
+```
+
+### 4. Job Registry
 
 **Location:** `backend/app/core/job_registry.py`
 

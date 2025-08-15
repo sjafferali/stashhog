@@ -174,8 +174,19 @@ const JobMonitor: React.FC = () => {
       if (interval) {
         clearInterval(interval);
       }
+      setRefreshInterval(null);
     };
   }, [jobIdFilter, currentPage, pageSize, statusFilter, typeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (_refreshInterval) {
+        clearInterval(_refreshInterval);
+        setRefreshInterval(null);
+      }
+    };
+  }, [_refreshInterval]);
 
   // Handle WebSocket updates for real-time job changes (historical jobs only)
   useEffect(() => {

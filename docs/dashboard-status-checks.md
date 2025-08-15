@@ -48,10 +48,15 @@ All dashboard status checks are centralized in the `DashboardStatusService` clas
 
 ### 6. Job Status
 - **Purpose**: Monitors background job activity
+- **How it works**:
+  - Uses `JobService.get_active_jobs()` to get currently running/pending jobs
+  - Queries database directly for recently completed jobs
+  - Uses centralized job service to check if specific job types are running
 - **Checks**:
-  - Currently running jobs
-  - Recently completed jobs
+  - Currently running jobs (from job service)
+  - Recently completed jobs (from database)
   - Failed jobs in the last 24 hours
+  - Whether specific job types (sync, analysis) are running
 
 ## Architecture
 
@@ -61,14 +66,18 @@ All dashboard status checks are centralized in the `DashboardStatusService` clas
    - Central service that performs all status checks
    - Returns consolidated status data in a single call
    - Generates actionable items based on status data
+   - **Dependencies**: Requires `StashService` and `JobService` for operation
 
 2. **API Endpoint** (`backend/app/api/routes/sync.py`)
    - `/sync/stats` endpoint returns dashboard status data
-   - Simply instantiates `DashboardStatusService` and calls `get_all_status_data()`
+   - Instantiates `DashboardStatusService` with required dependencies
+   - Injects `StashService` and `JobService` via dependency injection
 
 3. **Supporting Services**
    - `DownloadCheckService`: Handles qBittorrent connection and download checks
    - `StashService`: Handles Stash API calls for pending scenes
+   - `JobService`: Provides access to active jobs and job management
+   - `SyncStatusService`: Centralized sync status checking
 
 ### Frontend Components
 
@@ -100,8 +109,13 @@ async def _get_my_new_status(self, db: AsyncDBSession) -> Dict[str, Any]:
     count = await db.execute(select(func.count(MyModel.id)).where(...))
     items_needing_action = count.scalar_one()
     
+    # Use job service for active job checks if needed
+    active_jobs = await self.job_service.get_active_jobs(db)
+    my_jobs_running = any(job.type == "my_job_type" for job in active_jobs)
+    
     return {
         "items_needing_action": items_needing_action,
+        "is_processing": my_jobs_running,
         # Add other relevant metrics
     }
 
