@@ -27,7 +27,7 @@ import {
   Segmented,
   Input,
 } from 'antd';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import {
   SyncOutlined,
@@ -55,7 +55,7 @@ import {
 import { JobCard } from '@/components/jobs/JobCard';
 import { WorkflowJobModal } from '@/components/jobs/WorkflowJobModal';
 import { HandledDownloadsModal } from '@/components/jobs/HandledDownloadsModal';
-import ActiveJobsSection from './ActiveJobsSection';
+// import ActiveJobsSection from './ActiveJobsSection';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
@@ -71,6 +71,7 @@ interface JobWithExpanded extends Job {
 }
 
 const JobMonitor: React.FC = () => {
+  const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
@@ -107,6 +108,17 @@ const JobMonitor: React.FC = () => {
   const [selectedHandledDownloadsJobId, setSelectedHandledDownloadsJobId] =
     useState<string | null>(null);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
+
+  // Force unmount if not on jobs route
+  useEffect(() => {
+    if (!location.pathname.startsWith('/jobs')) {
+      // Clear all intervals and state immediately
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    }
+  }, [location.pathname]);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -913,11 +925,12 @@ const JobMonitor: React.FC = () => {
         <Title level={2}>Job Monitor</Title>
       </div>
 
+      {/* Temporarily disabled to debug navigation issue
       <ActiveJobsSection
         onCancel={handleCancel}
         onRetry={handleRetry}
         onRefresh={() => void fetchJobs()}
-      />
+      /> */}
 
       <Card
         title={`Job History (${totalJobs} total)`}

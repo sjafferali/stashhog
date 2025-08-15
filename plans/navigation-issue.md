@@ -125,3 +125,40 @@ Deploy the changes and verify:
 - Initial documentation created: December 15, 2024
 - Root cause identified and fixed with WebSocket Manager singleton: December 15, 2024
 - Build successful, ESLint passing
+- WebSocket Manager didn't fix the issue, investigating further: December 15, 2024
+
+## Further Investigation (Round 2)
+
+### Hypothesis
+The WebSocket manager singleton didn't fix the issue, which means the problem isn't duplicate connections. It must be something else specific to JobMonitor that's blocking React Router from properly unmounting/mounting components.
+
+### Debugging Steps Taken
+
+#### 1. Added Location Check in JobMonitor
+- **Changes**: Added `useLocation()` hook and an effect to clear intervals when not on /jobs route
+- **Lines**: 74, 112-121
+- **Purpose**: Force cleanup when navigating away
+
+#### 2. Temporarily Disabled ActiveJobsSection
+- **Changes**: Commented out the ActiveJobsSection component render
+- **Lines**: 928-933  
+- **Purpose**: Test if ActiveJobsSection is causing the navigation block
+- **Rationale**: Both JobMonitor and ActiveJobsSection use WebSocket connections
+
+#### 3. Disabled React.StrictMode
+- **Changes**: Commented out React.StrictMode wrapper in main.tsx
+- **Lines**: 31-44
+- **Purpose**: Test if StrictMode's double-rendering is causing issues
+- **Rationale**: StrictMode can cause effects to run twice, potentially creating issues
+
+### Current Test Configuration
+- ActiveJobsSection: DISABLED
+- React.StrictMode: DISABLED  
+- Location check: ENABLED
+- WebSocket Manager: ACTIVE
+
+### Next Steps
+Deploy and test with these changes to isolate the issue:
+1. If navigation works with ActiveJobsSection disabled, the issue is in that component
+2. If navigation still doesn't work, the issue is deeper in JobMonitor itself
+3. Check browser console for any errors during navigation attempts
