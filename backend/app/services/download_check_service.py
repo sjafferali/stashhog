@@ -40,12 +40,12 @@ class DownloadCheckService:
                 logger.error(f"Failed to authenticate with qBittorrent: {str(e)}")
                 return 0
 
-            # Get completed torrents with category 'xxx' that don't have 'synced' tag
+            # Get completed torrents with category 'xxx' that don't have 'synced' or 'error_syncing' tags
             torrents = qbt_client.torrents_info(
                 status_filter="completed", category="xxx"
             )
 
-            # Filter out torrents that already have the "synced" tag
+            # Filter out torrents that already have the "synced" or "error_syncing" tags
             pending_count = 0
             for torrent in torrents:
                 # Handle different possible types for tags
@@ -55,14 +55,17 @@ class DownloadCheckService:
                         tag.strip() for tag in torrent.tags.split(",") if tag.strip()
                     ]
                     has_synced = "synced" in tags_list
+                    has_error = "error_syncing" in tags_list
                 elif isinstance(torrent.tags, list):
                     # If tags is already a list
                     has_synced = "synced" in torrent.tags
+                    has_error = "error_syncing" in torrent.tags
                 else:
-                    # If tags is None or some other type, assume no synced tag
+                    # If tags is None or some other type, assume no tags
                     has_synced = False
+                    has_error = False
 
-                if not has_synced:
+                if not has_synced and not has_error:
                     pending_count += 1
 
             return pending_count

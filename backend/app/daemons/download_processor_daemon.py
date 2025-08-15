@@ -36,6 +36,7 @@ class DownloadProcessorDaemon(BaseDaemon):
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._current_job_type: Optional[JobType] = None
+        self._just_completed_cycle = False
         await self.log(LogLevel.INFO, "Download Processor Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -104,11 +105,16 @@ class DownloadProcessorDaemon(BaseDaemon):
         if await self._handle_completed_download_job(completed_job_result):
             return 5
 
+        # If we just completed a cycle (all jobs finished), sleep for the full interval
+        if self._just_completed_cycle:
+            self._just_completed_cycle = False
+            return int(config["job_interval_seconds"])
+
         # Check for new downloads to process
         await self._check_and_process_downloads(config)
 
         # Return appropriate sleep duration
-        return 5 if self._monitored_jobs else config["job_interval_seconds"]
+        return 5 if self._monitored_jobs else int(config["job_interval_seconds"])
 
     async def _handle_completed_download_job(
         self, completed_job_result: Optional[dict]
@@ -331,6 +337,11 @@ class DownloadProcessorDaemon(BaseDaemon):
         if completed_jobs:
             self._monitored_jobs -= completed_jobs
             self._current_job_type = None
+
+            # If we just finished all jobs, mark that we completed a cycle
+            if len(self._monitored_jobs) == 0:
+                self._just_completed_cycle = True
+
             await self.log(
                 LogLevel.DEBUG,
                 f"Removed {len(completed_jobs)} completed jobs from monitoring. "
