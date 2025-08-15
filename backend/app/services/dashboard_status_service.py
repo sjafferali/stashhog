@@ -17,6 +17,7 @@ from app.models.analysis_plan import PlanStatus
 from app.models.job import Job, JobStatus
 from app.models.job import JobType as ModelJobType
 from app.services.download_check_service import download_check_service
+from app.services.job_service import JobService
 from app.services.stash_service import StashService
 from app.services.sync_status_service import SyncStatusService
 
@@ -26,8 +27,9 @@ logger = logging.getLogger(__name__)
 class DashboardStatusService:
     """Service for performing all dashboard status checks."""
 
-    def __init__(self, stash_service: StashService):
+    def __init__(self, stash_service: StashService, job_service: JobService):
         self.stash_service = stash_service
+        self.job_service = job_service
         self.sync_status_service = SyncStatusService(stash_service)
 
     async def get_all_status_data(self, db: AsyncDBSession) -> Dict[str, Any]:
@@ -215,15 +217,14 @@ class DashboardStatusService:
 
     async def _get_job_status(self, db: AsyncDBSession) -> Dict[str, Any]:
         """Get job status metrics."""
-        # Get running jobs
-        running_jobs_query = (
-            select(Job)
-            .where(Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]))
-            .order_by(Job.created_at.desc())
-            .limit(5)
-        )
-        running_result = await db.execute(running_jobs_query)
-        running_jobs = running_result.scalars().all()
+        # Get running jobs from job service (active jobs)
+        all_running_jobs = await self.job_service.get_active_jobs(db)
+        # Sort by created_at desc and limit to 5
+        running_jobs = sorted(
+            all_running_jobs,
+            key=lambda j: j.created_at if j.created_at else datetime.min,  # type: ignore[arg-type,return-value]
+            reverse=True,
+        )[:5]
 
         # Get recently completed jobs
         completed_jobs_query = (
@@ -257,13 +258,15 @@ class DashboardStatusService:
         self, db: AsyncDBSession, job_types: List[ModelJobType]
     ) -> bool:
         """Check if any jobs of the given types are running."""
-        query = select(Job).where(
-            Job.type.in_(job_types),
-            Job.status.in_([JobStatus.PENDING, JobStatus.RUNNING]),
-        )
-        result = await db.execute(query)
-        active_jobs = result.scalars().all()
-        return len(active_jobs) > 0
+        # Get active jobs from job service instead of direct DB query
+        active_jobs = await self.job_service.get_active_jobs(db)
+
+        # Check if any active job matches the requested types
+        for job in active_jobs:
+            job_type_value = job.type.value if hasattr(job.type, "value") else job.type
+            if job_type_value in [jt.value for jt in job_types]:
+                return True
+        return False
 
     def _format_job(self, job: Job) -> Dict[str, Any]:
         """Format a job for API response."""

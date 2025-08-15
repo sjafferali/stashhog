@@ -264,6 +264,7 @@ async def stop_sync(
 async def get_sync_stats(
     db: AsyncDBSession = Depends(get_db),
     stash_service: StashService = Depends(get_stash_service),
+    job_service: JobService = Depends(get_job_service),
 ) -> dict:
     """
     Get comprehensive dashboard metrics including actionable items.
@@ -276,7 +277,7 @@ async def get_sync_stats(
     - Download processing status
     """
     # Use the centralized dashboard status service
-    dashboard_service = DashboardStatusService(stash_service)
+    dashboard_service = DashboardStatusService(stash_service, job_service)
     return await dashboard_service.get_all_status_data(db)
 
 

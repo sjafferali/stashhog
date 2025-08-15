@@ -49,6 +49,9 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [previousActiveJobIds, setPreviousActiveJobIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const fetchActiveJobs = async () => {
     try {
@@ -76,6 +79,24 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       clearInterval(interval);
     };
   }, []);
+
+  // Detect when jobs complete and refresh historical jobs
+  useEffect(() => {
+    const currentActiveJobIds = new Set(activeJobs.map((job) => job.id));
+
+    // Check if any jobs that were previously active are no longer active
+    const completedJobs = Array.from(previousActiveJobIds).filter(
+      (id) => !currentActiveJobIds.has(id)
+    );
+
+    // If jobs completed, refresh the historical jobs list
+    if (completedJobs.length > 0 && previousActiveJobIds.size > 0) {
+      onRefresh();
+    }
+
+    // Update the previous job IDs
+    setPreviousActiveJobIds(currentActiveJobIds);
+  }, [activeJobs, previousActiveJobIds, onRefresh]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

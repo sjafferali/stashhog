@@ -1,15 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
+import { apiClient } from '@/services/apiClient';
 import { useWebSocket } from './useWebSocket';
-
-interface Job {
-  id: string;
-  job_type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  created_at: string;
-  updated_at: string;
-}
+import { Job } from '@/types/models';
 
 interface UseRunningJobsReturn {
   runningJobs: Job[];
@@ -28,18 +20,8 @@ export const useRunningJobs = (): UseRunningJobsReturn => {
   const fetchRunningJobs = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get('/api/jobs', {
-        params: {
-          status: ['pending', 'running'],
-        },
-      });
-
-      const jobs = response.data.jobs || [];
-      setRunningJobs(
-        jobs.filter(
-          (job: Job) => job.status === 'pending' || job.status === 'running'
-        )
-      );
+      const jobs = await apiClient.getActiveJobs();
+      setRunningJobs(jobs);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch running jobs:', err);

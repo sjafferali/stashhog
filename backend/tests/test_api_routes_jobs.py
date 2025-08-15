@@ -186,10 +186,22 @@ class TestJobRoutes:
     def test_list_jobs_filter_by_status(
         self, client, mock_db, mock_job, mock_job_service
     ):
-        """Test filtering jobs by status."""
+        """Test filtering jobs by status - now only returns historical statuses."""
         # Mock job service already set up by fixture
         mock_job_service.get_active_jobs = AsyncMock(return_value=[])
 
+        # For running status, the new implementation returns empty
+        # (user should use /api/jobs/active)
+        response = client.get(f"/api/jobs?status={JobStatus.RUNNING.value}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "jobs" in data
+        assert (
+            len(data["jobs"]) == 0
+        )  # Changed: running jobs not returned from historical endpoint
+
+        # Test with a historical status (completed)
         # Mock database query
         mock_result = Mock()
         mock_scalars = Mock()
@@ -197,7 +209,7 @@ class TestJobRoutes:
         mock_result.scalars.return_value = mock_scalars
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        response = client.get(f"/api/jobs?status={JobStatus.RUNNING.value}")
+        response = client.get(f"/api/jobs?status={JobStatus.COMPLETED.value}")
 
         assert response.status_code == 200
         data = response.json()
@@ -529,34 +541,33 @@ class TestJobRoutes:
             processed_items=50,
         )
 
-        # Mock active jobs from queue
+        # Mock active jobs from queue (these won't be returned by /api/jobs anymore)
         mock_job_service.get_active_jobs = AsyncMock(
             return_value=[sync_job, analysis_job]
         )
 
-        # Mock database query
+        # Mock database query - only historical jobs returned
         mock_result = Mock()
         mock_scalars = Mock()
-        mock_scalars.all.return_value = [batch_job]
+        mock_scalars.all.return_value = [batch_job]  # Only the completed job
         mock_result.scalars.return_value = mock_scalars
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         response = client.get("/api/jobs")
         assert response.status_code == 200
         data = response.json()
-        assert len(data["jobs"]) == 3
+        assert len(data["jobs"]) == 1  # Changed: only historical jobs returned
 
-        # Verify different job types and statuses
+        # Verify only historical job types and statuses
         job_types = {job["type"] for job in data["jobs"]}
         job_statuses = {job["status"] for job in data["jobs"]}
 
-        assert "sync" in job_types
-        assert "scene_analysis" in job_types
-        assert "scene_analysis" in job_types
+        assert "scene_analysis" in job_types  # Only the completed batch job
+        assert "completed" in job_statuses  # Only historical statuses
 
-        assert "running" in job_statuses
-        assert "pending" in job_statuses
-        assert "completed" in job_statuses
+        # Active jobs (running/pending) should use /api/jobs/active endpoint instead
+        assert "running" not in job_statuses
+        assert "pending" not in job_statuses
 
     def test_job_with_logs(self, client, mock_db, mock_job_service):
         """Test getting job with logs when available."""

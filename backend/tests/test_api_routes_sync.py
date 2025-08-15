@@ -544,8 +544,13 @@ class TestSyncStatsEndpoint:
         yield
         # No cleanup needed since we're just modifying the method
 
-    def test_get_sync_stats_no_history(self, client, mock_db, mock_stash_service):
+    def test_get_sync_stats_no_history(
+        self, client, mock_db, mock_stash_service, mock_job_service
+    ):
         """Test getting sync stats with no sync history."""
+        # Mock job service to return no active jobs
+        mock_job_service.get_active_jobs = AsyncMock(return_value=[])
+
         # Mock database calls
         call_count = 0
 
@@ -609,8 +614,12 @@ class TestSyncStatsEndpoint:
         assert data["sync"]["pending_scenes"] == 0
         assert data["sync"]["is_syncing"] is False
 
-    def test_get_sync_stats_with_data(self, client, mock_db, mock_stash_service):
+    def test_get_sync_stats_with_data(
+        self, client, mock_db, mock_stash_service, mock_job_service
+    ):
         """Test getting sync stats with existing data."""
+        # Mock job service to return no active jobs
+        mock_job_service.get_active_jobs = AsyncMock(return_value=[])
 
         # Mock sync history for each entity type
         def create_history_mock(entity_type):
@@ -671,7 +680,9 @@ class TestSyncStatsEndpoint:
         assert data["sync"]["pending_scenes"] == 25
         assert data["sync"]["is_syncing"] is False
 
-    def test_get_sync_stats_with_active_sync(self, client, mock_db, mock_stash_service):
+    def test_get_sync_stats_with_active_sync(
+        self, client, mock_db, mock_stash_service, mock_job_service
+    ):
         """Test getting sync stats with active sync job."""
         # Create the active job
         active_job = Mock()
@@ -684,6 +695,9 @@ class TestSyncStatsEndpoint:
         active_job.error = None
         active_job.result = {}
         active_job.job_metadata = {}
+
+        # Mock job service to return the active sync job
+        mock_job_service.get_active_jobs = AsyncMock(return_value=[active_job])
 
         def mock_execute(query):
             result = Mock()
@@ -770,9 +784,12 @@ class TestSyncStatsEndpoint:
         return self._create_mock_result()
 
     def test_get_sync_stats_stash_error_fallback(
-        self, client, mock_db, mock_stash_service
+        self, client, mock_db, mock_stash_service, mock_job_service
     ):
         """Test sync stats when Stash API fails, falling back to local check."""
+        # Mock job service to return no active jobs
+        mock_job_service.get_active_jobs = AsyncMock(return_value=[])
+
         # Mock sync history with last sync time
         history = Mock()
         history.entity_type = "scene"

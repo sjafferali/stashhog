@@ -145,61 +145,6 @@ def _create_job_response(job) -> JobResponse:
     )
 
 
-def _filter_active_jobs(
-    active_jobs, status: Optional[List[str]], job_type: Optional[str]
-):
-    """Filter active jobs by status and job_type."""
-    filtered_jobs = active_jobs
-    if status:
-        filtered_jobs = [job for job in filtered_jobs if job.status in status]
-    if job_type:
-        filtered_jobs = [
-            job
-            for job in filtered_jobs
-            if str(job.type.value if hasattr(job.type, "value") else job.type)
-            == job_type
-        ]
-    return filtered_jobs
-
-
-def _build_count_query(
-    status: Optional[List[str]], job_type: Optional[str], active_job_ids: List[str]
-):
-    """Build count query for total job count."""
-    count_query = select(func.count(Job.id))
-    if status:
-        count_query = count_query.where(Job.status.in_(status))
-        if active_job_ids:
-            count_query = count_query.where(~Job.id.in_(active_job_ids))
-    else:
-        count_query = count_query.where(~Job.status.in_(["pending", "running"]))
-    if job_type:
-        count_query = count_query.where(Job.type == job_type)
-    return count_query
-
-
-def _build_data_query(
-    status: Optional[List[str]],
-    job_type: Optional[str],
-    active_job_ids: List[str],
-    limit: int,
-):
-    """Build data query for fetching jobs."""
-    data_query = select(Job)
-    if status:
-        data_query = data_query.where(Job.status.in_(status))
-        if active_job_ids:
-            data_query = data_query.where(~Job.id.in_(active_job_ids))
-    else:
-        data_query = data_query.where(~Job.status.in_(["pending", "running"]))
-    if job_type:
-        data_query = data_query.where(Job.type == job_type)
-
-    max_db_jobs = max(limit * 2, 200)
-    data_query = data_query.order_by(Job.created_at.desc()).limit(max_db_jobs)
-    return data_query
-
-
 async def _get_total_count(db: AsyncSession, count_query) -> int:
     """Get total count with fallback for tests."""
     try:
@@ -223,48 +168,75 @@ async def list_jobs(
     job_service: JobService = Depends(get_job_service),
 ) -> JobsListResponse:
     """
-    List recent jobs.
+    List historical jobs (completed, failed, cancelled).
 
-    Returns active jobs from the queue and recent completed jobs from the database.
+    This endpoint now returns only historical jobs for clean separation
+    from active jobs. Use /api/jobs/active for currently running jobs.
     """
-    # If filtering by specific job ID, return only that job
+    # If filtering by specific job ID, check active jobs first, then database
     if job_id:
-        job = await job_service.get_job(job_id, db)
+        # Check active jobs first
+        active_job = await job_service.get_job(job_id, db)
+        if active_job:
+            job_response = _create_job_response(active_job)
+            return JobsListResponse(jobs=[job_response], total=1, offset=0, limit=limit)
+
+        # Check database for historical job
+        query = select(Job).where(Job.id == job_id)
+        result = await db.execute(query)
+        job = result.scalar_one_or_none()
+
         if job:
             job_response = _create_job_response(job)
             return JobsListResponse(jobs=[job_response], total=1, offset=0, limit=limit)
         else:
             return JobsListResponse(jobs=[], total=0, offset=0, limit=limit)
 
-    # Get active jobs from queue
-    all_active_jobs = await job_service.get_active_jobs(db)
+    # Build query for historical jobs only (exclude active job statuses)
+    query = select(Job)
 
-    # Filter active jobs by status and job_type if filters are provided
-    active_jobs = _filter_active_jobs(all_active_jobs, status, job_type)
+    # Default to historical statuses if no status filter provided
+    if status:
+        # If user specifies status, honor it but exclude pending/running from DB
+        historical_statuses = [s for s in status if s not in ["pending", "running"]]
+        if historical_statuses:
+            query = query.where(Job.status.in_(historical_statuses))
+        else:
+            # User only wants pending/running - return empty (they should use /active)
+            return JobsListResponse(jobs=[], total=0, offset=offset, limit=limit)
+    else:
+        # Default: exclude active statuses
+        query = query.where(~Job.status.in_(["pending", "running"]))
 
-    # Get IDs of ALL active jobs (not just filtered ones) to exclude from DB query
-    active_job_ids = [str(job.id) for job in all_active_jobs]
+    # Apply job_type filter if provided
+    if job_type:
+        query = query.where(Job.type == job_type)
 
     # Get total count
-    count_query = _build_count_query(status, job_type, active_job_ids)
+    count_query = select(func.count(Job.id))
+    if status:
+        historical_statuses = [s for s in status if s not in ["pending", "running"]]
+        if historical_statuses:
+            count_query = count_query.where(Job.status.in_(historical_statuses))
+        else:
+            count_query = count_query.where(Job.status.in_([]))  # Empty result
+    else:
+        count_query = count_query.where(~Job.status.in_(["pending", "running"]))
 
-    db_total_count = await _get_total_count(db, count_query)
-    total_count = len(active_jobs) + db_total_count
+    if job_type:
+        count_query = count_query.where(Job.type == job_type)
 
-    # Get database jobs
-    data_query = _build_data_query(status, job_type, active_job_ids, limit)
+    total_count = await _get_total_count(db, count_query)
 
-    # Execute data query
-    result = await db.execute(data_query)
-    db_jobs = result.scalars().all()
+    # Apply pagination and ordering
+    query = query.order_by(Job.created_at.desc()).offset(offset).limit(limit)
 
-    # Combine, sort, and paginate
-    all_jobs = list(active_jobs) + list(db_jobs)
-    all_jobs.sort(key=lambda j: j.created_at, reverse=True)  # type: ignore[arg-type,return-value]
-    paginated_jobs = all_jobs[offset : offset + limit]
+    # Execute query
+    result = await db.execute(query)
+    jobs = list(result.scalars().all())
 
     # Convert to response models
-    job_responses = [_create_job_response(job) for job in paginated_jobs]
+    job_responses = [_create_job_response(job) for job in jobs]
 
     return JobsListResponse(
         jobs=job_responses, total=total_count, offset=offset, limit=limit
