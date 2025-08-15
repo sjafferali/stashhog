@@ -410,19 +410,13 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
         onChange={(keys) => setCollapsed(!keys.includes('active'))}
       >
         <Collapse.Panel key="active" header="">
-          {loading && activeJobs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px' }}>
-              <LoadingOutlined style={{ fontSize: 24 }} />
-            </div>
-          ) : (
-            <Table
-              columns={getActiveJobColumns()}
-              dataSource={activeJobs.map((job) => ({ ...job, key: job.id }))}
-              pagination={false}
-              size="small"
-              scroll={{ x: 800 }}
-            />
-          )}
+          <Table
+            columns={getActiveJobColumns()}
+            dataSource={activeJobs.map((job) => ({ ...job, key: job.id }))}
+            pagination={false}
+            size="small"
+            scroll={{ x: 800 }}
+          />
         </Collapse.Panel>
       </Collapse>
     </Card>

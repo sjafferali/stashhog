@@ -183,14 +183,18 @@ const JobMonitor: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
+  // Store fetchJobs in a ref to avoid recreation issues
+  const fetchJobsRef = useRef(fetchJobs);
+  fetchJobsRef.current = fetchJobs;
+
   // Set up auto-refresh interval (only on mount/unmount, respects page visibility)
   useEffect(() => {
     const interval = setInterval(() => {
       // Only fetch if page is visible
       if (isPageVisible) {
-        void fetchJobs();
+        void fetchJobsRef.current();
       }
-    }, 10000); // Reduced from 5s to 10s
+    }, 10000);
     refreshIntervalRef.current = interval;
 
     return () => {
@@ -199,7 +203,7 @@ const JobMonitor: React.FC = () => {
         refreshIntervalRef.current = null;
       }
     };
-  }, [isPageVisible, fetchJobs]); // Re-run when visibility changes
+  }, [isPageVisible]); // Only depend on page visibility, not fetchJobs
 
   // Handle WebSocket updates for real-time job changes (historical jobs only)
   useEffect(() => {
