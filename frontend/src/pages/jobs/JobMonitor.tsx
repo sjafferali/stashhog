@@ -106,7 +106,7 @@ const JobMonitor: React.FC = () => {
     useState(false);
   const [selectedHandledDownloadsJobId, setSelectedHandledDownloadsJobId] =
     useState<string | null>(null);
-  const { lastMessage, disconnect } = useWebSocket('/api/jobs/ws');
+  const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -183,22 +183,15 @@ const JobMonitor: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // Cleanup on component unmount
+  // Cleanup intervals on unmount
   useEffect(() => {
     return () => {
-      // Clear any pending intervals
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
-
-      // Disconnect WebSocket
-      if (disconnect) {
-        disconnect();
-      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only run on unmount
+  }, []);
 
   // Store fetchJobs in a ref to avoid recreation issues
   const fetchJobsRef = useRef(fetchJobs);
