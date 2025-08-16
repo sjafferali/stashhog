@@ -1,7 +1,7 @@
 """Add generated column to scene table
 
 Revision ID: add_generated_column_to_scenes
-Revises: fc61222b7dc6
+Revises: 10705e2245ad
 Create Date: 2025-08-16
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "add_generated_column_to_scenes"
-down_revision: Union[str, None] = "fc61222b7dc6"
+down_revision: Union[str, None] = "10705e2245ad"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
