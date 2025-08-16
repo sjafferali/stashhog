@@ -52,9 +52,10 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [previousActiveJobIds, setPreviousActiveJobIds] = useState<Set<string>>(
-    new Set()
-  );
+  // TEMPORARILY DISABLED - removing this state that was causing issues
+  // const [previousActiveJobIds, setPreviousActiveJobIds] = useState<Set<string>>(
+  //   new Set()
+  // );
   const isMountedRef = useRef(true);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onRefreshRef = useRef(onRefresh);
@@ -163,46 +164,35 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     }
   }, [lastMessage]);
 
-  // Detect when jobs complete and refresh historical jobs - THIS IS THE CRITICAL LOGIC
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-
-    const currentActiveJobIds = new Set(activeJobs.map((job) => job.id));
-
-    // Check if any jobs that were previously active are no longer active
-    const completedJobs = Array.from(previousActiveJobIds).filter(
-      (id) => !currentActiveJobIds.has(id)
-    );
-
-    // If jobs completed, refresh the historical jobs list
-    if (completedJobs.length > 0 && previousActiveJobIds.size > 0) {
-      // Clear any existing timeout
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-
-      // Only set new timeout if component is still mounted
-      if (isMountedRef.current) {
-        refreshTimeoutRef.current = setTimeout(() => {
-          if (isMountedRef.current) {
-            onRefreshRef.current();
-          }
-          refreshTimeoutRef.current = null;
-        }, 100);
-      }
-    }
-
-    // Update the previous job IDs
-    setPreviousActiveJobIds(currentActiveJobIds);
-
-    // Cleanup function
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-        refreshTimeoutRef.current = null;
-      }
-    };
-  }, [activeJobs, previousActiveJobIds]); // FIXED: Removed onRefresh from dependencies to break circular dependency
+  // TEMPORARILY DISABLED - This entire useEffect is causing React Error #185
+  // The previousActiveJobIds tracking logic is problematic
+  // useEffect(() => {
+  //   if (!isMountedRef.current) return;
+  //   const currentActiveJobIds = new Set(activeJobs.map((job) => job.id));
+  //   const completedJobs = Array.from(previousActiveJobIds).filter(
+  //     (id) => !currentActiveJobIds.has(id)
+  //   );
+  //   if (completedJobs.length > 0 && previousActiveJobIds.size > 0) {
+  //     if (refreshTimeoutRef.current) {
+  //       clearTimeout(refreshTimeoutRef.current);
+  //     }
+  //     if (isMountedRef.current) {
+  //       refreshTimeoutRef.current = setTimeout(() => {
+  //         if (isMountedRef.current) {
+  //           onRefreshRef.current();
+  //         }
+  //         refreshTimeoutRef.current = null;
+  //       }, 100);
+  //     }
+  //   }
+  //   setPreviousActiveJobIds(currentActiveJobIds);
+  //   return () => {
+  //     if (refreshTimeoutRef.current) {
+  //       clearTimeout(refreshTimeoutRef.current);
+  //       refreshTimeoutRef.current = null;
+  //     }
+  //   };
+  // }, [activeJobs, previousActiveJobIds]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -430,7 +420,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>Test 7 FIXED: Removed Circular Dependencies</span>
+          <span>Test 7b: Removed Problematic useEffect</span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
           <Badge count={cancellingCount} showZero={false} color="red" />

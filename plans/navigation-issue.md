@@ -446,3 +446,25 @@ This explains why:
 2. **Stabilize onRefresh callback** - Use useCallback or remove from dependencies
 3. **Verify hook order consistency**
 4. **Add better error boundaries for debugging**
+
+## FIX ATTEMPT 1: ❌ FAILED
+
+**Actions Taken:**
+- ✅ Removed `onRefresh` from useEffect dependencies
+- ✅ Used `useRef` to stabilize onRefresh callback
+- ✅ Build successful
+
+**Result:** React Error #185 still occurs - page still crashes
+
+**Conclusion:** The circular dependency fix was not sufficient. The error is coming from a deeper issue in the component structure, likely:
+1. **The previousActiveJobIds tracking useEffect itself**
+2. **Complex state interactions between multiple useEffects**  
+3. **WebSocket + API call + state tracking combination**
+4. **Hook ordering issues with the complex setup**
+
+## NEXT AGGRESSIVE APPROACH
+
+Need to remove more functionality to isolate:
+1. Remove the entire previousActiveJobIds tracking useEffect
+2. Simplify to just basic data fetching and display
+3. Add back functionality piece by piece once stable
