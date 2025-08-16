@@ -54,7 +54,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   // State for bulk update confirmation modal
   const [bulkUpdateModalVisible, setBulkUpdateModalVisible] = useState(false);
   const [pendingBulkUpdate, setPendingBulkUpdate] = useState<{
-    field: 'analyzed' | 'video_analyzed';
+    field: 'analyzed' | 'video_analyzed' | 'generated';
     value: boolean;
   } | null>(null);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisTypeOptions>({
@@ -198,7 +198,11 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       updates,
     }: {
       sceneIds: string[];
-      updates: { analyzed?: boolean; video_analyzed?: boolean };
+      updates: {
+        analyzed?: boolean;
+        video_analyzed?: boolean;
+        generated?: boolean;
+      };
     }) => {
       const response = await api.patch('/scenes/bulk-update', {
         scene_ids: sceneIds,
@@ -216,6 +220,11 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       if (variables.updates.video_analyzed !== undefined) {
         updateMessages.push(
           `${variables.updates.video_analyzed ? 'Set' : 'Unset'} video analyzed status`
+        );
+      }
+      if (variables.updates.generated !== undefined) {
+        updateMessages.push(
+          `${variables.updates.generated ? 'Set' : 'Unset'} generated status`
         );
       }
       void message.success(
@@ -329,7 +338,7 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
   };
 
   const handleBulkAnalyzedUpdate = (
-    field: 'analyzed' | 'video_analyzed',
+    field: 'analyzed' | 'video_analyzed' | 'generated',
     value: boolean
   ) => {
     // Use controlled modal instead of Modal.confirm
@@ -376,6 +385,12 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
       case 'unset-video-analyzed':
         handleBulkAnalyzedUpdate('video_analyzed', false);
         break;
+      case 'set-generated':
+        handleBulkAnalyzedUpdate('generated', true);
+        break;
+      case 'unset-generated':
+        handleBulkAnalyzedUpdate('generated', false);
+        break;
       case 'export-csv':
         void handleExport('csv');
         break;
@@ -420,6 +435,19 @@ export const SceneActions: React.FC<SceneActionsProps> = ({
     {
       key: 'unset-video-analyzed',
       label: 'Unset Video Analyzed',
+      icon: <CloseCircleOutlined />,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'set-generated',
+      label: 'Set Generated',
+      icon: <RobotOutlined />,
+    },
+    {
+      key: 'unset-generated',
+      label: 'Unset Generated',
       icon: <CloseCircleOutlined />,
     },
     {

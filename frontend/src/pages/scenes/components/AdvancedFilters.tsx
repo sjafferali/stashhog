@@ -433,11 +433,13 @@ export const AdvancedFilters: React.FC = () => {
                 {(filters.organized !== undefined ||
                   filters.analyzed !== undefined ||
                   filters.video_analyzed !== undefined ||
+                  filters.generated !== undefined ||
                   filters.has_active_jobs !== undefined) &&
                   renderFilterCount(
                     (filters.organized !== undefined ? 1 : 0) +
                       (filters.analyzed !== undefined ? 1 : 0) +
                       (filters.video_analyzed !== undefined ? 1 : 0) +
+                      (filters.generated !== undefined ? 1 : 0) +
                       (filters.has_active_jobs !== undefined ? 1 : 0)
                   )}
               </Space>
@@ -513,6 +515,30 @@ export const AdvancedFilters: React.FC = () => {
                   />
                 </Space>
               </Col>
+              <Col span={12}>
+                <Space>
+                  <span>Generated:</span>
+                  <Select
+                    value={
+                      typeof filters.generated === 'boolean'
+                        ? filters.generated
+                        : undefined
+                    }
+                    onChange={(value: boolean | undefined) =>
+                      updateFilter('generated', value)
+                    }
+                    style={{ width: 120 }}
+                    placeholder="Any"
+                    allowClear
+                    options={[
+                      { value: true, label: 'Yes' },
+                      { value: false, label: 'No' },
+                    ]}
+                  />
+                </Space>
+              </Col>
+            </Row>
+            <Row gutter={16}>
               <Col span={12}>
                 <Space>
                   <span>Active Jobs:</span>

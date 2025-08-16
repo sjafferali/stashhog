@@ -63,6 +63,7 @@ async def parse_scene_filters(
     organized: Optional[bool] = Query(None),
     analyzed: Optional[bool] = Query(None),
     video_analyzed: Optional[bool] = Query(None),
+    generated: Optional[bool] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     has_active_jobs: Optional[bool] = Query(None),
@@ -94,6 +95,7 @@ async def parse_scene_filters(
         organized=organized,
         analyzed=analyzed,
         video_analyzed=video_analyzed,
+        generated=generated,
         date_from=parsed_date_from,
         date_to=parsed_date_to,
         has_active_jobs=has_active_jobs,
@@ -178,6 +180,9 @@ def _apply_boolean_filters(filters: SceneFilter, conditions: list[Any]) -> list[
 
     if filters.video_analyzed is not None:
         conditions.append(Scene.video_analyzed == filters.video_analyzed)
+
+    if filters.generated is not None:
+        conditions.append(Scene.generated == filters.generated)
 
     return conditions
 
@@ -605,10 +610,10 @@ async def bulk_update_scenes(
     Bulk update scene attributes.
 
     This endpoint allows updating multiple scenes with the same attributes.
-    Currently supports updating 'analyzed' and 'video_analyzed' fields.
+    Currently supports updating 'analyzed', 'video_analyzed', and 'generated' fields.
     """
     # Validate that only allowed fields are being updated
-    allowed_fields = {"analyzed", "video_analyzed"}
+    allowed_fields = {"analyzed", "video_analyzed", "generated"}
     update_fields = set(updates.keys())
     invalid_fields = update_fields - allowed_fields
 

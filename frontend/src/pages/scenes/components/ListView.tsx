@@ -22,6 +22,7 @@ import {
   CalendarOutlined,
   MoreOutlined,
   VideoCameraOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import type {
@@ -327,6 +328,11 @@ export const ListView: React.FC<ListViewProps> = ({
                 <VideoCameraOutlined
                   style={{ color: '#722ed1', fontSize: 16 }}
                 />
+              </Tooltip>
+            )}
+            {record.generated && (
+              <Tooltip title="Generated">
+                <RobotOutlined style={{ color: '#1890ff', fontSize: 16 }} />
               </Tooltip>
             )}
             {record.details && (

@@ -275,6 +275,7 @@ class SceneBase(BaseSchema):
     organized: bool = Field(..., description="Is scene organized")
     analyzed: bool = Field(..., description="Is scene analyzed")
     video_analyzed: bool = Field(False, description="Has video tag analysis been run")
+    generated: bool = Field(False, description="Has scene metadata been generated")
     details: Optional[str] = Field(None, description="Scene details/description")
     stash_created_at: datetime = Field(
         ..., description="When scene was created in Stash"
@@ -367,6 +368,7 @@ class SceneFilter(BaseSchema):
     video_analyzed: Optional[bool] = Field(
         None, description="Filter by video analyzed status"
     )
+    generated: Optional[bool] = Field(None, description="Filter by generated status")
     date_from: Optional[datetime] = Field(None, description="Filter by date from")
     date_to: Optional[datetime] = Field(None, description="Filter by date to")
     has_active_jobs: Optional[bool] = Field(

@@ -198,6 +198,22 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     },
   });
 
+  // Toggle generated mutation
+  const toggleGeneratedMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      return await apiClient.updateScene(parseInt(scene.id), {
+        generated: value,
+      });
+    },
+    onSuccess: () => {
+      void message.success('Updated generated status');
+      void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+    },
+    onError: () => {
+      void message.error('Failed to update generated status');
+    },
+  });
+
   const handleAnalyze = () => {
     setTempAnalysisOptions(analysisOptions);
     setAnalysisModalVisible(true);
@@ -302,6 +318,24 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
                 }
               >
                 {fullScene?.video_analyzed ? 'Unset' : 'Set'}
+              </Button>
+            </Space>
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Generated">
+            <Space>
+              <Tag color={fullScene?.generated ? 'green' : 'default'}>
+                {fullScene?.generated ? 'Yes' : 'No'}
+              </Tag>
+              <Button
+                size="small"
+                type="link"
+                loading={toggleGeneratedMutation.isPending}
+                onClick={() =>
+                  toggleGeneratedMutation.mutate(!fullScene?.generated)
+                }
+              >
+                {fullScene?.generated ? 'Unset' : 'Set'}
               </Button>
             </Space>
           </Descriptions.Item>

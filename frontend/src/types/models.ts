@@ -37,6 +37,7 @@ export interface Scene {
   organized: boolean;
   analyzed: boolean;
   video_analyzed: boolean;
+  generated: boolean;
   details?: string;
   stash_created_at: string;
   stash_updated_at?: string;

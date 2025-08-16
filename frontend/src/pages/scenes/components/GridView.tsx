@@ -16,6 +16,7 @@ import {
   CheckCircleOutlined,
   InfoCircleOutlined,
   VideoCameraOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { Scene } from '@/types/models';
 import { useScenesStore, GridSize } from '@/store/slices/scenes';
@@ -179,6 +180,12 @@ export const GridView: React.FC<GridViewProps> = ({
                       {scene.video_analyzed && (
                         <Tooltip title="Video Analyzed">
                           <VideoCameraOutlined style={{ color: '#722ed1' }} />
+                        </Tooltip>
+                      )}
+
+                      {scene.generated && (
+                        <Tooltip title="Generated">
+                          <RobotOutlined style={{ color: '#1890ff' }} />
                         </Tooltip>
                       )}
 

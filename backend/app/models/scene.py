@@ -40,6 +40,7 @@ class Scene(BaseModel):
     organized = Column(Boolean, default=False, nullable=False, index=True)
     analyzed = Column(Boolean, default=False, nullable=False, index=True)
     video_analyzed = Column(Boolean, default=False, nullable=False, index=True)
+    generated = Column(Boolean, default=False, nullable=False, index=True)
     details = Column(Text, nullable=True)
     url = Column(String, nullable=True)
     rating = Column(Integer, nullable=True)
@@ -96,6 +97,7 @@ class Scene(BaseModel):
         Index("idx_scene_sync_status", "last_synced", "organized"),
         Index("idx_scene_analyzed", "analyzed"),
         Index("idx_scene_analyzed_organized", "analyzed", "organized"),
+        Index("idx_scene_generated_organized", "generated", "organized"),
     )
 
     def add_performer(self, performer: "Performer") -> None:
