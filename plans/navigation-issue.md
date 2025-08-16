@@ -364,14 +364,46 @@ After testing the lifecycle management fixes, the navigation issue has returned.
 - **Result**: Navigation WORKS
 - **Conclusion**: Ant Design Card component does NOT break navigation
 
-**Test 6: Add WebSocket Connection** (READY FOR TESTING - CRITICAL TEST)
+**Test 6: Add WebSocket Connection** ✅ PASSED (SURPRISING!)
 - Added useWebSocket hook connecting to '/api/jobs/ws'
 - Added WebSocket message processing logic
 - Added message counter to track WebSocket activity
-- Build successful
-- **THIS IS THE MOST LIKELY CULPRIT - Awaiting test results**
+- **Result**: Navigation WORKS
+- **Conclusion**: Even WebSocket connection does NOT break navigation!
 
-**Remaining Tests:**
-7. Add full functionality (if WebSocket doesn't break it)
+## UNEXPECTED FINDING ⚠️
 
-Each test will identify which specific feature breaks navigation.
+**All individual components work fine!**
+- useState ✅
+- useEffect ✅ 
+- Table ✅
+- Card ✅
+- WebSocket ✅
+
+This suggests the issue is NOT in the basic components but in:
+1. **Specific combination of original logic patterns**
+2. **Real API calls and data processing**
+3. **onRefresh callback timing and implementation**
+4. **previousActiveJobIds tracking logic**
+5. **Exact original component structure and dependencies**
+
+**Test 7: Full Original Functionality** (READY FOR TESTING - CRITICAL)
+- ✅ Real API calls with `apiClient.getActiveJobs()`
+- ✅ Complete `onRefresh` callback with 100ms setTimeout
+- ✅ `previousActiveJobIds` tracking and comparison logic
+- ✅ Exact original useEffect patterns and dependencies
+- ✅ All original helper functions (getStatusIcon, formatDuration, etc.)
+- ✅ Complete table with all action buttons including Link components
+- ✅ Early return when no active jobs (returns null)
+- ✅ Full lifecycle management with isMountedRef and cleanup
+- **THIS IS THE EXACT ORIGINAL FUNCTIONALITY**
+
+**Next Investigation Steps:**
+If navigation works with full functionality:
+1. Compare byte-by-byte with the broken original component
+2. Check for environment or timing differences
+3. Investigate if issue is intermittent or specific to certain conditions
+
+If navigation breaks with full functionality:
+1. We've found the exact combination that causes the issue
+2. Implement targeted fix for the identified problem
