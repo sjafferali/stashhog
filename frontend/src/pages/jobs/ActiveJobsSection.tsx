@@ -27,7 +27,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
-import { apiClient } from '@/services/apiClient';
+// import { apiClient } from '@/services/apiClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { getJobTypeLabel, getJobTypeColor } from '@/utils/jobUtils';
 
@@ -62,11 +62,30 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const fetchActiveJobs = useCallback(async () => {
     if (!isMountedRef.current) return;
 
+    // TEST 7a: Remove API call, use static data instead
     try {
       setLoading(true);
-      const jobs = await apiClient.getActiveJobs();
+      // Simulate API call with static data instead of real API
+      const mockJobs: Job[] = [
+        {
+          id: 'mock-1',
+          type: 'sync',
+          status: 'running',
+          progress: 45,
+          started_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: { last_message: 'Processing files...' },
+          processed_items: 23,
+          total: 50,
+        },
+      ];
+
+      // Simulate async delay
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       if (isMountedRef.current) {
-        setActiveJobs(jobs);
+        setActiveJobs(mockJobs);
       }
     } catch (error) {
       console.error('Failed to fetch active jobs:', error);
@@ -405,7 +424,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>Test 7: FULL ORIGINAL FUNCTIONALITY</span>
+          <span>Test 7a: No Real API Calls</span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
           <Badge count={cancellingCount} showZero={false} color="red" />

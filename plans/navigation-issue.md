@@ -387,7 +387,7 @@ This suggests the issue is NOT in the basic components but in:
 4. **previousActiveJobIds tracking logic**
 5. **Exact original component structure and dependencies**
 
-**Test 7: Full Original Functionality** (READY FOR TESTING - CRITICAL)
+**Test 7: Full Original Functionality** ❌ FAILED
 - ✅ Real API calls with `apiClient.getActiveJobs()`
 - ✅ Complete `onRefresh` callback with 100ms setTimeout
 - ✅ `previousActiveJobIds` tracking and comparison logic
@@ -396,14 +396,29 @@ This suggests the issue is NOT in the basic components but in:
 - ✅ Complete table with all action buttons including Link components
 - ✅ Early return when no active jobs (returns null)
 - ✅ Full lifecycle management with isMountedRef and cleanup
-- **THIS IS THE EXACT ORIGINAL FUNCTIONALITY**
+- **Result**: Navigation BREAKS immediately without any interaction
+- **Conclusion**: The issue is triggered by the combination of full functionality
 
-**Next Investigation Steps:**
-If navigation works with full functionality:
-1. Compare byte-by-byte with the broken original component
-2. Check for environment or timing differences
-3. Investigate if issue is intermittent or specific to certain conditions
+## ROOT CAUSE IDENTIFIED ⚠️
 
-If navigation breaks with full functionality:
-1. We've found the exact combination that causes the issue
-2. Implement targeted fix for the identified problem
+**The navigation breaking occurs when all original functionality is present, specifically:**
+
+1. **API Call on Mount** - `fetchActiveJobs()` called in useEffect on component mount
+2. **onRefresh Callback** - The callback passed from JobMonitor 
+3. **Complex useEffect Dependencies** - Multiple effects with [activeJobs, previousActiveJobIds, onRefresh]
+
+**Key Insight**: Each individual component (useState, useEffect, Table, Card, WebSocket) works fine, but the **specific combination** of:
+- Real API calls
+- onRefresh callback execution
+- previousActiveJobIds state tracking
+- Complex effect dependency arrays
+
+This combination appears to interfere with React Router's navigation mechanism.
+
+## INVESTIGATION APPROACH
+
+Need to systematically disable parts of the full functionality to isolate the exact trigger:
+1. Remove API call - test with static data
+2. Remove onRefresh callback - pass empty function
+3. Remove previousActiveJobIds tracking
+4. Simplify useEffect dependencies
