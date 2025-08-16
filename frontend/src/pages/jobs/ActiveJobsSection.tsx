@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Job {
   id: string;
@@ -15,10 +15,32 @@ interface ActiveJobsSectionProps {
 }
 
 const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
-  // TEST 2: Adding useState to test if state management breaks navigation
+  // TEST 3: Adding useEffect to test if lifecycle hooks break navigation
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [mountTime, setMountTime] = useState<string>('');
+
+  // Test useEffect on mount
+  useEffect(() => {
+    console.log('ActiveJobsSection mounted');
+    setMountTime(new Date().toLocaleTimeString());
+
+    // Cleanup function
+    return () => {
+      console.log('ActiveJobsSection unmounting');
+    };
+  }, []);
+
+  // Test useEffect that depends on state
+  useEffect(() => {
+    console.log('Active jobs changed:', activeJobs.length);
+  }, [activeJobs]);
+
+  // Test useEffect that runs on every render
+  useEffect(() => {
+    console.log('Component rendered');
+  });
 
   return (
     <div
@@ -31,7 +53,8 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
         backgroundColor: '#fff',
       }}
     >
-      <h3>Test 2: With useState</h3>
+      <h3>Test 3: With useState + useEffect</h3>
+      <p>Mounted at: {mountTime}</p>
       <p>Active Jobs: {activeJobs.length}</p>
       <p>Loading: {loading ? 'Yes' : 'No'}</p>
       <p>Collapsed: {collapsed ? 'Yes' : 'No'}</p>

@@ -338,14 +338,19 @@ After testing the lifecycle management fixes, the navigation issue has returned.
 - **Result**: Navigation WORKS
 - **Conclusion**: Issue is in ActiveJobsSection code, not how it's imported/rendered
 
-**Test 2: Add useState** (READY FOR TESTING)
+**Test 2: Add useState** ✅ PASSED
 - Added three useState hooks: activeJobs, loading, collapsed
 - Added buttons to interact with state
+- **Result**: Navigation WORKS
+- **Conclusion**: React state management does NOT break navigation
+
+**Test 3: Add useEffect** (READY FOR TESTING)
+- Added three useEffect hooks: mount/unmount, state dependency, every render
+- Added console logging to track lifecycle
 - Build successful
 - **Awaiting test results**
 
 **Remaining Tests:**
-3. Add basic useEffect for initial fetch
 4. Add Table component (without data)
 5. Add Card wrapper
 6. Add WebSocket connection
