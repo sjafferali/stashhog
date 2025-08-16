@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Table } from 'antd';
+import { Table, Card, Badge, Space } from 'antd';
+import {
+  PlayCircleOutlined,
+  SyncOutlined,
+  UpOutlined,
+  DownOutlined,
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Job {
@@ -69,45 +75,70 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
     },
   ];
 
+  const runningCount = activeJobs.filter(
+    (job) => job.status === 'running'
+  ).length;
+  const pendingCount = activeJobs.filter(
+    (job) => job.status === 'pending'
+  ).length;
+
   return (
-    <div
+    <Card
       className={className}
-      style={{
-        padding: 16,
-        marginBottom: 16,
-        border: '1px solid #d9d9d9',
-        borderRadius: 4,
-        backgroundColor: '#fff',
-      }}
+      title={
+        <Space>
+          <PlayCircleOutlined />
+          <span>Test 5: With useState + useEffect + Table + Card</span>
+          <Badge count={runningCount} showZero={false} color="blue" />
+          <Badge count={pendingCount} showZero={false} color="orange" />
+        </Space>
+      }
+      extra={
+        <Space>
+          <button onClick={() => setCollapsed(!collapsed)}>
+            {collapsed ? <DownOutlined /> : <UpOutlined />}
+            {collapsed ? 'Show' : 'Hide'}
+          </button>
+          <button onClick={() => setLoading(!loading)}>
+            <SyncOutlined spin={loading} />
+            Refresh
+          </button>
+        </Space>
+      }
+      size="small"
+      style={{ marginBottom: 16 }}
     >
-      <h3>Test 4: With useState + useEffect + Table</h3>
-      <p>Mounted at: {mountTime}</p>
-      <p>Active Jobs: {activeJobs.length}</p>
-      <p>Loading: {loading ? 'Yes' : 'No'}</p>
-      <p>Collapsed: {collapsed ? 'Yes' : 'No'}</p>
+      <div style={{ marginBottom: 16 }}>
+        <p>
+          <strong>Mounted at:</strong> {mountTime}
+        </p>
+        <p>
+          <strong>Active Jobs:</strong> {activeJobs.length}
+        </p>
+        <p>
+          <strong>Loading:</strong> {loading ? 'Yes' : 'No'}
+        </p>
+        <p>
+          <strong>Collapsed:</strong> {collapsed ? 'Yes' : 'No'}
+        </p>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          style={{ marginRight: 8 }}
-        >
-          Toggle Collapsed
-        </button>
         <button
           onClick={() =>
             setActiveJobs([
               { id: '1', type: 'test', status: 'running', progress: 50 },
               { id: '2', type: 'sync', status: 'pending', progress: 0 },
+              { id: '3', type: 'analysis', status: 'running', progress: 75 },
             ])
           }
           style={{ marginRight: 8 }}
         >
           Add Test Jobs
         </button>
-        <button onClick={() => setLoading(!loading)} style={{ marginRight: 8 }}>
-          Toggle Loading
+        <button onClick={() => setActiveJobs([])} style={{ marginRight: 8 }}>
+          Clear Jobs
         </button>
-        <button onClick={() => setActiveJobs([])}>Clear Jobs</button>
       </div>
 
       {!collapsed && (
@@ -119,7 +150,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
           loading={loading}
         />
       )}
-    </div>
+    </Card>
   );
 };
 
