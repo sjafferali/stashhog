@@ -27,7 +27,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
-// import { apiClient } from '@/services/apiClient';
+import { apiClient } from '@/services/apiClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { getJobTypeLabel, getJobTypeColor } from '@/utils/jobUtils';
 
@@ -59,6 +59,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const isMountedRef = useRef(true);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const onRefreshRef = useRef(onRefresh);
+  const previousActiveJobIdsRef = useRef<Set<string>>(new Set());
   const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   // Keep onRefresh ref current
@@ -69,30 +70,12 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   const fetchActiveJobs = useCallback(async () => {
     if (!isMountedRef.current) return;
 
-    // TEST 7a: Remove API call, use static data instead
+    // RESTORED: Real API call now that the issue is fixed
     try {
       setLoading(true);
-      // Simulate API call with static data instead of real API
-      const mockJobs: Job[] = [
-        {
-          id: 'mock-1',
-          type: 'sync',
-          status: 'running',
-          progress: 45,
-          started_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          metadata: { last_message: 'Processing files...' },
-          processed_items: 23,
-          total: 50,
-        },
-      ];
-
-      // Simulate async delay
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
+      const jobs = await apiClient.getActiveJobs();
       if (isMountedRef.current) {
-        setActiveJobs(mockJobs);
+        setActiveJobs(jobs);
       }
     } catch (error) {
       console.error('Failed to fetch active jobs:', error);
@@ -164,7 +147,41 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
     }
   }, [lastMessage]);
 
-  // TEMPORARILY DISABLED - This entire useEffect is causing React Error #185
+  // SAFE job completion tracking using refs instead of state
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+
+    const currentActiveJobIds = new Set(activeJobs.map((job) => job.id));
+    const previousIds = previousActiveJobIdsRef.current;
+
+    // Check if any jobs that were previously active are no longer active
+    const completedJobs = Array.from(previousIds).filter(
+      (id) => !currentActiveJobIds.has(id)
+    );
+
+    // If jobs completed, refresh the historical jobs list
+    if (completedJobs.length > 0 && previousIds.size > 0) {
+      // Clear any existing timeout
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+
+      // Only set new timeout if component is still mounted
+      if (isMountedRef.current) {
+        refreshTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            onRefreshRef.current();
+          }
+          refreshTimeoutRef.current = null;
+        }, 100);
+      }
+    }
+
+    // Update the previous job IDs in ref (not state!)
+    previousActiveJobIdsRef.current = currentActiveJobIds;
+  }, [activeJobs]); // Only depends on activeJobs, not the ref
+
+  // PREVIOUSLY DISABLED - This entire useEffect was causing React Error #185
   // The previousActiveJobIds tracking logic is problematic
   // useEffect(() => {
   //   if (!isMountedRef.current) return;
@@ -420,7 +437,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>Test 7b: Removed Problematic useEffect</span>
+          <span>FIXED: Navigation Issue Resolved</span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
           <Badge count={cancellingCount} showZero={false} color="red" />
