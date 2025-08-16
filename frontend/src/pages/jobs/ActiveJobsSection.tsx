@@ -7,6 +7,7 @@ import {
   DownOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface Job {
   id: string;
@@ -23,11 +24,15 @@ interface ActiveJobsSectionProps {
 }
 
 const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
-  // TEST 3: Adding useEffect to test if lifecycle hooks break navigation
+  // TEST 6: Adding WebSocket to test if WebSocket breaks navigation
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mountTime, setMountTime] = useState<string>('');
+  const [wsMessages, setWsMessages] = useState<number>(0);
+
+  // This is the critical test - adding WebSocket connection
+  const { lastMessage } = useWebSocket('/api/jobs/ws');
 
   // Test useEffect on mount
   useEffect(() => {
@@ -49,6 +54,43 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
   useEffect(() => {
     console.log('Component rendered');
   });
+
+  // Handle WebSocket messages - this is where the problem likely occurs
+  useEffect(() => {
+    if (lastMessage) {
+      console.log('WebSocket message received:', lastMessage);
+      setWsMessages((prev) => prev + 1);
+
+      // Simulate processing WebSocket messages like the original component
+      if (typeof lastMessage === 'object') {
+        const update = lastMessage as { type: string; job: Job };
+        if (update.type === 'job_update' && update.job) {
+          const job = update.job;
+          const isActiveJob = ['pending', 'running', 'cancelling'].includes(
+            job.status
+          );
+
+          setActiveJobs((prevJobs) => {
+            const jobIndex = prevJobs.findIndex((j) => j.id === job.id);
+            if (isActiveJob) {
+              if (jobIndex >= 0) {
+                const newJobs = [...prevJobs];
+                newJobs[jobIndex] = job;
+                return newJobs;
+              } else {
+                return [...prevJobs, job];
+              }
+            } else {
+              if (jobIndex >= 0) {
+                return prevJobs.filter((j) => j.id !== job.id);
+              }
+            }
+            return prevJobs;
+          });
+        }
+      }
+    }
+  }, [lastMessage]);
 
   // Define table columns for testing
   const columns: ColumnsType<Job> = [
@@ -88,7 +130,9 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>Test 5: With useState + useEffect + Table + Card</span>
+          <span>
+            Test 6: With useState + useEffect + Table + Card + WebSocket
+          </span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
         </Space>
@@ -120,6 +164,9 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
         </p>
         <p>
           <strong>Collapsed:</strong> {collapsed ? 'Yes' : 'No'}
+        </p>
+        <p>
+          <strong>WebSocket Messages:</strong> {wsMessages}
         </p>
       </div>
 

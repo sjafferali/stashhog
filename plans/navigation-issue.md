@@ -357,15 +357,21 @@ After testing the lifecycle management fixes, the navigation issue has returned.
 - **Result**: Navigation WORKS
 - **Conclusion**: Ant Design Table component does NOT break navigation
 
-**Test 5: Add Ant Design Card** (READY FOR TESTING)
+**Test 5: Add Ant Design Card** ✅ PASSED
 - Wrapped everything in Card component with title and extra actions
 - Added Badge components showing job counts
 - Added icons and enhanced styling
+- **Result**: Navigation WORKS
+- **Conclusion**: Ant Design Card component does NOT break navigation
+
+**Test 6: Add WebSocket Connection** (READY FOR TESTING - CRITICAL TEST)
+- Added useWebSocket hook connecting to '/api/jobs/ws'
+- Added WebSocket message processing logic
+- Added message counter to track WebSocket activity
 - Build successful
-- **Awaiting test results**
+- **THIS IS THE MOST LIKELY CULPRIT - Awaiting test results**
 
 **Remaining Tests:**
-6. Add WebSocket connection
-7. Add full functionality
+7. Add full functionality (if WebSocket doesn't break it)
 
 Each test will identify which specific feature breaks navigation.
