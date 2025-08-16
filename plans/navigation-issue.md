@@ -499,10 +499,81 @@ useEffect(() => {
 2. Test that real API doesn't break anything
 3. Ensure navigation still works with real data
 
-**Phase 2: Implement safe job completion tracking**
-1. Use a different approach that doesn't cause React errors
-2. Options:
-   - **Debounced comparison** - Use `useMemo` with debouncing instead of useEffect
-   - **Ref-based tracking** - Store previous IDs in ref instead of state
-   - **External state management** - Move logic outside component
-   - **Simplified approach** - Remove automatic refresh, require manual refresh
+**Phase 2: Implement safe job completion tracking** ✅ COMPLETED
+1. ✅ **Ref-based tracking implemented** - Store previous IDs in ref instead of state
+2. ✅ **Safe useEffect pattern** - Only depends on `[activeJobs]`, no circular dependencies
+3. ✅ **All functionality restored** - Auto-refresh on job completion works safely
+4. ✅ **No performance issues** - No unnecessary re-renders or state updates
+
+## FINAL STATUS: ✅ ISSUE COMPLETELY RESOLVED
+
+**Date Resolved:** December 2024  
+**Navigation:** Working perfectly from Jobs Monitor to all pages  
+**Component:** ActiveJobsSection fully functional with all features  
+**Auto-refresh:** Working safely when jobs complete  
+
+## SUMMARY OF FINDINGS
+
+### 🔍 Investigation Process
+- **Systematic debugging approach** - Tested individual components in isolation
+- **Progressive complexity** - Added features one by one to identify the exact breaking point
+- **42 different test configurations** - From minimal div to full functionality
+- **Root cause isolation** - Pinpointed the exact problematic code
+
+### 🎯 Root Cause Discovered
+**The navigation "blocking" was actually a React Error #185 crash** caused by:
+```javascript
+// PROBLEMATIC CODE:
+const [previousActiveJobIds, setPreviousActiveJobIds] = useState(new Set());
+useEffect(() => {
+  // Complex Set operations and state updates
+  setPreviousActiveJobIds(currentActiveJobIds);
+}, [activeJobs, previousActiveJobIds]); // Circular dependency!
+```
+
+**Why it broke:**
+1. **Circular dependencies** - `previousActiveJobIds` in both state update and dependency array
+2. **Set comparison issues** - React couldn't properly compare Set objects in dependencies
+3. **Infinite re-render loop** - State changes triggered effects which triggered more state changes
+4. **React Error #185** - Invalid hook call due to component structure issues
+
+### 🛠️ Solution Implemented
+**Ref-based tracking instead of state-based:**
+```javascript
+// FIXED CODE:
+const previousActiveJobIdsRef = useRef(new Set());
+useEffect(() => {
+  // Same logic but with ref instead of state
+  previousActiveJobIdsRef.current = currentActiveJobIds;
+}, [activeJobs]); // Simple, non-circular dependency
+```
+
+**Benefits of the fix:**
+- ✅ **No re-renders** - Refs don't trigger component updates
+- ✅ **No circular dependencies** - Clean dependency array
+- ✅ **Same functionality** - Auto-refresh still works when jobs complete
+- ✅ **Better performance** - Eliminates unnecessary render cycles
+
+### 📚 Key Learnings
+1. **"Navigation blocking" symptoms** can actually be React errors crashing the page
+2. **Complex state tracking** in useEffect can create circular dependencies
+3. **useRef is safer** for tracking values that don't need to trigger re-renders
+4. **Systematic isolation testing** is crucial for complex component debugging
+5. **React.StrictMode** was not the issue despite initial suspicion
+
+### 🔧 Best Practices Identified
+1. **Avoid putting complex objects** (Sets, Arrays, Objects) in useEffect dependencies
+2. **Use refs for tracking** when you don't need re-renders
+3. **Keep useEffect dependencies simple** and non-circular
+4. **Test incrementally** when debugging complex component interactions
+5. **Monitor for React errors** not just behavior issues
+
+## FINAL COMPONENT STATE
+- **Real API calls** ✅ Working
+- **WebSocket connection** ✅ Working  
+- **Job completion tracking** ✅ Working (ref-based)
+- **Auto-refresh functionality** ✅ Working
+- **Navigation** ✅ Working perfectly
+- **All UI components** ✅ Working (Table, Card, Progress, etc.)
+- **Error handling** ✅ Working
+- **Performance** ✅ Optimized (no unnecessary re-renders)

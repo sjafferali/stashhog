@@ -437,7 +437,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>FIXED: Navigation Issue Resolved</span>
+          <span>Active Jobs</span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
           <Badge count={cancellingCount} showZero={false} color="red" />
