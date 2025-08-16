@@ -57,7 +57,13 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   );
   const isMountedRef = useRef(true);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onRefreshRef = useRef(onRefresh);
   const { lastMessage } = useWebSocket('/api/jobs/ws');
+
+  // Keep onRefresh ref current
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
 
   const fetchActiveJobs = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -179,7 +185,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       if (isMountedRef.current) {
         refreshTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) {
-            onRefresh();
+            onRefreshRef.current();
           }
           refreshTimeoutRef.current = null;
         }, 100);
@@ -196,7 +202,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
         refreshTimeoutRef.current = null;
       }
     };
-  }, [activeJobs, previousActiveJobIds, onRefresh]);
+  }, [activeJobs, previousActiveJobIds]); // FIXED: Removed onRefresh from dependencies to break circular dependency
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -424,7 +430,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       title={
         <Space>
           <PlayCircleOutlined />
-          <span>Test 7a: No Real API Calls</span>
+          <span>Test 7 FIXED: Removed Circular Dependencies</span>
           <Badge count={runningCount} showZero={false} color="blue" />
           <Badge count={pendingCount} showZero={false} color="orange" />
           <Badge count={cancellingCount} showZero={false} color="red" />
@@ -454,7 +460,7 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
               type="text"
               size="small"
               icon={<LoadingOutlined />}
-              onClick={onRefresh}
+              onClick={() => onRefreshRef.current()}
             />
           </Tooltip>
         </Space>

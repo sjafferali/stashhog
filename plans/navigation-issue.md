@@ -415,10 +415,34 @@ This suggests the issue is NOT in the basic components but in:
 
 This combination appears to interfere with React Router's navigation mechanism.
 
-## INVESTIGATION APPROACH
+## CRITICAL DISCOVERY: React Error #185 ⚠️
 
-Need to systematically disable parts of the full functionality to isolate the exact trigger:
-1. Remove API call - test with static data
-2. Remove onRefresh callback - pass empty function
-3. Remove previousActiveJobIds tracking
-4. Simplify useEffect dependencies
+**Test 7a Result**: The component now throws a React error #185 when trying to load the Jobs page.
+
+**React Error #185** typically indicates:
+- Invalid hook call (hooks called outside component or in wrong order)
+- Component structure issues
+- State update after component unmount
+- Circular dependency in useEffect
+
+## ROOT CAUSE IDENTIFIED 🎯
+
+**The navigation issue is NOT just "navigation blocking" - it's actually a React error crash!**
+
+This explains why:
+1. ✅ Individual components (useState, useEffect, Table, etc.) work fine in isolation
+2. ❌ The full original functionality causes a React error
+3. ❌ Users perceive this as "navigation not working" because the page crashes
+
+**The issue is likely one of:**
+1. **Circular useEffect dependencies** - The complex dependency array `[activeJobs, previousActiveJobIds, onRefresh]` creates a render loop
+2. **onRefresh callback causing infinite re-renders**
+3. **State updates after unmount** despite our mounted checks
+4. **Hook ordering issues** with the complex useCallback/useEffect combinations
+
+## IMMEDIATE FIX APPROACH
+
+1. **Simplify useEffect dependencies** - Remove circular dependencies
+2. **Stabilize onRefresh callback** - Use useCallback or remove from dependencies
+3. **Verify hook order consistency**
+4. **Add better error boundaries for debugging**
