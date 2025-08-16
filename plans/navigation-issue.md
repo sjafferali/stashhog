@@ -344,14 +344,20 @@ After testing the lifecycle management fixes, the navigation issue has returned.
 - **Result**: Navigation WORKS
 - **Conclusion**: React state management does NOT break navigation
 
-**Test 3: Add useEffect** (READY FOR TESTING)
+**Test 3: Add useEffect** ✅ PASSED
 - Added three useEffect hooks: mount/unmount, state dependency, every render
 - Added console logging to track lifecycle
+- **Result**: Navigation WORKS
+- **Conclusion**: React lifecycle hooks do NOT break navigation
+
+**Test 4: Add Ant Design Table** (READY FOR TESTING)
+- Added Table component with columns and interactive data
+- Table shows/hides based on collapsed state
+- Table includes loading state
 - Build successful
 - **Awaiting test results**
 
 **Remaining Tests:**
-4. Add Table component (without data)
 5. Add Card wrapper
 6. Add WebSocket connection
 7. Add full functionality

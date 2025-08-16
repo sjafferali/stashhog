@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Table } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 interface Job {
   id: string;
@@ -42,6 +44,31 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
     console.log('Component rendered');
   });
 
+  // Define table columns for testing
+  const columns: ColumnsType<Job> = [
+    {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id',
+    },
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+    },
+    {
+      title: 'Progress',
+      dataIndex: 'progress',
+      key: 'progress',
+      render: (progress: number) => `${progress || 0}%`,
+    },
+  ];
+
   return (
     <div
       className={className}
@@ -53,22 +80,45 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({ className }) => {
         backgroundColor: '#fff',
       }}
     >
-      <h3>Test 3: With useState + useEffect</h3>
+      <h3>Test 4: With useState + useEffect + Table</h3>
       <p>Mounted at: {mountTime}</p>
       <p>Active Jobs: {activeJobs.length}</p>
       <p>Loading: {loading ? 'Yes' : 'No'}</p>
       <p>Collapsed: {collapsed ? 'Yes' : 'No'}</p>
-      <button onClick={() => setCollapsed(!collapsed)}>Toggle Collapsed</button>
-      <button
-        onClick={() =>
-          setActiveJobs([
-            { id: '1', type: 'test', status: 'running', progress: 50 },
-          ])
-        }
-      >
-        Add Test Job
-      </button>
-      <button onClick={() => setLoading(!loading)}>Toggle Loading</button>
+
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          style={{ marginRight: 8 }}
+        >
+          Toggle Collapsed
+        </button>
+        <button
+          onClick={() =>
+            setActiveJobs([
+              { id: '1', type: 'test', status: 'running', progress: 50 },
+              { id: '2', type: 'sync', status: 'pending', progress: 0 },
+            ])
+          }
+          style={{ marginRight: 8 }}
+        >
+          Add Test Jobs
+        </button>
+        <button onClick={() => setLoading(!loading)} style={{ marginRight: 8 }}>
+          Toggle Loading
+        </button>
+        <button onClick={() => setActiveJobs([])}>Clear Jobs</button>
+      </div>
+
+      {!collapsed && (
+        <Table
+          columns={columns}
+          dataSource={activeJobs.map((job) => ({ ...job, key: job.id }))}
+          pagination={false}
+          size="small"
+          loading={loading}
+        />
+      )}
     </div>
   );
 };
