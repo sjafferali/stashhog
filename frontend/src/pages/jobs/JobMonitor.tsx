@@ -765,6 +765,15 @@ const JobMonitor: React.FC = () => {
             />
           </Tooltip>
 
+          <Tooltip title="View Raw Data">
+            <Button
+              type="text"
+              icon={<CodeOutlined />}
+              size="small"
+              onClick={() => showRawJobData(record)}
+            />
+          </Tooltip>
+
           {(record.type === 'scene_analysis' ||
             record.type === 'analysis' ||
             record.type === 'non_ai_analysis') &&
