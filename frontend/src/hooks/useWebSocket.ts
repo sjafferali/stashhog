@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { wsManager } from '@/services/websocketManager';
 
 export interface WebSocketOptions {
@@ -60,11 +60,14 @@ export function useWebSocket(
     };
   }, [endpoint, onMessage]);
 
-  const sendMessage = (data: Record<string, unknown>) => {
-    if (endpoint) {
-      wsManager.send(endpoint, data);
-    }
-  };
+  const sendMessage = useCallback(
+    (data: Record<string, unknown>) => {
+      if (endpoint) {
+        wsManager.send(endpoint, data);
+      }
+    },
+    [endpoint]
+  );
 
   const connect = () => {
     // Connection is handled automatically by the manager

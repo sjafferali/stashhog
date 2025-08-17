@@ -83,11 +83,13 @@ async def _handle_websocket_message(
     websocket: WebSocket, data: Dict[str, Any], manager: WebSocketManager
 ) -> None:
     """Handle incoming WebSocket message."""
-    logger.info(f"Received WebSocket message: {data}")
-
     message_type = data.get("type")
     command = data.get("command")
     daemon_id = data.get("daemon_id")
+
+    # Only log non-ping/pong messages to avoid log spam
+    if message_type not in ("ping", "pong"):
+        logger.info(f"Received WebSocket message: {data}")
 
     # Handle ping/pong for keepalive
     if message_type == "ping":
