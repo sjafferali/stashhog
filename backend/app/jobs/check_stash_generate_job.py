@@ -3,12 +3,81 @@
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, cast
 
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import AsyncSessionLocal
 from app.core.settings_loader import load_settings_with_db_overrides
+from app.models import Scene
 from app.models.job import JobType
 from app.services.job_service import JobService
 from app.services.stash_service import StashService
 
 logger = logging.getLogger(__name__)
+
+
+async def _update_scenes_generated_attribute(
+    db: AsyncSession,
+    scenes_needing_generation: Set[str],
+    all_scene_ids: List[str],
+) -> Dict[str, int]:
+    """Update the generated attribute for scenes based on resource check results.
+
+    Args:
+        db: Database session
+        scenes_needing_generation: Set of scene IDs that need generation (will be marked as generated=false)
+        all_scene_ids: List of all scene IDs that were checked
+
+    Returns:
+        Dictionary with counts of scenes marked as generated and not generated
+    """
+    scenes_marked_generated = 0
+    scenes_marked_not_generated = 0
+
+    # Convert set to list for SQL IN clause
+    scenes_needing_generation_list = list(scenes_needing_generation)
+
+    # Mark scenes that need generation as generated=false
+    if scenes_needing_generation_list:
+        stmt = (
+            update(Scene)
+            .where(Scene.id.in_(scenes_needing_generation_list))
+            .values(generated=False)
+        )
+        result = await db.execute(stmt)
+        scenes_marked_not_generated = result.rowcount
+        logger.info(f"Marked {scenes_marked_not_generated} scenes as generated=false")
+
+    # Mark scenes that don't need generation as generated=true
+    # Only update scenes that exist in our database
+    scenes_fully_generated = [
+        scene_id
+        for scene_id in all_scene_ids
+        if scene_id not in scenes_needing_generation
+    ]
+
+    if scenes_fully_generated:
+        # First check which scenes exist in our database
+        existing_query = select(Scene.id).where(Scene.id.in_(scenes_fully_generated))
+        existing_result = await db.execute(existing_query)
+        existing_scene_ids = [row[0] for row in existing_result.fetchall()]
+
+        if existing_scene_ids:
+            stmt = (
+                update(Scene)
+                .where(Scene.id.in_(existing_scene_ids))
+                .values(generated=True)
+            )
+            result = await db.execute(stmt)
+            scenes_marked_generated = result.rowcount
+            logger.info(f"Marked {scenes_marked_generated} scenes as generated=true")
+
+    await db.commit()
+
+    return {
+        "scenes_marked_generated": scenes_marked_generated,
+        "scenes_marked_not_generated": scenes_marked_not_generated,
+    }
 
 
 SCENES_WITHOUT_COVER_QUERY = """
@@ -120,6 +189,7 @@ async def _check_scene_generation_details(
         return
 
     # Initialize tracking sets for scene generation status
+    all_scene_ids = cast(List[str], result.get("all_scene_ids", []))
 
     # Check ALL scenes for detailed missing content (not just a sample)
     per_page = min(1000, total_scenes)  # Limit to 1000 per batch
@@ -137,6 +207,8 @@ async def _check_scene_generation_details(
         scenes = scene_data.get("findScenes", {}).get("scenes", [])
 
         for scene in scenes:
+            # Track all scene IDs
+            all_scene_ids.append(scene["id"])
             _process_scene_generation(scene, result)
 
         scenes_checked += len(scenes)
@@ -150,6 +222,9 @@ async def _check_scene_generation_details(
             break
 
         page += 1
+
+    # Store all scene IDs in result
+    result["all_scene_ids"] = all_scene_ids
 
 
 def _process_scene_generation(scene: Dict[str, Any], result: Dict[str, Any]) -> None:
@@ -326,6 +401,103 @@ async def _get_sample_missing_resources(
     result["scenes_needing_generation"] = scenes_needing_generation
 
 
+async def _initialize_result(job_id: str) -> Dict[str, Any]:
+    """Initialize the result dictionary for the job."""
+    return {
+        "job_id": job_id,
+        "status": "completed",
+        "resources_requiring_generation": False,
+        "details": {
+            "scenes_missing_cover": 0,
+            "scenes_missing_phash": 0,
+            "scenes_missing_sprites": 0,
+            "scenes_missing_previews": 0,
+            "scenes_missing_webp": 0,
+            "markers_missing_video": 0,
+            "markers_missing_screenshot": 0,
+            "markers_missing_webp": 0,
+            "total_scenes": 0,
+            "total_markers": 0,
+        },
+        "sample_missing_resources": {
+            "covers": [],
+            "phash": [],
+            "sprites": [],
+            "previews": [],
+            "marker_videos": [],
+        },
+        "all_scene_ids": [],  # Track all scene IDs that were checked
+    }
+
+
+async def _check_overview_counts(
+    stash_service: StashService,
+    result: Dict[str, Any],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> None:
+    """Check overview counts and update result."""
+    await progress_callback(10, "Fetching overview statistics")
+    overview_data = await stash_service.execute_graphql(PENDING_GENERATION_QUERY)
+
+    details = cast(Dict[str, int], result["details"])
+    details["total_scenes"] = overview_data.get("allScenes", {}).get("count", 0)
+    details["scenes_missing_cover"] = overview_data.get("missingCovers", {}).get(
+        "count", 0
+    )
+    details["scenes_missing_phash"] = overview_data.get("missingPhash", {}).get(
+        "count", 0
+    )
+
+    # Check if any basic resources are missing
+    if details["scenes_missing_cover"] > 0 or details["scenes_missing_phash"] > 0:
+        result["resources_requiring_generation"] = True
+
+
+def _check_missing_generated_content(result: Dict[str, Any]) -> None:
+    """Check if any generated content is missing and update result."""
+    details = cast(Dict[str, int], result["details"])
+    if (
+        details["scenes_missing_sprites"] > 0
+        or details["scenes_missing_previews"] > 0
+        or details["scenes_missing_webp"] > 0
+        or details["markers_missing_video"] > 0
+        or details["markers_missing_screenshot"] > 0
+        or details["markers_missing_webp"] > 0
+    ):
+        result["resources_requiring_generation"] = True
+
+
+async def _finalize_result(
+    result: Dict[str, Any],
+    progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
+) -> None:
+    """Finalize the result and update database."""
+    # Convert the set to a list for JSON serialization
+    scenes_needing_generation_set = result.get("scenes_needing_generation", set())
+    result["scenes_needing_generation"] = list(scenes_needing_generation_set)
+    result["scenes_needing_generation_count"] = len(result["scenes_needing_generation"])
+
+    # Update the generated attribute in the database
+    await progress_callback(95, "Updating scene generation status")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            all_scene_ids = result.get("all_scene_ids", [])
+            update_results = await _update_scenes_generated_attribute(
+                db, scenes_needing_generation_set, all_scene_ids
+            )
+
+            result["database_updates"] = update_results
+            logger.info(
+                f"Database update complete: "
+                f"{update_results['scenes_marked_generated']} scenes marked as generated, "
+                f"{update_results['scenes_marked_not_generated']} scenes marked as not generated"
+            )
+        except Exception as e:
+            logger.error(f"Failed to update scene generated attributes: {e}")
+            result["database_update_error"] = str(e)
+
+
 async def check_stash_generate(
     job_id: str,
     progress_callback: Callable[[int, Optional[str]], Awaitable[None]],
@@ -358,30 +530,7 @@ async def check_stash_generate(
             stash_url=settings.stash.url, api_key=settings.stash.api_key
         )
 
-        result: Dict[str, Any] = {
-            "job_id": job_id,
-            "status": "completed",
-            "resources_requiring_generation": False,
-            "details": {
-                "scenes_missing_cover": 0,
-                "scenes_missing_phash": 0,
-                "scenes_missing_sprites": 0,
-                "scenes_missing_previews": 0,
-                "scenes_missing_webp": 0,
-                "markers_missing_video": 0,
-                "markers_missing_screenshot": 0,
-                "markers_missing_webp": 0,
-                "total_scenes": 0,
-                "total_markers": 0,
-            },
-            "sample_missing_resources": {
-                "covers": [],
-                "phash": [],
-                "sprites": [],
-                "previews": [],
-                "marker_videos": [],
-            },
-        }
+        result = await _initialize_result(job_id)
 
         # Check for cancellation
         if cancellation_token and cancellation_token.is_cancelled:
@@ -389,21 +538,7 @@ async def check_stash_generate(
             return {"status": "cancelled", "job_id": job_id}
 
         # 1. Get overview counts
-        await progress_callback(10, "Fetching overview statistics")
-        overview_data = await stash_service.execute_graphql(PENDING_GENERATION_QUERY)
-
-        details = cast(Dict[str, int], result["details"])
-        details["total_scenes"] = overview_data.get("allScenes", {}).get("count", 0)
-        details["scenes_missing_cover"] = overview_data.get("missingCovers", {}).get(
-            "count", 0
-        )
-        details["scenes_missing_phash"] = overview_data.get("missingPhash", {}).get(
-            "count", 0
-        )
-
-        # Check if any basic resources are missing
-        if details["scenes_missing_cover"] > 0 or details["scenes_missing_phash"] > 0:
-            result["resources_requiring_generation"] = True
+        await _check_overview_counts(stash_service, result, progress_callback)
 
         # 2. Check scenes for missing sprites/previews (paginated)
         await progress_callback(30, "Checking scenes for missing generated content")
@@ -421,15 +556,7 @@ async def check_stash_generate(
         await _check_markers_with_plugin(stash_service, result, progress_callback)
 
         # 4. Check if we found any missing generated content
-        if (
-            details["scenes_missing_sprites"] > 0
-            or details["scenes_missing_previews"] > 0
-            or details["scenes_missing_webp"] > 0
-            or details["markers_missing_video"] > 0
-            or details["markers_missing_screenshot"] > 0
-            or details["markers_missing_webp"] > 0
-        ):
-            result["resources_requiring_generation"] = True
+        _check_missing_generated_content(result)
 
         # 5. Get sample of missing resources
         await _get_sample_missing_resources(stash_service, result, progress_callback)
@@ -438,6 +565,7 @@ async def check_stash_generate(
         await progress_callback(100, "Check completed")
 
         # Log summary
+        details = cast(Dict[str, int], result["details"])
         logger.info(
             f"Check complete: resources_requiring_generation={result['resources_requiring_generation']}"
         )
@@ -451,13 +579,8 @@ async def check_stash_generate(
         )
         logger.info(f"Missing marker webp: {details['markers_missing_webp']}")
 
-        # Convert the set to a list for JSON serialization
-        result["scenes_needing_generation"] = list(
-            result.get("scenes_needing_generation", set())
-        )
-        result["scenes_needing_generation_count"] = len(
-            result["scenes_needing_generation"]
-        )
+        # Finalize result and update database
+        await _finalize_result(result, progress_callback)
 
         return result
 
