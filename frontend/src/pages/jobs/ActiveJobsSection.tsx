@@ -24,6 +24,7 @@ import {
   FileTextOutlined,
   VideoCameraOutlined,
   LoadingOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
@@ -39,6 +40,8 @@ interface ActiveJobsSectionProps {
   onCancel: (jobId: string) => Promise<void>;
   onRetry: (jobId: string) => Promise<void>;
   onRefresh: () => void;
+  onShowDetails?: (job: Job) => void;
+  onShowRawData?: (job: Job) => void;
   className?: string;
 }
 
@@ -46,6 +49,8 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
   onCancel,
   onRetry,
   onRefresh,
+  onShowDetails,
+  onShowRawData,
   className,
 }) => {
   // FULL ORIGINAL FUNCTIONALITY RESTORED - Test 7
@@ -375,7 +380,21 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
       render: (_: unknown, record: Job) => (
         <Space size="small">
           <Tooltip title="View Details">
-            <Button type="text" icon={<InfoCircleOutlined />} size="small" />
+            <Button
+              type="text"
+              icon={<InfoCircleOutlined />}
+              size="small"
+              onClick={() => onShowDetails && onShowDetails(record)}
+            />
+          </Tooltip>
+
+          <Tooltip title="View Raw Data">
+            <Button
+              type="text"
+              icon={<CodeOutlined />}
+              size="small"
+              onClick={() => onShowRawData && onShowRawData(record)}
+            />
           </Tooltip>
 
           {shouldShowViewScenesButton(record) && (

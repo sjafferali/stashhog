@@ -947,6 +947,8 @@ const JobMonitor: React.FC = () => {
         onCancel={handleCancel}
         onRetry={handleRetry}
         onRefresh={() => void fetchJobs()}
+        onShowDetails={showJobDetails}
+        onShowRawData={showRawJobData}
       />
 
       <Card
