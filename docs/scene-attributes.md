@@ -144,6 +144,19 @@ class Scene(BaseModel):
   4. Automatically approves and applies generated plans
   5. This sets `video_analyzed=True` upon completion
 
+#### Auto Stash Generation Daemon
+**Location**: `backend/app/daemons/auto_stash_generation_daemon.py`
+- **Purpose**: Automatically generates resources for scenes missing them
+- **Process**:
+  1. Checks for running/pending jobs and skips if any are active
+  2. Queries for scenes where `generated=false`
+  3. If scenes need generation, creates a STASH_GENERATE job
+  4. Monitors the job and cancels if STASH_SCAN jobs are detected
+  5. The STASH_GENERATE job sets `generated=true` upon successful completion
+- **Configuration**:
+  - `job_interval_seconds`: Time between generation cycles (default: 3600)
+  - Automatically handles job conflicts to avoid resource contention
+
 #### Process New Scenes Job
 **Location**: `backend/app/jobs/process_new_scenes_job.py`
 - Part of the workflow that processes newly downloaded scenes
@@ -237,7 +250,13 @@ interface Scene {
    - Finds scenes with `video_analyzed=false`
    - Creates analysis jobs
    - Sets `video_analyzed=true` on completion
-2. **Process New Scenes Job** workflow:
+2. **Auto Stash Generation Daemon** continuously:
+   - Waits for idle periods (no running/pending jobs)
+   - Finds scenes with `generated=false`
+   - Creates STASH_GENERATE jobs
+   - Monitors and cancels if scan jobs appear
+   - STASH_GENERATE job sets `generated=true` on completion
+3. **Process New Scenes Job** workflow:
    - Downloads new content
    - Runs Stash scan
    - Syncs to database
@@ -460,7 +479,11 @@ Determine where and when the attribute should be set:
 5. **UI Feedback**: Show clear visual indicators of attribute state in the UI
 
 6. **Automation**: Consider if the attribute should be automatically set/unset by daemons or jobs
-   - Some attributes (like `generated`) should be entirely managed by background jobs
+   - The `generated` attribute is managed by:
+     - CHECK_STASH_GENERATE job (sets based on resource completeness check)
+     - STASH_GENERATE job (sets to true after successful generation)
+     - Scene sync operations (sets to false when markers change)
+     - Auto Stash Generation Daemon (monitors and triggers generation)
    - Provide manual override capabilities only when necessary
    - Document which processes manage each attribute
 
