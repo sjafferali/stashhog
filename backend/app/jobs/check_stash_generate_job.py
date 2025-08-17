@@ -1,7 +1,7 @@
 """Check Stash for resources requiring generation."""
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, cast
 
 from app.core.settings_loader import load_settings_with_db_overrides
 from app.models.job import JobType
@@ -119,7 +119,9 @@ async def _check_scene_generation_details(
     if total_scenes == 0:
         return
 
-    # Check first batch of scenes for detailed missing content
+    # Initialize tracking sets for scene generation status
+
+    # Check ALL scenes for detailed missing content (not just a sample)
     per_page = min(1000, total_scenes)  # Limit to 1000 per batch
     page = 1
     scenes_checked = 0
@@ -143,9 +145,8 @@ async def _check_scene_generation_details(
             progress, f"Checked {scenes_checked}/{total_scenes} scenes"
         )
 
-        # Break if we've checked enough scenes (sample check)
-        if scenes_checked >= 5000:  # Limit detailed check to first 5000 scenes
-            logger.info(f"Sampled {scenes_checked} scenes for detailed check")
+        # Continue until all scenes are checked
+        if len(scenes) < per_page:  # No more scenes to check
             break
 
         page += 1
@@ -158,10 +159,17 @@ def _process_scene_generation(scene: Dict[str, Any], result: Dict[str, Any]) -> 
     sample_resources = cast(
         Dict[str, List[Dict[str, Any]]], result["sample_missing_resources"]
     )
+    scenes_needing_generation = cast(
+        Set[str], result.get("scenes_needing_generation", set())
+    )
+
+    # Track if this scene needs generation
+    scene_needs_generation = False
 
     # Check for missing generated content
     if not paths.get("sprite"):
         details["scenes_missing_sprites"] += 1
+        scene_needs_generation = True
         sprites_list = cast(List[Dict[str, Any]], sample_resources["sprites"])
         if len(sprites_list) < 5:
             sprites_list.append(
@@ -173,6 +181,7 @@ def _process_scene_generation(scene: Dict[str, Any], result: Dict[str, Any]) -> 
 
     if not paths.get("preview"):
         details["scenes_missing_previews"] += 1
+        scene_needs_generation = True
         previews_list = cast(List[Dict[str, Any]], sample_resources["previews"])
         if len(previews_list) < 5:
             previews_list.append(
@@ -184,6 +193,20 @@ def _process_scene_generation(scene: Dict[str, Any], result: Dict[str, Any]) -> 
 
     if not paths.get("webp"):
         details["scenes_missing_webp"] += 1
+        scene_needs_generation = True
+
+    # Also check for missing cover (screenshot) and vtt
+    if not paths.get("screenshot"):
+        scene_needs_generation = True
+
+    if not paths.get("vtt"):
+        scene_needs_generation = True
+
+    # Add scene to tracking set if it needs generation
+    if scene_needs_generation:
+        scenes_needing_generation.add(scene["id"])
+
+    result["scenes_needing_generation"] = scenes_needing_generation
 
 
 async def _check_markers_with_plugin(
@@ -194,6 +217,9 @@ async def _check_markers_with_plugin(
     """Check markers using plugin operation."""
     await progress_callback(70, "Checking markers for missing generated content")
     details = cast(Dict[str, int], result["details"])
+    scenes_needing_generation = cast(
+        Set[str], result.get("scenes_needing_generation", set())
+    )
 
     try:
         # Use 10-minute timeout for marker check plugin as it checks every marker
@@ -231,6 +257,14 @@ async def _check_markers_with_plugin(
             "markers_needing_generation_count", 0
         )
 
+        # Track scenes that have markers needing generation
+        markers_by_scene = plugin_result.get("markers_by_scene", {})
+        for scene_id, marker_info in markers_by_scene.items():
+            if marker_info.get("needs_generation", False):
+                scenes_needing_generation.add(scene_id)
+
+        result["scenes_needing_generation"] = scenes_needing_generation
+
         # Get sample marker videos if any are missing
         if details["markers_missing_video"] > 0:
             sample_marker_ids = plugin_result.get("markers_needing_video", [])[:5]
@@ -259,6 +293,9 @@ async def _get_sample_missing_resources(
     sample_resources = cast(
         Dict[str, List[Dict[str, Any]]], result["sample_missing_resources"]
     )
+    scenes_needing_generation = cast(
+        Set[str], result.get("scenes_needing_generation", set())
+    )
 
     # Get sample of scenes missing covers if any
     if details["scenes_missing_cover"] > 0:
@@ -268,6 +305,10 @@ async def _get_sample_missing_resources(
         sample_resources["covers"] = [
             {"id": s["id"], "title": s.get("title", "Untitled")} for s in sample_scenes
         ]
+        # Add all scenes missing covers to the tracking set
+        all_scenes_missing_covers = cover_data.get("findScenes", {}).get("scenes", [])
+        for scene in all_scenes_missing_covers:
+            scenes_needing_generation.add(scene["id"])
 
     # Get sample of scenes missing phash if any
     if details["scenes_missing_phash"] > 0:
@@ -277,6 +318,12 @@ async def _get_sample_missing_resources(
         sample_resources["phash"] = [
             {"id": s["id"], "title": s.get("title", "Untitled")} for s in sample_scenes
         ]
+        # Add all scenes missing phash to the tracking set
+        all_scenes_missing_phash = phash_data.get("findScenes", {}).get("scenes", [])
+        for scene in all_scenes_missing_phash:
+            scenes_needing_generation.add(scene["id"])
+
+    result["scenes_needing_generation"] = scenes_needing_generation
 
 
 async def check_stash_generate(
@@ -403,6 +450,14 @@ async def check_stash_generate(
             f"Missing marker screenshots: {details['markers_missing_screenshot']}"
         )
         logger.info(f"Missing marker webp: {details['markers_missing_webp']}")
+
+        # Convert the set to a list for JSON serialization
+        result["scenes_needing_generation"] = list(
+            result.get("scenes_needing_generation", set())
+        )
+        result["scenes_needing_generation_count"] = len(
+            result["scenes_needing_generation"]
+        )
 
         return result
 

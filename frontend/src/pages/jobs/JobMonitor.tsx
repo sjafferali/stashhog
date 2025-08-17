@@ -361,7 +361,15 @@ const JobMonitor: React.FC = () => {
       return job.result.analyzed_scene_ids as string[];
     }
 
-    // 4. For analysis jobs with scenes_analyzed count but no explicit IDs
+    // 4. For stash_generate jobs, check if we have scenes_updated in result
+    if (
+      job.result?.scenes_updated &&
+      Array.isArray(job.result.scenes_updated)
+    ) {
+      return job.result.scenes_updated as string[];
+    }
+
+    // 5. For analysis jobs with scenes_analyzed count but no explicit IDs
     // We can't determine specific scene IDs in this case
     if (job.type === 'scene_analysis' || job.type === 'analysis') {
       // Check if there's a way to get scene IDs from the result
@@ -382,6 +390,7 @@ const JobMonitor: React.FC = () => {
       'analysis',
       'scene_analysis',
       'apply_plan',
+      'stash_generate', // Add stash_generate to the list
     ];
 
     if (!qualifyingTypes.includes(job.type)) {

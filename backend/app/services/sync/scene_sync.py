@@ -457,47 +457,58 @@ class SceneSyncHandler:
 
             scene.tags.append(tag)
 
-    async def _sync_scene_markers(
-        self,
-        scene: Scene,
-        markers_data: List[Dict[str, Any]],
-        db: Union[Session, AsyncSession],
-    ) -> None:
-        """Sync scene's marker relationships"""
-        logger.debug(
-            f"_sync_scene_markers called for scene {scene.id} with {len(markers_data)} markers"
-        )
-        if markers_data:
-            logger.debug(f"First marker data: {markers_data[0]}")
-
-        # Get existing markers from database
+    async def _get_existing_markers(
+        self, scene_id: str, db: Union[Session, AsyncSession]
+    ) -> List[SceneMarker]:
+        """Get existing markers for a scene from the database."""
         stmt = (
             select(SceneMarker)
-            .where(SceneMarker.scene_id == scene.id)
+            .where(SceneMarker.scene_id == scene_id)
             .options(selectinload(SceneMarker.tags))
         )
         if isinstance(db, AsyncSession):
             result = await db.execute(stmt)
-            existing_markers = result.scalars().all()
+            return list(result.scalars().all())
         else:
             result = db.execute(stmt)
-            existing_markers = result.scalars().all()
+            return list(result.scalars().all())
 
-        existing_marker_ids = {marker.id for marker in existing_markers}
-        new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
+    async def _remove_obsolete_markers(
+        self,
+        existing_markers: List[SceneMarker],
+        new_marker_ids: Set[str],
+        db: Union[Session, AsyncSession],
+    ) -> bool:
+        """Remove markers that no longer exist.
 
-        logger.debug(f"Existing marker IDs: {existing_marker_ids}")
-        logger.debug(f"New marker IDs: {new_marker_ids}")
-
-        # Remove markers that no longer exist
+        Returns:
+            bool: True if any markers were removed, False otherwise
+        """
+        existing_marker_ids = {str(marker.id) for marker in existing_markers}
         markers_to_remove = existing_marker_ids - new_marker_ids
+
         if markers_to_remove:
             logger.debug(f"Removing {len(markers_to_remove)} obsolete markers")
             for marker in existing_markers:
                 if marker.id in markers_to_remove:
                     db.delete(marker)
+            return True
+        return False
 
-        # Add or update markers
+    async def _process_marker_updates(
+        self,
+        scene: Scene,
+        markers_data: List[Dict[str, Any]],
+        existing_markers: List[SceneMarker],
+        db: Union[Session, AsyncSession],
+    ) -> bool:
+        """Process marker updates and creations.
+
+        Returns:
+            bool: True if any changes were made, False otherwise
+        """
+        changes_made = False
+
         for marker_data in markers_data:
             marker_id = marker_data.get("id")
             if not marker_id:
@@ -511,44 +522,126 @@ class SceneSyncHandler:
 
             if existing_marker:
                 logger.debug(f"Updating existing marker {marker_id}")
-                await self._update_existing_marker(existing_marker, marker_data, db)
+                if await self._update_existing_marker(existing_marker, marker_data, db):
+                    changes_made = True
             else:
                 logger.debug(f"Creating new marker {marker_id}")
                 await self._create_new_marker(scene, marker_data, db)
+                changes_made = True
+
+        return changes_made
+
+    async def _sync_scene_markers(
+        self,
+        scene: Scene,
+        markers_data: List[Dict[str, Any]],
+        db: Union[Session, AsyncSession],
+    ) -> None:
+        """Sync scene's marker relationships and track changes for generated attribute."""
+        logger.debug(
+            f"_sync_scene_markers called for scene {scene.id} with {len(markers_data)} markers"
+        )
+        if markers_data:
+            logger.debug(f"First marker data: {markers_data[0]}")
+
+        # Get existing markers from database
+        existing_markers = await self._get_existing_markers(str(scene.id), db)
+
+        # Get new marker IDs
+        new_marker_ids = {marker["id"] for marker in markers_data if marker.get("id")}
+
+        logger.debug(f"Existing marker IDs: {[m.id for m in existing_markers]}")
+        logger.debug(f"New marker IDs: {new_marker_ids}")
+
+        # Track if any marker changes occur
+        marker_changes_detected = False
+
+        # Remove obsolete markers
+        if await self._remove_obsolete_markers(existing_markers, new_marker_ids, db):
+            marker_changes_detected = True
+
+        # Process marker updates and creations
+        if await self._process_marker_updates(
+            scene, markers_data, existing_markers, db
+        ):
+            marker_changes_detected = True
+
+        # If any marker changes were detected, unset the generated attribute
+        if marker_changes_detected and scene.generated:
+            logger.info(
+                f"Marker changes detected for scene {scene.id}, unsetting generated attribute"
+            )
+            scene.generated = False  # type: ignore[assignment]
 
     async def _update_existing_marker(
         self,
         existing_marker: SceneMarker,
         marker_data: Dict[str, Any],
         db: Union[Session, AsyncSession],
-    ) -> None:
-        """Update an existing marker with new data"""
-        # The marker should already be loaded with tags from the initial query
+    ) -> bool:
+        """Update an existing marker with new data.
 
-        # Update marker fields
-        existing_marker.title = marker_data.get("title", "")
-        existing_marker.seconds = marker_data.get("seconds", 0)
-        existing_marker.end_seconds = marker_data.get("end_seconds")  # type: ignore[assignment]
-        existing_marker.stash_created_at = self._parse_datetime(  # type: ignore[assignment]
-            marker_data.get("created_at")
-        )
-        existing_marker.stash_updated_at = self._parse_datetime(  # type: ignore[assignment]
-            marker_data.get("updated_at")
-        )
+        Returns:
+            bool: True if any changes were made to the marker, False otherwise
+        """
+        # Track if any changes are made
+        changes_made = False
+
+        # Update marker fields and track changes
+        new_title = marker_data.get("title", "")
+        if existing_marker.title != new_title:
+            existing_marker.title = new_title
+            changes_made = True
+
+        new_seconds = marker_data.get("seconds", 0)
+        if existing_marker.seconds != new_seconds:
+            existing_marker.seconds = new_seconds
+            changes_made = True
+
+        new_end_seconds = marker_data.get("end_seconds")
+        if existing_marker.end_seconds != new_end_seconds:
+            existing_marker.end_seconds = new_end_seconds  # type: ignore[assignment]
+            changes_made = True
+
+        new_created_at = self._parse_datetime(marker_data.get("created_at"))
+        if existing_marker.stash_created_at != new_created_at:
+            existing_marker.stash_created_at = new_created_at  # type: ignore[assignment]
+            changes_made = True
+
+        new_updated_at = self._parse_datetime(marker_data.get("updated_at"))
+        if existing_marker.stash_updated_at != new_updated_at:
+            existing_marker.stash_updated_at = new_updated_at  # type: ignore[assignment]
+            changes_made = True
+
+        # Always update last_synced
         existing_marker.last_synced = datetime.utcnow()  # type: ignore[assignment]
 
         # Update primary tag
         primary_tag_data = marker_data.get("primary_tag")
-        if primary_tag_data and primary_tag_data.get("id"):
-            existing_marker.primary_tag_id = primary_tag_data["id"]
+        new_primary_tag_id = primary_tag_data.get("id") if primary_tag_data else None
+        if existing_marker.primary_tag_id != new_primary_tag_id:
+            existing_marker.primary_tag_id = new_primary_tag_id  # type: ignore[assignment]
+            changes_made = True
 
-        # Update additional tags
-        existing_marker.tags.clear()
-        for tag_data in marker_data.get("tags", []):
-            tag_id = tag_data.get("id")
-            if tag_id:
-                tag = await self._ensure_tag_exists(tag_id, tag_data, db)
-                existing_marker.tags.append(tag)
+        # Check if tags have changed
+        new_tag_ids = {
+            tag_data.get("id")
+            for tag_data in marker_data.get("tags", [])
+            if tag_data.get("id")
+        }
+        existing_tag_ids = {tag.id for tag in existing_marker.tags}
+
+        if existing_tag_ids != new_tag_ids:
+            changes_made = True
+            # Update additional tags
+            existing_marker.tags.clear()
+            for tag_data in marker_data.get("tags", []):
+                tag_id = tag_data.get("id")
+                if tag_id:
+                    tag = await self._ensure_tag_exists(tag_id, tag_data, db)
+                    existing_marker.tags.append(tag)
+
+        return changes_made
 
     async def _create_new_marker(
         self,

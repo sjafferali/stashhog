@@ -45,6 +45,19 @@ The sync scenes job performs a targeted synchronization of specific scenes from 
   - The UI requests a sync of selected scenes
   - A scene was recently modified and you want to sync it without waiting for the next incremental sync
 
+### Scene Marker Change Detection
+Like the general sync job, this job automatically detects marker changes and manages the `generated` attribute:
+
+- **Marker Addition**: When new markers are added to a scene, the `generated` attribute is set to `false`
+- **Marker Removal**: When markers are removed from a scene, the `generated` attribute is set to `false`  
+- **Marker Updates**: When existing markers are modified (title, timing, tags, etc.), the `generated` attribute is set to `false`
+- **No Marker Changes**: If markers remain unchanged during sync, the `generated` attribute is preserved
+
+Since this job targets specific scenes, it's particularly useful for:
+- Updating scenes after marker edits in Stash
+- Ensuring proper `generated` attribute status for scenes with recent marker changes
+- Triggering resource regeneration for scenes with updated timeline markers
+
 ## API Endpoint
 `POST /api/sync/scenes`
 

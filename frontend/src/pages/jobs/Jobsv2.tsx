@@ -510,6 +510,14 @@ const Jobsv2: React.FC = () => {
       return job.result.analyzed_scene_ids as string[];
     }
 
+    // For stash_generate jobs, check if we have scenes_updated in result
+    if (
+      job.result?.scenes_updated &&
+      Array.isArray(job.result.scenes_updated)
+    ) {
+      return job.result.scenes_updated as string[];
+    }
+
     // For analysis jobs with scenes_analyzed count but no explicit IDs
     if (job.type === 'scene_analysis' || job.type === 'analysis') {
       // Check if there's a way to get scene IDs from the result
@@ -530,6 +538,7 @@ const Jobsv2: React.FC = () => {
       'analysis',
       'scene_analysis',
       'apply_plan',
+      'stash_generate', // Add stash_generate to the list
     ];
 
     if (!qualifyingTypes.includes(job.type)) {

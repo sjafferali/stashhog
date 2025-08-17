@@ -71,6 +71,16 @@ The sync job synchronizes data from your Stash instance to StashHog. It can perf
 - Progress is reported throughout the sync process
 - If any entity type fails to sync, the job will continue with the remaining types
 
+### Scene Marker Change Detection
+When synchronizing scenes, the job automatically detects marker changes and manages the `generated` attribute:
+
+- **Marker Addition**: When new markers are added to a scene, the `generated` attribute is set to `false`
+- **Marker Removal**: When markers are removed from a scene, the `generated` attribute is set to `false`  
+- **Marker Updates**: When existing markers are modified (title, timing, tags, etc.), the `generated` attribute is set to `false`
+- **No Marker Changes**: If markers remain unchanged during sync, the `generated` attribute is preserved
+
+This ensures that scenes with marker changes are flagged for regeneration of their resources (sprites, previews, VTT files) since marker changes affect timeline navigation and preview generation.
+
 ## API Endpoint
 `POST /api/sync`
 

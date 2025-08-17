@@ -29,35 +29,53 @@ def upgrade() -> None:
 
     # Set default value for existing rows in smaller batches to avoid timeout
     connection = op.get_bind()
-    batch_size = 10000
-    offset = 0
 
-    while True:
-        result = connection.execute(
+    # Check if we're using SQLite or PostgreSQL
+    dialect_name = connection.dialect.name
+
+    if dialect_name == "sqlite":
+        # SQLite doesn't support altering columns directly
+        # We need to set defaults for existing rows and then recreate the column with NOT NULL
+        connection.execute(
             sa.text(
-                f"""
+                """
                 UPDATE scene
-                SET generated = false
+                SET generated = 0
                 WHERE generated IS NULL
-                AND id IN (
-                    SELECT id FROM scene
-                    WHERE generated IS NULL
-                    ORDER BY id
-                    LIMIT {batch_size}
-                )
-            """
+                """
             )
         )
+    else:
+        # PostgreSQL version with batched updates
+        batch_size = 10000
+        offset = 0
 
-        if result.rowcount == 0:
-            break
+        while True:
+            result = connection.execute(
+                sa.text(
+                    f"""
+                    UPDATE scene
+                    SET generated = false
+                    WHERE generated IS NULL
+                    AND id IN (
+                        SELECT id FROM scene
+                        WHERE generated IS NULL
+                        ORDER BY id
+                        LIMIT {batch_size}
+                    )
+                """
+                )
+            )
 
-        offset += batch_size
-        # Small delay to prevent overwhelming the database
-        connection.execute(sa.text("SELECT pg_sleep(0.1)"))
+            if result.rowcount == 0:
+                break
 
-    # Now make it NOT NULL with default
-    op.alter_column("scene", "generated", nullable=False, server_default="false")
+            offset += batch_size
+            # Small delay to prevent overwhelming the database
+            connection.execute(sa.text("SELECT pg_sleep(0.1)"))
+
+        # Now make it NOT NULL with default (PostgreSQL only)
+        op.alter_column("scene", "generated", nullable=False, server_default="false")
 
     # Create index for better query performance
     op.create_index(op.f("ix_scene_generated"), "scene", ["generated"], unique=False)

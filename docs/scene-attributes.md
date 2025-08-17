@@ -12,15 +12,32 @@ These attributes are essential for workflow automation, filtering, and tracking 
 ## Attribute Usage Patterns
 
 ### The `generated` Attribute
-The `generated` attribute is designed for tracking scenes whose metadata has been artificially generated or processed through automated workflows. Common use cases include:
+The `generated` attribute tracks whether all Stash resources have been generated for a scene. This attribute is automatically managed by the `CHECK_STASH_GENERATE` job and indicates the completeness of resource generation.
 
-- **AI-Generated Content**: Scenes with metadata created by AI systems
-- **Automated Processing**: Scenes processed through batch operations or scheduled workflows  
-- **Synthetic Metadata**: Scenes with artificially created tags, descriptions, or classifications
-- **Workflow Tracking**: Marking scenes that have completed specific automated processing pipelines
-- **Quality Control**: Distinguishing between manually curated and automatically generated metadata
+#### Automatic Management
+The `generated` attribute is automatically updated by the `check_stash_generate` job, which:
+1. Checks all scenes for missing generated resources (covers, phash, sprites, previews, webp, vtt)
+2. Checks all scene markers for missing resources (video, screenshot, webp)
+3. Sets `generated=false` for scenes with any missing resources
+4. Sets `generated=true` for scenes with all resources fully generated
 
-Unlike `analyzed` (which tracks metadata analysis) and `video_analyzed` (which tracks video content analysis), `generated` focuses on the origin and nature of the scene's metadata - specifically whether it was created through automated generation processes.
+#### Resources Tracked
+A scene's `generated` status depends on the presence of:
+- **Cover/Screenshot**: Scene thumbnail image
+- **Phash**: Perceptual hash for duplicate detection
+- **Sprite**: Image sprite for timeline preview
+- **Preview**: Video preview file
+- **WebP**: WebP format images
+- **VTT**: Video Text Tracks for timeline navigation
+- **Marker Resources**: For scenes with markers, all marker videos, screenshots, and webp files
+
+#### Usage Scenarios
+- **Resource Generation Monitoring**: Track which scenes need Stash resource generation
+- **Workflow Automation**: Trigger generation jobs only for scenes with `generated=false`
+- **Quality Control**: Ensure all scenes have complete resource sets before distribution
+- **Performance Optimization**: Skip resource generation for scenes with `generated=true`
+
+Unlike `analyzed` (which tracks metadata analysis) and `video_analyzed` (which tracks video content analysis), `generated` specifically indicates whether all Stash media resources have been created for optimal playback and browsing experience.
 
 ## Database Schema
 
@@ -95,6 +112,27 @@ class Scene(BaseModel):
 - After successful video tag detection (`detect_video_tags` option)
 - Set in `_mark_scenes_as_analyzed()` method (lines 1150-1151)
 - Updated when video analysis is completed (lines 2068-2071)
+
+##### When `generated` is set:
+- **Automatically managed by multiple jobs**:
+  1. **Check Stash Generate Job** (`backend/app/jobs/check_stash_generate_job.py`)
+     - Checks all scenes for missing resources
+     - Sets `generated=false` for scenes with any missing resources
+     - Sets `generated=true` for scenes with all resources fully generated
+     - Does NOT actually generate resources, only checks status
+  
+  2. **Stash Generate Metadata Job** (`backend/app/jobs/stash_generate_jobs.py`)
+     - Tracks scenes without `generated=true` before starting generation
+     - Runs Stash metadata generation for specified scenes or all scenes
+     - On successful completion, sets `generated=true` for all tracked scenes
+     - If job fails or is cancelled, does NOT update the attribute (all-or-nothing)
+     - Returns list of updated scene IDs for UI integration
+
+  3. **Sync Jobs** (`backend/app/jobs/sync_jobs.py` and scene sync operations)
+     - **Automatically unsets `generated=false`** when marker changes are detected during sync
+     - Detects marker additions, removals, or modifications
+     - This ensures scenes with marker changes are flagged for resource regeneration
+     - Applies to both general sync jobs and targeted scene sync jobs
 
 #### Auto Video Analysis Daemon
 **Location**: `backend/app/daemons/auto_video_analysis_daemon.py`
@@ -214,12 +252,77 @@ interface Scene {
    - Video tag analysis → sets `video_analyzed=true`
 4. Attributes updated in database after successful completion
 
+### 4. Resource Generation Tracking Workflow
+
+#### Check Stash Generate Job
+1. Job runs (manually or via schedule)
+2. Job queries Stash for:
+   - All scene IDs
+   - Scenes missing covers, phash
+   - Scenes missing sprites, previews, webp, vtt
+   - Markers missing video, screenshot, webp (via plugin)
+3. Job tracks which scenes have incomplete resources
+4. Database update:
+   - Scenes with all resources → `generated=true`
+   - Scenes missing any resources → `generated=false`
+
+#### Stash Generate Metadata Job
+1. Before starting generation:
+   - Queries database for scenes with `generated=false`
+   - Stores list of scene IDs that need the attribute updated
+2. Runs Stash metadata generation:
+   - Can target specific scenes or all scenes
+   - Monitors generation progress in real-time
+3. After successful completion:
+   - Updates `generated=true` for all tracked scenes (all-or-nothing)
+   - Returns scene count and IDs for UI integration
+   - Shows "View Impacted Scenes" button in job monitor
+4. If job fails or is cancelled:
+   - Does NOT update any scene attributes
+   - Maintains data integrity with all-or-nothing approach
+
+#### Use Cases
+- Filter scenes by `generated=false` to find those needing generation
+- Run Stash generation only on scenes with `generated=false`
+- Monitor generation progress across library
+- Track which scenes were updated by each generation job
+- View impacted scenes directly from job monitor UI
+
+### 5. Sync-Triggered Generated Attribute Management
+
+#### Marker Change Detection During Sync
+When sync jobs process scenes, they automatically detect marker changes and manage the `generated` attribute:
+
+1. **Sync Process**:
+   - Retrieves scene data from Stash including current markers
+   - Compares with existing markers in StashHog database
+   - Detects additions, removals, or modifications
+
+2. **Change Detection**:
+   - **New Markers**: Added to scene → `generated=false`
+   - **Removed Markers**: Deleted from scene → `generated=false`
+   - **Modified Markers**: Changes to title, timing, tags, primary tag → `generated=false`
+   - **Unchanged Markers**: No changes detected → `generated` attribute preserved
+
+3. **Resource Impact**:
+   - Marker changes affect timeline navigation files (VTT)
+   - Marker changes may affect sprite generation timing
+   - Marker changes impact preview generation segments
+   - Ensures affected scenes are flagged for resource regeneration
+
+#### Implementation Details
+- **Location**: `backend/app/services/sync/scene_sync.py:_sync_scene_markers()`
+- **Change Tracking**: Compares existing vs. new marker data comprehensively
+- **Logging**: Records when marker changes trigger `generated=false`
+- **Efficiency**: Only unsets `generated` when actual changes are detected
+
 ## Dashboard Integration
 
 ### Dashboard Status Service
 **Location**: `backend/app/services/dashboard_status_service.py`
-- Provides statistics on analyzed/video_analyzed scenes
+- Provides statistics on analyzed/video_analyzed/generated scenes
 - Used for dashboard metrics and progress tracking
+- Shows completion percentages for each attribute type
 
 ## Testing
 
@@ -357,7 +460,14 @@ Determine where and when the attribute should be set:
 5. **UI Feedback**: Show clear visual indicators of attribute state in the UI
 
 6. **Automation**: Consider if the attribute should be automatically set/unset by daemons or jobs
+   - Some attributes (like `generated`) should be entirely managed by background jobs
+   - Provide manual override capabilities only when necessary
+   - Document which processes manage each attribute
 
 7. **Testing**: Ensure comprehensive test coverage for all attribute operations
 
 8. **Migration Safety**: Use batch updates in migrations to avoid timeouts on large databases
+
+9. **Attribute Dependencies**: Document relationships between attributes
+   - Example: `generated` status depends on resource completeness checked by CHECK_STASH_GENERATE job
+   - Ensure dependent attributes are updated together when appropriate
