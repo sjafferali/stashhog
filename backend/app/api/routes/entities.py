@@ -26,7 +26,7 @@ async def list_performers(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=1, le=100, description="Items per page"),
     sort_by: str = Query("name", description="Field to sort by"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[PerformerResponse]:
     """
@@ -103,7 +103,7 @@ async def list_tags(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=1, le=100, description="Items per page"),
     sort_by: str = Query("name", description="Field to sort by"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[TagResponse]:
     """
@@ -164,7 +164,7 @@ async def list_studios(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(50, ge=1, le=100, description="Items per page"),
     sort_by: str = Query("name", description="Field to sort by"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[StudioResponse]:
     """
