@@ -22,7 +22,7 @@ RUN npm run build && \
     rm -rf node_modules src tests *.config.* *.json
 
 # Stage 2: Python Dependencies Builder
-FROM python:3.13-slim AS python-builder
+FROM python:3.13.7-slim AS python-builder
 
 # Set environment for build
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -47,7 +47,7 @@ COPY backend/requirements.txt ./
 RUN pip wheel --wheel-dir=/app/wheels -r requirements.txt
 
 # Stage 3: Production Image
-FROM python:3.13-slim AS production
+FROM python:3.13.7-slim AS production
 
 # Set runtime environment
 ENV PYTHONDONTWRITEBYTECODE=1 \
