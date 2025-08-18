@@ -832,7 +832,7 @@ async def update_scene(
         )
 
     # Separate StashHog-specific fields from Stash fields
-    stashhog_fields = {"analyzed", "video_analyzed"}
+    stashhog_fields = {"analyzed", "video_analyzed", "generated"}
     stashhog_updates = {k: v for k, v in updates.items() if k in stashhog_fields}
     stash_updates = {k: v for k, v in updates.items() if k not in stashhog_fields}
 
