@@ -100,7 +100,7 @@ rich==14.1.0
 rsa==4.9.1
 ruamel.yaml==0.18.14
 ruamel.yaml.clib==0.2.12
-ruff==0.12.7
+ruff==0.12.9
 shellingham==1.5.4
 six==1.17.0
 smmap==5.0.2
