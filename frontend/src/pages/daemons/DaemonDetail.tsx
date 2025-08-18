@@ -475,10 +475,10 @@ const DaemonDetail: React.FC = () => {
                   style={{ width: 120 }}
                   options={[
                     { value: 'ALL', label: 'All Levels' },
-                    { value: LogLevel.DEBUG, label: 'Debug & Above' },
-                    { value: LogLevel.INFO, label: 'Info & Above' },
-                    { value: LogLevel.WARNING, label: 'Warning & Above' },
-                    { value: LogLevel.ERROR, label: 'Error Only' },
+                    { value: LogLevel.DEBUG, label: 'Debug' },
+                    { value: LogLevel.INFO, label: 'Info' },
+                    { value: LogLevel.WARNING, label: 'Warning' },
+                    { value: LogLevel.ERROR, label: 'Error' },
                   ]}
                 />
 
