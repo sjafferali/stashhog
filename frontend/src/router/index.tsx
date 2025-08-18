@@ -3,12 +3,14 @@ import MainLayout from '@/layouts/MainLayout';
 import Dashboard from '@/pages/Dashboard';
 import SceneBrowser from '@/pages/scenes/SceneBrowser';
 import SceneDetail from '@/pages/scenes/SceneDetail';
+import PerformersList from '@/pages/performers/PerformersList';
+import TagsList from '@/pages/tags/TagsList';
+import StudiosList from '@/pages/studios/StudiosList';
 import Analysis from '@/pages/analysis/Analysis';
 import PlanList from '@/pages/analysis/PlanList';
 import PlanDetail from '@/pages/analysis/PlanDetail';
 import JobMonitor from '@/pages/jobs/JobMonitor';
 import RunJob from '@/pages/jobs/RunJob';
-import Jobsv2 from '@/pages/jobs/Jobsv2';
 import Settings from '@/pages/settings/Settings';
 import SyncManagement from '@/pages/sync/SyncManagement';
 import Scheduler from '@/pages/Scheduler';
@@ -37,6 +39,18 @@ export const routes: RouteObject[] = [
             element: <SceneDetail />,
           },
         ],
+      },
+      {
+        path: 'performers',
+        element: <PerformersList />,
+      },
+      {
+        path: 'tags',
+        element: <TagsList />,
+      },
+      {
+        path: 'studios',
+        element: <StudiosList />,
       },
       {
         path: 'analysis',
@@ -70,10 +84,6 @@ export const routes: RouteObject[] = [
           {
             path: 'run',
             element: <RunJob />,
-          },
-          {
-            path: 'v2',
-            element: <Jobsv2 />,
           },
         ],
       },

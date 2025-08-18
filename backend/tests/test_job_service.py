@@ -144,6 +144,7 @@ class TestJobService:
         mock_job_repo.create_job = AsyncMock(return_value=mock_job)
         mock_job_repo.update_job_status = AsyncMock(return_value=mock_job)
         mock_job_repo._fetch_job = AsyncMock(return_value=mock_job)
+        mock_job_repo.get_job = AsyncMock(return_value=mock_job)
 
         # Mock the task queue to execute task immediately
         task_func = None

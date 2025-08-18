@@ -705,48 +705,99 @@ class TestEntityRoutes:
 
     def test_list_performers(self, client, mock_db):
         """Test listing performers."""
-        # Mock the database query
-        mock_result = Mock()
+        # Mock the count query result
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock the performers query result
+        mock_performers_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = []
-        mock_result.scalars.return_value = mock_scalars
-        mock_db.execute.return_value = mock_result
+        mock_performers_result.scalars.return_value = mock_scalars
+
+        # Configure execute to return different results for count and fetch queries
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                mock_count_result,  # First call: count query
+                mock_performers_result,  # Second call: performers query
+            ]
+        )
 
         response = client.get("/api/entities/performers")
         assert response.status_code == 200
         data = response.json()
-        # With empty test database, should return empty list
-        assert isinstance(data, list)
-        assert len(data) == 0
+        # Should return paginated response
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
+        assert "pages" in data
+        assert data["total"] == 0
+        assert len(data["items"]) == 0
 
     def test_list_tags(self, client, mock_db):
         """Test listing tags."""
-        # Mock the database query
-        mock_result = Mock()
+        # Mock the count query result
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock the tags query result
+        mock_tags_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = []
-        mock_result.scalars.return_value = mock_scalars
-        mock_db.execute.return_value = mock_result
+        mock_tags_result.scalars.return_value = mock_scalars
+
+        # Configure execute to return different results for count and fetch queries
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                mock_count_result,  # First call: count query
+                mock_tags_result,  # Second call: tags query
+            ]
+        )
 
         response = client.get("/api/entities/tags")
         assert response.status_code == 200
         data = response.json()
-        # With empty test database, should return empty list
-        assert isinstance(data, list)
-        assert len(data) == 0
+        # Should return paginated response
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
+        assert "pages" in data
+        assert data["total"] == 0
+        assert len(data["items"]) == 0
 
     def test_list_studios(self, client, mock_db):
         """Test listing studios."""
-        # Mock the database query
-        mock_result = Mock()
+        # Mock the count query result
+        mock_count_result = Mock()
+        mock_count_result.scalar_one.return_value = 0
+
+        # Mock the studios query result
+        mock_studios_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = []
-        mock_result.scalars.return_value = mock_scalars
-        mock_db.execute.return_value = mock_result
+        mock_studios_result.scalars.return_value = mock_scalars
+
+        # Configure execute to return different results for count and fetch queries
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                mock_count_result,  # First call: count query
+                mock_studios_result,  # Second call: studios query
+            ]
+        )
 
         response = client.get("/api/entities/studios")
         assert response.status_code == 200
         data = response.json()
-        # With empty test database, should return empty list
-        assert isinstance(data, list)
-        assert len(data) == 0
+        # Should return paginated response
+        assert isinstance(data, dict)
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
+        assert "pages" in data
+        assert data["total"] == 0
+        assert len(data["items"]) == 0

@@ -43,6 +43,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         self._initial_total_pending = (
             0  # Track initial total for consistent batch count
         )
+        self._last_check_time = 0.0  # Track when we last checked for new scenes
         await self.log(LogLevel.INFO, "Auto Video Analysis Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -79,12 +80,29 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 # Check monitored jobs
                 await self._check_monitored_jobs(config)
 
-                # If no jobs are being monitored, check for new scenes to analyze
+                # If no jobs are being monitored, check if enough time has passed since last check
                 if not self._monitored_jobs:
-                    await self._check_and_analyze_scenes(config)
+                    time_since_last_check = current_time - self._last_check_time
 
-                # Sleep for configured interval
-                await asyncio.sleep(config["job_interval_seconds"])
+                    # Only check for new scenes if enough time has passed
+                    if time_since_last_check >= config["job_interval_seconds"]:
+                        await self._check_and_analyze_scenes(config)
+                        self._last_check_time = current_time
+                    else:
+                        # Sleep for the remaining time until next check
+                        remaining_sleep = (
+                            config["job_interval_seconds"] - time_since_last_check
+                        )
+                        await self.log(
+                            LogLevel.DEBUG,
+                            f"Waiting {remaining_sleep:.1f}s before next scene check",
+                        )
+                        await asyncio.sleep(
+                            min(remaining_sleep, 1)
+                        )  # Sleep in small increments
+                else:
+                    # Sleep briefly while monitoring jobs
+                    await asyncio.sleep(1)
 
             except asyncio.CancelledError:
                 await self.log(
@@ -265,7 +283,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                     completed_jobs.add(job_id)
 
         # Remove completed jobs from monitoring
-        self._monitored_jobs -= completed_jobs
+        if completed_jobs:
+            self._monitored_jobs -= completed_jobs
+            # Update last check time when jobs complete to start the interval timer
+            self._last_check_time = time.time()
 
     async def _handle_completed_analysis_job(self, job_id: str, job: Job):
         """Handle a completed analysis job by checking for and applying any generated plan."""

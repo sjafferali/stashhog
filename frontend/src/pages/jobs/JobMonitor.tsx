@@ -45,6 +45,7 @@ import {
   TableOutlined,
   AppstoreOutlined,
   CodeOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { apiClient } from '@/services/apiClient';
 import { Job } from '@/types/models';
@@ -426,7 +427,20 @@ const JobMonitor: React.FC = () => {
             <Card size="small" title="Job Information">
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="Job ID">
-                  {record.id}
+                  <Space>
+                    <Text>{record.id}</Text>
+                    <Tooltip title="Copy Job ID">
+                      <Button
+                        type="link"
+                        icon={<CopyOutlined />}
+                        size="small"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(record.id);
+                          void message.success('Job ID copied to clipboard');
+                        }}
+                      />
+                    </Tooltip>
+                  </Space>
                 </Descriptions.Item>
                 {record.name && (
                   <Descriptions.Item label="Name">
@@ -1137,7 +1151,20 @@ const JobMonitor: React.FC = () => {
               <Collapse.Panel header="Basic Information" key="basic">
                 <Descriptions bordered column={2} size="small">
                   <Descriptions.Item label="Job ID" span={2}>
-                    <Text copyable>{selectedJob.id}</Text>
+                    <Space>
+                      <Text>{selectedJob.id}</Text>
+                      <Tooltip title="Copy Job ID">
+                        <Button
+                          type="link"
+                          icon={<CopyOutlined />}
+                          size="small"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(selectedJob.id);
+                            void message.success('Job ID copied to clipboard');
+                          }}
+                        />
+                      </Tooltip>
+                    </Space>
                   </Descriptions.Item>
                   <Descriptions.Item label="Type">
                     <Tag color={getJobTypeColor(selectedJob.type)}>
@@ -1356,7 +1383,22 @@ const JobMonitor: React.FC = () => {
           <div>
             <Descriptions bordered column={1} size="small">
               <Descriptions.Item label="Job ID">
-                <Text copyable>{selectedRawDataJob.id}</Text>
+                <Space>
+                  <Text>{selectedRawDataJob.id}</Text>
+                  <Tooltip title="Copy Job ID">
+                    <Button
+                      type="link"
+                      icon={<CopyOutlined />}
+                      size="small"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(
+                          selectedRawDataJob.id
+                        );
+                        void message.success('Job ID copied to clipboard');
+                      }}
+                    />
+                  </Tooltip>
+                </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Name">
                 {selectedRawDataJob.name || '-'}

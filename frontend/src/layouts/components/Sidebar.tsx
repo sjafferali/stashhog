@@ -11,6 +11,10 @@ import {
   SettingOutlined,
   CalendarOutlined,
   ThunderboltOutlined,
+  UserOutlined,
+  TagOutlined,
+  HomeOutlined,
+  FolderOutlined,
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -30,9 +34,31 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       label: 'Dashboard',
     },
     {
-      key: '/scenes',
-      icon: <VideoCameraOutlined />,
-      label: 'Scenes',
+      key: 'library-menu',
+      icon: <FolderOutlined />,
+      label: 'Library',
+      children: [
+        {
+          key: '/scenes',
+          icon: <VideoCameraOutlined />,
+          label: 'Scenes',
+        },
+        {
+          key: '/performers',
+          icon: <UserOutlined />,
+          label: 'Performers',
+        },
+        {
+          key: '/tags',
+          icon: <TagOutlined />,
+          label: 'Tags',
+        },
+        {
+          key: '/studios',
+          icon: <HomeOutlined />,
+          label: 'Studios',
+        },
+      ],
     },
     {
       key: 'analysis-menu',
@@ -61,10 +87,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         {
           key: '/jobs/run',
           label: 'Run Job',
-        },
-        {
-          key: '/jobs/v2',
-          label: 'Jobs v2',
         },
       ],
     },

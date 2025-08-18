@@ -14,6 +14,7 @@ import {
   Space,
   Row,
   Col,
+  Alert,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -23,6 +24,8 @@ import {
   ClearOutlined,
   DownloadOutlined,
   PauseOutlined,
+  CheckCircleOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import daemonService from '@/services/daemonService';
@@ -48,7 +51,11 @@ const DaemonDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('1');
   const [configJson, setConfigJson] = useState('');
-  const [logLevel, setLogLevel] = useState<LogLevel | 'ALL'>('ALL');
+  const [originalConfigJson, setOriginalConfigJson] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [logLevel, setLogLevel] = useState<LogLevel | 'ALL'>(LogLevel.INFO);
   const [autoScroll, setAutoScroll] = useState(true);
   const [paused, setPaused] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -59,7 +66,11 @@ const DaemonDetail: React.FC = () => {
     try {
       const data = await daemonService.getDaemon(daemonId);
       setDaemon(data);
-      setConfigJson(JSON.stringify(data.configuration, null, 2));
+      const configStr = JSON.stringify(data.configuration, null, 2);
+      setConfigJson(configStr);
+      setOriginalConfigJson(configStr);
+      setConfigSaved(false);
+      setConfigError(null);
     } catch (error) {
       void message.error('Failed to load daemon');
       console.error(error);
@@ -207,20 +218,58 @@ const DaemonDetail: React.FC = () => {
 
   const handleUpdateConfig = useCallback(async () => {
     if (!daemonId || !daemon) return;
+
+    setSavingConfig(true);
+    setConfigError(null);
+    setConfigSaved(false);
+
     try {
-      const config = JSON.parse(configJson);
+      // Validate JSON
+      let config;
+      try {
+        config = JSON.parse(configJson);
+      } catch {
+        setConfigError('Invalid JSON format. Please check your configuration.');
+        setSavingConfig(false);
+        return;
+      }
+
+      // Save configuration
       await daemonService.updateDaemon(daemonId, { configuration: config });
-      void message.success('Configuration updated successfully');
+
+      // Update success state
+      setConfigSaved(true);
+      setOriginalConfigJson(configJson);
+      void message.success({
+        content: 'Configuration saved successfully!',
+        duration: 3,
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+      });
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setConfigSaved(false);
+      }, 5000);
+
       await loadDaemon();
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        void message.error('Invalid JSON configuration');
-      } else {
-        void message.error('Failed to update configuration');
-      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to update configuration';
+      setConfigError(errorMessage);
+      void message.error({
+        content: errorMessage,
+        duration: 5,
+      });
       console.error(error);
+    } finally {
+      setSavingConfig(false);
     }
   }, [daemonId, daemon, configJson, loadDaemon]);
+
+  // Helper to check if configuration has changed
+  const hasConfigChanged = configJson !== originalConfigJson;
 
   const handleClearLogs = () => {
     setLogs([]);
@@ -267,8 +316,23 @@ const DaemonDetail: React.FC = () => {
     }
   };
 
+  // Define log level hierarchy for filtering
+  const logLevelHierarchy = {
+    [LogLevel.DEBUG]: 0,
+    [LogLevel.INFO]: 1,
+    [LogLevel.WARNING]: 2,
+    [LogLevel.ERROR]: 3,
+  };
+
   const filteredLogs =
-    logLevel === 'ALL' ? logs : logs.filter((log) => log.level === logLevel);
+    logLevel === 'ALL'
+      ? logs
+      : logs.filter((log) => {
+          // Show logs at the selected level and above (more severe)
+          const selectedLevel = logLevelHierarchy[logLevel as LogLevel];
+          const logLevelValue = logLevelHierarchy[log.level];
+          return logLevelValue >= selectedLevel;
+        });
 
   if (loading) {
     return (
@@ -410,11 +474,11 @@ const DaemonDetail: React.FC = () => {
                   onChange={setLogLevel}
                   style={{ width: 120 }}
                   options={[
-                    { value: 'ALL', label: 'All' },
-                    { value: LogLevel.DEBUG, label: 'Debug' },
-                    { value: LogLevel.INFO, label: 'Info' },
-                    { value: LogLevel.WARNING, label: 'Warning' },
-                    { value: LogLevel.ERROR, label: 'Error' },
+                    { value: 'ALL', label: 'All Levels' },
+                    { value: LogLevel.DEBUG, label: 'Debug & Above' },
+                    { value: LogLevel.INFO, label: 'Info & Above' },
+                    { value: LogLevel.WARNING, label: 'Warning & Above' },
+                    { value: LogLevel.ERROR, label: 'Error Only' },
                   ]}
                 />
 
@@ -480,29 +544,90 @@ const DaemonDetail: React.FC = () => {
           </Tabs.TabPane>
 
           <Tabs.TabPane tab="Configuration" key="2">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Title level={5}>Configuration</Title>
+            <Space direction="vertical" style={{ width: '100%', gap: '16px' }}>
+              <div>
+                <Title level={5} style={{ marginBottom: '8px' }}>
+                  Configuration
+                  {hasConfigChanged && (
+                    <Tag color="orange" style={{ marginLeft: '8px' }}>
+                      Unsaved Changes
+                    </Tag>
+                  )}
+                </Title>
+              </div>
+
+              {/* Success Alert */}
+              {configSaved && (
+                <Alert
+                  message="Configuration saved successfully!"
+                  description="Your changes have been saved. Configuration will take effect on next restart."
+                  type="success"
+                  showIcon
+                  icon={<CheckCircleOutlined />}
+                  closable
+                  onClose={() => setConfigSaved(false)}
+                />
+              )}
+
+              {/* Error Alert */}
+              {configError && (
+                <Alert
+                  message="Configuration Error"
+                  description={configError}
+                  type="error"
+                  showIcon
+                  closable
+                  onClose={() => setConfigError(null)}
+                />
+              )}
+
               <TextArea
                 value={configJson}
-                onChange={(e) => setConfigJson(e.target.value)}
-                rows={10}
+                onChange={(e) => {
+                  setConfigJson(e.target.value);
+                  setConfigError(null); // Clear error when user types
+                  setConfigSaved(false); // Clear saved status when user types
+                }}
+                rows={15}
                 // @ts-expect-error - style prop exists but not in types
-                style={{ fontFamily: 'monospace' }}
+                style={{
+                  fontFamily: 'monospace',
+                  border: configError ? '1px solid #ff4d4f' : undefined,
+                }}
+                placeholder="Enter configuration in JSON format..."
               />
-              <div>
-                <Button
-                  type="primary"
-                  onClick={() => void handleUpdateConfig()}
-                >
-                  Update Configuration
-                </Button>
-                <Text
-                  type="secondary"
-                  style={{ display: 'block', marginTop: '8px' }}
-                >
-                  Note: Configuration changes will take effect on next restart
+
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={() => void handleUpdateConfig()}
+                    loading={savingConfig}
+                    disabled={!hasConfigChanged || savingConfig}
+                  >
+                    {savingConfig ? 'Saving...' : 'Save Configuration'}
+                  </Button>
+
+                  {hasConfigChanged && (
+                    <Button
+                      onClick={() => {
+                        setConfigJson(originalConfigJson);
+                        setConfigError(null);
+                        setConfigSaved(false);
+                      }}
+                      disabled={savingConfig}
+                    >
+                      Reset Changes
+                    </Button>
+                  )}
+                </Space>
+
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  Note: Configuration changes will take effect on next daemon
+                  restart
                 </Text>
-              </div>
+              </Space>
             </Space>
           </Tabs.TabPane>
 

@@ -199,6 +199,12 @@ class JobService:
 
                 # Update job status based on result
                 async with AsyncSessionLocal() as final_db:
+                    # First check if job was in CANCELLING state
+                    current_job = await self.get_job(job_id, final_db)
+                    was_cancelling = (
+                        current_job and current_job.status == JobStatus.CANCELLING.value
+                    )
+
                     # Check if result indicates failure
                     job_status = JobStatus.COMPLETED
                     message = "Job completed successfully"
@@ -221,6 +227,16 @@ class JobService:
 
                         # Extract metadata updates if present
                         metadata_update = result.get("metadata_update")
+
+                    # If job was in CANCELLING state but handler didn't return cancelled status,
+                    # force it to CANCELLED to prevent incorrect COMPLETED status
+                    if was_cancelling and job_status != JobStatus.CANCELLED:
+                        logger.info(
+                            f"Job {job_id} was in CANCELLING state but handler returned {job_status.value}, "
+                            f"forcing status to CANCELLED"
+                        )
+                        job_status = JobStatus.CANCELLED
+                        message = "Job was cancelled"
 
                     # Pass metadata update directly to the status update
                     await self._update_job_status_with_session(

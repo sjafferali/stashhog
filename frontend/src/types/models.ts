@@ -100,6 +100,10 @@ export interface Performer {
   created_at: string;
   updated_at: string;
   scene_count?: number;
+  // Additional fields from detail endpoint
+  twitter?: string;
+  instagram?: string;
+  rating100?: number;
 }
 
 export interface Tag {
@@ -122,6 +126,7 @@ export interface Studio {
   updated_at: string;
   scene_count?: number;
   parent_studio?: Studio;
+  rating100?: number;
 }
 
 export interface Gallery {
@@ -333,6 +338,7 @@ export interface SyncStatus {
     scenes_without_studio: number;
     scenes_without_performers: number;
     scenes_without_tags: number;
+    scenes_without_generated: number;
   };
   jobs: {
     recent_failed_jobs: number;

@@ -57,6 +57,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -107,6 +108,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -158,6 +160,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -213,6 +216,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -266,6 +270,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -333,6 +338,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -421,6 +427,7 @@ describe('SyncManagement', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,

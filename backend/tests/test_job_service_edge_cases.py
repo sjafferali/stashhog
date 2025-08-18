@@ -331,6 +331,7 @@ class TestJobServiceEdgeCases:
         mock_job_repo._fetch_job = AsyncMock(
             side_effect=jobs * 10
         )  # Provide enough mocks
+        mock_job_repo.get_job = AsyncMock(side_effect=jobs * 10)  # Add get_job mock
 
         # Mock task queue
         task_funcs = []

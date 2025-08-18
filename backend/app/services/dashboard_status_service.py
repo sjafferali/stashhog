@@ -207,12 +207,22 @@ class DashboardStatusService:
         scenes_without_tags_result = await db.execute(scenes_without_tags_query)
         scenes_without_tags = scenes_without_tags_result.scalar_one()
 
+        # Scenes without generated attribute
+        scenes_without_generated_query = select(func.count(Scene.id)).where(
+            Scene.generated.is_(False)
+        )
+        scenes_without_generated_result = await db.execute(
+            scenes_without_generated_query
+        )
+        scenes_without_generated = scenes_without_generated_result.scalar_one()
+
         return {
             "scenes_without_files": scenes_without_files,
             "scenes_missing_details": scenes_missing_details,
             "scenes_without_studio": scenes_without_studio,
             "scenes_without_performers": scenes_without_performers,
             "scenes_without_tags": scenes_without_tags,
+            "scenes_without_generated": scenes_without_generated,
         }
 
     async def _get_job_status(self, db: AsyncDBSession) -> Dict[str, Any]:
@@ -417,6 +427,23 @@ class DashboardStatusService:
                     "action": "process_downloads",
                     "action_label": "Process Downloads",
                     "priority": "high" if pending_downloads > 5 else "medium",
+                    "visible": True,
+                }
+            )
+
+        # Scenes without generated metadata
+        scenes_without_generated = metadata_status.get("scenes_without_generated", 0)
+        if scenes_without_generated > 0:
+            items.append(
+                {
+                    "id": "scenes_without_generated",
+                    "type": "metadata",
+                    "title": "Missing Generated Metadata",
+                    "description": f"{scenes_without_generated} scenes are missing generated metadata",
+                    "count": scenes_without_generated,
+                    "action": "generate_metadata",
+                    "action_label": "Generate Metadata",
+                    "priority": "medium",
                     "visible": True,
                 }
             )

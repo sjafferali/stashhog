@@ -59,6 +59,7 @@ const Dashboard: React.FC = () => {
   const [analyzingScenes] = useState(false);
   const [processingDownloads, setProcessingDownloads] = useState(false);
   const [processingNewScenes, setProcessingNewScenes] = useState(false);
+  const [generatingMetadata, setGeneratingMetadata] = useState(false);
   const [recentTorrents, setRecentTorrents] = useState<ProcessedTorrent[]>([]);
   const navigate = useNavigate();
 
@@ -174,6 +175,19 @@ const Dashboard: React.FC = () => {
           setProcessingDownloads(false);
         }
         break;
+
+      case 'generate_metadata':
+        setGeneratingMetadata(true);
+        try {
+          await apiClient.runJob('stash_generate');
+          // Navigate to jobs page to see the generation progress
+          void navigate('/jobs');
+        } catch (error) {
+          console.error('Failed to start metadata generation:', error);
+        } finally {
+          setGeneratingMetadata(false);
+        }
+        break;
     }
   };
 
@@ -187,6 +201,8 @@ const Dashboard: React.FC = () => {
         return <FolderOutlined />;
       case 'system':
         return <ExclamationCircleOutlined />;
+      case 'metadata':
+        return <ThunderboltOutlined />;
       default:
         return <FileSearchOutlined />;
     }
@@ -415,7 +431,9 @@ const Dashboard: React.FC = () => {
                         (item.action === 'sync_scenes' && syncingScenes) ||
                         (item.action === 'analyze_scenes' && analyzingScenes) ||
                         (item.action === 'process_downloads' &&
-                          processingDownloads)
+                          processingDownloads) ||
+                        (item.action === 'generate_metadata' &&
+                          generatingMetadata)
                       }
                       onClick={() => void handleAction(item)}
                     >

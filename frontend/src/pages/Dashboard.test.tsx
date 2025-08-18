@@ -52,6 +52,7 @@ describe('Dashboard', () => {
         scenes_without_studio: 0,
         scenes_without_performers: 0,
         scenes_without_tags: 0,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,
@@ -119,6 +120,7 @@ describe('Dashboard', () => {
         scenes_without_studio: 5,
         scenes_without_performers: 8,
         scenes_without_tags: 12,
+        scenes_without_generated: 0,
       },
       jobs: {
         recent_failed_jobs: 0,

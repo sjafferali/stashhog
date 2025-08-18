@@ -930,20 +930,17 @@ async def get_scene_sync_logs(
     """
     Get sync history logs for a specific scene.
 
-    Returns sync logs where:
-    - The scene was specifically synced (entity_id matches)
-    - A full sync was performed (entity_id is NULL)
+    Returns sync logs where the scene was specifically synced (entity_id matches).
+    This includes:
+    - Individual scene syncs
+    - Scene updates during incremental syncs
+    - Scene processing during full syncs (each scene gets its own log entry)
     """
     # Query sync logs for this scene
     query = (
         select(SyncLog, SyncHistory)
         .join(SyncHistory, SyncLog.sync_history_id == SyncHistory.id)
-        .where(
-            or_(
-                SyncLog.entity_id == scene_id,
-                and_(SyncLog.entity_id.is_(None), SyncLog.sync_type == "full"),
-            )
-        )
+        .where(SyncLog.entity_id == scene_id)
         .order_by(SyncLog.created_at.desc())
         .limit(limit)
     )

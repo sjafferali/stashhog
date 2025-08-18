@@ -1,5 +1,11 @@
 # Scene Attributes Documentation
 
+## Quick Reference
+- [Overview](#overview) - Understanding the three primary attributes
+- [Adding New Scene Attributes](#adding-new-scene-attributes) - Step-by-step guide for adding new boolean attributes
+- [Common Pitfalls](#common-pitfalls-and-troubleshooting) - Critical issues to avoid
+- [Testing Checklist](#testing-checklist) - Verification steps before deployment
+
 ## Overview
 
 StashHog uses three primary attributes to track the processing state of scenes:
@@ -358,7 +364,12 @@ When sync jobs process scenes, they automatically detect marker changes and mana
 
 ## Adding New Scene Attributes
 
-To add a new boolean attribute similar to `analyzed` or `video_analyzed`, follow these steps:
+To add a new boolean attribute similar to `analyzed` or `video_analyzed`, follow these steps in order:
+
+### Prerequisites
+- Ensure you have a development environment set up
+- Make sure all existing tests pass before starting
+- Create a feature branch for your changes
 
 ### 1. Database Migration
 Create a new Alembic migration:
@@ -392,16 +403,25 @@ class Scene(BaseModel):
 
 ### 3. Update API Schema
 **File**: `backend/app/api/schemas/__init__.py`
-Add to `SceneResponse` and `SceneFilter`:
+
+a. Add to `SceneBase` class (inherited by other scene schemas):
 ```python
-class SceneResponse(BaseModel):
-    # ...
-    new_attribute: bool
-    
+class SceneBase(BaseSchema):
+    # ... existing fields ...
+    analyzed: bool = Field(..., description="Is scene analyzed")
+    video_analyzed: bool = Field(False, description="Has video tag analysis been run")
+    generated: bool = Field(False, description="Has scene metadata been generated")
+    new_attribute: bool = Field(False, description="Your attribute description")
+```
+
+b. Add to `SceneFilter` for query parameters:
+```python
 class SceneFilter(BaseModel):
     # ...
     new_attribute: Optional[bool] = None
 ```
+
+Note: `SceneResponse` inherits from `SceneBase`, so it automatically includes the new field.
 
 ### 4. Update API Routes
 **File**: `backend/app/api/routes/scenes.py`
@@ -473,20 +493,204 @@ Add menu items for setting/unsetting the new attribute:
 }
 ```
 
-### 8. Update Service Logic
+### 8. Update Scene Detail Modal
+**File**: `frontend/src/pages/scenes/components/SceneDetailModal.tsx`
+
+a. Add a mutation for toggling the attribute:
+```typescript
+// Toggle new_attribute mutation
+const toggleNewAttributeMutation = useMutation({
+  mutationFn: async (value: boolean) => {
+    return await apiClient.updateScene(parseInt(scene.id), {
+      new_attribute: value,
+    });
+  },
+  onSuccess: () => {
+    void message.success('Updated new attribute status');
+    void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+    void queryClient.invalidateQueries({ queryKey: ['scenes'] });
+  },
+  onError: () => {
+    void message.error('Failed to update new attribute status');
+  },
+});
+```
+
+b. Add the UI control in the overview tab:
+```typescript
+<Descriptions.Item label="New Attribute">
+  <Space>
+    <Tag color={fullScene?.new_attribute ? 'green' : 'default'}>
+      {fullScene?.new_attribute ? 'Yes' : 'No'}
+    </Tag>
+    <Button
+      size="small"
+      type="link"
+      loading={toggleNewAttributeMutation.isPending}
+      onClick={() =>
+        toggleNewAttributeMutation.mutate(!fullScene?.new_attribute)
+      }
+    >
+      {fullScene?.new_attribute ? 'Unset' : 'Set'}
+    </Button>
+  </Space>
+</Descriptions.Item>
+```
+
+### 9. Update Display Components
+**File**: `frontend/src/pages/scenes/components/ListView.tsx`
+
+a. Add to the desktop table view Status column:
+```typescript
+{record.new_attribute && (
+  <Tooltip title="New Attribute">
+    <YourIconHere style={{ color: '#yourcolor', fontSize: 16 }} />
+  </Tooltip>
+)}
+```
+
+b. **IMPORTANT**: Also add to the mobile card view status section:
+```typescript
+{scene.new_attribute && (
+  <Tooltip title="New Attribute">
+    <YourIconHere style={{ color: '#yourcolor', fontSize: 16 }} />
+  </Tooltip>
+)}
+```
+
+**File**: `frontend/src/pages/scenes/components/GridView.tsx`
+Add to the metadata section:
+```typescript
+{scene.new_attribute && (
+  <Tooltip title="New Attribute">
+    <YourIconHere style={{ color: '#yourcolor' }} />
+  </Tooltip>
+)}
+```
+
+### 10. Update Service Logic
 Determine where and when the attribute should be set:
 - Add to analysis service if set during analysis
 - Create a daemon if it needs automatic processing
 - Add to sync service if it comes from external source
 
-### 9. Add Tests
-- Backend: Test model, API endpoints, and service logic
-- Frontend: Test filter controls and bulk actions
+### 11. Update Test Fixtures and Mocks
 
-### 10. Update Documentation
-- Add the new attribute to this documentation file
+#### Backend Test Fixtures
+**File**: `backend/tests/helpers.py`
+
+a. Update `create_test_scene()` function to include default for new attribute:
+```python
+# Set default boolean fields if not provided
+kwargs.setdefault("generated", False)
+kwargs.setdefault("analyzed", False)
+kwargs.setdefault("video_analyzed", False)
+kwargs.setdefault("organized", False)
+kwargs.setdefault("new_attribute", False)  # Add this line
+```
+
+b. Update `create_scene_with_files()` function similarly:
+```python
+# Set default boolean fields if not provided
+scene_data.setdefault("generated", False)
+scene_data.setdefault("analyzed", False)
+scene_data.setdefault("video_analyzed", False)
+scene_data.setdefault("organized", False)
+scene_data.setdefault("new_attribute", False)  # Add this line
+```
+
+#### Update Mock Objects in Tests
+**Files to update**:
+- `backend/tests/test_api_routes.py`
+- `backend/tests/test_api_routes_comprehensive.py`
+- `backend/tests/test_api_routes_scenes.py`
+
+For each mock scene object, add the new attribute:
+```python
+mock_scene.organized = True
+mock_scene.analyzed = False
+mock_scene.video_analyzed = False
+mock_scene.generated = False
+mock_scene.new_attribute = False  # Add this line
+```
+
+Also update any `to_dict()` mock return values:
+```python
+scene.to_dict = Mock(
+    return_value={
+        # ... other fields ...
+        "analyzed": scene.analyzed,
+        "video_analyzed": scene.video_analyzed,
+        "generated": scene.generated,
+        "new_attribute": scene.new_attribute,  # Add this line
+        # ... rest of fields ...
+    }
+)
+```
+
+#### Update Test Cases
+- Add test cases for the new attribute in bulk update tests
+- Add test cases for filtering by the new attribute
+- Add test cases for the individual scene update with the new attribute
+- Ensure mock database queries handle the new field properly
+
+### 12. Run Database Migration
+After creating the migration file, apply it:
+```bash
+cd backend
+alembic upgrade head
+```
+
+### 13. Update Documentation
+- Add the new attribute to this documentation file  
 - Update API documentation
 - Add any workflow-specific documentation
+- Document which processes automatically manage the attribute (if any)
+
+### 14. Final Steps
+1. **Restart Services**: Restart both backend and frontend services to load the changes
+2. **Clear Browser Cache**: Force refresh the frontend to ensure new types are loaded
+3. **Test End-to-End**: Verify the attribute works through the entire stack
+4. **Monitor Logs**: Check for any errors related to the new attribute
+
+## Common Pitfalls and Troubleshooting
+
+### Critical Issues That Will Cause Failures
+
+1. **Missing `_transform_scene_to_response()` Update**
+   - **Symptom**: API returns the scene but the new attribute is always missing/undefined
+   - **Fix**: Ensure the attribute is added to the return statement in `_transform_scene_to_response()`
+   - **Impact**: All scene endpoints will fail to return the attribute value
+
+2. **Test Fixtures Not Updated**
+   - **Symptom**: Tests fail with validation errors like "Input should be a valid boolean"
+   - **Fix**: Update all test fixtures and mock objects to include the new attribute
+   - **Files affected**: `helpers.py`, all test files with mock scenes
+
+3. **Mobile View Not Updated**
+   - **Symptom**: Attribute shows in desktop view but not on mobile
+   - **Fix**: Update both desktop AND mobile card views in `ListView.tsx`
+   - **Note**: Mobile view is a separate implementation and easily overlooked
+
+4. **Scene Detail Modal Not Updated**
+   - **Symptom**: Bulk updates work but individual scene toggles don't
+   - **Fix**: Add mutation and UI controls to `SceneDetailModal.tsx`
+
+5. **StashHog Fields Set Not Updated**
+   - **Symptom**: PATCH requests to update the attribute silently fail
+   - **Fix**: Add attribute to `stashhog_fields` set in the `update_scene` endpoint
+
+### Testing Checklist
+Before considering the attribute complete, verify:
+- [ ] Attribute appears in scene list view (desktop and mobile)
+- [ ] Attribute appears in scene grid view
+- [ ] Attribute can be filtered in advanced filters
+- [ ] Bulk update operations work for the attribute
+- [ ] Individual scene toggle works in detail modal
+- [ ] API returns the attribute in all scene responses
+- [ ] Database migration runs successfully
+- [ ] All existing tests pass
+- [ ] New tests for the attribute pass
 
 ## Best Practices
 
@@ -516,3 +720,9 @@ Determine where and when the attribute should be set:
 9. **Attribute Dependencies**: Document relationships between attributes
    - Example: `generated` status depends on resource completeness checked by CHECK_STASH_GENERATE job
    - Ensure dependent attributes are updated together when appropriate
+
+10. **Consistent Implementation**: Ensure the attribute is handled consistently across:
+    - All view types (list, grid, mobile)
+    - All update methods (bulk, individual)
+    - All API endpoints (list, detail, update)
+    - All test files

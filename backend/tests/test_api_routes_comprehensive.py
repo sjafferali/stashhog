@@ -838,16 +838,24 @@ class TestEntityRoutes:
         """Test listing performers."""
         # Mock performers query
         performer1 = Mock()
-        performer1.id = "p1"
+        performer1.id = 1
         performer1.name = "Performer 1"
-        performer1.scene_count = 5
+        performer1.gender = "Female"
+        performer1.favorite = False
+        performer1.rating100 = None
 
         performer2 = Mock()
-        performer2.id = "p2"
+        performer2.id = 2
         performer2.name = "Performer 2"
-        performer2.scene_count = 3
+        performer2.gender = "Male"
+        performer2.favorite = True
+        performer2.rating100 = 85
 
         performers = [performer1, performer2]
+
+        # Mock total count result
+        mock_total_count_result = Mock()
+        mock_total_count_result.scalar_one = Mock(return_value=2)
 
         # Mock performer result
         mock_performer_result = Mock()
@@ -855,71 +863,107 @@ class TestEntityRoutes:
             return_value=Mock(all=Mock(return_value=performers))
         )
 
-        # Mock count queries for each performer
-        mock_count_result = Mock()
-        mock_count_result.scalar_one = Mock(return_value=5)
+        # Mock scene count queries for each performer
+        mock_scene_count_result1 = Mock()
+        mock_scene_count_result1.scalar_one = Mock(return_value=5)
 
-        # Set up execute to return performer list first, then counts for each
+        mock_scene_count_result2 = Mock()
+        mock_scene_count_result2.scalar_one = Mock(return_value=3)
+
+        # Set up execute to return count first, then performer list, then counts for each
         mock_db.execute = AsyncMock(
             side_effect=[
+                mock_total_count_result,  # Total count query
                 mock_performer_result,  # Performers list
-                mock_count_result,  # Count for performer 1
-                mock_count_result,  # Count for performer 2
+                mock_scene_count_result1,  # Count for performer 1
+                mock_scene_count_result2,  # Count for performer 2
             ]
         )
 
         response = client.get("/api/entities/performers")
         assert response.status_code == 200
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
     def test_list_tags(self, client, mock_db):
         """Test listing tags."""
         # Mock tags query
         tag1 = Mock()
-        tag1.id = "t1"
+        tag1.id = 1
         tag1.name = "Tag 1"
-        tag1.scene_count = 4
+        tag1.created_at = None
+        tag1.updated_at = None
 
         tag2 = Mock()
-        tag2.id = "t2"
+        tag2.id = 2
         tag2.name = "Tag 2"
-        tag2.scene_count = 2
+        tag2.created_at = None
+        tag2.updated_at = None
 
         tags = [tag1, tag2]
+
+        # Mock total count result
+        mock_total_count_result = Mock()
+        mock_total_count_result.scalar_one = Mock(return_value=2)
 
         # Mock tag result
         mock_tag_result = Mock()
         mock_tag_result.scalars = Mock(return_value=Mock(all=Mock(return_value=tags)))
 
-        # Mock count queries for each tag
-        mock_count_result = Mock()
-        mock_count_result.scalar_one = Mock(return_value=3)
+        # Mock scene count queries for each tag
+        mock_scene_count_result1 = Mock()
+        mock_scene_count_result1.scalar_one = Mock(return_value=4)
 
-        # Set up execute to return tag list first, then counts for each
+        mock_scene_count_result2 = Mock()
+        mock_scene_count_result2.scalar_one = Mock(return_value=2)
+
+        # Set up execute to return count first, then tag list, then counts for each
         mock_db.execute = AsyncMock(
             side_effect=[
+                mock_total_count_result,  # Total count query
                 mock_tag_result,  # Tags list
-                mock_count_result,  # Count for tag 1
-                mock_count_result,  # Count for tag 2
+                mock_scene_count_result1,  # Count for tag 1
+                mock_scene_count_result2,  # Count for tag 2
             ]
         )
 
         response = client.get("/api/entities/tags")
         assert response.status_code == 200
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
     def test_list_studios(self, client, mock_db):
         """Test listing studios."""
         # Mock studios query
         studio1 = Mock()
-        studio1.id = "s1"
+        studio1.id = 1
         studio1.name = "Studio 1"
-        studio1.scene_count = 10
+        studio1.url = None
+        studio1.details = None
+        studio1.rating100 = None
+        studio1.created_at = None
+        studio1.updated_at = None
 
         studio2 = Mock()
-        studio2.id = "s2"
+        studio2.id = 2
         studio2.name = "Studio 2"
-        studio2.scene_count = 7
+        studio2.url = None
+        studio2.details = None
+        studio2.rating100 = None
+        studio2.created_at = None
+        studio2.updated_at = None
 
         studios = [studio1, studio2]
+
+        # Mock total count result
+        mock_total_count_result = Mock()
+        mock_total_count_result.scalar_one = Mock(return_value=2)
 
         # Mock studio result
         mock_studio_result = Mock()
@@ -927,21 +971,30 @@ class TestEntityRoutes:
             return_value=Mock(all=Mock(return_value=studios))
         )
 
-        # Mock count queries for each studio
-        mock_count_result = Mock()
-        mock_count_result.scalar_one = Mock(return_value=10)
+        # Mock scene count queries for each studio
+        mock_scene_count_result1 = Mock()
+        mock_scene_count_result1.scalar_one = Mock(return_value=10)
 
-        # Set up execute to return studio list first, then counts for each
+        mock_scene_count_result2 = Mock()
+        mock_scene_count_result2.scalar_one = Mock(return_value=7)
+
+        # Set up execute to return count first, then studio list, then counts for each
         mock_db.execute = AsyncMock(
             side_effect=[
+                mock_total_count_result,  # Total count query
                 mock_studio_result,  # Studios list
-                mock_count_result,  # Count for studio 1
-                mock_count_result,  # Count for studio 2
+                mock_scene_count_result1,  # Count for studio 1
+                mock_scene_count_result2,  # Count for studio 2
             ]
         )
 
         response = client.get("/api/entities/studios")
         assert response.status_code == 200
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
 
 
 class TestSchedulerRoutes:
