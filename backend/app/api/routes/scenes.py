@@ -821,26 +821,37 @@ async def update_scene(
 
     This endpoint updates the scene in both Stashhog's database and Stash.
     """
-    # Verify scene exists
-    query = select(Scene).where(Scene.id == scene_id)
-    result = await db.execute(query)
-    scene = result.scalar_one_or_none()
+    # Get scene with proper session tracking
+    scene = await db.get(Scene, scene_id)
 
     if not scene:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Scene {scene_id} not found"
         )
 
+    # Log the incoming updates for debugging
+    logger.info(f"Updating scene {scene_id} with updates: {updates}")
+
     # Separate StashHog-specific fields from Stash fields
     stashhog_fields = {"analyzed", "video_analyzed", "generated"}
     stashhog_updates = {k: v for k, v in updates.items() if k in stashhog_fields}
     stash_updates = {k: v for k, v in updates.items() if k not in stashhog_fields}
 
+    logger.info(f"StashHog updates: {stashhog_updates}, Stash updates: {stash_updates}")
+
     # Update StashHog-specific fields locally
     if stashhog_updates:
         for field, value in stashhog_updates.items():
+            logger.info(f"Setting scene.{field} = {value}")
             setattr(scene, field, value)
+
+        # Commit the changes
         await db.commit()
+        logger.info(f"Committed StashHog updates for scene {scene_id}")
+
+        # Refresh the scene object to get the committed state
+        await db.refresh(scene)
+        logger.info(f"After refresh - scene.generated = {scene.generated}")
 
     # Update Stash fields if any
     if stash_updates:
@@ -850,10 +861,10 @@ async def update_scene(
         # Sync the updated scene back to our database
         await sync_service.sync_scene_by_id(scene_id)
 
-    # Get updated scene
-    await db.refresh(scene)
+        # Refresh again after Stash sync
+        await db.refresh(scene)
 
-    # Return updated scene
+    # Return updated scene - use the already refreshed scene object
     return await get_scene(scene_id, db)
 
 

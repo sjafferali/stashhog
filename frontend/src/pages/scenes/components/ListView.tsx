@@ -509,6 +509,18 @@ export const ListView: React.FC<ListViewProps> = ({
                   />
                 </Tooltip>
               )}
+              {scene.video_analyzed && (
+                <Tooltip title="Video Analyzed">
+                  <VideoCameraOutlined
+                    style={{ color: '#722ed1', fontSize: 16 }}
+                  />
+                </Tooltip>
+              )}
+              {scene.generated && (
+                <Tooltip title="Generated">
+                  <RobotOutlined style={{ color: '#1890ff', fontSize: 16 }} />
+                </Tooltip>
+              )}
               {scene.details && (
                 <Tooltip title="Has details">
                   <InfoCircleOutlined

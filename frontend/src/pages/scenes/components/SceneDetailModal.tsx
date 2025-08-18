@@ -176,6 +176,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     onSuccess: () => {
       void message.success('Updated analyzed status');
       void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+      void queryClient.invalidateQueries({ queryKey: ['scenes'] });
     },
     onError: () => {
       void message.error('Failed to update analyzed status');
@@ -192,6 +193,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     onSuccess: () => {
       void message.success('Updated video analyzed status');
       void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+      void queryClient.invalidateQueries({ queryKey: ['scenes'] });
     },
     onError: () => {
       void message.error('Failed to update video analyzed status');
@@ -208,8 +210,10 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
     onSuccess: () => {
       void message.success('Updated generated status');
       void queryClient.invalidateQueries({ queryKey: ['scene', scene.id] });
+      void queryClient.invalidateQueries({ queryKey: ['scenes'] });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Failed to update generated status:', error);
       void message.error('Failed to update generated status');
     },
   });
