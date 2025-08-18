@@ -42,6 +42,12 @@ def create_test_scene(
     kwargs.setdefault("stash_created_at", now)
     kwargs.setdefault("last_synced", now)
 
+    # Set default boolean fields if not provided
+    kwargs.setdefault("generated", False)
+    kwargs.setdefault("analyzed", False)
+    kwargs.setdefault("video_analyzed", False)
+    kwargs.setdefault("organized", False)
+
     # Create the scene
     scene = Scene(id=id, title=title, **kwargs)
 
@@ -78,6 +84,12 @@ def create_scene_with_files(
     now = datetime.now()
     scene_data.setdefault("stash_created_at", now)
     scene_data.setdefault("last_synced", now)
+
+    # Set default boolean fields if not provided
+    scene_data.setdefault("generated", False)
+    scene_data.setdefault("analyzed", False)
+    scene_data.setdefault("video_analyzed", False)
+    scene_data.setdefault("organized", False)
 
     # Create scene
     scene = Scene(**scene_data)

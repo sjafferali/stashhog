@@ -249,6 +249,7 @@ def _transform_scene_to_response(scene: Scene) -> SceneResponse:
         organized=scene.organized,  # type: ignore[arg-type]
         analyzed=scene.analyzed,  # type: ignore[arg-type]
         video_analyzed=scene.video_analyzed,  # type: ignore[arg-type]
+        generated=scene.generated,  # type: ignore[arg-type]
         details=scene.details,  # type: ignore[arg-type]
         stash_created_at=scene.stash_created_at,  # type: ignore[arg-type]
         stash_updated_at=scene.stash_updated_at,  # type: ignore[arg-type]

@@ -112,6 +112,7 @@ def mock_scene():
     scene.organized = True
     scene.analyzed = False
     scene.video_analyzed = False
+    scene.generated = False
     scene.stash_created_at = datetime.utcnow()
     scene.stash_updated_at = datetime.utcnow()
     scene.stash_date = datetime.utcnow()
@@ -156,6 +157,7 @@ def mock_scene():
             "organized": scene.organized,
             "analyzed": scene.analyzed,
             "video_analyzed": scene.video_analyzed,
+            "generated": scene.generated,
             "stash_created_at": scene.stash_created_at,
             "stash_updated_at": scene.stash_updated_at,
             "stash_date": scene.stash_date,
@@ -325,6 +327,7 @@ class TestSceneRoutes:
         mock_scene.organized = True
         mock_scene.analyzed = False
         mock_scene.video_analyzed = False
+        mock_scene.generated = False
         mock_scene.details = "Scene details"
         mock_scene.stash_created_at = datetime.utcnow()
         mock_scene.stash_updated_at = datetime.utcnow()
@@ -410,6 +413,7 @@ class TestSceneRoutes:
         mock_scene.organized = True
         mock_scene.analyzed = False
         mock_scene.video_analyzed = False
+        mock_scene.generated = False
         mock_scene.details = "Scene details"
         mock_scene.stash_created_at = datetime.utcnow()
         mock_scene.stash_updated_at = datetime.utcnow()
@@ -426,21 +430,20 @@ class TestSceneRoutes:
         mock_scene.tags = []
         mock_scene.markers = []
 
-        # Mock initial scene query for verification
-        mock_result1 = Mock()
-        mock_result1.scalar_one_or_none.return_value = mock_scene
+        # Mock db.get for the update endpoint
+        mock_db.get = AsyncMock(return_value=mock_scene)
 
         # Mock get_scene query with relationships (called after update)
-        mock_result2 = Mock()
-        mock_result2.scalar_one_or_none.return_value = mock_scene
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_scene
 
         # Mock the unique() method for selectinload queries
         mock_unique = Mock()
         mock_unique.all.return_value = []
-        mock_result2.scalars.return_value.unique.return_value = mock_unique
+        mock_result.scalars.return_value.unique.return_value = mock_unique
 
-        # The update endpoint calls execute twice: once for verification, once for get_scene
-        mock_db.execute = AsyncMock(side_effect=[mock_result1, mock_result2])
+        # The update endpoint calls execute once for get_scene
+        mock_db.execute = AsyncMock(return_value=mock_result)
 
         # Mock sync service with stash_service
         mock_stash_service = AsyncMock()
@@ -467,10 +470,8 @@ class TestSceneRoutes:
 
     def test_update_scene_not_found(self, client, mock_db):
         """Test updating a scene that doesn't exist."""
-        # Mock scene query to return None
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(return_value=mock_result)
+        # Mock db.get to return None
+        mock_db.get = AsyncMock(return_value=None)
 
         response = client.patch("/api/scenes/nonexistent-id", json={"title": "Updated"})
 

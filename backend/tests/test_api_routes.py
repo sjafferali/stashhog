@@ -132,6 +132,7 @@ class TestSceneRoutes:
         mock_scene1.organized = False
         mock_scene1.analyzed = False
         mock_scene1.video_analyzed = False
+        mock_scene1.generated = False
         mock_scene1.performers = []
         mock_scene1.tags = []
         mock_scene1.studio = None
@@ -188,6 +189,7 @@ class TestSceneRoutes:
         mock_scene2.organized = False
         mock_scene2.analyzed = False
         mock_scene2.video_analyzed = False
+        mock_scene2.generated = False
         mock_scene2.performers = []
         mock_scene2.tags = []
         mock_scene2.studio = None
@@ -249,6 +251,7 @@ class TestSceneRoutes:
         mock_scene.organized = False
         mock_scene.analyzed = False
         mock_scene.video_analyzed = False
+        mock_scene.generated = False
         mock_scene.performers = []
         mock_scene.tags = []
         mock_scene.studio = None

@@ -245,6 +245,7 @@ class TestSceneRoutes:
         scene1.organized = True
         scene1.analyzed = False
         scene1.video_analyzed = False
+        scene1.generated = False
         scene1.details = "Details 1"
         scene1.stash_created_at = datetime.utcnow()
         scene1.stash_updated_at = datetime.utcnow()
@@ -265,6 +266,7 @@ class TestSceneRoutes:
         scene2.organized = False
         scene2.analyzed = False
         scene2.video_analyzed = False
+        scene2.generated = False
         scene2.details = "Details 2"
         scene2.stash_created_at = datetime.utcnow()
         scene2.stash_updated_at = datetime.utcnow()
@@ -360,6 +362,7 @@ class TestSceneRoutes:
         scene.organized = True
         scene.analyzed = False
         scene.video_analyzed = False
+        scene.generated = False
         scene.details = "Test details"
         scene.stash_created_at = datetime.utcnow()
         scene.stash_updated_at = datetime.utcnow()

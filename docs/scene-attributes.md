@@ -422,6 +422,28 @@ if filters.new_attribute is not None:
     conditions.append(Scene.new_attribute == filters.new_attribute)
 ```
 
+d. **CRITICAL**: Update `_transform_scene_to_response()` function to include the new field:
+```python
+def _transform_scene_to_response(scene: Scene) -> SceneResponse:
+    # ... existing code ...
+    return SceneResponse(
+        id=scene.id,
+        title=title,
+        # ... other fields ...
+        analyzed=scene.analyzed,
+        video_analyzed=scene.video_analyzed,
+        generated=scene.generated,
+        new_attribute=scene.new_attribute,  # Add this line
+        # ... rest of fields ...
+    )
+```
+
+e. Add to StashHog-specific fields in the `update_scene` endpoint:
+```python
+# In the update_scene endpoint
+stashhog_fields = {"analyzed", "video_analyzed", "generated", "new_attribute"}
+```
+
 ### 5. Update Frontend Types
 **File**: `frontend/src/types/models.ts`
 ```typescript
