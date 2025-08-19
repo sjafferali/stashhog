@@ -299,6 +299,9 @@ async def get_performer(
         "updated_at": (
             performer.updated_at.isoformat() if performer.updated_at else None
         ),
+        "last_synced": (
+            performer.last_synced.isoformat() if performer.last_synced else None
+        ),
     }
 
 
@@ -365,6 +368,7 @@ async def get_tag(
         "child_tags": child_tags,
         "created_at": tag.created_at.isoformat() if tag.created_at else None,
         "updated_at": tag.updated_at.isoformat() if tag.updated_at else None,
+        "last_synced": tag.last_synced.isoformat() if tag.last_synced else None,
     }
 
 
@@ -408,4 +412,5 @@ async def get_studio(
         "rating100": studio.rating100 if hasattr(studio, "rating100") else None,
         "created_at": studio.created_at.isoformat() if studio.created_at else None,
         "updated_at": studio.updated_at.isoformat() if studio.updated_at else None,
+        "last_synced": studio.last_synced.isoformat() if studio.last_synced else None,
     }
