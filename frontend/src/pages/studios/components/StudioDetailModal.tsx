@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Studio } from '@/types/models';
+import useAppStore from '@/store';
 
 const { Title, Text, Link } = Typography;
 
@@ -23,12 +24,29 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
   onClose,
   onViewScenes,
 }) => {
+  const { settings } = useAppStore();
+
   if (!studio) return null;
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';
-    return dayjs(date).format('YYYY-MM-DD HH:mm');
+    return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
   };
+
+  const handleOpenInStash = () => {
+    const stashUrl = settings?.stash_url || '';
+    if (stashUrl && studio.id) {
+      // Remove trailing slash from stash_url if present
+      const baseUrl = stashUrl.replace(/\/$/, '');
+      const fullUrl = `${baseUrl}/studios/${studio.id}`;
+      window.open(fullUrl, '_blank');
+    }
+  };
+
+  // Check if we have a valid stash URL
+  const hasStashUrl = Boolean(
+    settings?.stash_url && settings.stash_url.trim() !== ''
+  );
 
   return (
     <Modal
@@ -44,6 +62,14 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
       footer={[
         <Button key="close" onClick={onClose}>
           Close
+        </Button>,
+        <Button
+          key="open-stash"
+          icon={<LinkOutlined />}
+          onClick={handleOpenInStash}
+          disabled={!hasStashUrl}
+        >
+          Open in Stash
         </Button>,
         <Button
           key="scenes"
@@ -109,6 +135,11 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
             </Descriptions.Item>
             <Descriptions.Item label="Updated">
               {formatDate(studio.updated_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Last Synced">
+              {studio.last_synced
+                ? dayjs(studio.last_synced).format('YYYY-MM-DD HH:mm:ss')
+                : '-'}
             </Descriptions.Item>
           </Descriptions>
         </div>

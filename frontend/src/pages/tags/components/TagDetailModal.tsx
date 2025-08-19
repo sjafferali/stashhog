@@ -12,9 +12,11 @@ import {
   TagOutlined,
   VideoCameraOutlined,
   BranchesOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Tag as TagModel } from '@/types/models';
+import useAppStore from '@/store';
 
 const { Title, Text } = Typography;
 
@@ -31,12 +33,29 @@ export const TagDetailModal: React.FC<TagDetailModalProps> = ({
   onClose,
   onViewScenes,
 }) => {
+  const { settings } = useAppStore();
+
   if (!tag) return null;
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';
-    return dayjs(date).format('YYYY-MM-DD HH:mm');
+    return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
   };
+
+  const handleOpenInStash = () => {
+    const stashUrl = settings?.stash_url || '';
+    if (stashUrl && tag.id) {
+      // Remove trailing slash from stash_url if present
+      const baseUrl = stashUrl.replace(/\/$/, '');
+      const fullUrl = `${baseUrl}/tags/${tag.id}`;
+      window.open(fullUrl, '_blank');
+    }
+  };
+
+  // Check if we have a valid stash URL
+  const hasStashUrl = Boolean(
+    settings?.stash_url && settings.stash_url.trim() !== ''
+  );
 
   return (
     <Modal
@@ -52,6 +71,14 @@ export const TagDetailModal: React.FC<TagDetailModalProps> = ({
       footer={[
         <Button key="close" onClick={onClose}>
           Close
+        </Button>,
+        <Button
+          key="open-stash"
+          icon={<LinkOutlined />}
+          onClick={handleOpenInStash}
+          disabled={!hasStashUrl}
+        >
+          Open in Stash
         </Button>,
         <Button
           key="scenes"
@@ -144,6 +171,11 @@ export const TagDetailModal: React.FC<TagDetailModalProps> = ({
             </Descriptions.Item>
             <Descriptions.Item label="Updated">
               {formatDate(tag.updated_at)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Last Synced">
+              {tag.last_synced
+                ? dayjs(tag.last_synced).format('YYYY-MM-DD HH:mm:ss')
+                : '-'}
             </Descriptions.Item>
           </Descriptions>
         </div>

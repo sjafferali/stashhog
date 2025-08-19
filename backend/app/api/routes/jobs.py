@@ -171,7 +171,7 @@ async def list_jobs(
     List historical jobs (completed, failed, cancelled).
 
     This endpoint now returns only historical jobs for clean separation
-    from active jobs. Use /api/jobs/active for currently running jobs.
+    from active jobs. Use /api/jobs/active for currently running, pending, or cancelling jobs.
     """
     # If filtering by specific job ID, check active jobs first, then database
     if job_id:
@@ -197,16 +197,18 @@ async def list_jobs(
 
     # Default to historical statuses if no status filter provided
     if status:
-        # If user specifies status, honor it but exclude pending/running from DB
-        historical_statuses = [s for s in status if s not in ["pending", "running"]]
+        # If user specifies status, honor it but exclude pending/running/cancelling from DB
+        historical_statuses = [
+            s for s in status if s not in ["pending", "running", "cancelling"]
+        ]
         if historical_statuses:
             query = query.where(Job.status.in_(historical_statuses))
         else:
-            # User only wants pending/running - return empty (they should use /active)
+            # User only wants pending/running/cancelling - return empty (they should use /active)
             return JobsListResponse(jobs=[], total=0, offset=offset, limit=limit)
     else:
-        # Default: exclude active statuses
-        query = query.where(~Job.status.in_(["pending", "running"]))
+        # Default: exclude active statuses (pending, running, cancelling)
+        query = query.where(~Job.status.in_(["pending", "running", "cancelling"]))
 
     # Apply job_type filter if provided
     if job_type:
@@ -215,13 +217,17 @@ async def list_jobs(
     # Get total count
     count_query = select(func.count(Job.id))
     if status:
-        historical_statuses = [s for s in status if s not in ["pending", "running"]]
+        historical_statuses = [
+            s for s in status if s not in ["pending", "running", "cancelling"]
+        ]
         if historical_statuses:
             count_query = count_query.where(Job.status.in_(historical_statuses))
         else:
             count_query = count_query.where(Job.status.in_([]))  # Empty result
     else:
-        count_query = count_query.where(~Job.status.in_(["pending", "running"]))
+        count_query = count_query.where(
+            ~Job.status.in_(["pending", "running", "cancelling"])
+        )
 
     if job_type:
         count_query = count_query.where(Job.type == job_type)

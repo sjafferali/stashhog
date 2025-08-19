@@ -202,7 +202,7 @@ const SceneDetail: React.FC = () => {
       </Descriptions.Item>
       <Descriptions.Item label="Date">
         {scene?.stash_date
-          ? new Date(scene.stash_date).toLocaleDateString()
+          ? new Date(scene.stash_date).toLocaleString()
           : 'N/A'}
       </Descriptions.Item>
       <Descriptions.Item label="Duration">

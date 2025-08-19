@@ -225,10 +225,16 @@ class JobRepository:
     async def get_active_jobs(
         self, db: Union[Session, AsyncSession], job_type: Optional[JobType] = None
     ) -> List[Job]:
-        """Get all active (pending or running) jobs."""
+        """Get all active (pending, running, or cancelling) jobs."""
         if isinstance(db, AsyncSession):
             query = select(Job).filter(
-                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value])
+                Job.status.in_(
+                    [
+                        JobStatus.PENDING.value,
+                        JobStatus.RUNNING.value,
+                        JobStatus.CANCELLING.value,
+                    ]
+                )
             )
 
             if job_type:
@@ -239,7 +245,13 @@ class JobRepository:
             return list(result.scalars().all())
         else:
             query = db.query(Job).filter(  # type: ignore
-                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value])
+                Job.status.in_(
+                    [
+                        JobStatus.PENDING.value,
+                        JobStatus.RUNNING.value,
+                        JobStatus.CANCELLING.value,
+                    ]
+                )
             )
 
             if job_type:
@@ -294,7 +306,13 @@ class JobRepository:
         # Query for jobs that are active and have scene_ids in their metadata
         query = select(Job).filter(
             and_(
-                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
+                Job.status.in_(
+                    [
+                        JobStatus.PENDING.value,
+                        JobStatus.RUNNING.value,
+                        JobStatus.CANCELLING.value,
+                    ]
+                ),
                 # Cast JSON to text and check if it contains "scene_ids"
                 func.cast(Job.job_metadata, String).contains('"scene_ids"'),
             )
@@ -316,7 +334,7 @@ class JobRepository:
     async def get_active_jobs_for_scenes(
         self, scene_ids: List[str], db: AsyncSession
     ) -> Dict[str, List[Job]]:
-        """Get active jobs (pending/running) for multiple scenes."""
+        """Get active jobs (pending/running/cancelling) for multiple scenes."""
         if not scene_ids:
             return {}
 
@@ -324,7 +342,13 @@ class JobRepository:
         # Use JSON cast to check if metadata contains scene_ids key
         query = select(Job).filter(
             and_(
-                Job.status.in_([JobStatus.PENDING.value, JobStatus.RUNNING.value]),
+                Job.status.in_(
+                    [
+                        JobStatus.PENDING.value,
+                        JobStatus.RUNNING.value,
+                        JobStatus.CANCELLING.value,
+                    ]
+                ),
                 # Cast JSON to text and check if it contains "scene_ids"
                 func.cast(Job.job_metadata, String).contains('"scene_ids"'),
             )

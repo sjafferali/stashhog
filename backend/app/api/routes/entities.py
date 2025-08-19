@@ -274,7 +274,7 @@ async def get_performer(
         "id": str(performer.id),
         "name": performer.name,
         "gender": performer.gender,
-        "birthdate": performer.birthdate.isoformat() if performer.birthdate else None,
+        "birthdate": performer.birthdate,
         "ethnicity": performer.ethnicity,
         "country": performer.country,
         "eye_color": performer.eye_color,

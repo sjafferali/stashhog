@@ -104,6 +104,7 @@ export interface Performer {
   twitter?: string;
   instagram?: string;
   rating100?: number;
+  last_synced?: string;
 }
 
 export interface Tag {
@@ -116,6 +117,7 @@ export interface Tag {
   marker_count?: number;
   parent_tags?: Tag[];
   child_tags?: Tag[];
+  last_synced?: string;
 }
 
 export interface Studio {
@@ -128,6 +130,7 @@ export interface Studio {
   scene_count?: number;
   parent_studio?: Studio;
   rating100?: number;
+  last_synced?: string;
 }
 
 export interface Gallery {

@@ -353,7 +353,7 @@ export const SceneDetailModal: React.FC<SceneDetailModalProps> = ({
         <Descriptions bordered column={2} title="Date Information">
           <Descriptions.Item label="Scene Date">
             {fullScene?.stash_date
-              ? dayjs(fullScene.stash_date).format('YYYY-MM-DD')
+              ? dayjs(fullScene.stash_date).format('YYYY-MM-DD HH:mm:ss')
               : 'N/A'}
           </Descriptions.Item>
 
