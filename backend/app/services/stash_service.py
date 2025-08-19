@@ -624,6 +624,29 @@ class StashService:
 
         return None
 
+    async def delete_tag(self, tag_id: str) -> bool:
+        """
+        Delete a tag in Stash.
+
+        Args:
+            tag_id: Tag ID to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        try:
+            result = await self.execute_graphql(
+                mutations.DELETE_TAG, {"input": {"id": tag_id}}
+            )
+
+            # Invalidate tag cache
+            self._entity_cache.invalidate_tags()
+
+            return bool(result.get("tagDestroy", False))
+        except Exception as e:
+            logger.error(f"Failed to delete tag {tag_id}: {e}")
+            raise
+
     async def find_or_create_tag(
         self, name: str, db_session: Optional[Any] = None
     ) -> Optional[str]:

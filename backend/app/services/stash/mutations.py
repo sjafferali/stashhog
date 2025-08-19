@@ -175,3 +175,10 @@ mutation StopJob($job_id: ID!) {
     stopJob(job_id: $job_id)
 }
 """
+
+# Delete tag
+DELETE_TAG = """
+mutation TagDestroy($input: TagDestroyInput!) {
+    tagDestroy(input: $input)
+}
+"""

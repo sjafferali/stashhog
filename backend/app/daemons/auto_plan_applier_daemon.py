@@ -86,8 +86,10 @@ class AutoPlanApplierDaemon(BaseDaemon):
                             f"Processed {plans_processed} plan(s) for application",
                         )
 
-                # Sleep for configured interval
-                await asyncio.sleep(config["job_interval_seconds"])
+                # Sleep for configured interval with heartbeat updates
+                await self._sleep_with_heartbeat(
+                    config["job_interval_seconds"], config["heartbeat_interval"]
+                )
 
             except asyncio.CancelledError:
                 await self.log(
@@ -327,6 +329,19 @@ class AutoPlanApplierDaemon(BaseDaemon):
             self._monitored_jobs.discard(job_id)
             self._job_to_plan_mapping.pop(job_id, None)
 
+    async def _sleep_with_heartbeat(self, sleep_duration: int, heartbeat_interval: int):
+        """Sleep for a duration while periodically updating heartbeat."""
+        elapsed = 0
+        while elapsed < sleep_duration and self.is_running:
+            # Sleep for the minimum of remaining time or heartbeat interval
+            sleep_time = min(heartbeat_interval, sleep_duration - elapsed)
+            await asyncio.sleep(sleep_time)
+            elapsed += sleep_time
+
+            # Update heartbeat if we've slept for the heartbeat interval
+            if elapsed % heartbeat_interval == 0 or elapsed >= sleep_duration:
+                await self.update_heartbeat()
+
     async def _wait_for_job_completion(self, job_id: str, plan_id: int):
         """Wait for a specific job to complete."""
         await self.log(
@@ -334,7 +349,17 @@ class AutoPlanApplierDaemon(BaseDaemon):
             f"Waiting for apply plan job {job_id} for plan {plan_id} to complete",
         )
 
+        config = self._load_config()
+        last_heartbeat_time = time.time()
+
         while self.is_running and job_id in self._monitored_jobs:
+            current_time = time.time()
+
+            # Update heartbeat periodically during wait
+            if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
+                await self.update_heartbeat()
+                last_heartbeat_time = current_time
+
             async with AsyncSessionLocal() as db:
                 job = await db.get(Job, job_id)
                 if not job:

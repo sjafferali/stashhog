@@ -75,7 +75,9 @@ class AutoStashGenerationDaemon(BaseDaemon):
                         LogLevel.INFO,
                         f"Jobs are running, skipping generation check and sleeping for {config['job_interval_seconds']} seconds",
                     )
-                    await asyncio.sleep(config["job_interval_seconds"])
+                    await self._sleep_with_heartbeat(
+                        config["job_interval_seconds"], config["heartbeat_interval"]
+                    )
                     continue
 
                 # Step 2: Check if any scenes are missing the generated attribute
@@ -85,7 +87,9 @@ class AutoStashGenerationDaemon(BaseDaemon):
                         LogLevel.DEBUG,
                         f"All scenes have generated attribute set, sleeping for {config['job_interval_seconds']} seconds",
                     )
-                    await asyncio.sleep(config["job_interval_seconds"])
+                    await self._sleep_with_heartbeat(
+                        config["job_interval_seconds"], config["heartbeat_interval"]
+                    )
                     continue
 
                 # Step 3: Start a Stash Generate Metadata job and monitor it
@@ -96,7 +100,9 @@ class AutoStashGenerationDaemon(BaseDaemon):
                     LogLevel.DEBUG,
                     f"Generation cycle complete, sleeping for {config['job_interval_seconds']} seconds",
                 )
-                await asyncio.sleep(config["job_interval_seconds"])
+                await self._sleep_with_heartbeat(
+                    config["job_interval_seconds"], config["heartbeat_interval"]
+                )
 
             except asyncio.CancelledError:
                 await self.log(
@@ -218,7 +224,17 @@ class AutoStashGenerationDaemon(BaseDaemon):
 
             # Monitor the job with scan job detection
             job_cancelled = False
+            config = self._load_config()
+            last_heartbeat_time = time.time()
+
             while self.is_running:
+                current_time = time.time()
+
+                # Update heartbeat periodically during monitoring
+                if current_time - last_heartbeat_time >= config["heartbeat_interval"]:
+                    await self.update_heartbeat()
+                    last_heartbeat_time = current_time
+
                 # Check job status
                 async with AsyncSessionLocal() as db:
                     job = await db.get(Job, job_id)
@@ -307,3 +323,16 @@ class AutoStashGenerationDaemon(BaseDaemon):
                 f"Stack trace:\n{traceback.format_exc()}",
             )
             self._current_generation_job_id = None
+
+    async def _sleep_with_heartbeat(self, sleep_duration: int, heartbeat_interval: int):
+        """Sleep for a duration while periodically updating heartbeat."""
+        elapsed = 0
+        while elapsed < sleep_duration and self.is_running:
+            # Sleep for the minimum of remaining time or heartbeat interval
+            sleep_time = min(heartbeat_interval, sleep_duration - elapsed)
+            await asyncio.sleep(sleep_time)
+            elapsed += sleep_time
+
+            # Update heartbeat if we've slept for the heartbeat interval
+            if elapsed % heartbeat_interval == 0 or elapsed >= sleep_duration:
+                await self.update_heartbeat()

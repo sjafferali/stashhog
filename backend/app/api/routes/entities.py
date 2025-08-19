@@ -14,8 +14,10 @@ from app.api.schemas import (
     StudioResponse,
     TagResponse,
 )
-from app.core.dependencies import get_db
+from app.core.config import Settings
+from app.core.dependencies import get_db, get_settings
 from app.models import Performer, Scene, SceneMarker, Studio, Tag
+from app.services.stash_service import StashService
 
 router = APIRouter()
 
@@ -369,6 +371,70 @@ async def get_tag(
         "created_at": tag.created_at.isoformat() if tag.created_at else None,
         "updated_at": tag.updated_at.isoformat() if tag.updated_at else None,
         "last_synced": tag.last_synced.isoformat() if tag.last_synced else None,
+    }
+
+
+@router.delete("/tags/{tag_id}")
+async def delete_tag(
+    tag_id: str,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """
+    Delete a tag from Stash.
+
+    This operation:
+    1. Deletes the tag from Stash via GraphQL API
+    2. Removes the tag from the local database
+
+    Note: This is a destructive operation that cannot be undone.
+    """
+    # First check if tag exists in local database
+    query = select(Tag).where(Tag.id == tag_id)
+    result = await db.execute(query)
+    tag = result.scalar_one_or_none()
+
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found in local database")
+
+    # Delete from Stash via GraphQL API
+    try:
+        async with StashService(
+            settings.stash.url,
+            settings.stash.api_key if settings.stash.api_key else None,
+        ) as stash:
+            success = await stash.delete_tag(tag_id)
+
+            if not success:
+                raise HTTPException(
+                    status_code=500, detail="Failed to delete tag from Stash"
+                )
+    except HTTPException:
+        # Re-raise HTTPException as-is
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting tag from Stash: {str(e)}"
+        )
+
+    # If successful in Stash, delete from local database
+    try:
+        await db.delete(tag)
+        await db.commit()
+    except Exception as e:
+        # Log the error but don't fail - tag is already deleted from Stash
+        # This maintains consistency with Stash being the source of truth
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to delete tag {tag_id} from local database: {e}")
+        # Still commit to remove any partial changes
+        await db.rollback()
+
+    return {
+        "success": True,
+        "message": f"Tag {tag.name} deleted successfully",
+        "deleted_tag_id": tag_id,
     }
 
 

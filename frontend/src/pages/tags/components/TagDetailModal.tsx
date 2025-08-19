@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   Descriptions,
@@ -33,7 +33,14 @@ export const TagDetailModal: React.FC<TagDetailModalProps> = ({
   onClose,
   onViewScenes,
 }) => {
-  const { settings } = useAppStore();
+  const { settings, loadSettings, isLoaded } = useAppStore();
+
+  // Load settings if not already loaded
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
 
   if (!tag) return null;
 

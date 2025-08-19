@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Modal, Descriptions, Tag, Button, Space, Typography } from 'antd';
 import {
   HomeOutlined,
@@ -24,7 +24,14 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
   onClose,
   onViewScenes,
 }) => {
-  const { settings } = useAppStore();
+  const { settings, loadSettings, isLoaded } = useAppStore();
+
+  // Load settings if not already loaded
+  useEffect(() => {
+    if (!isLoaded) {
+      void loadSettings();
+    }
+  }, [isLoaded, loadSettings]);
 
   if (!studio) return null;
 
