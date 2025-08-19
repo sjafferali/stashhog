@@ -217,6 +217,7 @@ class TagResponse(BaseSchema):
     id: str = Field(..., description="Tag ID")
     name: str = Field(..., description="Tag name")
     scene_count: Optional[int] = Field(None, description="Number of scenes")
+    marker_count: Optional[int] = Field(None, description="Number of markers")
 
 
 class StudioResponse(BaseSchema):

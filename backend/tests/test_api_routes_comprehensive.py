@@ -920,13 +920,28 @@ class TestEntityRoutes:
         mock_scene_count_result2 = Mock()
         mock_scene_count_result2.scalar_one = Mock(return_value=2)
 
+        # Mock marker count results for each tag (primary and secondary)
+        mock_marker_primary_count1 = Mock()
+        mock_marker_primary_count1.scalar_one = Mock(return_value=3)
+        mock_marker_secondary_count1 = Mock()
+        mock_marker_secondary_count1.scalar_one = Mock(return_value=2)
+
+        mock_marker_primary_count2 = Mock()
+        mock_marker_primary_count2.scalar_one = Mock(return_value=1)
+        mock_marker_secondary_count2 = Mock()
+        mock_marker_secondary_count2.scalar_one = Mock(return_value=0)
+
         # Set up execute to return count first, then tag list, then counts for each
         mock_db.execute = AsyncMock(
             side_effect=[
                 mock_total_count_result,  # Total count query
                 mock_tag_result,  # Tags list
-                mock_scene_count_result1,  # Count for tag 1
-                mock_scene_count_result2,  # Count for tag 2
+                mock_scene_count_result1,  # Scene count for tag 1
+                mock_marker_primary_count1,  # Primary marker count for tag 1
+                mock_marker_secondary_count1,  # Secondary marker count for tag 1
+                mock_scene_count_result2,  # Scene count for tag 2
+                mock_marker_primary_count2,  # Primary marker count for tag 2
+                mock_marker_secondary_count2,  # Secondary marker count for tag 2
             ]
         )
 

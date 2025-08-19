@@ -15,7 +15,7 @@ from app.api.schemas import (
     TagResponse,
 )
 from app.core.dependencies import get_db
-from app.models import Performer, Scene, Studio, Tag
+from app.models import Performer, Scene, SceneMarker, Studio, Tag
 
 router = APIRouter()
 
@@ -139,7 +139,7 @@ async def list_tags(
     result = await db.execute(base_query)
     tags = result.scalars().all()
 
-    # Get scene counts for each tag
+    # Get scene and marker counts for each tag
     tag_responses = []
     for tag in tags:
         # Count scenes for this tag
@@ -149,8 +149,33 @@ async def list_tags(
         count_result = await db.execute(count_query)
         scene_count = count_result.scalar_one()
 
+        # Count markers for this tag (both as primary tag and in tags relationship)
+        # Count as primary tag
+        primary_marker_query = select(func.count(SceneMarker.id)).where(
+            SceneMarker.primary_tag_id == tag.id
+        )
+        primary_result = await db.execute(primary_marker_query)
+        primary_count = primary_result.scalar_one()
+
+        # Count through many-to-many relationship
+        from app.models.scene_marker import scene_marker_tags
+
+        secondary_marker_query = select(
+            func.count(scene_marker_tags.c.scene_marker_id)
+        ).where(scene_marker_tags.c.tag_id == tag.id)
+        secondary_result = await db.execute(secondary_marker_query)
+        secondary_count = secondary_result.scalar_one()
+
+        # Use the maximum to avoid double counting if a tag is both primary and in the tags list
+        marker_count = max(primary_count, secondary_count)
+
         tag_responses.append(
-            TagResponse(id=str(tag.id), name=str(tag.name), scene_count=scene_count)
+            TagResponse(
+                id=str(tag.id),
+                name=str(tag.name),
+                scene_count=scene_count,
+                marker_count=marker_count,
+            )
         )
 
     return PaginatedResponse.create(
@@ -229,7 +254,7 @@ async def get_performer(
     Get detailed information about a specific performer.
     """
     # Get performer with all relationships
-    query = select(Performer).where(Performer.id == int(performer_id))
+    query = select(Performer).where(Performer.id == performer_id)
     result = await db.execute(query)
     performer = result.scalar_one_or_none()
 
@@ -262,7 +287,7 @@ async def get_performer(
         "favorite": performer.favorite if hasattr(performer, "favorite") else False,
         "details": performer.details,
         "hair_color": performer.hair_color,
-        "weight": performer.weight,
+        "weight": performer.weight_kg,
         "url": performer.url,
         "twitter": performer.twitter,
         "instagram": performer.instagram,
@@ -286,7 +311,7 @@ async def get_tag(
     Get detailed information about a specific tag.
     """
     # Get tag
-    query = select(Tag).where(Tag.id == int(tag_id))
+    query = select(Tag).where(Tag.id == tag_id)
     result = await db.execute(query)
     tag = result.scalar_one_or_none()
 
@@ -297,6 +322,26 @@ async def get_tag(
     count_query = select(func.count(Scene.id)).join(Scene.tags).where(Tag.id == tag.id)
     count_result = await db.execute(count_query)
     scene_count = count_result.scalar_one()
+
+    # Count markers for this tag (both as primary tag and in tags relationship)
+    # Count as primary tag
+    primary_marker_query = select(func.count(SceneMarker.id)).where(
+        SceneMarker.primary_tag_id == tag.id
+    )
+    primary_result = await db.execute(primary_marker_query)
+    primary_count = primary_result.scalar_one()
+
+    # Count through many-to-many relationship
+    from app.models.scene_marker import scene_marker_tags
+
+    secondary_marker_query = select(
+        func.count(scene_marker_tags.c.scene_marker_id)
+    ).where(scene_marker_tags.c.tag_id == tag.id)
+    secondary_result = await db.execute(secondary_marker_query)
+    secondary_count = secondary_result.scalar_one()
+
+    # Use the maximum to avoid double counting if a tag is both primary and in the tags list
+    marker_count = max(primary_count, secondary_count)
 
     # Get parent and child tags if they exist
     parent_tags = []
@@ -315,6 +360,7 @@ async def get_tag(
         "name": tag.name,
         "aliases": tag.aliases if hasattr(tag, "aliases") else [],
         "scene_count": scene_count,
+        "marker_count": marker_count,
         "parent_tags": parent_tags,
         "child_tags": child_tags,
         "created_at": tag.created_at.isoformat() if tag.created_at else None,
@@ -331,7 +377,7 @@ async def get_studio(
     Get detailed information about a specific studio.
     """
     # Get studio
-    query = select(Studio).where(Studio.id == int(studio_id))
+    query = select(Studio).where(Studio.id == studio_id)
     result = await db.execute(query)
     studio = result.scalar_one_or_none()
 

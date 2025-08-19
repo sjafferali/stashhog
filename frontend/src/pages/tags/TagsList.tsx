@@ -153,7 +153,22 @@ const TagsList: React.FC = () => {
             ? 'ascend'
             : 'descend'
           : null,
-      render: (count: number) => <Tag color="blue">{count}</Tag>,
+      render: (count: number) => <Tag color="blue">{count || 0}</Tag>,
+    },
+    {
+      title: 'Markers',
+      dataIndex: 'marker_count',
+      key: 'marker_count',
+      width: 100,
+      align: 'center',
+      sorter: true,
+      sortOrder:
+        sortBy === 'marker_count'
+          ? sortOrder === 'asc'
+            ? 'ascend'
+            : 'descend'
+          : null,
+      render: (count: number) => <Tag color="purple">{count || 0}</Tag>,
     },
     {
       title: 'Actions',

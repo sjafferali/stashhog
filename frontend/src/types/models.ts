@@ -113,6 +113,7 @@ export interface Tag {
   created_at: string;
   updated_at: string;
   scene_count?: number;
+  marker_count?: number;
   parent_tags?: Tag[];
   child_tags?: Tag[];
 }

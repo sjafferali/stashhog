@@ -76,6 +76,9 @@ export const TagDetailModal: React.FC<TagDetailModalProps> = ({
             <Descriptions.Item label="Total Scenes">
               <Tag color="blue">{tag.scene_count || 0}</Tag>
             </Descriptions.Item>
+            <Descriptions.Item label="Total Markers">
+              <Tag color="purple">{tag.marker_count || 0}</Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="ID">
               <Text code>{tag.id}</Text>
             </Descriptions.Item>
