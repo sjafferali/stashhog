@@ -418,3 +418,385 @@ async def get_stash_marker_debug(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch marker from Stash: {str(e)}",
         )
+
+
+# Custom debug query for tags
+DEBUG_TAG_QUERY = """
+query FindTags($filter: FindFilterType, $tag_filter: TagFilterType, $ids: [ID!]) {
+  findTags(filter: $filter, tag_filter: $tag_filter, ids: $ids) {
+    count
+    tags {
+      id
+      name
+      aliases
+      ignore_auto_tag
+      favorite
+      description
+      created_at
+      updated_at
+      scene_count
+      scene_marker_count
+      performer_count
+      gallery_count
+      image_count
+      group_count
+      parents {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        scene_count
+        scene_marker_count
+        parent_count
+        child_count
+        parents {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+      }
+      children {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        scene_count
+        scene_marker_count
+        parent_count
+        child_count
+        parents {
+          id
+          name
+        }
+        children {
+          id
+          name
+        }
+      }
+      parent_count
+      child_count
+    }
+  }
+}
+"""
+
+
+@router.get("/stashtag/{tag_id}")
+async def get_stash_tag_debug(
+    tag_id: str,
+    stash_service: StashService = Depends(get_stash_service),
+) -> Dict[str, Any]:
+    """
+    Get raw tag data from Stash GraphQL API for debugging purposes.
+
+    Returns both the GraphQL query and the raw result.
+    """
+    # Convert tag_id to int for the query (Stash uses Int IDs)
+    try:
+        tag_id_int = int(tag_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tag ID: {tag_id}",
+        )
+
+    # Format the query for display with variables filled in
+    query_for_display = DEBUG_TAG_QUERY.strip()
+    # Replace the variable declarations and usage with actual values
+    query_for_display = query_for_display.replace(
+        "query FindTags($filter: FindFilterType, $tag_filter: TagFilterType, $ids: [ID!])",
+        "query FindTags",
+    )
+    query_for_display = query_for_display.replace(
+        "findTags(filter: $filter, tag_filter: $tag_filter, ids: $ids)",
+        f'findTags(ids: ["{tag_id_int}"])',
+    )
+    # Convert to single line by removing newlines and collapsing multiple spaces
+    query_for_display = " ".join(query_for_display.split())
+
+    try:
+        # Execute the GraphQL query with ids filter
+        result = await stash_service.execute_graphql(
+            DEBUG_TAG_QUERY, {"ids": [str(tag_id_int)]}
+        )
+
+        # Check if tag was found
+        if not result.get("findTags") or not result["findTags"].get("tags"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tag {tag_id} not found in Stash",
+            )
+
+        return {"query": query_for_display, "result": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tag from Stash: {str(e)}",
+        )
+
+
+# Custom debug query for performers
+DEBUG_PERFORMER_QUERY = """
+query FindPerformers($filter: FindFilterType, $performer_filter: PerformerFilterType, $ids: [ID!]) {
+  findPerformers(filter: $filter, performer_filter: $performer_filter, ids: $ids) {
+    count
+    performers {
+      id
+      name
+      disambiguation
+      url
+      urls
+      gender
+      ethnicity
+      country
+      eye_color
+      height_cm
+      measurements
+      fake_tits
+      penis_length
+      circumcised
+      career_length
+      tattoos
+      piercings
+      aliases
+      alias_list
+      favorite
+      ignore_auto_tag
+      birthdate
+      death_date
+      hair_color
+      weight
+      details
+      rating100
+      created_at
+      updated_at
+      scene_count
+      o_counter
+      gallery_count
+      image_count
+      group_count
+      performer_count
+      tags {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        scene_count
+        scene_marker_count
+        performer_count
+        parent_count
+        child_count
+      }
+      stash_ids {
+        stash_id
+        endpoint
+      }
+    }
+  }
+}
+"""
+
+
+@router.get("/stashperformer/{performer_id}")
+async def get_stash_performer_debug(
+    performer_id: str,
+    stash_service: StashService = Depends(get_stash_service),
+) -> Dict[str, Any]:
+    """
+    Get raw performer data from Stash GraphQL API for debugging purposes.
+
+    Returns both the GraphQL query and the raw result.
+    """
+    # Convert performer_id to int for the query (Stash uses Int IDs)
+    try:
+        performer_id_int = int(performer_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid performer ID: {performer_id}",
+        )
+
+    # Format the query for display with variables filled in
+    query_for_display = DEBUG_PERFORMER_QUERY.strip()
+    # Replace the variable declarations and usage with actual values
+    query_for_display = query_for_display.replace(
+        "query FindPerformers($filter: FindFilterType, $performer_filter: PerformerFilterType, $ids: [ID!])",
+        "query FindPerformers",
+    )
+    query_for_display = query_for_display.replace(
+        "findPerformers(filter: $filter, performer_filter: $performer_filter, ids: $ids)",
+        f'findPerformers(ids: ["{performer_id_int}"])',
+    )
+    # Convert to single line by removing newlines and collapsing multiple spaces
+    query_for_display = " ".join(query_for_display.split())
+
+    try:
+        # Execute the GraphQL query with ids filter
+        result = await stash_service.execute_graphql(
+            DEBUG_PERFORMER_QUERY, {"ids": [str(performer_id_int)]}
+        )
+
+        # Check if performer was found
+        if not result.get("findPerformers") or not result["findPerformers"].get(
+            "performers"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Performer {performer_id} not found in Stash",
+            )
+
+        return {"query": query_for_display, "result": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch performer from Stash: {str(e)}",
+        )
+
+
+# Custom debug query for studios
+DEBUG_STUDIO_QUERY = """
+query FindStudios($filter: FindFilterType, $studio_filter: StudioFilterType, $ids: [ID!]) {
+  findStudios(filter: $filter, studio_filter: $studio_filter, ids: $ids) {
+    count
+    studios {
+      id
+      name
+      url
+      parent_studio {
+        id
+        name
+        url
+        details
+        rating100
+        favorite
+        created_at
+        updated_at
+        scene_count
+        child_count
+        gallery_count
+        image_count
+        group_count
+        performer_count
+      }
+      child_studios {
+        id
+        name
+        url
+        details
+        rating100
+        favorite
+        created_at
+        updated_at
+        scene_count
+        child_count
+        gallery_count
+        image_count
+        group_count
+        performer_count
+      }
+      details
+      rating100
+      favorite
+      created_at
+      updated_at
+      scene_count
+      child_count
+      gallery_count
+      image_count
+      group_count
+      performer_count
+      aliases
+      ignore_auto_tag
+      tags {
+        id
+        name
+        aliases
+        ignore_auto_tag
+        favorite
+        description
+        scene_count
+        scene_marker_count
+        performer_count
+        parent_count
+        child_count
+      }
+      stash_ids {
+        stash_id
+        endpoint
+      }
+    }
+  }
+}
+"""
+
+
+@router.get("/stashstudio/{studio_id}")
+async def get_stash_studio_debug(
+    studio_id: str,
+    stash_service: StashService = Depends(get_stash_service),
+) -> Dict[str, Any]:
+    """
+    Get raw studio data from Stash GraphQL API for debugging purposes.
+
+    Returns both the GraphQL query and the raw result.
+    """
+    # Convert studio_id to int for the query (Stash uses Int IDs)
+    try:
+        studio_id_int = int(studio_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid studio ID: {studio_id}",
+        )
+
+    # Format the query for display with variables filled in
+    query_for_display = DEBUG_STUDIO_QUERY.strip()
+    # Replace the variable declarations and usage with actual values
+    query_for_display = query_for_display.replace(
+        "query FindStudios($filter: FindFilterType, $studio_filter: StudioFilterType, $ids: [ID!])",
+        "query FindStudios",
+    )
+    query_for_display = query_for_display.replace(
+        "findStudios(filter: $filter, studio_filter: $studio_filter, ids: $ids)",
+        f'findStudios(ids: ["{studio_id_int}"])',
+    )
+    # Convert to single line by removing newlines and collapsing multiple spaces
+    query_for_display = " ".join(query_for_display.split())
+
+    try:
+        # Execute the GraphQL query with ids filter
+        result = await stash_service.execute_graphql(
+            DEBUG_STUDIO_QUERY, {"ids": [str(studio_id_int)]}
+        )
+
+        # Check if studio was found
+        if not result.get("findStudios") or not result["findStudios"].get("studios"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Studio {studio_id} not found in Stash",
+            )
+
+        return {"query": query_for_display, "result": result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch studio from Stash: {str(e)}",
+        )

@@ -38,6 +38,7 @@ class AutoStashSyncDaemon(BaseDaemon):
         self._monitored_jobs: Set[str] = set()
         self._stash_service: Optional[StashService] = None
         self._sync_status_service: Optional[SyncStatusService] = None
+        self._last_job_completion_time: float = 0  # Track when last job completed
         await self.log(LogLevel.INFO, "Auto Stash Sync Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -79,13 +80,31 @@ class AutoStashSyncDaemon(BaseDaemon):
 
                 # If no jobs are being monitored, check for pending scenes
                 if not self._monitored_jobs:
-                    await self._check_and_sync_scenes(config)
-                    # Only sleep for the full interval if no job was created
-                    if not self._monitored_jobs:
-                        await asyncio.sleep(config["job_interval_seconds"])
+                    # Check if enough time has passed since last job completion
+                    time_since_last_job = current_time - self._last_job_completion_time
+
+                    if time_since_last_job >= config["job_interval_seconds"]:
+                        # Enough time has passed, check for pending scenes
+                        await self._check_and_sync_scenes(config)
+                        # Only sleep for the full interval if no job was created
+                        if not self._monitored_jobs:
+                            await asyncio.sleep(config["job_interval_seconds"])
+                        else:
+                            # Job was created, check more frequently
+                            await asyncio.sleep(5)
                     else:
-                        # Job was created, check more frequently
-                        await asyncio.sleep(5)
+                        # Wait the remaining time before checking again
+                        remaining_time = (
+                            config["job_interval_seconds"] - time_since_last_job
+                        )
+                        await self.log(
+                            LogLevel.DEBUG,
+                            f"Waiting {remaining_time:.1f}s before next sync check "
+                            f"(last job completed {time_since_last_job:.1f}s ago)",
+                        )
+                        await asyncio.sleep(
+                            min(remaining_time, 30)
+                        )  # Check at least every 30s for heartbeat
                 else:
                     # Jobs are being monitored, check status frequently
                     await asyncio.sleep(5)
@@ -251,6 +270,11 @@ class AutoStashSyncDaemon(BaseDaemon):
                             f"Executed incremental sync due to {pending_scenes} scenes that needed to be resynced. "
                             f"Job {job_id} completed successfully.",
                         )
+                    elif job.status == JobStatus.CANCELLED.value:
+                        await self.log(
+                            LogLevel.WARNING,
+                            f"Sync job {job_id} was cancelled. Will wait {self.config.get('job_interval_seconds', 300)}s before checking again.",
+                        )
                     else:
                         await self.log(
                             LogLevel.WARNING,
@@ -262,6 +286,9 @@ class AutoStashSyncDaemon(BaseDaemon):
                         action=DaemonJobAction.FINISHED,
                         reason=f"Job completed with status {job.status}",
                     )
+
+                    # Record completion time
+                    self._last_job_completion_time = time.time()
 
                     completed_jobs.add(job_id)
 

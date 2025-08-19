@@ -61,6 +61,8 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   getJobTypeLabel,
   getJobTypeColor,
+  getJobStatusColor,
+  formatJobStatus,
   JOB_TYPE_LABELS,
 } from '@/utils/jobUtils';
 import styles from './JobMonitor.module.scss';
@@ -621,22 +623,8 @@ const JobMonitor: React.FC = () => {
         return (
           <Space>
             {icon}
-            <Tag
-              color={
-                status === 'completed'
-                  ? 'success'
-                  : status === 'failed'
-                    ? 'error'
-                    : status === 'running'
-                      ? 'processing'
-                      : status === 'pending'
-                        ? 'orange'
-                        : status === 'cancelled'
-                          ? 'warning'
-                          : 'default'
-              }
-            >
-              {status.toUpperCase()}
+            <Tag color={getJobStatusColor(status)}>
+              {formatJobStatus(status)}
             </Tag>
             {lastMessage && status === 'running' && (
               <Tooltip title={lastMessage}>
@@ -1174,22 +1162,8 @@ const JobMonitor: React.FC = () => {
                   <Descriptions.Item label="Status">
                     <Space>
                       {getStatusIcon(selectedJob.status)}
-                      <Tag
-                        color={
-                          selectedJob.status === 'completed'
-                            ? 'success'
-                            : selectedJob.status === 'failed'
-                              ? 'error'
-                              : selectedJob.status === 'running'
-                                ? 'processing'
-                                : selectedJob.status === 'pending'
-                                  ? 'orange'
-                                  : selectedJob.status === 'cancelled'
-                                    ? 'warning'
-                                    : 'default'
-                        }
-                      >
-                        {selectedJob.status.toUpperCase()}
+                      <Tag color={getJobStatusColor(selectedJob.status)}>
+                        {formatJobStatus(selectedJob.status)}
                       </Tag>
                     </Space>
                   </Descriptions.Item>
@@ -1409,22 +1383,8 @@ const JobMonitor: React.FC = () => {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Tag
-                  color={
-                    selectedRawDataJob.status === 'completed'
-                      ? 'success'
-                      : selectedRawDataJob.status === 'failed'
-                        ? 'error'
-                        : selectedRawDataJob.status === 'running'
-                          ? 'processing'
-                          : selectedRawDataJob.status === 'pending'
-                            ? 'orange'
-                            : selectedRawDataJob.status === 'cancelled'
-                              ? 'warning'
-                              : 'default'
-                  }
-                >
-                  {selectedRawDataJob.status.toUpperCase()}
+                <Tag color={getJobStatusColor(selectedRawDataJob.status)}>
+                  {formatJobStatus(selectedRawDataJob.status)}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Progress">

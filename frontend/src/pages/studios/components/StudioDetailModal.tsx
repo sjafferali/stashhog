@@ -4,6 +4,8 @@ import {
   HomeOutlined,
   VideoCameraOutlined,
   LinkOutlined,
+  ApiOutlined,
+  BugOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Studio } from '@/types/models';
@@ -50,6 +52,18 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
     }
   };
 
+  const handleOpenInAPI = () => {
+    // Get current origin for the API base URL
+    const apiUrl = `${window.location.origin}/api/entities/studios/${studio.id}`;
+    window.open(apiUrl, '_blank');
+  };
+
+  const handleDebugStashAPI = () => {
+    // Open the debug endpoint for Stash GraphQL data
+    const debugUrl = `${window.location.origin}/api/debug/stashstudio/${studio.id}`;
+    window.open(debugUrl, '_blank');
+  };
+
   // Check if we have a valid stash URL
   const hasStashUrl = Boolean(
     settings?.stash_url && settings.stash_url.trim() !== ''
@@ -69,6 +83,16 @@ export const StudioDetailModal: React.FC<StudioDetailModalProps> = ({
       footer={[
         <Button key="close" onClick={onClose}>
           Close
+        </Button>,
+        <Button key="open-api" icon={<ApiOutlined />} onClick={handleOpenInAPI}>
+          Open in API
+        </Button>,
+        <Button
+          key="debug-api"
+          icon={<BugOutlined />}
+          onClick={handleDebugStashAPI}
+        >
+          Debug Stash API
         </Button>,
         <Button
           key="open-stash"

@@ -197,3 +197,37 @@ export const getJobTypeDescription = (type: string): string => {
   // Fall back to static definitions
   return JOB_TYPE_DESCRIPTIONS[type] || 'Unknown job type';
 };
+
+// Job Status utilities
+export type JobStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'cancelling';
+
+// Standardized status color mapping for Ant Design Tag component
+export const getJobStatusColor = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'success';
+    case 'failed':
+      return 'error';
+    case 'running':
+      return 'processing';
+    case 'pending':
+      return 'warning';
+    case 'cancelled':
+      return 'warning';
+    case 'cancelling':
+      return 'warning';
+    default:
+      return 'default';
+  }
+};
+
+// Format job status for display (uppercase)
+export const formatJobStatus = (status: string): string => {
+  return status.toUpperCase();
+};

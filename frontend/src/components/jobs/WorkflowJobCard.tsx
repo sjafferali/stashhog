@@ -20,7 +20,12 @@ import {
   CaretRightOutlined,
 } from '@ant-design/icons';
 import { Job } from '@/types/models';
-import { getJobTypeLabel, getJobTypeColor } from '@/utils/jobUtils';
+import {
+  getJobTypeLabel,
+  getJobTypeColor,
+  getJobStatusColor,
+  formatJobStatus,
+} from '@/utils/jobUtils';
 import { WorkflowJobModal } from './WorkflowJobModal';
 import styles from './WorkflowJobCard.module.scss';
 
@@ -92,22 +97,7 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
   };
 
   const getStatusColor = () => {
-    switch (job.status) {
-      case 'pending':
-        return 'orange';
-      case 'running':
-        return 'processing';
-      case 'completed':
-        return 'success';
-      case 'failed':
-        return 'error';
-      case 'cancelled':
-        return 'warning';
-      case 'cancelling':
-        return 'orange';
-      default:
-        return 'default';
-    }
+    return getJobStatusColor(job.status);
   };
 
   const actions = [];
@@ -194,7 +184,7 @@ export const WorkflowJobCard: React.FC<WorkflowJobCardProps> = ({
                 {job.name || 'Process New Scenes Workflow'}
               </Title>
             </Space>
-            <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
+            <Tag color={getStatusColor()}>{formatJobStatus(job.status)}</Tag>
           </div>
         }
         extra={<Space>{actions}</Space>}

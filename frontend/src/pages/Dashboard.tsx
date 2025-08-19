@@ -38,6 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 import { SyncStatus, ActionableItem } from '@/types/models';
 import { jobMetadataService } from '@/services/jobMetadataService';
+import { getJobStatusColor, formatJobStatus } from '@/utils/jobUtils';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -242,23 +243,6 @@ const Dashboard: React.FC = () => {
     return jobMetadataService.getJobLabel(type);
   };
 
-  const getJobStatusColor = (status: string) => {
-    switch (status) {
-      case 'running':
-        return 'processing';
-      case 'pending':
-        return 'default';
-      case 'completed':
-        return 'success';
-      case 'failed':
-        return 'error';
-      case 'cancelled':
-        return 'warning';
-      default:
-        return 'default';
-    }
-  };
-
   if (loading || !stats) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -361,7 +345,7 @@ const Dashboard: React.FC = () => {
                   <Space>
                     <Text strong>{getJobTypeLabel(job.type)}</Text>
                     <Tag color={getJobStatusColor(job.status)}>
-                      {job.status}
+                      {formatJobStatus(job.status)}
                     </Tag>
                   </Space>
                   {job.progress !== undefined && (
@@ -591,7 +575,7 @@ const Dashboard: React.FC = () => {
                   <Space>
                     <Text>{getJobTypeLabel(job.type)}</Text>
                     <Tag color={getJobStatusColor(job.status)}>
-                      {job.status}
+                      {formatJobStatus(job.status)}
                     </Tag>
                   </Space>
                   {job.error && (

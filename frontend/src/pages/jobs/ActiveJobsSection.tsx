@@ -30,7 +30,12 @@ import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { getJobTypeLabel, getJobTypeColor } from '@/utils/jobUtils';
+import {
+  getJobTypeLabel,
+  getJobTypeColor,
+  getJobStatusColor,
+  formatJobStatus,
+} from '@/utils/jobUtils';
 
 import { Job } from '@/types/models';
 
@@ -289,18 +294,8 @@ const ActiveJobsSection: React.FC<ActiveJobsSectionProps> = ({
         return (
           <Space>
             {icon}
-            <Tag
-              color={
-                status === 'running'
-                  ? 'processing'
-                  : status === 'pending'
-                    ? 'orange'
-                    : status === 'cancelling'
-                      ? 'warning'
-                      : 'default'
-              }
-            >
-              {status.toUpperCase()}
+            <Tag color={getJobStatusColor(status)}>
+              {formatJobStatus(status)}
             </Tag>
             {lastMessage && status === 'running' && (
               <Tooltip title={lastMessage}>

@@ -36,6 +36,8 @@ import {
   getJobTypeLabel,
   getJobTypeColor,
   formatJobProgress,
+  getJobStatusColor,
+  formatJobStatus,
 } from '@/utils/jobUtils';
 import { WorkflowJobCard } from './WorkflowJobCard';
 import styles from './JobCard.module.scss';
@@ -134,22 +136,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   };
 
   const getStatusColor = () => {
-    switch (job.status) {
-      case 'pending':
-        return 'orange';
-      case 'running':
-        return 'processing';
-      case 'completed':
-        return 'success';
-      case 'failed':
-        return 'error';
-      case 'cancelled':
-        return 'warning';
-      case 'cancelling':
-        return 'orange';
-      default:
-        return 'default';
-    }
+    return getJobStatusColor(job.status);
   };
 
   const formatDuration = () => {
@@ -266,7 +253,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           <Space>
             {getStatusIcon()}
             <Text strong>{job.name || getJobTypeLabel(job.type)}</Text>
-            <Tag color={getStatusColor()}>{job.status}</Tag>
+            <Tag color={getStatusColor()}>{formatJobStatus(job.status)}</Tag>
           </Space>
           <Space>{actions}</Space>
         </div>
@@ -306,7 +293,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             {getStatusIcon()}
             <Title level={5}>{job.name || getJobTypeLabel(job.type)}</Title>
           </Space>
-          <Tag color={getStatusColor()}>{job.status.toUpperCase()}</Tag>
+          <Tag color={getStatusColor()}>{formatJobStatus(job.status)}</Tag>
         </div>
       }
       extra={<Space>{actions}</Space>}
