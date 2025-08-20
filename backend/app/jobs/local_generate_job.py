@@ -1,10 +1,9 @@
 """Local generate job for creating scene marker previews and screenshots."""
 
 import asyncio
-import hashlib
 import logging
 import os
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 from app.core.settings_loader import load_settings_with_db_overrides
 from app.models.job import JobType
@@ -12,14 +11,6 @@ from app.services.job_service import JobService
 from app.services.stash_service import StashService
 
 logger = logging.getLogger(__name__)
-
-
-def get_file_hash(file_path: str) -> str:
-    """Get MD5 hash of the first 64KB of a file for scene identification."""
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        hash_md5.update(f.read(65536))  # Read first 64KB
-    return hash_md5.hexdigest()
 
 
 async def generate_screenshot(
@@ -328,22 +319,42 @@ async def _fetch_scene_data(
     return scene_data
 
 
-async def _validate_scene_files(scene: Dict[str, Any], scene_id: str) -> str:
-    """Validate scene has files and return video path.
+async def _validate_and_extract_file_info(
+    scene: Dict[str, Any], scene_id: str
+) -> Tuple[str, str]:
+    """Validate scene has files and return video path and oshash.
+
+    Returns:
+        Tuple of (video_path, oshash)
 
     Raises:
-        ValueError: If no files found or video file doesn't exist
+        ValueError: If no files found, video file doesn't exist, or oshash not found
     """
     files = scene.get("files", [])
     if not files:
         raise ValueError(f"LOCALGENERATE: No files found for scene {scene_id}")
 
-    video_path = files[0].get("path")
+    file_info = files[0]
+    video_path = file_info.get("path")
     if not video_path or not os.path.exists(video_path):
         raise ValueError(f"LOCALGENERATE: Video file not found: {video_path}")
 
+    # Extract oshash from fingerprints
+    fingerprints = file_info.get("fingerprints", [])
+    oshash = None
+    for fingerprint in fingerprints:
+        if fingerprint.get("type") == "oshash":
+            oshash = fingerprint.get("value")
+            break
+
+    if not oshash:
+        raise ValueError(
+            f"LOCALGENERATE: No oshash found in fingerprints for scene {scene_id}"
+        )
+
     path: str = video_path
-    return path
+    hash_value: str = oshash
+    return path, hash_value
 
 
 async def _process_all_markers(
@@ -446,12 +457,12 @@ async def local_generate_job(
         scene_title = scene.get("title", f"Scene {scene_id}")
         logger.info(f"LOCALGENERATE: Found scene: {scene_title}")
 
-        # Validate and get video file path
-        video_path = await _validate_scene_files(scene, scene_id)
+        # Validate and get video file path and oshash
+        video_path, scene_hash = await _validate_and_extract_file_info(scene, scene_id)
         logger.info(f"LOCALGENERATE: Video file: {video_path}")
+        logger.info(f"LOCALGENERATE: Using oshash: {scene_hash}")
 
-        # Get scene hash and video dimensions
-        scene_hash = get_file_hash(video_path)
+        # Get video dimensions
         width = scene.get("files", [{}])[0].get("width", 1920)
 
         # Get scene markers
