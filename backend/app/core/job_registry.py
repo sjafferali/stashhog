@@ -124,6 +124,15 @@ JOB_REGISTRY: Dict[str, JobMetadata] = {
         category="Stash Operations",
         unit="resources",
     ),
+    "LOCAL_GENERATE": JobMetadata(
+        value="local_generate",
+        label="Local Generate",
+        description="Locally generate marker previews and screenshots for a single scene",
+        color="cyan",
+        category="Stash Operations",
+        unit="markers",
+        allow_concurrent=True,
+    ),
     # Workflow Jobs
     "PROCESS_DOWNLOADS": JobMetadata(
         value="process_downloads",

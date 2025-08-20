@@ -557,6 +557,23 @@ const jobDefinitions: JobDefinition[] = [
       },
     ],
   },
+  {
+    type: 'local_generate',
+    name: 'Local Generate',
+    description:
+      'Locally generate marker previews and screenshots for a single scene',
+    icon: <ExperimentOutlined />,
+    category: 'Stash Tasks',
+    parameters: [
+      {
+        name: 'scene_id',
+        type: 'string',
+        required: true,
+        description: 'Scene ID to generate marker previews for',
+        placeholder: 'e.g., 12345',
+      },
+    ],
+  },
 ];
 
 const RunJobForm: React.FC<RunJobFormProps> = ({ onSuccess, onClose }) => {

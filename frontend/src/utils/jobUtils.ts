@@ -18,6 +18,7 @@ export type JobType =
   | 'stash_scan'
   | 'stash_generate'
   | 'check_stash_generate'
+  | 'local_generate'
   | 'process_downloads'
   | 'process_new_scenes'
   | 'test';
@@ -42,6 +43,7 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   stash_scan: 'Stash Metadata Scan',
   stash_generate: 'Stash Generate Metadata',
   check_stash_generate: 'Check Resource Generation',
+  local_generate: 'Local Generate',
   process_downloads: 'Process Downloads',
   process_new_scenes: 'Process New Scenes',
   test: 'Test Job',
@@ -65,6 +67,7 @@ export const JOB_TYPE_COLORS: Record<string, string> = {
   stash_scan: 'volcano',
   stash_generate: 'geekblue',
   check_stash_generate: 'orange',
+  local_generate: 'cyan',
   process_downloads: 'geekblue',
   process_new_scenes: 'purple',
   test: 'cyan',
@@ -144,6 +147,8 @@ export const formatJobProgress = (
         unit = ' items';
       } else if (type === 'check_stash_generate') {
         unit = ' resources';
+      } else if (type === 'local_generate') {
+        unit = ' markers';
       } else if (type === 'process_downloads') {
         unit = ' downloads';
       } else if (type === 'process_new_scenes') {
@@ -181,6 +186,8 @@ export const JOB_TYPE_DESCRIPTIONS: Record<string, string> = {
   stash_generate:
     'Generate preview images, sprites, and metadata for media files',
   check_stash_generate: 'Check for resources requiring generation in Stash',
+  local_generate:
+    'Locally generate marker previews and screenshots for a single scene',
   process_downloads: 'Process downloaded content',
   process_new_scenes:
     'Complete workflow to process newly downloaded scenes through scanning, analysis, and metadata generation',

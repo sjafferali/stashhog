@@ -137,6 +137,7 @@ class JobType(str, Enum):
     STASH_SCAN = "stash_scan"
     STASH_GENERATE = "stash_generate"
     CHECK_STASH_GENERATE = "check_stash_generate"
+    LOCAL_GENERATE = "local_generate"
     PROCESS_NEW_SCENES = "process_new_scenes"
     TEST = "test"
 

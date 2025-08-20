@@ -241,6 +241,7 @@ export interface Job {
     | 'stash_scan'
     | 'stash_generate'
     | 'check_stash_generate'
+    | 'local_generate'
     | 'process_downloads'
     | 'process_new_scenes'
     | 'cleanup'
