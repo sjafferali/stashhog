@@ -8,8 +8,16 @@ import {
   Spin,
   message,
   Drawer,
+  Modal,
+  Descriptions,
+  Tooltip,
 } from 'antd';
-import { ReloadOutlined, FundOutlined } from '@ant-design/icons';
+import {
+  ReloadOutlined,
+  FundOutlined,
+  CodeOutlined,
+  CopyOutlined,
+} from '@ant-design/icons';
 import daemonService from '@/services/daemonService';
 import { Daemon, DaemonStatistics } from '@/types/daemon';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -27,6 +35,9 @@ const Daemons: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [activityDrawerVisible, setActivityDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
+  const [selectedRawDataDaemon, setSelectedRawDataDaemon] =
+    useState<Daemon | null>(null);
 
   // WebSocket message handler - memoized to prevent reconnections
   const handleWebSocketMessage = useCallback((data: unknown) => {
@@ -205,6 +216,11 @@ const Daemons: React.FC = () => {
     }
   };
 
+  const showRawDaemonData = (daemon: Daemon) => {
+    setSelectedRawDataDaemon(daemon);
+    setRawDataModalVisible(true);
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '24px', textAlign: 'center' }}>
@@ -257,6 +273,7 @@ const Daemons: React.FC = () => {
                 onToggleAutoStart={(daemon) =>
                   void handleToggleAutoStart(daemon)
                 }
+                onViewRawData={() => showRawDaemonData(daemon)}
                 isLoading={isLoading}
               />
             </Col>
@@ -279,6 +296,93 @@ const Daemons: React.FC = () => {
       >
         <ActivityFeed limit={100} />
       </Drawer>
+
+      {/* Raw Data Modal */}
+      <Modal
+        title={
+          <Space>
+            <CodeOutlined />
+            Raw Daemon Data
+          </Space>
+        }
+        open={rawDataModalVisible}
+        onCancel={() => {
+          setRawDataModalVisible(false);
+          setSelectedRawDataDaemon(null);
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setRawDataModalVisible(false);
+              setSelectedRawDataDaemon(null);
+            }}
+          >
+            Close
+          </Button>,
+        ]}
+        width={800}
+        bodyStyle={{
+          maxHeight: 'calc(80vh - 108px)',
+          overflowY: 'auto',
+        }}
+      >
+        {selectedRawDataDaemon && (
+          <div>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Daemon ID">
+                <Space>
+                  <Text>{selectedRawDataDaemon.id}</Text>
+                  <Tooltip title="Copy Daemon ID">
+                    <Button
+                      type="link"
+                      icon={<CopyOutlined />}
+                      size="small"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(
+                          selectedRawDataDaemon.id
+                        );
+                        void message.success('Daemon ID copied to clipboard');
+                      }}
+                    />
+                  </Tooltip>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Name">
+                {selectedRawDataDaemon.name}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                {selectedRawDataDaemon.status}
+              </Descriptions.Item>
+              <Descriptions.Item label="Auto Start">
+                {selectedRawDataDaemon.auto_start ? 'Yes' : 'No'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Created At">
+                {new Date(selectedRawDataDaemon.created_at).toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Updated At">
+                {new Date(selectedRawDataDaemon.updated_at).toLocaleString()}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Title level={5} style={{ marginTop: 16 }}>
+              Full JSON Data
+            </Title>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '12px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+              }}
+            >
+              {JSON.stringify(selectedRawDataDaemon, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

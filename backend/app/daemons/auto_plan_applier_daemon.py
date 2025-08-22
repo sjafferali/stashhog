@@ -36,6 +36,22 @@ class AutoPlanApplierDaemon(BaseDaemon):
 
     daemon_type = DaemonType.AUTO_PLAN_APPLIER_DAEMON
 
+    @classmethod
+    def get_default_config(cls) -> dict:
+        """Get the default configuration for this daemon."""
+        return {
+            "heartbeat_interval": 30,
+            "job_interval_seconds": 60,
+            "plan_prefix_filter": [],
+            "auto_approve_all_changes": False,
+            "_descriptions": {
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
+                "job_interval_seconds": "Seconds to wait between checking for plans to apply",
+                "plan_prefix_filter": "List of plan name prefixes to filter by (empty means process all plans)",
+                "auto_approve_all_changes": "Whether to automatically approve and apply all changes in plans",
+            },
+        }
+
     async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()

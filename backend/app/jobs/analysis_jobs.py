@@ -224,14 +224,16 @@ async def _execute_non_ai_analysis(
             cancellation_token=cancellation_token,
         )
 
-        logger.info(
-            f"Non-AI analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
-        )
+        # Extract plan ID while session is still active to avoid greenlet errors
+        plan_id = plan.id if plan and hasattr(plan, "id") else None
+
+        logger.info(f"Non-AI analysis completed for job {job_id}, plan ID: {plan_id}")
 
         # Ensure we commit any pending changes
         await db.commit()
 
-        return plan
+        # Return a simple dict with the plan ID to avoid detached instance issues
+        return {"id": plan_id} if plan_id else None
 
 
 def _extract_scenes_processed(message: str, current_count: int) -> int:
@@ -316,11 +318,13 @@ async def _execute_analysis(
             cancellation_token=cancellation_token,
         )
 
-        logger.info(
-            f"Analysis completed for job {job_id}, plan ID: {getattr(plan, 'id', None)}"
-        )
+        # Extract plan ID while session is still active to avoid greenlet errors
+        plan_id = plan.id if plan and hasattr(plan, "id") else None
 
-        return plan
+        logger.info(f"Analysis completed for job {job_id}, plan ID: {plan_id}")
+
+        # Return a simple dict with the plan ID to avoid detached instance issues
+        return {"id": plan_id} if plan_id else None
 
 
 async def _process_analysis_results(
@@ -330,7 +334,8 @@ async def _process_analysis_results(
     plan_id: Optional[int] = None
 
     # Check if plan has an ID (was saved to database)
-    if not hasattr(plan, "id") or plan.id is None:
+    # Plan is now a dict with {"id": plan_id} or None
+    if not plan or not plan.get("id"):
         logger.info(f"No changes found for job {job_id}, returning minimal result")
         result = {
             "plan_id": None,
@@ -345,7 +350,7 @@ async def _process_analysis_results(
     else:
         async with AsyncSessionLocal() as db:
             try:
-                plan_id = int(plan.id)
+                plan_id = int(plan["id"])
 
                 # Re-fetch the plan in our current session
                 plan_query = select(AnalysisPlan).where(AnalysisPlan.id == plan_id)

@@ -153,6 +153,24 @@ async def get_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     return daemon.to_dict()
 
 
+@router.get("/{daemon_id}/default-config")
+async def get_daemon_default_config(
+    daemon_id: str, db: AsyncSession = Depends(get_async_db)
+):
+    """Get the default configuration for a specific daemon."""
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    # Get the default config from the daemon class
+    daemon_type_str = str(daemon.type)  # Ensure it's a string
+    default_config = await daemon_service.get_daemon_default_config(daemon_type_str)
+    if default_config is None:
+        raise HTTPException(status_code=404, detail="Daemon type not found")
+
+    return default_config
+
+
 @router.post("/{daemon_id}/start")
 async def start_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     """Start a daemon."""

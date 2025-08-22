@@ -50,6 +50,7 @@ class DaemonJobAction(str, enum.Enum):
     LAUNCHED = "LAUNCHED"
     CANCELLED = "CANCELLED"
     FINISHED = "FINISHED"
+    FAILED = "FAILED"
 
 
 class Daemon(BaseModel):

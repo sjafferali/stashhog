@@ -95,6 +95,29 @@ class DaemonService:
         """Get a specific daemon record."""
         return await db.get(Daemon, daemon_id)
 
+    async def get_daemon_default_config(
+        self, daemon_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get the default configuration for a daemon type."""
+        try:
+            # Get daemon class
+            daemon_classes = get_daemon_classes()
+            daemon_type_enum = DaemonType(daemon_type)
+            daemon_class = daemon_classes.get(daemon_type_enum)
+
+            if not daemon_class:
+                logger.warning(f"Daemon class not found for type: {daemon_type}")
+                return None
+
+            # Get default config from the class
+            config: Dict[str, Any] = daemon_class.get_default_config()
+            return config
+        except (ValueError, KeyError) as e:
+            logger.error(
+                f"Error getting default config for daemon type {daemon_type}: {e}"
+            )
+            return None
+
     async def start_daemon(self, daemon_id: str) -> None:
         """Start a daemon."""
         # Check if already running

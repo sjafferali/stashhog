@@ -28,6 +28,22 @@ class TestDaemon(BaseDaemon):
 
     daemon_type = DaemonType.TEST_DAEMON
 
+    @classmethod
+    def get_default_config(cls) -> dict:
+        """Get the default configuration for this daemon."""
+        return {
+            "log_interval": 5,
+            "job_interval": 30,
+            "heartbeat_interval": 10,
+            "simulate_errors": False,
+            "_descriptions": {
+                "log_interval": "Seconds between test log messages",
+                "job_interval": "Seconds between launching test jobs",
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
+                "simulate_errors": "Whether to simulate random errors for testing error recovery",
+            },
+        }
+
     async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()

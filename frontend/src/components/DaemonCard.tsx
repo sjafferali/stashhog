@@ -31,6 +31,7 @@ import {
   SyncOutlined,
   ExclamationCircleOutlined,
   FundOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -52,6 +53,7 @@ interface DaemonCardProps {
   onStop: (daemonId: string) => void;
   onRestart: (daemonId: string) => void;
   onToggleAutoStart: (daemon: Daemon) => void;
+  onViewRawData?: () => void;
   isLoading: boolean;
 }
 
@@ -62,6 +64,7 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
   onStop,
   onRestart,
   onToggleAutoStart,
+  onViewRawData,
   isLoading,
 }) => {
   const navigate = useNavigate();
@@ -297,7 +300,16 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
             onClick={() => void navigate(`/daemons/${daemon.id}`)}
           />
         </Tooltip>,
-      ]}
+        onViewRawData && (
+          <Tooltip title="View Raw Data" key="raw">
+            <Button
+              type="text"
+              icon={<CodeOutlined />}
+              onClick={onViewRawData}
+            />
+          </Tooltip>
+        ),
+      ].filter(Boolean)}
     >
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         {/* Status and Type Tags */}

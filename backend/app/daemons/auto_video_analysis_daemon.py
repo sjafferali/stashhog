@@ -34,6 +34,22 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
     daemon_type = DaemonType.AUTO_VIDEO_ANALYSIS_DAEMON
 
+    @classmethod
+    def get_default_config(cls) -> dict:
+        """Get the default configuration for this daemon."""
+        return {
+            "heartbeat_interval": 30,
+            "job_interval_seconds": 600,
+            "batch_size": 50,
+            "auto_approve_plans": True,
+            "_descriptions": {
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
+                "job_interval_seconds": "Seconds to wait between checking for scenes needing video analysis",
+                "batch_size": "Number of scenes to analyze in each batch",
+                "auto_approve_plans": "Whether to automatically approve and apply generated analysis plans",
+            },
+        }
+
     async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()
@@ -265,10 +281,21 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         f"Job {job_id} (type: {job.type}) completed with status: {job.status}",
                     )
 
+                    # Track job completion with the appropriate action based on status
+                    if job.status == JobStatus.COMPLETED.value:
+                        action = DaemonJobAction.FINISHED
+                        reason = "Job completed successfully"
+                    elif job.status == JobStatus.FAILED.value:
+                        action = DaemonJobAction.FAILED
+                        reason = f"Job failed: {job.error_message or 'Unknown error'}"
+                    else:  # CANCELLED
+                        action = DaemonJobAction.CANCELLED
+                        reason = "Job was cancelled"
+
                     await self.track_job_action(
                         job_id=job_id,
-                        action=DaemonJobAction.FINISHED,
-                        reason=f"Job completed with status {job.status}",
+                        action=action,
+                        reason=reason,
                     )
 
                     # Only handle completed analysis jobs for plan creation

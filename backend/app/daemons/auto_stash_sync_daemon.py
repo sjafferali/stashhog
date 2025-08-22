@@ -32,6 +32,18 @@ class AutoStashSyncDaemon(BaseDaemon):
 
     daemon_type = DaemonType.AUTO_STASH_SYNC_DAEMON
 
+    @classmethod
+    def get_default_config(cls) -> dict:
+        """Get the default configuration for this daemon."""
+        return {
+            "heartbeat_interval": 30,
+            "job_interval_seconds": 300,
+            "_descriptions": {
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
+                "job_interval_seconds": "Seconds to wait between checking for scenes pending sync from Stash",
+            },
+        }
+
     async def on_start(self) -> None:
         """Initialize daemon-specific resources."""
         await super().on_start()

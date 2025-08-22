@@ -39,7 +39,7 @@ Create a new file in `backend/app/daemons/` for your daemon:
 
 ```python
 # backend/app/daemons/your_daemon.py
-from typing import Optional, Set
+from typing import Optional, Set, Dict, Any
 import asyncio
 import time
 from app.daemons.base import BaseDaemon
@@ -57,6 +57,25 @@ class YourDaemon(BaseDaemon):
     """
     
     daemon_type = DaemonType.YOUR_NEW_DAEMON
+    
+    @classmethod
+    def get_default_config(cls) -> Dict[str, Any]:
+        """
+        Get the default configuration for this daemon.
+        
+        REQUIRED: Every daemon must implement this method to provide
+        default configuration values and their descriptions.
+        """
+        return {
+            "heartbeat_interval": 30,
+            "check_interval": 10,
+            "your_config_key": "default_value",
+            "_descriptions": {
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
+                "check_interval": "Seconds between checking for work",
+                "your_config_key": "Description of what this config option does"
+            }
+        }
     
     async def on_start(self):
         """Initialize daemon-specific resources."""
@@ -275,19 +294,66 @@ When the frontend receives timestamps without timezone info, it may interpret th
 
 ### 4. Configuration Handling
 
-Always provide sensible defaults:
+#### Default Configuration (REQUIRED)
+
+Every daemon MUST implement the `get_default_config()` class method to provide default configuration values. This enables:
+- Automatic merging of user config with defaults
+- "Reset to Default" functionality in the UI
+- Clear documentation of all available configuration options
 
 ```python
-# Get config with defaults
-check_interval = self.config.get("check_interval", 10)
-batch_size = self.config.get("batch_size", 100)
-retry_count = self.config.get("retry_count", 3)
-
-# Validate configuration
-if check_interval < 1:
-    await self.log(LogLevel.WARNING, "check_interval too low, using 1")
-    check_interval = 1
+@classmethod
+def get_default_config(cls) -> Dict[str, Any]:
+    """Get the default configuration for this daemon."""
+    return {
+        # Configuration keys with their default values
+        "heartbeat_interval": 30,
+        "check_interval": 10,
+        "batch_size": 100,
+        "retry_count": 3,
+        
+        # Special _descriptions key for UI tooltips and documentation
+        "_descriptions": {
+            "heartbeat_interval": "Seconds between heartbeat updates",
+            "check_interval": "Seconds between checking for work",
+            "batch_size": "Number of items to process in each batch",
+            "retry_count": "Number of retries for failed operations"
+        }
+    }
 ```
+
+#### Runtime Configuration Usage
+
+The BaseDaemon class automatically merges user configuration with defaults:
+
+```python
+async def run(self):
+    # Config values are automatically available with defaults
+    # No need to call .get() with defaults anymore
+    check_interval = self.config["check_interval"]  # Will always have a value
+    batch_size = self.config["batch_size"]
+    
+    # You can still validate and override if needed
+    if check_interval < 1:
+        await self.log(LogLevel.WARNING, "check_interval too low, using 1")
+        check_interval = 1
+```
+
+#### UI Integration
+
+The default configuration enables these UI features:
+- **Reset to Default button**: Users can reset configuration to defaults with one click
+- **Configuration validation**: UI can show which values differ from defaults
+- **Documentation**: The `_descriptions` are available for tooltips and help text
+
+#### Best Practices for Configuration
+
+1. **Always define ALL configuration options in `get_default_config()`**
+2. **Use descriptive key names** (e.g., `job_interval_seconds` not just `interval`)
+3. **Provide clear descriptions** in the `_descriptions` dictionary
+4. **Use appropriate data types** (integers for intervals, booleans for flags, etc.)
+5. **Choose sensible defaults** that work for most use cases
+6. **Document units** in descriptions (e.g., "seconds", "minutes", "items")
 
 ### 5. Job Orchestration and Monitoring
 
@@ -635,18 +701,20 @@ if self.config.get("debug", False):
 
 Before deploying your daemon:
 
+- [ ] **`get_default_config()` method is implemented** with all configuration options
+- [ ] All configuration options have descriptions in `_descriptions` dictionary
 - [ ] All database operations use dedicated sessions
 - [ ] Heartbeat updates are implemented with timezone-aware datetimes
 - [ ] All datetime operations use `datetime.now(timezone.utc)` not `datetime.utcnow()`
 - [ ] Graceful shutdown is handled
 - [ ] Errors are logged but don't crash the daemon
-- [ ] Configuration has sensible defaults
+- [ ] Configuration has sensible defaults that work out-of-the-box
 - [ ] Job monitoring is implemented if daemon launches jobs
 - [ ] Job actions (LAUNCHED, FINISHED, CANCELLED) are tracked appropriately
 - [ ] Unit tests pass
 - [ ] Integration tests pass
-- [ ] Documentation is updated
-- [ ] Migration creates initial daemon record (data only, no schema changes)
+- [ ] Documentation is updated with configuration details
+- [ ] Migration creates initial daemon record with default configuration
 - [ ] Daemon type added to DaemonType enum in Python code
 - [ ] Daemon is registered in the registry
 

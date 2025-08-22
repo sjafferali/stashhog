@@ -33,11 +33,31 @@ class BaseDaemon(ABC):
     # Must be overridden by subclasses
     daemon_type: Optional[str] = None
 
+    @classmethod
+    def get_default_config(cls) -> Dict[str, Any]:
+        """
+        Get the default configuration for this daemon.
+
+        Returns:
+            Dict containing all configuration options with their default values.
+            Should include descriptions in a special '_descriptions' key.
+        """
+        return {
+            "heartbeat_interval": 30,
+            "_descriptions": {
+                "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health"
+            },
+        }
+
     def __init__(
         self, daemon_id: Union[str, UUID], config: Optional[Dict[str, Any]] = None
     ):
         self.daemon_id = UUID(daemon_id) if isinstance(daemon_id, str) else daemon_id
-        self.config = config or {}
+        # Merge provided config with defaults
+        default_config = self.get_default_config()
+        # Remove descriptions from defaults for runtime config
+        default_config.pop("_descriptions", None)
+        self.config = {**default_config, **(config or {})}
         self.is_running = False
         self.status = DaemonStatus.STOPPED
         self._task: Optional[asyncio.Task] = None
@@ -226,12 +246,14 @@ class BaseDaemon(ABC):
             DaemonJobAction.LAUNCHED: ActivityType.JOB_LAUNCHED,
             DaemonJobAction.FINISHED: ActivityType.JOB_COMPLETED,
             DaemonJobAction.CANCELLED: ActivityType.JOB_FAILED,
+            DaemonJobAction.FAILED: ActivityType.JOB_FAILED,
         }
 
         severity_map = {
             DaemonJobAction.LAUNCHED: "info",
             DaemonJobAction.FINISHED: "info",
             DaemonJobAction.CANCELLED: "warning",
+            DaemonJobAction.FAILED: "error",
         }
 
         await self.track_activity(

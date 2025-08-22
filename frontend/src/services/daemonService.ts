@@ -52,6 +52,14 @@ const daemonService = {
     return response.data;
   },
 
+  // Get daemon default configuration
+  async getDaemonDefaultConfig(
+    daemonId: string
+  ): Promise<Record<string, unknown>> {
+    const response = await api.get(`/daemons/${daemonId}/default-config`);
+    return response.data;
+  },
+
   // Get daemon logs
   async getDaemonLogs(
     daemonId: string,

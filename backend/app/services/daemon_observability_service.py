@@ -237,7 +237,11 @@ class DaemonObservabilityService:
         job_counts = {row[0]: row[1] for row in job_stats}
         status.jobs_launched_24h = job_counts.get(DaemonJobAction.LAUNCHED.value, 0)  # type: ignore
         status.jobs_completed_24h = job_counts.get(DaemonJobAction.FINISHED.value, 0)  # type: ignore
-        status.jobs_failed_24h = job_counts.get(DaemonJobAction.CANCELLED.value, 0)  # type: ignore
+        # Count both CANCELLED and FAILED as failed jobs
+        failed_count = job_counts.get(
+            DaemonJobAction.CANCELLED.value, 0
+        ) + job_counts.get(DaemonJobAction.FAILED.value, 0)
+        status.jobs_failed_24h = failed_count  # type: ignore
 
         # Calculate average job duration (simplified - would need job table for accurate calculation)
         # For now, we'll just note that this is a placeholder for future enhancement

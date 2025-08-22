@@ -129,6 +129,48 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       .replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  const getActivityTypeColor = (type: string, message: string) => {
+    // Check for job-related activities
+    if (
+      type.includes('JOB') ||
+      message.toLowerCase().includes('job launched')
+    ) {
+      return 'success'; // green
+    }
+    if (
+      message.toLowerCase().includes('job completed') ||
+      message.toLowerCase().includes('job finished')
+    ) {
+      return 'blue';
+    }
+    if (
+      message.toLowerCase().includes('job cancelled') ||
+      message.toLowerCase().includes('job failed')
+    ) {
+      return 'error'; // red
+    }
+    // Check for status-related activities
+    if (type.includes('STATUS')) {
+      if (
+        message.toLowerCase().includes('started') ||
+        message.toLowerCase().includes('running')
+      ) {
+        return 'success';
+      }
+      if (message.toLowerCase().includes('stopped')) {
+        return 'orange';
+      }
+    }
+    // Default based on severity or activity type
+    if (type.includes('ERROR')) {
+      return 'error';
+    }
+    if (type.includes('WARNING')) {
+      return 'warning';
+    }
+    return 'default';
+  };
+
   if (loading) {
     return (
       <Card title="Activity Feed" style={{ height: '100%' }}>
@@ -168,8 +210,8 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
           </Space>
         </Space>
       }
-      style={{ height: '100%' }}
-      bodyStyle={{ maxHeight: 600, overflowY: 'auto' }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+      bodyStyle={{ flex: 1, overflowY: 'auto', padding: '16px' }}
     >
       {activities.length === 0 ? (
         <Empty
@@ -188,7 +230,14 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                 <Space>
                   <Text strong>{activity.daemon_name || 'Unknown Daemon'}</Text>
                   {getSeverityTag(activity.severity)}
-                  <Tag>{formatActivityType(activity.activity_type)}</Tag>
+                  <Tag
+                    color={getActivityTypeColor(
+                      activity.activity_type,
+                      activity.message
+                    )}
+                  >
+                    {formatActivityType(activity.activity_type)}
+                  </Tag>
                 </Space>
                 <Text>{activity.message}</Text>
                 <Space>

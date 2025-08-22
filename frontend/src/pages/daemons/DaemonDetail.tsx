@@ -15,6 +15,9 @@ import {
   Row,
   Col,
   Alert,
+  Modal,
+  Descriptions,
+  Tooltip,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -26,6 +29,9 @@ import {
   PauseOutlined,
   CheckCircleOutlined,
   SaveOutlined,
+  RedoOutlined,
+  CodeOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import daemonService from '@/services/daemonService';
@@ -58,26 +64,33 @@ const DaemonDetail: React.FC = () => {
   const [logLevel, setLogLevel] = useState<LogLevel | 'ALL'>(LogLevel.INFO);
   const [autoScroll, setAutoScroll] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Load functions wrapped in useCallback
-  const loadDaemon = useCallback(async () => {
-    if (!daemonId) return;
-    try {
-      const data = await daemonService.getDaemon(daemonId);
-      setDaemon(data);
-      const configStr = JSON.stringify(data.configuration, null, 2);
-      setConfigJson(configStr);
-      setOriginalConfigJson(configStr);
-      setConfigSaved(false);
-      setConfigError(null);
-    } catch (error) {
-      void message.error('Failed to load daemon');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [daemonId]);
+  const loadDaemon = useCallback(
+    async (preserveConfigState = false) => {
+      if (!daemonId) return;
+      try {
+        const data = await daemonService.getDaemon(daemonId);
+        setDaemon(data);
+        const configStr = JSON.stringify(data.configuration, null, 2);
+        setConfigJson(configStr);
+        setOriginalConfigJson(configStr);
+        // Don't reset config state if we're preserving it (e.g., from WebSocket updates)
+        if (!preserveConfigState) {
+          setConfigSaved(false);
+          setConfigError(null);
+        }
+      } catch (error) {
+        void message.error('Failed to load daemon');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [daemonId]
+  );
 
   const loadLogs = useCallback(async () => {
     if (!daemonId) return;
@@ -118,6 +131,10 @@ const DaemonDetail: React.FC = () => {
       ) {
         console.log('Daemon update received');
         setDaemon(message.daemon);
+        // Update config JSON but preserve the success/error state
+        const configStr = JSON.stringify(message.daemon.configuration, null, 2);
+        setConfigJson(configStr);
+        setOriginalConfigJson(configStr);
       } else if (
         message.type === 'daemon_log' &&
         message.daemon_id === daemonId
@@ -168,7 +185,7 @@ const DaemonDetail: React.FC = () => {
 
   useEffect(() => {
     if (daemonId) {
-      void loadDaemon();
+      void loadDaemon(false);
       void loadLogs();
       void loadJobHistory();
     }
@@ -185,7 +202,7 @@ const DaemonDetail: React.FC = () => {
     try {
       await daemonService.startDaemon(daemonId);
       void message.success('Daemon started successfully');
-      await loadDaemon();
+      await loadDaemon(false);
     } catch (error) {
       void message.error('Failed to start daemon');
       console.error(error);
@@ -197,7 +214,7 @@ const DaemonDetail: React.FC = () => {
     try {
       await daemonService.stopDaemon(daemonId);
       void message.success('Daemon stopped successfully');
-      await loadDaemon();
+      await loadDaemon(false);
     } catch (error) {
       void message.error('Failed to stop daemon');
       console.error(error);
@@ -209,7 +226,7 @@ const DaemonDetail: React.FC = () => {
     try {
       await daemonService.restartDaemon(daemonId);
       void message.success('Daemon restarted successfully');
-      await loadDaemon();
+      await loadDaemon(false);
     } catch (error) {
       void message.error('Failed to restart daemon');
       console.error(error);
@@ -242,16 +259,17 @@ const DaemonDetail: React.FC = () => {
       setOriginalConfigJson(configJson);
       void message.success({
         content: 'Configuration saved successfully!',
-        duration: 3,
+        duration: 5,
         icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
       });
 
-      // Clear success message after 5 seconds
+      // Clear success message after 10 seconds
       setTimeout(() => {
         setConfigSaved(false);
-      }, 5000);
+      }, 10000);
 
-      await loadDaemon();
+      // Load daemon but preserve config state
+      await loadDaemon(true);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -267,6 +285,33 @@ const DaemonDetail: React.FC = () => {
       setSavingConfig(false);
     }
   }, [daemonId, daemon, configJson, loadDaemon]);
+
+  const handleResetToDefault = useCallback(async () => {
+    if (!daemonId) return;
+
+    try {
+      // Get default configuration
+      const defaultConfig =
+        await daemonService.getDaemonDefaultConfig(daemonId);
+
+      // Remove the _descriptions key from the default config
+      const { _descriptions, ...cleanConfig } = defaultConfig;
+
+      // Set the config JSON
+      const configStr = JSON.stringify(cleanConfig, null, 2);
+      setConfigJson(configStr);
+
+      // Clear any error
+      setConfigError(null);
+
+      void message.info(
+        'Configuration reset to defaults. Click "Save Configuration" to apply.'
+      );
+    } catch (error) {
+      void message.error('Failed to load default configuration');
+      console.error(error);
+    }
+  }, [daemonId]);
 
   // Helper to check if configuration has changed
   const hasConfigChanged = configJson !== originalConfigJson;
@@ -455,6 +500,12 @@ const DaemonDetail: React.FC = () => {
           >
             Restart
           </Button>
+          <Button
+            icon={<CodeOutlined />}
+            onClick={() => setRawDataModalVisible(true)}
+          >
+            View Raw Data
+          </Button>
         </Space>
       </div>
 
@@ -566,6 +617,7 @@ const DaemonDetail: React.FC = () => {
                   icon={<CheckCircleOutlined />}
                   closable
                   onClose={() => setConfigSaved(false)}
+                  style={{ marginBottom: '16px' }}
                 />
               )}
 
@@ -578,6 +630,7 @@ const DaemonDetail: React.FC = () => {
                   showIcon
                   closable
                   onClose={() => setConfigError(null)}
+                  style={{ marginBottom: '16px' }}
                 />
               )}
 
@@ -621,6 +674,14 @@ const DaemonDetail: React.FC = () => {
                       Reset Changes
                     </Button>
                   )}
+
+                  <Button
+                    icon={<RedoOutlined />}
+                    onClick={() => void handleResetToDefault()}
+                    disabled={savingConfig}
+                  >
+                    Reset to Default
+                  </Button>
                 </Space>
 
                 <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -644,6 +705,98 @@ const DaemonDetail: React.FC = () => {
           </Tabs.TabPane>
         </Tabs>
       </Card>
+
+      {/* Raw Data Modal */}
+      <Modal
+        title={
+          <Space>
+            <CodeOutlined />
+            Raw Daemon Data
+          </Space>
+        }
+        open={rawDataModalVisible}
+        onCancel={() => setRawDataModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setRawDataModalVisible(false)}>
+            Close
+          </Button>,
+        ]}
+        width={800}
+        bodyStyle={{
+          maxHeight: 'calc(80vh - 108px)',
+          overflowY: 'auto',
+        }}
+      >
+        {daemon && (
+          <div>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Daemon ID">
+                <Space>
+                  <Text>{daemon.id}</Text>
+                  <Tooltip title="Copy Daemon ID">
+                    <Button
+                      type="link"
+                      icon={<CopyOutlined />}
+                      size="small"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(daemon.id);
+                        void message.success('Daemon ID copied to clipboard');
+                      }}
+                    />
+                  </Tooltip>
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Name">{daemon.name}</Descriptions.Item>
+              <Descriptions.Item label="Type">{daemon.type}</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={getStatusColor(daemon.status)}>{daemon.status}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Auto Start">
+                {daemon.auto_start ? 'Yes' : 'No'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Created At">
+                {new Date(daemon.created_at).toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Updated At">
+                {new Date(daemon.updated_at).toLocaleString()}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Title level={5} style={{ marginTop: 16 }}>
+              Configuration
+            </Title>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '12px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                maxHeight: '200px',
+              }}
+            >
+              {JSON.stringify(daemon.configuration, null, 2)}
+            </pre>
+
+            <Title level={5} style={{ marginTop: 16 }}>
+              Full JSON Data
+            </Title>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: '12px',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+              }}
+            >
+              {JSON.stringify(daemon, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
