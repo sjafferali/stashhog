@@ -102,8 +102,12 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
                     # Only check for new scenes if enough time has passed
                     if time_since_last_check >= config["job_interval_seconds"]:
+                        await self.log(
+                            LogLevel.DEBUG,
+                            f"No jobs running and {time_since_last_check:.1f}s since last check "
+                            f"(>= {config['job_interval_seconds']}s interval), checking for scenes",
+                        )
                         await self._check_and_analyze_scenes(config)
-                        self._last_check_time = current_time
                     else:
                         # Sleep for the remaining time until next check
                         remaining_sleep = (
@@ -118,6 +122,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         )  # Sleep in small increments
                 else:
                     # Sleep briefly while monitoring jobs
+                    await self.log(
+                        LogLevel.DEBUG,
+                        f"Monitoring {len(self._monitored_jobs)} active job(s), skipping scene check",
+                    )
                     await asyncio.sleep(1)
 
             except asyncio.CancelledError:
@@ -202,6 +210,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             # Create video tag analysis job
             await self._create_analysis_job(scene_ids)
 
+            # Update last check time immediately after creating job to prevent
+            # creating duplicate jobs while this one is still running
+            self._last_check_time = time.time()
+
     async def _create_analysis_job(self, scene_ids: list[str]):
         """Create a video tag analysis job for the given scenes."""
         try:
@@ -235,7 +247,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
             await self.log(
                 LogLevel.INFO,
-                f"Created video tag analysis job {job_id} for {len(scene_ids)} scenes",
+                f"Created video tag analysis job {job_id} for {len(scene_ids)} scenes. "
+                f"Total monitored jobs: {len(self._monitored_jobs) + 1}",
             )
 
             # Track this job

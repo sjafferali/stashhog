@@ -236,6 +236,46 @@ async def restart_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/stop-all")
+async def stop_all_daemons(db: AsyncSession = Depends(get_async_db)):
+    """Stop all running daemons."""
+    try:
+        # Get all daemons
+        daemons = await daemon_service.get_all_daemons(db)
+
+        stopped_count = 0
+        errors = []
+
+        for daemon in daemons:
+            daemon_id = str(daemon.id)
+            # Check if daemon is running
+            if daemon_service.is_daemon_running(daemon_id):
+                try:
+                    await daemon_service.stop_daemon(daemon_id)
+                    stopped_count += 1
+
+                    # Broadcast status update for each daemon
+                    await websocket_manager.broadcast_daemon_update(daemon.to_dict())
+                except Exception as e:
+                    errors.append(f"{daemon.name}: {str(e)}")
+                    logger.error(f"Failed to stop daemon {daemon.name}: {e}")
+
+        if errors:
+            return {
+                "message": f"Stopped {stopped_count} daemons with some errors",
+                "stopped_count": stopped_count,
+                "errors": errors,
+            }
+
+        return {
+            "message": f"Successfully stopped {stopped_count} daemons",
+            "stopped_count": stopped_count,
+        }
+    except Exception as e:
+        logger.error(f"Failed to stop all daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/{daemon_id}", response_model=DaemonResponse)
 async def update_daemon(
     daemon_id: str,

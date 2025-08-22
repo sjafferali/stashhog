@@ -17,9 +17,10 @@ import {
   FundOutlined,
   CodeOutlined,
   CopyOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import daemonService from '@/services/daemonService';
-import { Daemon, DaemonStatistics } from '@/types/daemon';
+import { Daemon, DaemonStatistics, DaemonStatus } from '@/types/daemon';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import DaemonCard from '@/components/DaemonCard';
 import ActivityFeed from '@/components/ActivityFeed';
@@ -38,6 +39,7 @@ const Daemons: React.FC = () => {
   const [rawDataModalVisible, setRawDataModalVisible] = useState(false);
   const [selectedRawDataDaemon, setSelectedRawDataDaemon] =
     useState<Daemon | null>(null);
+  const [stoppingAll, setStoppingAll] = useState(false);
 
   // WebSocket message handler - memoized to prevent reconnections
   const handleWebSocketMessage = useCallback((data: unknown) => {
@@ -221,6 +223,51 @@ const Daemons: React.FC = () => {
     setRawDataModalVisible(true);
   };
 
+  const handleStopAll = async () => {
+    // Check if any daemons are running
+    const runningDaemons = daemons.filter(
+      (d) => d.status === DaemonStatus.RUNNING
+    );
+
+    if (runningDaemons.length === 0) {
+      void message.info('No daemons are currently running');
+      return;
+    }
+
+    // Show confirmation modal
+    Modal.confirm({
+      title: 'Stop All Daemons',
+      content: `Are you sure you want to stop all ${runningDaemons.length} running daemon(s)?`,
+      icon: <StopOutlined />,
+      okText: 'Stop All',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        setStoppingAll(true);
+        try {
+          const result = await daemonService.stopAllDaemons();
+
+          if (result.errors && result.errors.length > 0) {
+            void message.warning(
+              `Stopped ${result.stopped_count} daemon(s) with some errors`
+            );
+            console.error('Errors stopping daemons:', result.errors);
+          } else {
+            void message.success(result.message);
+          }
+
+          // Reload daemons to update their status
+          await Promise.all([loadDaemons(), loadStatistics()]);
+        } catch (error) {
+          void message.error('Failed to stop all daemons');
+          console.error(error);
+        } finally {
+          setStoppingAll(false);
+        }
+      },
+    });
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '24px', textAlign: 'center' }}>
@@ -239,6 +286,18 @@ const Daemons: React.FC = () => {
           </Col>
           <Col>
             <Space>
+              <Button
+                danger
+                icon={<StopOutlined />}
+                onClick={() => void handleStopAll()}
+                loading={stoppingAll}
+                disabled={
+                  stoppingAll ||
+                  daemons.every((d) => d.status !== DaemonStatus.RUNNING)
+                }
+              >
+                Stop All
+              </Button>
               <Button
                 icon={<FundOutlined />}
                 onClick={() => setActivityDrawerVisible(true)}

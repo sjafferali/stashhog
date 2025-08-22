@@ -43,6 +43,16 @@ const daemonService = {
     return response.data;
   },
 
+  // Stop all running daemons
+  async stopAllDaemons(): Promise<{
+    message: string;
+    stopped_count: number;
+    errors?: string[];
+  }> {
+    const response = await api.post('/daemons/stop-all');
+    return response.data;
+  },
+
   // Update daemon configuration
   async updateDaemon(
     daemonId: string,
