@@ -68,9 +68,18 @@ const Daemons: React.FC = () => {
   }, [sendMessage]);
 
   useEffect(() => {
-    void loadDaemons();
-    void loadStatistics();
+    const loadData = async () => {
+      await loadDaemons();
+    };
+    void loadData();
   }, []);
+
+  useEffect(() => {
+    if (daemons.length > 0) {
+      void loadStatistics(daemons);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daemons]);
 
   const loadDaemons = async () => {
     try {
@@ -84,13 +93,15 @@ const Daemons: React.FC = () => {
     }
   };
 
-  const loadStatistics = async () => {
+  const loadStatistics = async (daemonList?: Daemon[]) => {
     try {
-      const daemonList = await daemonService.getAllDaemons();
+      const daemonsToLoad = daemonList || daemons;
+      if (daemonsToLoad.length === 0) return;
+
       const statsMap = new Map<string, DaemonStatistics>();
 
       // Load statistics for each daemon in parallel
-      const statsPromises = daemonList.map(async (daemon) => {
+      const statsPromises = daemonsToLoad.map(async (daemon) => {
         try {
           const stats = await daemonService.getDaemonStatistics(daemon.id);
           return { id: daemon.id, stats };
@@ -99,7 +110,24 @@ const Daemons: React.FC = () => {
             `Failed to load statistics for daemon ${daemon.id}:`,
             error
           );
-          return null;
+          // Return a default statistics object on error
+          return {
+            id: daemon.id,
+            stats: {
+              id: '',
+              daemon_id: daemon.id,
+              items_processed: 0,
+              items_pending: 0,
+              error_count_24h: 0,
+              warning_count_24h: 0,
+              jobs_launched_24h: 0,
+              jobs_completed_24h: 0,
+              jobs_failed_24h: 0,
+              health_score: 100,
+              uptime_percentage: 100,
+              updated_at: new Date().toISOString(),
+            } as DaemonStatistics,
+          };
         }
       });
 

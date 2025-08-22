@@ -60,6 +60,13 @@ class BaseDaemon(ABC):
                 daemon.started_at = self._start_time
                 await db.commit()
 
+        # Track activity
+        await self.track_activity(
+            ActivityType.STATUS_CHANGED,
+            f"{self.daemon_type or 'Daemon'} started",
+            severity="info",
+        )
+
         # Call lifecycle hook
         await self.on_start()
 
@@ -83,6 +90,13 @@ class BaseDaemon(ABC):
 
         # Call lifecycle hook
         await self.on_stop()
+
+        # Track activity
+        await self.track_activity(
+            ActivityType.STATUS_CHANGED,
+            f"{self.daemon_type or 'Daemon'} stopped",
+            severity="info",
+        )
 
         # Update daemon status in database
         async with AsyncSessionLocal() as db:
@@ -206,6 +220,26 @@ class BaseDaemon(ABC):
             await websocket_manager.broadcast_daemon_job_action(
                 daemon_id=str(self.daemon_id), action=history.to_dict()
             )
+
+        # Track as activity
+        activity_type_map = {
+            DaemonJobAction.LAUNCHED: ActivityType.JOB_LAUNCHED,
+            DaemonJobAction.FINISHED: ActivityType.JOB_COMPLETED,
+            DaemonJobAction.CANCELLED: ActivityType.JOB_FAILED,
+        }
+
+        severity_map = {
+            DaemonJobAction.LAUNCHED: "info",
+            DaemonJobAction.FINISHED: "info",
+            DaemonJobAction.CANCELLED: "warning",
+        }
+
+        await self.track_activity(
+            activity_type=activity_type_map.get(action, ActivityType.JOB_LAUNCHED),
+            message=f"Job {action.value.lower()}: {reason or job_id}",
+            details={"job_id": job_id, "action": action.value},
+            severity=severity_map.get(action, "info"),
+        )
 
     def get_uptime_seconds(self) -> float:
         """Get daemon uptime in seconds."""
