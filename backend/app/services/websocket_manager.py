@@ -354,6 +354,67 @@ class WebSocketManager:
         for connection in disconnected:
             await self.disconnect(connection)
 
+    async def broadcast_daemon_activity(self, daemon_id: str, activity: dict) -> None:
+        """
+        Broadcast daemon activity to all subscribers and main page.
+        """
+        # Send to daemon-specific subscribers
+        if daemon_id in self.daemon_subscriptions:
+            disconnected = []
+            message = {
+                "type": "daemon_activity",
+                "daemon_id": daemon_id,
+                "activity": activity,
+            }
+
+            for websocket in self.daemon_subscriptions[daemon_id]:
+                try:
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_json(message)
+                    else:
+                        disconnected.append(websocket)
+                except Exception as e:
+                    logger.error(f"Error sending daemon activity: {e}")
+                    disconnected.append(websocket)
+
+            # Clean up disconnected clients
+            for websocket in disconnected:
+                await self.unsubscribe_from_daemon(websocket, daemon_id)
+                await self.disconnect(websocket)
+
+        # Also broadcast to all connections for activity feed
+        await self.broadcast_to_all({"type": "activity_feed", "activity": activity})
+
+    async def broadcast_daemon_alert(self, daemon_id: str, alert: dict) -> None:
+        """
+        Broadcast daemon alert to all connections.
+        """
+        message = {
+            "type": "daemon_alert",
+            "daemon_id": daemon_id,
+            "alert": alert,
+        }
+        await self.broadcast_to_all(message)
+
+    async def broadcast_to_all(self, message: dict) -> None:
+        """
+        Broadcast a message to all active connections.
+        """
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                if connection.client_state == WebSocketState.CONNECTED:
+                    await connection.send_json(message)
+                else:
+                    disconnected.append(connection)
+            except Exception as e:
+                logger.error(f"Error broadcasting message: {e}")
+                disconnected.append(connection)
+
+        # Clean up disconnected clients
+        for connection in disconnected:
+            await self.disconnect(connection)
+
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketManager()

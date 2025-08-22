@@ -1,49 +1,49 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Card,
   Col,
   Row,
   Typography,
   Button,
-  Tag,
-  Switch,
-  Tooltip,
   Space,
   Spin,
   message,
+  Drawer,
 } from 'antd';
-import {
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  ReloadOutlined,
-  SettingOutlined,
-  WarningOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-} from '@ant-design/icons';
+import { ReloadOutlined, FundOutlined } from '@ant-design/icons';
 import daemonService from '@/services/daemonService';
-import { Daemon, DaemonStatus, DaemonHealthResponse } from '@/types/daemon';
-import { formatDistanceToNow } from 'date-fns';
+import { Daemon, DaemonStatistics } from '@/types/daemon';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import DaemonCard from '@/components/DaemonCard';
+import ActivityFeed from '@/components/ActivityFeed';
 
 const { Title, Text } = Typography;
 
 const Daemons: React.FC = () => {
-  const navigate = useNavigate();
   const [daemons, setDaemons] = useState<Daemon[]>([]);
-  const [health, setHealth] = useState<DaemonHealthResponse | null>(null);
+  const [statistics, setStatistics] = useState<Map<string, DaemonStatistics>>(
+    new Map()
+  );
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [activityDrawerVisible, setActivityDrawerVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // WebSocket message handler - memoized to prevent reconnections
   const handleWebSocketMessage = useCallback((data: unknown) => {
-    const message = data as { type: string; daemon?: Daemon };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const message = data as any;
     if (message.type === 'daemon_update') {
       // Update daemon in the list
       setDaemons((prev) =>
         prev.map((d) => (d.id === message.daemon?.id ? message.daemon : d))
       );
+    } else if (message.type === 'daemon_status') {
+      // Update daemon statistics
+      setStatistics((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(message.daemon_id, message.status);
+        return newMap;
+      });
     } else if (message.type === 'pong') {
       console.log('Daemons WebSocket connected');
     }
@@ -69,7 +69,7 @@ const Daemons: React.FC = () => {
 
   useEffect(() => {
     void loadDaemons();
-    void loadHealth();
+    void loadStatistics();
   }, []);
 
   const loadDaemons = async () => {
@@ -84,13 +84,42 @@ const Daemons: React.FC = () => {
     }
   };
 
-  const loadHealth = async () => {
+  const loadStatistics = async () => {
     try {
-      const data = await daemonService.checkDaemonHealth();
-      setHealth(data);
+      const daemonList = await daemonService.getAllDaemons();
+      const statsMap = new Map<string, DaemonStatistics>();
+
+      // Load statistics for each daemon in parallel
+      const statsPromises = daemonList.map(async (daemon) => {
+        try {
+          const stats = await daemonService.getDaemonStatistics(daemon.id);
+          return { id: daemon.id, stats };
+        } catch (error) {
+          console.error(
+            `Failed to load statistics for daemon ${daemon.id}:`,
+            error
+          );
+          return null;
+        }
+      });
+
+      const results = await Promise.all(statsPromises);
+      results.forEach((result) => {
+        if (result) {
+          statsMap.set(result.id, result.stats);
+        }
+      });
+
+      setStatistics(statsMap);
     } catch (error) {
-      console.error('Failed to load health status', error);
+      console.error('Failed to load daemon statistics', error);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadDaemons(), loadStatistics()]);
+    setRefreshing(false);
   };
 
   const handleStart = async (daemonId: string) => {
@@ -98,7 +127,7 @@ const Daemons: React.FC = () => {
     try {
       await daemonService.startDaemon(daemonId);
       void message.success('Daemon started successfully');
-      await loadDaemons();
+      await Promise.all([loadDaemons(), loadStatistics()]);
     } catch (error) {
       void message.error('Failed to start daemon');
       console.error(error);
@@ -112,7 +141,7 @@ const Daemons: React.FC = () => {
     try {
       await daemonService.stopDaemon(daemonId);
       void message.success('Daemon stopped successfully');
-      await loadDaemons();
+      await Promise.all([loadDaemons(), loadStatistics()]);
     } catch (error) {
       void message.error('Failed to stop daemon');
       console.error(error);
@@ -126,7 +155,7 @@ const Daemons: React.FC = () => {
     try {
       await daemonService.restartDaemon(daemonId);
       void message.success('Daemon restarted successfully');
-      await loadDaemons();
+      await Promise.all([loadDaemons(), loadStatistics()]);
     } catch (error) {
       void message.error('Failed to restart daemon');
       console.error(error);
@@ -141,45 +170,11 @@ const Daemons: React.FC = () => {
         auto_start: !daemon.auto_start,
       });
       void message.success('Auto-start setting updated');
-      await loadDaemons();
+      await Promise.all([loadDaemons(), loadStatistics()]);
     } catch (error) {
       void message.error('Failed to update auto-start setting');
       console.error(error);
     }
-  };
-
-  const getStatusIcon = (status: DaemonStatus) => {
-    switch (status) {
-      case DaemonStatus.RUNNING:
-        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
-      case DaemonStatus.STOPPED:
-        return <PauseCircleOutlined style={{ color: '#8c8c8c' }} />;
-      case DaemonStatus.ERROR:
-        return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
-    }
-  };
-
-  const getStatusColor = (status: DaemonStatus) => {
-    switch (status) {
-      case DaemonStatus.RUNNING:
-        return 'success';
-      case DaemonStatus.STOPPED:
-        return 'orange';
-      case DaemonStatus.ERROR:
-        return 'error';
-    }
-  };
-
-  const getHealthStatus = (daemonId: string) => {
-    if (!health) return null;
-
-    const healthy = health.healthy.find((h) => h.id === daemonId);
-    if (healthy) return { status: 'healthy', uptime: healthy.uptime };
-
-    const unhealthy = health.unhealthy.find((h) => h.id === daemonId);
-    if (unhealthy) return { status: 'unhealthy', reason: unhealthy.reason };
-
-    return null;
   };
 
   if (loading) {
@@ -193,113 +188,49 @@ const Daemons: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>Daemons</Title>
-        <Text type="secondary">Manage continuous background processes</Text>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={2}>Daemons</Title>
+            <Text type="secondary">Manage continuous background processes</Text>
+          </Col>
+          <Col>
+            <Space>
+              <Button
+                icon={<FundOutlined />}
+                onClick={() => setActivityDrawerVisible(true)}
+              >
+                Activity Feed
+              </Button>
+              <Button
+                icon={refreshing ? <ReloadOutlined spin /> : <ReloadOutlined />}
+                onClick={() => void handleRefresh()}
+                loading={refreshing}
+              >
+                Refresh
+              </Button>
+            </Space>
+          </Col>
+        </Row>
       </div>
 
       <Row gutter={[16, 16]}>
         {daemons.map((daemon) => {
-          const healthStatus = getHealthStatus(daemon.id);
           const isLoading = actionLoading === daemon.id;
+          const daemonStats = statistics.get(daemon.id);
 
           return (
-            <Col xs={24} sm={12} lg={8} xl={6} key={daemon.id}>
-              <Card
-                title={
-                  <Space>
-                    {daemon.name}
-                    {getStatusIcon(daemon.status)}
-                  </Space>
+            <Col xs={24} sm={24} md={12} lg={8} xl={6} key={daemon.id}>
+              <DaemonCard
+                daemon={daemon}
+                statistics={daemonStats}
+                onStart={(id) => void handleStart(id)}
+                onStop={(id) => void handleStop(id)}
+                onRestart={(id) => void handleRestart(id)}
+                onToggleAutoStart={(daemon) =>
+                  void handleToggleAutoStart(daemon)
                 }
-                actions={[
-                  daemon.status === DaemonStatus.STOPPED ? (
-                    <Tooltip title="Start" key="start">
-                      <Button
-                        type="text"
-                        icon={<PlayCircleOutlined />}
-                        onClick={() => void handleStart(daemon.id)}
-                        loading={isLoading}
-                      />
-                    </Tooltip>
-                  ) : (
-                    <Tooltip title="Stop" key="stop">
-                      <Button
-                        type="text"
-                        danger
-                        icon={<PauseCircleOutlined />}
-                        onClick={() => void handleStop(daemon.id)}
-                        loading={isLoading}
-                      />
-                    </Tooltip>
-                  ),
-                  <Tooltip title="Restart" key="restart">
-                    <Button
-                      type="text"
-                      icon={<ReloadOutlined />}
-                      onClick={() => void handleRestart(daemon.id)}
-                      disabled={daemon.status === DaemonStatus.STOPPED}
-                      loading={isLoading}
-                    />
-                  </Tooltip>,
-                  <Tooltip title="View Details" key="details">
-                    <Button
-                      type="text"
-                      icon={<SettingOutlined />}
-                      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                      onClick={() => navigate(`/daemons/${daemon.id}`)}
-                    />
-                  </Tooltip>,
-                ]}
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Space>
-                    <Tag color={getStatusColor(daemon.status)}>
-                      {daemon.status}
-                    </Tag>
-                    <Tag color="blue">
-                      {daemon.type
-                        .replace(/_/g, ' ')
-                        .toLowerCase()
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </Tag>
-                  </Space>
-
-                  {daemon.status === DaemonStatus.RUNNING &&
-                    daemon.last_heartbeat && (
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        Last heartbeat:{' '}
-                        {formatDistanceToNow(new Date(daemon.last_heartbeat), {
-                          addSuffix: true,
-                        })}
-                      </Text>
-                    )}
-
-                  {healthStatus?.status === 'unhealthy' && (
-                    <Space>
-                      <WarningOutlined style={{ color: '#faad14' }} />
-                      <Text type="warning" style={{ fontSize: '12px' }}>
-                        {healthStatus.reason}
-                      </Text>
-                    </Space>
-                  )}
-
-                  {healthStatus?.uptime !== undefined && (
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Uptime: {Math.floor(healthStatus.uptime / 60)} minutes
-                    </Text>
-                  )}
-
-                  <Space style={{ marginTop: '8px' }}>
-                    <Text>Auto-start</Text>
-                    <Switch
-                      size="small"
-                      checked={daemon.auto_start}
-                      onChange={() => void handleToggleAutoStart(daemon)}
-                      disabled={isLoading}
-                    />
-                  </Space>
-                </Space>
-              </Card>
+                isLoading={isLoading}
+              />
             </Col>
           );
         })}
@@ -310,6 +241,16 @@ const Daemons: React.FC = () => {
           <Text type="secondary">No daemons configured</Text>
         </div>
       )}
+
+      <Drawer
+        title="Activity Feed"
+        placement="right"
+        width={600}
+        onClose={() => setActivityDrawerVisible(false)}
+        open={activityDrawerVisible}
+      >
+        <ActivityFeed limit={100} />
+      </Drawer>
     </div>
   );
 };

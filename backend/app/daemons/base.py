@@ -1,7 +1,9 @@
 import asyncio
+import traceback
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+from uuid import UUID
 
 from app.core.database import AsyncSessionLocal
 from app.models.daemon import (
@@ -12,6 +14,8 @@ from app.models.daemon import (
     DaemonStatus,
     LogLevel,
 )
+from app.models.daemon_observability import ActivityType, ErrorType
+from app.services.daemon_observability_service import daemon_observability_service
 
 
 class BaseDaemon(ABC):
@@ -29,8 +33,10 @@ class BaseDaemon(ABC):
     # Must be overridden by subclasses
     daemon_type: Optional[str] = None
 
-    def __init__(self, daemon_id: str, config: Optional[Dict[str, Any]] = None):
-        self.daemon_id = daemon_id
+    def __init__(
+        self, daemon_id: Union[str, UUID], config: Optional[Dict[str, Any]] = None
+    ):
+        self.daemon_id = UUID(daemon_id) if isinstance(daemon_id, str) else daemon_id
         self.config = config or {}
         self.is_running = False
         self.status = DaemonStatus.STOPPED
@@ -97,11 +103,22 @@ class BaseDaemon(ABC):
             raise
         except Exception as e:
             # Unexpected error
+            error_details = traceback.format_exc()
             await self.log(LogLevel.ERROR, f"Daemon crashed: {str(e)}")
             self.status = DaemonStatus.ERROR
 
-            # Update status in database
+            # Track error in observability service
             async with AsyncSessionLocal() as db:
+                await daemon_observability_service.track_error(
+                    db=db,
+                    daemon_id=self.daemon_id,
+                    error_type=ErrorType.UNKNOWN,
+                    error_message=str(e),
+                    error_details=error_details,
+                    context={"daemon_type": self.daemon_type},
+                )
+
+                # Update daemon status
                 daemon = await db.get(Daemon, self.daemon_id)
                 if daemon:
                     daemon.status = DaemonStatus.ERROR.value
@@ -195,3 +212,70 @@ class BaseDaemon(ABC):
         if not self._start_time:
             return 0
         return (datetime.now(timezone.utc) - self._start_time).total_seconds()
+
+    async def track_activity(
+        self,
+        activity_type: ActivityType,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        severity: str = "info",
+    ):
+        """Track a daemon activity."""
+        async with AsyncSessionLocal() as db:
+            await daemon_observability_service.track_activity(
+                db=db,
+                daemon_id=self.daemon_id,
+                activity_type=activity_type,
+                message=message,
+                details=details,
+                severity=severity,
+            )
+
+    async def track_error(
+        self,
+        error_type: ErrorType,
+        error_message: str,
+        error_details: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
+        """Track a daemon error."""
+        async with AsyncSessionLocal() as db:
+            await daemon_observability_service.track_error(
+                db=db,
+                daemon_id=self.daemon_id,
+                error_type=error_type,
+                error_message=error_message,
+                error_details=error_details,
+                context=context,
+            )
+
+    async def track_metric(
+        self, metric_name: str, metric_value: float, metric_unit: Optional[str] = None
+    ):
+        """Track a daemon metric."""
+        async with AsyncSessionLocal() as db:
+            await daemon_observability_service.track_metric(
+                db=db,
+                daemon_id=self.daemon_id,
+                metric_name=metric_name,
+                metric_value=metric_value,
+                metric_unit=metric_unit,
+            )
+
+    async def update_progress(
+        self,
+        current_activity: Optional[str] = None,
+        progress: Optional[float] = None,
+        items_processed: Optional[int] = None,
+        items_pending: Optional[int] = None,
+    ):
+        """Update daemon progress and activity status."""
+        async with AsyncSessionLocal() as db:
+            await daemon_observability_service.update_daemon_status(
+                db=db,
+                daemon_id=self.daemon_id,
+                current_activity=current_activity,
+                current_progress=progress,
+                items_processed=items_processed,
+                items_pending=items_pending,
+            )

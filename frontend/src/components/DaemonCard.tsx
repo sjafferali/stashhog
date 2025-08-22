@@ -1,0 +1,444 @@
+import React, { useState } from 'react';
+import {
+  Card,
+  Tag,
+  Button,
+  Space,
+  Switch,
+  Tooltip,
+  Progress,
+  Badge,
+  Statistic,
+  Row,
+  Col,
+  Typography,
+  Popover,
+  List,
+  Alert,
+  Divider,
+} from 'antd';
+import {
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+  WarningOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  InfoCircleOutlined,
+  ThunderboltOutlined,
+  ClockCircleOutlined,
+  SyncOutlined,
+  ExclamationCircleOutlined,
+  FundOutlined,
+} from '@ant-design/icons';
+import { formatDistanceToNow } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
+import {
+  Daemon,
+  DaemonStatus,
+  DaemonStatistics,
+  DaemonError,
+  DaemonActivity,
+} from '@/types/daemon';
+import daemonService from '@/services/daemonService';
+
+const { Text, Title } = Typography;
+
+interface DaemonCardProps {
+  daemon: Daemon;
+  statistics?: DaemonStatistics;
+  onStart: (daemonId: string) => void;
+  onStop: (daemonId: string) => void;
+  onRestart: (daemonId: string) => void;
+  onToggleAutoStart: (daemon: Daemon) => void;
+  isLoading: boolean;
+}
+
+const DaemonCard: React.FC<DaemonCardProps> = ({
+  daemon,
+  statistics,
+  onStart,
+  onStop,
+  onRestart,
+  onToggleAutoStart,
+  isLoading,
+}) => {
+  const navigate = useNavigate();
+  const [errors, setErrors] = useState<DaemonError[]>([]);
+  const [activities, setActivities] = useState<DaemonActivity[]>([]);
+  const [loadingErrors, setLoadingErrors] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+
+  // Load errors when hovering over error badge
+  const loadErrors = async () => {
+    if (loadingErrors || errors.length > 0) return;
+    setLoadingErrors(true);
+    try {
+      const data = await daemonService.getDaemonErrors(daemon.id, {
+        limit: 5,
+        unresolved_only: true,
+      });
+      setErrors(data);
+    } catch (error) {
+      console.error('Failed to load errors:', error);
+    } finally {
+      setLoadingErrors(false);
+    }
+  };
+
+  // Load activities when hovering over activity indicator
+  const loadActivities = async () => {
+    if (loadingActivities || activities.length > 0) return;
+    setLoadingActivities(true);
+    try {
+      const data = await daemonService.getDaemonActivities(daemon.id, {
+        limit: 5,
+      });
+      setActivities(data);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const getStatusIcon = (status: DaemonStatus) => {
+    switch (status) {
+      case DaemonStatus.RUNNING:
+        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+      case DaemonStatus.STOPPED:
+        return <PauseCircleOutlined style={{ color: '#8c8c8c' }} />;
+      case DaemonStatus.ERROR:
+        return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
+    }
+  };
+
+  const getStatusColor = (status: DaemonStatus) => {
+    switch (status) {
+      case DaemonStatus.RUNNING:
+        return 'success';
+      case DaemonStatus.STOPPED:
+        return 'orange';
+      case DaemonStatus.ERROR:
+        return 'error';
+    }
+  };
+
+  const getHealthColor = (score: number) => {
+    if (score >= 80) return '#52c41a';
+    if (score >= 60) return '#faad14';
+    return '#ff4d4f';
+  };
+
+  const getActivityIcon = (type: string) => {
+    if (type.includes('ERROR'))
+      return <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
+    if (type.includes('WARNING'))
+      return <WarningOutlined style={{ color: '#faad14' }} />;
+    if (type.includes('JOB'))
+      return <ThunderboltOutlined style={{ color: '#1890ff' }} />;
+    return <InfoCircleOutlined style={{ color: '#52c41a' }} />;
+  };
+
+  // Error popover content
+  const errorContent = (
+    <div style={{ maxWidth: 400 }}>
+      <Title level={5}>Recent Errors</Title>
+      {loadingErrors ? (
+        <Text>Loading...</Text>
+      ) : errors.length > 0 ? (
+        <List
+          size="small"
+          dataSource={errors}
+          renderItem={(error) => (
+            <List.Item>
+              <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                <Text strong style={{ color: '#ff4d4f' }}>
+                  {error.error_type}
+                </Text>
+                <Text ellipsis>{error.error_message}</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {error.occurrence_count}x • Last:{' '}
+                  {formatDistanceToNow(new Date(error.last_seen), {
+                    addSuffix: true,
+                  })}
+                </Text>
+              </Space>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Text type="secondary">No recent errors</Text>
+      )}
+    </div>
+  );
+
+  // Activity popover content
+  const activityContent = (
+    <div style={{ maxWidth: 400 }}>
+      <Title level={5}>Recent Activity</Title>
+      {loadingActivities ? (
+        <Text>Loading...</Text>
+      ) : activities.length > 0 ? (
+        <List
+          size="small"
+          dataSource={activities}
+          renderItem={(activity) => (
+            <List.Item>
+              <Space>
+                {getActivityIcon(activity.activity_type)}
+                <Space direction="vertical" size={0}>
+                  <Text>{activity.message}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {formatDistanceToNow(new Date(activity.created_at), {
+                      addSuffix: true,
+                    })}
+                  </Text>
+                </Space>
+              </Space>
+            </List.Item>
+          )}
+        />
+      ) : (
+        <Text type="secondary">No recent activity</Text>
+      )}
+    </div>
+  );
+
+  // Calculate if daemon is actively processing
+  const isActivelyProcessing =
+    statistics?.current_activity &&
+    statistics.current_activity !== 'Idle' &&
+    daemon.status === DaemonStatus.RUNNING;
+
+  return (
+    <Badge.Ribbon
+      text={
+        statistics && statistics.health_score < 60
+          ? 'Needs Attention'
+          : undefined
+      }
+      color={statistics && statistics.health_score < 60 ? 'red' : undefined}
+    >
+      <Card
+        title={
+          <Space>
+            {daemon.name}
+            {getStatusIcon(daemon.status)}
+            {isActivelyProcessing && (
+              <SyncOutlined spin style={{ color: '#1890ff' }} />
+            )}
+          </Space>
+        }
+        extra={
+          <Space>
+            {/* Health Score */}
+            {statistics && (
+              <Tooltip title="Health Score">
+                <Progress
+                  type="circle"
+                  percent={Math.round(statistics.health_score)}
+                  width={40}
+                  strokeColor={getHealthColor(statistics.health_score)}
+                  format={(percent: number) => `${percent}`}
+                />
+              </Tooltip>
+            )}
+
+            {/* Error Badge */}
+            {statistics && statistics.error_count_24h > 0 && (
+              <Popover
+                content={errorContent}
+                title={null}
+                trigger="hover"
+                onOpenChange={(visible: boolean) => visible && loadErrors()}
+              >
+                <Badge
+                  count={statistics.error_count_24h}
+                  style={{ backgroundColor: '#ff4d4f' }}
+                >
+                  <ExclamationCircleOutlined
+                    style={{ fontSize: 20, color: '#ff4d4f' }}
+                  />
+                </Badge>
+              </Popover>
+            )}
+          </Space>
+        }
+        actions={[
+          daemon.status === DaemonStatus.STOPPED ? (
+            <Tooltip title="Start" key="start">
+              <Button
+                type="text"
+                icon={<PlayCircleOutlined />}
+                onClick={() => onStart(daemon.id)}
+                loading={isLoading}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip title="Stop" key="stop">
+              <Button
+                type="text"
+                danger
+                icon={<PauseCircleOutlined />}
+                onClick={() => void onStop(daemon.id)}
+                loading={isLoading}
+              />
+            </Tooltip>
+          ),
+          <Tooltip title="Restart" key="restart">
+            <Button
+              type="text"
+              icon={<ReloadOutlined />}
+              onClick={() => onRestart(daemon.id)}
+              disabled={daemon.status === DaemonStatus.STOPPED}
+              loading={isLoading}
+            />
+          </Tooltip>,
+          <Tooltip title="View Details" key="details">
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => void navigate(`/daemons/${daemon.id}`)}
+            />
+          </Tooltip>,
+        ]}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          {/* Status and Type Tags */}
+          <Space>
+            <Tag color={getStatusColor(daemon.status)}>{daemon.status}</Tag>
+            <Tag color="blue">
+              {daemon.type
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, (l) => l.toUpperCase())}
+            </Tag>
+          </Space>
+
+          {/* Current Activity with Progress */}
+          {statistics && statistics.current_activity && (
+            <div>
+              <Text type="secondary">Current Activity:</Text>
+              <div style={{ marginTop: 4 }}>
+                <Text>{statistics.current_activity}</Text>
+                {statistics.current_progress !== null &&
+                  statistics.current_progress !== undefined && (
+                    <Progress
+                      percent={Math.round(statistics.current_progress)}
+                      size="small"
+                      status="active"
+                      style={{ marginTop: 4 }}
+                    />
+                  )}
+              </div>
+            </div>
+          )}
+
+          {/* Processing Stats */}
+          {statistics &&
+            (statistics.items_processed > 0 ||
+              statistics.items_pending > 0) && (
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Statistic
+                    title="Processed"
+                    value={statistics.items_processed}
+                    valueStyle={{ fontSize: 14 }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic
+                    title="Pending"
+                    value={statistics.items_pending}
+                    valueStyle={{ fontSize: 14 }}
+                  />
+                </Col>
+              </Row>
+            )}
+
+          {/* Job Statistics */}
+          {statistics && (
+            <Space size="large">
+              <Tooltip title="Jobs launched in last 24h">
+                <Space size={4}>
+                  <PlayCircleOutlined style={{ color: '#1890ff' }} />
+                  <Text>{statistics.jobs_launched_24h}</Text>
+                </Space>
+              </Tooltip>
+              <Tooltip title="Jobs completed in last 24h">
+                <Space size={4}>
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                  <Text>{statistics.jobs_completed_24h}</Text>
+                </Space>
+              </Tooltip>
+              <Tooltip title="Jobs failed in last 24h">
+                <Space size={4}>
+                  <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                  <Text>{statistics.jobs_failed_24h}</Text>
+                </Space>
+              </Tooltip>
+            </Space>
+          )}
+
+          {/* Last Error */}
+          {statistics && statistics.last_error_message && (
+            <Alert
+              message={statistics.last_error_message}
+              type="error"
+              showIcon
+              style={{ marginTop: 8 }}
+              description={
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {formatDistanceToNow(new Date(statistics.last_error_time!), {
+                    addSuffix: true,
+                  })}
+                </Text>
+              }
+            />
+          )}
+
+          {/* Heartbeat and Activity Popover */}
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            {daemon.status === DaemonStatus.RUNNING &&
+              daemon.last_heartbeat && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  <ClockCircleOutlined /> Last heartbeat:{' '}
+                  {formatDistanceToNow(new Date(daemon.last_heartbeat), {
+                    addSuffix: true,
+                  })}
+                </Text>
+              )}
+
+            <Popover
+              content={activityContent}
+              title={null}
+              trigger="hover"
+              onOpenChange={(visible: boolean) => visible && loadActivities()}
+            >
+              <Button type="link" size="small" icon={<FundOutlined />}>
+                View Activity
+              </Button>
+            </Popover>
+          </Space>
+
+          <Divider style={{ margin: '12px 0' }} />
+
+          {/* Auto-start Toggle */}
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Text>Auto-start</Text>
+            <Switch
+              size="small"
+              checked={daemon.auto_start}
+              onChange={() => onToggleAutoStart(daemon)}
+              disabled={isLoading}
+            />
+          </Space>
+        </Space>
+      </Card>
+    </Badge.Ribbon>
+  );
+};
+
+export default DaemonCard;

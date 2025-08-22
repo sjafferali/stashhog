@@ -68,6 +68,65 @@ export interface DaemonHealthResponse {
   stopped: DaemonHealthItem[];
 }
 
+// Daemon statistics
+export interface DaemonStatistics {
+  id: string;
+  daemon_id: string;
+  current_activity?: string;
+  current_progress?: number;
+  items_processed: number;
+  items_pending: number;
+  last_error_message?: string;
+  last_error_time?: string;
+  error_count_24h: number;
+  warning_count_24h: number;
+  jobs_launched_24h: number;
+  jobs_completed_24h: number;
+  jobs_failed_24h: number;
+  health_score: number;
+  avg_job_duration_seconds?: number;
+  uptime_percentage: number;
+  last_successful_run?: string;
+  updated_at: string;
+}
+
+// Daemon error
+export interface DaemonError {
+  id: string;
+  daemon_id: string;
+  error_type: string;
+  error_message: string;
+  error_details?: string;
+  context?: Record<string, unknown>;
+  occurrence_count: number;
+  first_seen: string;
+  last_seen: string;
+  resolved: boolean;
+  resolved_at?: string;
+}
+
+// Daemon activity
+export interface DaemonActivity {
+  id: string;
+  daemon_id: string;
+  daemon_name?: string;
+  activity_type: string;
+  message: string;
+  details?: Record<string, unknown>;
+  severity: 'info' | 'warning' | 'error';
+  created_at: string;
+}
+
+// Daemon metric
+export interface DaemonMetric {
+  id: string;
+  daemon_id: string;
+  metric_name: string;
+  metric_value: number;
+  metric_unit?: string;
+  timestamp: string;
+}
+
 // WebSocket message types
 export type DaemonWebSocketMessage =
   | { type: 'daemon_update'; daemon: Daemon }
@@ -75,9 +134,12 @@ export type DaemonWebSocketMessage =
   | {
       type: 'daemon_status';
       daemon_id: string;
-      status: Record<string, unknown>;
+      status: DaemonStatistics;
     }
   | { type: 'daemon_job_action'; daemon_id: string; action: DaemonJobHistory }
+  | { type: 'daemon_activity'; daemon_id: string; activity: DaemonActivity }
+  | { type: 'activity_feed'; activity: DaemonActivity }
+  | { type: 'daemon_alert'; daemon_id: string; alert: Record<string, unknown> }
   | { type: 'subscription_confirmed'; daemon_id: string }
   | { type: 'unsubscription_confirmed'; daemon_id: string }
   | { type: 'error'; message: string };

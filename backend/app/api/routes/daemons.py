@@ -27,6 +27,7 @@ from app.schemas.daemon import (
     DaemonResponse,
     DaemonUpdateRequest,
 )
+from app.services.daemon_observability_service import daemon_observability_service
 from app.services.daemon_service import daemon_service
 from app.services.websocket_manager import (
     WebSocketManager,
@@ -282,6 +283,128 @@ async def get_daemon_job_history(
     )
 
     return [h.to_dict() for h in history]
+
+
+@router.get("/{daemon_id}/statistics")
+async def get_daemon_statistics(
+    daemon_id: str, db: AsyncSession = Depends(get_async_db)
+):
+    """Get comprehensive daemon statistics including errors, jobs, and health."""
+    # Check if daemon exists
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    try:
+        stats = await daemon_observability_service.calculate_daemon_statistics(
+            db, uuid.UUID(daemon_id)
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Failed to get daemon statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{daemon_id}/errors")
+async def get_daemon_errors(
+    daemon_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    limit: int = Query(10, ge=1, le=100),
+    unresolved_only: bool = Query(True),
+):
+    """Get daemon errors."""
+    # Check if daemon exists
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    errors = await daemon_observability_service.get_daemon_errors(
+        db, uuid.UUID(daemon_id), limit=limit, unresolved_only=unresolved_only
+    )
+    return [error.to_dict() for error in errors]
+
+
+@router.post("/{daemon_id}/errors/{error_id}/resolve")
+async def resolve_daemon_error(
+    daemon_id: str, error_id: str, db: AsyncSession = Depends(get_async_db)
+):
+    """Mark a daemon error as resolved."""
+    # Check if daemon exists
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    error = await daemon_observability_service.resolve_error(db, uuid.UUID(error_id))
+    if not error:
+        raise HTTPException(status_code=404, detail="Error not found")
+
+    return {"message": "Error resolved", "error": error.to_dict()}
+
+
+@router.get("/{daemon_id}/activities")
+async def get_daemon_activities(
+    daemon_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    limit: int = Query(50, ge=1, le=200),
+    severity: Optional[str] = Query(None),
+):
+    """Get recent daemon activities."""
+    # Check if daemon exists
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    activities = await daemon_observability_service.get_recent_activities(
+        db, daemon_id=uuid.UUID(daemon_id), limit=limit, severity=severity
+    )
+    return [activity.to_dict() for activity in activities]
+
+
+@router.get("/activities/all")
+async def get_all_daemon_activities(
+    db: AsyncSession = Depends(get_async_db),
+    limit: int = Query(100, ge=1, le=500),
+    severity: Optional[str] = Query(None),
+):
+    """Get recent activities from all daemons."""
+    activities = await daemon_observability_service.get_recent_activities(
+        db, daemon_id=None, limit=limit, severity=severity
+    )
+
+    # Add daemon name to each activity
+    result = []
+    for activity in activities:
+        activity_dict = activity.to_dict()
+        daemon = await daemon_service.get_daemon(db, str(activity.daemon_id))
+        if daemon:
+            activity_dict["daemon_name"] = daemon.name
+        result.append(activity_dict)
+
+    return result
+
+
+@router.get("/{daemon_id}/metrics")
+async def get_daemon_metrics(
+    daemon_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    metric_name: Optional[str] = Query(None),
+    since: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+):
+    """Get daemon performance metrics."""
+    # Check if daemon exists
+    daemon = await daemon_service.get_daemon(db, daemon_id)
+    if not daemon:
+        raise HTTPException(status_code=404, detail="Daemon not found")
+
+    metrics = await daemon_observability_service.get_daemon_metrics(
+        db,
+        uuid.UUID(daemon_id),
+        metric_name=metric_name,
+        since=since,
+        limit=limit,
+    )
+    return [metric.to_dict() for metric in metrics]
 
 
 @router.post("/{daemon_id}/test-broadcast")
