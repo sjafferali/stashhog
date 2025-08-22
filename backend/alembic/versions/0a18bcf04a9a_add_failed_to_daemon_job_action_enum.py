@@ -19,17 +19,41 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add FAILED to the daemon_job_action enum type
-    # Note: In PostgreSQL, we can't directly alter enum types to add values
-    # We need to use a raw SQL command
+    # Note: The action column was created as a simple String(50) in the original migration,
+    # not as an enum type. So for PostgreSQL, we first need to check if the enum exists,
+    # and if not, create it and update the column type.
     # For SQLite, no action is needed as it doesn't enforce enum values
 
     # Get the dialect name
+    import sqlalchemy as sa
+
     from alembic import context
 
     dialect_name = context.get_context().dialect.name
 
     if dialect_name == "postgresql":
-        op.execute("ALTER TYPE daemonjobaction ADD VALUE IF NOT EXISTS 'FAILED'")
+        # Check if enum type exists
+        connection = op.get_bind()
+        result = connection.execute(
+            sa.text(
+                "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'daemonjobaction')"
+            )
+        )
+        enum_exists = result.scalar()
+
+        if enum_exists:
+            # Enum exists, just add the new value
+            op.execute("ALTER TYPE daemonjobaction ADD VALUE IF NOT EXISTS 'FAILED'")
+        else:
+            # Enum doesn't exist, create it with all values
+            # Create the enum type
+            op.execute(
+                "CREATE TYPE daemonjobaction AS ENUM ('LAUNCHED', 'CANCELLED', 'FINISHED', 'FAILED')"
+            )
+            # Update the column to use the enum
+            op.execute(
+                "ALTER TABLE daemon_job_history ALTER COLUMN action TYPE daemonjobaction USING action::daemonjobaction"
+            )
 
 
 def downgrade() -> None:
