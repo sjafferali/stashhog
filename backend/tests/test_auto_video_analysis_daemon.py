@@ -28,6 +28,8 @@ class TestAutoVideoAnalysisDaemon:
         daemon.is_running = True
         # Mock the log method to prevent database writes
         daemon.log = AsyncMock()
+        # Mock update_heartbeat to prevent database writes
+        daemon.update_heartbeat = AsyncMock()
         await daemon.on_start()
         return daemon
 
@@ -56,6 +58,9 @@ class TestAutoVideoAnalysisDaemon:
             log_messages.append((level, message))
 
         daemon.log = AsyncMock(side_effect=mock_log)
+        
+        # Mock track_job_action to prevent database writes
+        daemon.track_job_action = AsyncMock()
 
         # Mock database session with scenes needing analysis
         mock_db = AsyncMock(spec=AsyncSession)
@@ -133,6 +138,9 @@ class TestAutoVideoAnalysisDaemon:
             return job
 
         job_service_mock.create_job = AsyncMock(side_effect=mock_create_job)
+        
+        # Mock track_job_action to prevent database writes
+        daemon.track_job_action = AsyncMock()
 
         # Mock database for scene queries
         mock_db = AsyncMock(spec=AsyncSession)
@@ -209,6 +217,9 @@ class TestAutoVideoAnalysisDaemon:
             return job
 
         job_service_mock.create_job = AsyncMock(side_effect=mock_create_job)
+        
+        # Mock track_job_action to prevent database writes
+        daemon.track_job_action = AsyncMock()
 
         # Mock database
         mock_db = AsyncMock(spec=AsyncSession)
