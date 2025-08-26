@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import sqltypes
@@ -139,7 +139,7 @@ class DaemonJobHistory(Base):
         UUID(as_uuid=True), ForeignKey("daemons.id", ondelete="CASCADE"), nullable=False
     )
     job_id = Column(String, ForeignKey("job.id", ondelete="CASCADE"), nullable=False)
-    action = Column(String(50), nullable=False)
+    action: Column = Column(Enum(DaemonJobAction), nullable=False)
     reason = Column(Text, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
@@ -156,7 +156,11 @@ class DaemonJobHistory(Base):
             "id": str(self.id),
             "daemon_id": str(self.daemon_id),
             "job_id": str(self.job_id),
-            "action": self.action,
+            "action": (
+                self.action.value
+                if isinstance(self.action, DaemonJobAction)
+                else self.action
+            ),
             "reason": self.reason,
             "created_at": self.created_at.isoformat(),
         }

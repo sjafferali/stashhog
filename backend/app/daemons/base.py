@@ -228,7 +228,7 @@ class BaseDaemon(ABC):
             history = DaemonJobHistory(
                 daemon_id=self.daemon_id,
                 job_id=job_id,
-                action=action.value,
+                action=action,
                 reason=reason,
             )
             db.add(history)

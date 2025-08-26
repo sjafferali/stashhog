@@ -585,8 +585,12 @@ const DaemonDetail: React.FC = () => {
                       wordBreak: 'break-word',
                     }}
                   >
-                    [{format(new Date(log.created_at), 'HH:mm:ss.SSS')}] [
-                    {log.level}] {log.message}
+                    [
+                    {format(
+                      new Date(log.created_at),
+                      'yyyy-MM-dd HH:mm:ss.SSS'
+                    )}
+                    ] [{log.level}] {log.message}
                   </Text>
                 </div>
               ))}
