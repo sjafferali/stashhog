@@ -1,7 +1,7 @@
+import asyncio
 import logging
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -83,18 +83,20 @@ def _add_error_syncing_tag(torrent: Any) -> None:
         logger.warning("Continuing despite tag addition failure")
 
 
-def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
+async def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     """Copy torrent content when hardlinking fails.
 
     Returns:
         List of paths that were successfully copied.
     """
+    loop = asyncio.get_event_loop()
     copied_files: List[Path] = []
 
     if content_path.is_file():
-        if not dest_path.exists():
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(content_path, dest_path)
+        exists = await loop.run_in_executor(None, dest_path.exists)
+        if not exists:
+            await loop.run_in_executor(None, dest_path.parent.mkdir, True, True)
+            await loop.run_in_executor(None, shutil.copy2, content_path, dest_path)
             copied_files.append(dest_path)
             logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
         else:
@@ -105,15 +107,16 @@ def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
             if src_file.is_file():
                 rel_path = src_file.relative_to(content_path)
                 dst_file = dest_path / rel_path
-                if not dst_file.exists():
+                exists = await loop.run_in_executor(None, dst_file.exists)
+                if not exists:
                     copied_files.append(dst_file)
-        shutil.copytree(content_path, dest_path, dirs_exist_ok=True)
+        await loop.run_in_executor(None, shutil.copytree, content_path, dest_path, True)
         logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
 
     return copied_files
 
 
-def _get_video_duration(file_path: Path) -> Optional[float]:
+async def _get_video_duration(file_path: Path) -> Optional[float]:
     """Get video duration in seconds using ffprobe.
 
     Returns:
@@ -130,10 +133,22 @@ def _get_video_duration(file_path: Path) -> Optional[float]:
             "default=noprint_wrappers=1:nokey=1",
             str(file_path),
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode == 0 and result.stdout.strip():
-            return float(result.stdout.strip())
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, ValueError) as e:
+        # Use asyncio subprocess to avoid blocking
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
+            if process.returncode == 0 and stdout:
+                return float(stdout.decode().strip())
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            logger.warning(f"Timeout getting duration for {file_path}")
+    except (ValueError, Exception) as e:
         logger.warning(f"Failed to get duration for {file_path}: {e}")
     return None
 
@@ -169,7 +184,7 @@ def _is_video_file(file_path: Path) -> bool:
     return file_path.suffix.lower() in video_extensions
 
 
-def _analyze_file_for_duration(
+async def _analyze_file_for_duration(
     src_file: Path,
     dst_file: Path,
     exclude_small_vids: bool,
@@ -182,7 +197,7 @@ def _analyze_file_for_duration(
     if not _is_video_file(src_file):
         return True, False, False
 
-    duration = _get_video_duration(src_file)
+    duration = await _get_video_duration(src_file)
     if duration is not None and duration < 30:
         if exclude_small_vids:
             logger.info(
@@ -194,7 +209,72 @@ def _analyze_file_for_duration(
     return True, False, False
 
 
-def _collect_files_to_process(
+async def _process_single_file(
+    src_file: Path,
+    dst_file: Path,
+    exclude_small_vids: bool,
+) -> Tuple[Optional[Tuple[Path, Path]], bool, bool]:
+    """Process a single file for duration checking.
+
+    Returns:
+        Tuple of (file_to_process, is_under_duration, was_skipped)
+    """
+    should_process, is_under, was_skipped = await _analyze_file_for_duration(
+        src_file, dst_file, exclude_small_vids
+    )
+
+    file_to_process = None
+    if should_process and not was_skipped:
+        file_to_process = (src_file, dst_file)
+
+    return file_to_process, is_under, was_skipped
+
+
+async def _process_directory_files(
+    content_path: Path,
+    dest_path: Path,
+    exclude_small_vids: bool,
+) -> Tuple[List[Tuple[Path, Path]], int, int]:
+    """Process all files in a directory.
+
+    Returns:
+        Tuple of (files_to_process, files_under_duration, skipped_due_to_duration)
+    """
+    files_to_process: List[Tuple[Path, Path]] = []
+    files_under_duration = 0
+    skipped_due_to_duration = 0
+
+    # Collect all files to check
+    files_to_check = []
+    for src_file in content_path.rglob("*"):
+        if src_file.is_file():
+            rel_path = src_file.relative_to(content_path)
+            dst_file = dest_path / rel_path
+            files_to_check.append((src_file, dst_file))
+
+    # Process files in batches
+    batch_size = 10
+    for i in range(0, len(files_to_check), batch_size):
+        batch = files_to_check[i : i + batch_size]
+        results = await asyncio.gather(
+            *[
+                _process_single_file(src_file, dst_file, exclude_small_vids)
+                for src_file, dst_file in batch
+            ]
+        )
+
+        for file_to_process, is_under, was_skipped in results:
+            if is_under:
+                files_under_duration += 1
+            if was_skipped:
+                skipped_due_to_duration += 1
+            if file_to_process:
+                files_to_process.append(file_to_process)
+
+    return files_to_process, files_under_duration, skipped_due_to_duration
+
+
+async def _collect_files_to_process(
     content_path: Path,
     dest_path: Path,
     exclude_small_vids: bool,
@@ -204,81 +284,72 @@ def _collect_files_to_process(
     Returns:
         Tuple of (files_to_process, files_under_duration_count, skipped_due_to_duration_count)
     """
-    files_to_process: List[Tuple[Path, Path]] = []
-    files_under_duration = 0
-    skipped_due_to_duration = 0
-
     if content_path.is_file():
         # Single file torrent
-        should_process, is_under, was_skipped = _analyze_file_for_duration(
+        file_to_process, is_under, was_skipped = await _process_single_file(
             content_path, dest_path, exclude_small_vids
         )
-        if is_under:
-            files_under_duration += 1
-        if was_skipped:
-            skipped_due_to_duration += 1
-        elif should_process:
-            files_to_process.append((content_path, dest_path))
+
+        files_to_process = [file_to_process] if file_to_process else []
+        files_under_duration = 1 if is_under else 0
+        skipped_due_to_duration = 1 if was_skipped else 0
+
+        return files_to_process, files_under_duration, skipped_due_to_duration
     else:
-        # Directory torrent - check each file
-        for src_file in content_path.rglob("*"):
-            if src_file.is_file():
-                rel_path = src_file.relative_to(content_path)
-                dst_file = dest_path / rel_path
-
-                should_process, is_under, was_skipped = _analyze_file_for_duration(
-                    src_file, dst_file, exclude_small_vids
-                )
-                if is_under:
-                    files_under_duration += 1
-                if was_skipped:
-                    skipped_due_to_duration += 1
-                elif should_process:
-                    files_to_process.append((src_file, dst_file))
-
-    return files_to_process, files_under_duration, skipped_due_to_duration
+        # Directory torrent
+        return await _process_directory_files(
+            content_path, dest_path, exclude_small_vids
+        )
 
 
-def _link_or_copy_file(src_file: Path, dst_file: Path) -> bool:
+async def _link_or_copy_file(src_file: Path, dst_file: Path) -> bool:
     """Link or copy a single file.
 
     Returns:
         True if file was linked/copied, False if it already exists.
     """
-    if dst_file.exists():
+    loop = asyncio.get_event_loop()
+
+    # Check existence in executor to avoid blocking
+    exists = await loop.run_in_executor(None, dst_file.exists)
+    if exists:
         logger.debug(f"Destination file already exists: {dst_file}")
         return False
 
-    dst_file.parent.mkdir(parents=True, exist_ok=True)
+    # Create parent directory in executor
+    await loop.run_in_executor(None, dst_file.parent.mkdir, True, True)
 
     try:
-        # Try hardlink first
-        os.link(src_file, dst_file)
+        # Try hardlink first in executor
+        await loop.run_in_executor(None, os.link, src_file, dst_file)
         return True
     except OSError as e:
         if e.errno == 18:  # Cross-device link error
             logger.debug(f"Cross-filesystem hardlink failed for {src_file}, using copy")
-            shutil.copy2(src_file, dst_file)
+            # Copy in executor to avoid blocking
+            await loop.run_in_executor(None, shutil.copy2, src_file, dst_file)
             return True
         else:
             raise
 
 
-def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
+async def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]:
     """Hardlink torrent content to destination.
 
     Returns:
         List of paths that were successfully linked.
     """
+    loop = asyncio.get_event_loop()
     linked_files: List[Path] = []
 
     if content_path.is_file():
         # Single file torrent
-        if dest_path.exists():
+        exists = await loop.run_in_executor(None, dest_path.exists)
+        if exists:
             logger.debug(f"Destination file already exists: {dest_path}")
             return linked_files
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        os.link(content_path, dest_path)
+        await loop.run_in_executor(None, dest_path.parent.mkdir, True, True)
+        await loop.run_in_executor(None, os.link, content_path, dest_path)
         linked_files.append(dest_path)
     else:
         # Directory torrent - hardlink each file individually
@@ -287,12 +358,13 @@ def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List[Path]
                 rel_path = src_file.relative_to(content_path)
                 dst_file = dest_path / rel_path
 
-                if dst_file.exists():
+                exists = await loop.run_in_executor(None, dst_file.exists)
+                if exists:
                     logger.debug(f"Destination file already exists: {dst_file}")
                     continue
 
-                dst_file.parent.mkdir(parents=True, exist_ok=True)
-                os.link(src_file, dst_file)
+                await loop.run_in_executor(None, dst_file.parent.mkdir, True, True)
+                await loop.run_in_executor(None, os.link, src_file, dst_file)
                 linked_files.append(dst_file)
 
     return linked_files
@@ -340,7 +412,7 @@ async def _process_single_torrent(
 
     # Collect files to process with duration checking
     files_to_process, files_under_duration, skipped_due_to_duration = (
-        _collect_files_to_process(content_path, dest_path, exclude_small_vids)
+        await _collect_files_to_process(content_path, dest_path, exclude_small_vids)
     )
 
     # Update counters
@@ -394,11 +466,19 @@ async def _process_files(
     linked_files: List[Path] = []
     files_already_exist = 0
 
-    for src_file, dst_file in files_to_process:
-        if _link_or_copy_file(src_file, dst_file):
-            linked_files.append(dst_file)
-        else:
-            files_already_exist += 1
+    # Process files in parallel but with a limit to avoid too many open files
+    batch_size = 20
+    for i in range(0, len(files_to_process), batch_size):
+        batch = files_to_process[i : i + batch_size]
+        results = await asyncio.gather(
+            *[_link_or_copy_file(src_file, dst_file) for src_file, dst_file in batch]
+        )
+
+        for dst_file, was_linked in zip([dst for _, dst in batch], results):
+            if was_linked:
+                linked_files.append(dst_file)
+            else:
+                files_already_exist += 1
 
     return linked_files, files_already_exist
 
@@ -483,7 +563,9 @@ async def process_downloads_job(
         # Initialize result and destination
         result = _initialize_result(job_id, len(completed_torrents))
         dest_base = Path("/downloads/avideos/")
-        dest_base.mkdir(parents=True, exist_ok=True)
+        # Create destination directory in executor to avoid blocking
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, dest_base.mkdir, True, True)
 
         # Process all torrents
         await _process_torrents(
