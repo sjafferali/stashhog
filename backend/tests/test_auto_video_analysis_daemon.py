@@ -26,6 +26,8 @@ class TestAutoVideoAnalysisDaemon:
             "auto_approve_plans": True,
         }
         daemon.is_running = True
+        # Mock the log method to prevent database writes
+        daemon.log = AsyncMock()
         await daemon.on_start()
         return daemon
 
