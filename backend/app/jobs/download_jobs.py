@@ -95,7 +95,9 @@ async def _copy_torrent_content(content_path: Path, dest_path: Path) -> List[Pat
     if content_path.is_file():
         exists = await loop.run_in_executor(None, dest_path.exists)
         if not exists:
-            await loop.run_in_executor(None, dest_path.parent.mkdir, True, True)
+            await loop.run_in_executor(
+                None, lambda: dest_path.parent.mkdir(parents=True, exist_ok=True)
+            )
             await loop.run_in_executor(None, shutil.copy2, content_path, dest_path)
             copied_files.append(dest_path)
             logger.info(f"Successfully copied {content_path} to {dest_path} (fallback)")
@@ -317,7 +319,9 @@ async def _link_or_copy_file(src_file: Path, dst_file: Path) -> bool:
         return False
 
     # Create parent directory in executor
-    await loop.run_in_executor(None, dst_file.parent.mkdir, True, True)
+    await loop.run_in_executor(
+        None, lambda: dst_file.parent.mkdir(parents=True, exist_ok=True)
+    )
 
     try:
         # Try hardlink first in executor
@@ -348,7 +352,9 @@ async def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List
         if exists:
             logger.debug(f"Destination file already exists: {dest_path}")
             return linked_files
-        await loop.run_in_executor(None, dest_path.parent.mkdir, True, True)
+        await loop.run_in_executor(
+            None, lambda: dest_path.parent.mkdir(parents=True, exist_ok=True)
+        )
         await loop.run_in_executor(None, os.link, content_path, dest_path)
         linked_files.append(dest_path)
     else:
@@ -363,7 +369,9 @@ async def _hardlink_torrent_content(content_path: Path, dest_path: Path) -> List
                     logger.debug(f"Destination file already exists: {dst_file}")
                     continue
 
-                await loop.run_in_executor(None, dst_file.parent.mkdir, True, True)
+                await loop.run_in_executor(
+                    None, lambda: dst_file.parent.mkdir(parents=True, exist_ok=True)
+                )
                 await loop.run_in_executor(None, os.link, src_file, dst_file)
                 linked_files.append(dst_file)
 
@@ -565,7 +573,9 @@ async def process_downloads_job(
         dest_base = Path("/downloads/avideos/")
         # Create destination directory in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, dest_base.mkdir, True, True)
+        await loop.run_in_executor(
+            None, lambda: dest_base.mkdir(parents=True, exist_ok=True)
+        )
 
         # Process all torrents
         await _process_torrents(
