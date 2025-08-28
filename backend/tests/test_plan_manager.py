@@ -722,7 +722,7 @@ class TestPlanExecution:
             change, test_async_session, stash_service
         )
 
-        assert result is True
+        assert result == "applied"
         assert change.status == ChangeStatus.APPLIED
         assert change.applied_at is not None
         stash_service.update_scene.assert_called_once_with(
@@ -754,7 +754,7 @@ class TestPlanExecution:
             change, test_async_session, stash_service
         )
 
-        assert result is False
+        assert result == "skipped"
         # Check that change wasn't marked as applied
         assert change.status != ChangeStatus.APPLIED
 

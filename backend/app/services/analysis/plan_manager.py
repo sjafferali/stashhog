@@ -403,6 +403,7 @@ class PlanManager:
             total_changes=result_data["total_changes"],
             applied_changes=result_data["applied_changes"],
             failed_changes=result_data["failed_changes"],
+            skipped_changes=result_data.get("skipped_changes", 0),
             errors=result_data["errors"],
             modified_scene_ids=result_data.get("modified_scene_ids", []),
         )
@@ -459,6 +460,7 @@ class PlanManager:
         total_changes = 0
         applied_changes = 0
         failed_changes = 0
+        skipped_changes = 0  # Track scenes that were skipped (deleted scenes)
         errors = []
         modified_scene_ids = set()
 
@@ -476,11 +478,16 @@ class PlanManager:
 
         for i, change in enumerate(changes_to_apply):
             try:
-                success = await self.apply_single_change(change, db, stash_service)
-                if success:
+                result = await self.apply_single_change(change, db, stash_service)
+                if result == "applied":
                     applied_changes += 1
                     # Track the scene ID that was modified
                     modified_scene_ids.add(str(change.scene_id))
+                elif result == "skipped":
+                    skipped_changes += 1
+                    logger.info(
+                        f"Skipped change {change.id} for missing scene {change.scene_id}"
+                    )
                 else:
                     failed_changes += 1
             except Exception as e:
@@ -499,6 +506,7 @@ class PlanManager:
             "total_changes": total_changes,
             "applied_changes": applied_changes,
             "failed_changes": failed_changes,
+            "skipped_changes": skipped_changes,
             "errors": errors,
             "modified_scene_ids": list(modified_scene_ids),
         }
@@ -620,7 +628,7 @@ class PlanManager:
 
     async def apply_single_change(
         self, change: PlanChange, db: AsyncSession, stash_service: StashService
-    ) -> bool:
+    ) -> str:
         """Apply a single change to Stash.
 
         Args:
@@ -629,7 +637,7 @@ class PlanManager:
             stash_service: Stash service
 
         Returns:
-            True if successful
+            "applied" if successful, "skipped" if scene not found, "failed" otherwise
         """
         try:
             scene_id = change.scene_id
@@ -637,8 +645,10 @@ class PlanManager:
             # Get current scene data
             scene = await stash_service.get_scene(str(change.scene_id))
             if not scene:
-                logger.error(f"Scene {scene_id} not found")
-                return False
+                logger.info(
+                    f"Scene {scene_id} not found (likely deleted) - skipping change"
+                )
+                return "skipped"
 
             # Special handling for markers - they are created directly, not via scene update
             if change.field == "markers":
@@ -647,7 +657,7 @@ class PlanManager:
                 change.status = ChangeStatus.APPLIED  # type: ignore[assignment]
                 change.applied_at = datetime.utcnow()  # type: ignore[assignment]
                 await db.flush()
-                return True
+                return "applied"
 
             # Prepare update data based on field and action
             update_data = await self._prepare_update_data(change, scene, stash_service)
@@ -661,10 +671,10 @@ class PlanManager:
                 change.applied_at = datetime.utcnow()  # type: ignore[assignment]
                 await db.flush()
 
-                return True
+                return "applied"
             else:
                 logger.warning(f"No update data for change {change.id}")
-                return False
+                return "failed"
 
         except Exception as e:
             logger.error(f"Error applying change {change.id}: {e}")

@@ -57,6 +57,12 @@ class AutoPlanApplierDaemon(BaseDaemon):
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
         self._job_to_plan_mapping: dict[str, int] = {}  # job_id -> plan_id mapping
+        self._failed_plans: Set[int] = (
+            set()
+        )  # Track plans that have failed to prevent retry loops
+        self._processed_plans: Set[int] = (
+            set()
+        )  # Track all plans we've attempted this session
         await self.log(LogLevel.INFO, "Auto Plan Applier Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -65,6 +71,8 @@ class AutoPlanApplierDaemon(BaseDaemon):
             LogLevel.INFO,
             f"Auto Plan Applier Daemon shutting down. "
             f"Monitored {len(self._monitored_jobs)} jobs. "
+            f"Processed {len(self._processed_plans)} plans. "
+            f"Failed {len(self._failed_plans)} plans. "
             f"Uptime: {self.get_uptime_seconds():.1f} seconds",
         )
         await super().on_stop()
@@ -172,11 +180,30 @@ class AutoPlanApplierDaemon(BaseDaemon):
 
                 # Extract the integer ID value from the plan instance
                 plan_id: int = int(plan.id)  # type: ignore[arg-type]
+
+                # Skip plans that have already failed or been processed this session
+                if plan_id in self._failed_plans:
+                    await self.log(
+                        LogLevel.DEBUG,
+                        f"Skipping plan {plan_id} - previously failed this session",
+                    )
+                    continue
+
+                if plan_id in self._processed_plans:
+                    await self.log(
+                        LogLevel.DEBUG,
+                        f"Skipping plan {plan_id} - already processed this session",
+                    )
+                    continue
+
                 should_process = await self._should_process_plan(
                     db, plan_id, config["auto_approve_all_changes"]
                 )
 
                 if should_process:
+                    # Mark as processed to avoid reprocessing
+                    self._processed_plans.add(plan_id)
+
                     job_id = await self._create_and_wait_for_job(
                         plan_id, config["auto_approve_all_changes"]
                     )
@@ -296,6 +323,37 @@ class AutoPlanApplierDaemon(BaseDaemon):
             )
             return None
 
+    async def _handle_failed_job(self, job_id: str, job, plan_id: int):
+        """Handle a failed job."""
+        if plan_id:
+            self._failed_plans.add(plan_id)
+            await self.log(
+                LogLevel.WARNING,
+                f"Plan {plan_id} marked as failed - will not retry this session",
+            )
+
+        if job.result:
+            error_msg = job.result.get("error", "Unknown error")
+            await self.log(
+                LogLevel.ERROR,
+                f"Apply plan job {job_id} failed: {error_msg}",
+            )
+
+    async def _handle_completed_job(self, job, plan_id: int):
+        """Handle a completed job, checking for skipped changes."""
+        if not job.result:
+            return
+
+        skipped = job.result.get("skipped_changes", 0)
+        applied = job.result.get("applied_changes", 0)
+        failed = job.result.get("failed_changes", 0)
+
+        if skipped > 0 and applied == 0 and failed == 0:
+            await self.log(
+                LogLevel.INFO,
+                f"Plan {plan_id} had all changes skipped (likely deleted scenes) - marking as processed",
+            )
+
     async def _check_monitored_jobs(self):
         """Check status of monitored jobs and handle completion."""
         if not self._monitored_jobs:
@@ -312,33 +370,33 @@ class AutoPlanApplierDaemon(BaseDaemon):
                     continue
 
                 # Check if job has finished
-                if job.status in [
+                if job.status not in [
                     JobStatus.COMPLETED.value,
                     JobStatus.FAILED.value,
                     JobStatus.CANCELLED.value,
                 ]:
-                    plan_id = self._job_to_plan_mapping.get(job_id)
-                    await self.log(
-                        LogLevel.INFO,
-                        f"Apply plan job {job_id} for plan {plan_id} "
-                        f"completed with status: {job.status}",
-                    )
+                    continue
 
-                    await self.track_job_action(
-                        job_id=job_id,
-                        action=DaemonJobAction.FINISHED,
-                        reason=f"Job completed with status {job.status}",
-                    )
+                plan_id = self._job_to_plan_mapping.get(job_id)
+                await self.log(
+                    LogLevel.INFO,
+                    f"Apply plan job {job_id} for plan {plan_id} "
+                    f"completed with status: {job.status}",
+                )
 
-                    # Log any errors from the job result
-                    if job.status == JobStatus.FAILED.value and job.result:
-                        error_msg = job.result.get("error", "Unknown error")
-                        await self.log(
-                            LogLevel.ERROR,
-                            f"Apply plan job {job_id} failed: {error_msg}",
-                        )
+                await self.track_job_action(
+                    job_id=job_id,
+                    action=DaemonJobAction.FINISHED,
+                    reason=f"Job completed with status {job.status}",
+                )
 
-                    completed_jobs.add(job_id)
+                # Handle job based on status
+                if job.status == JobStatus.FAILED.value:
+                    await self._handle_failed_job(job_id, job, plan_id)
+                elif job.status == JobStatus.COMPLETED.value:
+                    await self._handle_completed_job(job, plan_id)
+
+                completed_jobs.add(job_id)
 
         # Remove completed jobs from monitoring
         for job_id in completed_jobs:
@@ -404,13 +462,32 @@ class AutoPlanApplierDaemon(BaseDaemon):
                         reason=f"Job completed with status {job.status}",
                     )
 
-                    # Log any errors from the job result
-                    if job.status == JobStatus.FAILED.value and job.result:
-                        error_msg = job.result.get("error", "Unknown error")
+                    # Track failed plans to avoid retry loops
+                    if job.status == JobStatus.FAILED.value:
+                        self._failed_plans.add(plan_id)
                         await self.log(
-                            LogLevel.ERROR,
-                            f"Apply plan job {job_id} failed: {error_msg}",
+                            LogLevel.WARNING,
+                            f"Plan {plan_id} marked as failed - will not retry this session",
                         )
+
+                        if job.result:
+                            error_msg = job.result.get("error", "Unknown error")
+                            await self.log(
+                                LogLevel.ERROR,
+                                f"Apply plan job {job_id} failed: {error_msg}",
+                            )
+
+                    # Check if the job had only skipped changes (deleted scenes)
+                    elif job.status == JobStatus.COMPLETED.value and job.result:
+                        skipped = job.result.get("skipped_changes", 0)
+                        applied = job.result.get("applied_changes", 0)
+                        failed = job.result.get("failed_changes", 0)
+
+                        if skipped > 0 and applied == 0 and failed == 0:
+                            await self.log(
+                                LogLevel.INFO,
+                                f"Plan {plan_id} had all changes skipped (likely deleted scenes)",
+                            )
 
                     # Remove from monitoring
                     self._monitored_jobs.discard(job_id)

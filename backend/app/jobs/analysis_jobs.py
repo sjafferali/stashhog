@@ -784,16 +784,27 @@ async def apply_analysis_plan_job(
 
     except Exception as e:
         logger.error(f"Failed to apply plan {plan_id}: {str(e)}", exc_info=True)
-        # Return error result instead of re-raising
-        return {
-            "plan_id": plan_id,
-            "applied_changes": 0,
-            "failed_changes": 0,
-            "skipped_changes": 0,
-            "total_changes": 0,
-            "success_rate": 0,
-            "errors": [{"error": str(e), "type": "job_failure"}],
-        }
+        # Re-raise the exception to mark job as failed
+        raise
+
+    # Log summary of results
+    logger.info(
+        f"Plan {plan_id} application completed: "
+        f"applied={result.applied_changes}, "
+        f"failed={result.failed_changes}, "
+        f"skipped={result.skipped_changes}, "
+        f"total={result.total_changes}"
+    )
+
+    # Only consider it a failure if there were actual failures (not just skipped scenes)
+    # Job succeeds if:
+    # 1. Some changes were applied successfully OR
+    # 2. All changes were skipped due to missing scenes (no actual failures)
+    if result.failed_changes > 0 and result.applied_changes == 0:
+        # We have failures and no successes - this is a real problem
+        logger.warning(
+            f"Plan {plan_id} had {result.failed_changes} failures and no successful changes"
+        )
 
     return {
         "plan_id": plan_id,
