@@ -170,12 +170,16 @@ async def test_daemon_skips_failed_plans():
         daemon_id=str(uuid.uuid4()), config={"auto_approve_all_changes": False}
     )
 
-    # Start the daemon properly
-    await daemon.start()
+    # Mock database-related methods to prevent actual database interaction
+    daemon.log = AsyncMock()
+    daemon.update_heartbeat = AsyncMock()
+    daemon.is_running = True
 
-    # Add a plan to the failed list
-    daemon._failed_plans.add(123)
-    daemon._processed_plans.add(456)
+    # Initialize daemon state without calling on_start() to avoid any database interaction
+    daemon._monitored_jobs = set()
+    daemon._job_to_plan_mapping = {}
+    daemon._failed_plans = {123}  # Add plan 123 to failed list
+    daemon._processed_plans = {456}  # Add plan 456 to processed list
 
     # Mock database session
     db_mock = AsyncMock()
