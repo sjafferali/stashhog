@@ -213,7 +213,7 @@ class DownloadProcessorDaemon(BaseDaemon):
 
             await self.log(
                 LogLevel.INFO,
-                f"Created process downloads job {job_id} for {pending_count} pending downloads",
+                f"Launching process downloads job {job_id} for {pending_count} pending downloads",
             )
 
             # Track this job
@@ -265,7 +265,7 @@ class DownloadProcessorDaemon(BaseDaemon):
 
             await self.log(
                 LogLevel.INFO,
-                f"Created Stash metadata scan job {job_id}",
+                f"Launching Stash metadata scan job {job_id}",
             )
 
             # Track this job
@@ -322,6 +322,12 @@ class DownloadProcessorDaemon(BaseDaemon):
                     JobStatus.FAILED.value,
                     JobStatus.CANCELLED.value,
                 ]:
+                    # Log job completion with type and status
+                    await self.log(
+                        LogLevel.INFO,
+                        f"Job {job_id} (type: {job.type}) completed with status: {job.status}",
+                    )
+
                     # Handle based on job type
                     if job.type == JobType.PROCESS_DOWNLOADS.value:
                         await self._handle_process_downloads_completion(job)

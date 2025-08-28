@@ -268,7 +268,7 @@ class AutoPlanApplierDaemon(BaseDaemon):
 
             await self.log(
                 LogLevel.INFO,
-                f"Created apply plan job {job_id} for plan {plan_id} "
+                f"Launching apply plan job {job_id} for plan {plan_id} "
                 f"(auto_approve={auto_approve})",
             )
 
@@ -394,7 +394,7 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 ]:
                     await self.log(
                         LogLevel.INFO,
-                        f"Apply plan job {job_id} for plan {plan_id} "
+                        f"Job {job_id} (type: {JobType.APPLY_PLAN.value}) for plan {plan_id} "
                         f"completed with status: {job.status}",
                     )
 

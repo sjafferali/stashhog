@@ -286,16 +286,21 @@ class AnalysisService:
                 changes=changes,
             )
 
-            # Update plan if needed
-            await self._update_plan_if_needed(scene_changes, db, job_id)
+            # Use lock for all database operations to prevent concurrent session usage
+            # This ensures each scene's DB operations complete atomically before the next scene starts
+            async with self._plan_creation_lock:
+                # Update plan if needed
+                await self._update_plan_if_needed(scene_changes, db, job_id)
 
-            # DO NOT mark scene as analyzed for non-AI analysis
-            # We specifically skip this step
+                # DO NOT mark scene as analyzed for non-AI analysis
+                # We specifically skip this step
 
-            # Commit after each scene to make the plan visible incrementally
-            if db:
-                await db.commit()
-                logger.info(f"Committed scene {scene.id} non-AI changes to database")
+                # Commit after each scene to make the plan visible incrementally
+                if db:
+                    await db.commit()
+                    logger.info(
+                        f"Committed scene {scene.id} non-AI changes to database"
+                    )
 
             # Update progress after each scene
             self._scenes_processed_in_current_batch += 1
@@ -966,18 +971,21 @@ class AnalysisService:
                 changes=changes,
             )
 
-            # Update plan if needed
-            await self._update_plan_if_needed(scene_changes, db, job_id)
+            # Use lock for all database operations to prevent concurrent session usage
+            # This ensures each scene's DB operations complete atomically before the next scene starts
+            async with self._plan_creation_lock:
+                # Update plan if needed
+                await self._update_plan_if_needed(scene_changes, db, job_id)
 
-            # Mark scene as analyzed
-            if db:
-                await self._mark_single_scene_analyzed(scene.id, db, options)
+                # Mark scene as analyzed
+                if db:
+                    await self._mark_single_scene_analyzed(scene.id, db, options)
 
-                # Commit after each scene to make the plan visible incrementally
-                await db.commit()
-                logger.info(f"Committed scene {scene.id} changes to database")
+                    # Commit after each scene to make the plan visible incrementally
+                    await db.commit()
+                    logger.info(f"Committed scene {scene.id} changes to database")
 
-            # Update progress after each scene
+            # Update progress after each scene (outside the lock since it doesn't use the shared db session)
             self._scenes_processed_in_current_batch += 1
             if self._current_progress_callback:
                 progress = int(
@@ -1068,45 +1076,47 @@ class AnalysisService:
         db: Optional[AsyncSession],
         job_id: Optional[str],
     ) -> None:
-        """Update plan with scene changes if needed."""
+        """Update plan with scene changes if needed.
+
+        Note: This method assumes the caller holds the _plan_creation_lock to prevent
+        concurrent database operations on the shared session.
+        """
         if db and scene_changes.has_changes():
-            # Use lock to prevent concurrent plan creation
-            async with self._plan_creation_lock:
-                if not self._current_plan_id:
-                    # Create new plan
-                    logger.info(
-                        f"Creating new plan for job {job_id} with name: {self._current_plan_name}"
-                    )
-                    plan = await self.plan_manager.create_or_update_plan(
-                        name=self._current_plan_name,
-                        scene_changes=scene_changes,
-                        metadata=self._plan_metadata,
-                        db=db,
-                        job_id=job_id,
-                    )
-                    plan_id: int = plan.id  # type: ignore[assignment]
-                    self._current_plan_id = plan_id
-                    logger.info(f"Created plan {plan_id} for job {job_id}")
+            # Note: Lock removed here as it's now held by the caller (_analyze_single_scene_with_plan)
+            # This prevents nested locking and ensures all DB operations for a scene are atomic
+            if not self._current_plan_id:
+                # Create new plan
+                logger.info(
+                    f"Creating new plan for job {job_id} with name: {self._current_plan_name}"
+                )
+                plan = await self.plan_manager.create_or_update_plan(
+                    name=self._current_plan_name,
+                    scene_changes=scene_changes,
+                    metadata=self._plan_metadata,
+                    db=db,
+                    job_id=job_id,
+                )
+                plan_id: int = plan.id  # type: ignore[assignment]
+                self._current_plan_id = plan_id
+                logger.info(f"Created plan {plan_id} for job {job_id}")
 
-                    # Update job metadata with plan_id
-                    if job_id and self._current_job_id:
-                        await self._update_job_with_plan_id(job_id, plan_id)
-                else:
-                    # Add to existing plan
-                    logger.info(
-                        f"Adding changes to existing plan {self._current_plan_id}"
-                    )
-                    await self.plan_manager.add_changes_to_plan(
-                        self._current_plan_id,
-                        scene_changes,
-                        db,
-                    )
-                    logger.info(
-                        f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
-                    )
+                # Update job metadata with plan_id
+                if job_id and self._current_job_id:
+                    await self._update_job_with_plan_id(job_id, plan_id)
+            else:
+                # Add to existing plan
+                logger.info(f"Adding changes to existing plan {self._current_plan_id}")
+                await self.plan_manager.add_changes_to_plan(
+                    self._current_plan_id,
+                    scene_changes,
+                    db,
+                )
+                logger.info(
+                    f"Added changes for scene {scene_changes.scene_id} to plan {self._current_plan_id}"
+                )
 
-                    # Don't update job metadata here - it was already done when plan was created
-                    # This avoids race conditions with progress updates
+                # Don't update job metadata here - it was already done when plan was created
+                # This avoids race conditions with progress updates
 
     def _create_error_scene_changes(
         self, scene_data: dict, error: Exception

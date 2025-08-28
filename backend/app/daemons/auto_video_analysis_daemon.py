@@ -300,7 +300,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         reason = "Job completed successfully"
                     elif job.status == JobStatus.FAILED.value:
                         action = DaemonJobAction.FAILED
-                        reason = f"Job failed: {job.error_message or 'Unknown error'}"
+                        # The Job model has an 'error' field, not 'error_message'
+                        reason = f"Job failed: {job.error or 'Unknown error'}"
                     else:  # CANCELLED
                         action = DaemonJobAction.CANCELLED
                         reason = "Job was cancelled"
