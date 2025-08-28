@@ -646,8 +646,13 @@ class PlanManager:
             scene = await stash_service.get_scene(str(change.scene_id))
             if not scene:
                 logger.info(
-                    f"Scene {scene_id} not found (likely deleted) - skipping change"
+                    f"Scene {scene_id} not found (likely deleted) - marking change as applied"
                 )
+                # Mark the change as applied since there's nothing more we can do
+                # This allows the plan to be marked as fully applied
+                change.status = ChangeStatus.APPLIED  # type: ignore[assignment]
+                change.applied_at = datetime.utcnow()  # type: ignore[assignment]
+                await db.flush()
                 return "skipped"
 
             # Special handling for markers - they are created directly, not via scene update

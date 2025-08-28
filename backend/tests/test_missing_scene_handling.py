@@ -12,7 +12,7 @@ from app.services.analysis.plan_manager import PlanManager
 
 @pytest.mark.asyncio
 async def test_apply_single_change_with_missing_scene():
-    """Test that missing scenes are handled gracefully."""
+    """Test that missing scenes are handled gracefully and marked as applied."""
     plan_manager = PlanManager()
 
     # Mock database session
@@ -29,11 +29,14 @@ async def test_apply_single_change_with_missing_scene():
     change.action = ChangeAction.ADD
     change.proposed_value = ["test_tag"]
 
-    # Apply the change - should return "skipped" instead of failing
+    # Apply the change - should return "skipped" and mark as APPLIED
     result = await plan_manager.apply_single_change(change, db_mock, stash_service_mock)
 
     assert result == "skipped"
+    assert change.status == ChangeStatus.APPLIED  # Verify change is marked as applied
+    assert change.applied_at is not None  # Verify applied_at is set
     stash_service_mock.get_scene.assert_called_once_with("30960")
+    db_mock.flush.assert_called()  # Verify database flush was called
 
 
 @pytest.mark.asyncio
@@ -222,6 +225,40 @@ async def test_daemon_skips_failed_plans():
                 # Get the first argument of the call
                 call_args = mock_create.call_args[0]
                 assert call_args[0] == 789  # Only plan 789 should be processed
+
+
+@pytest.mark.asyncio
+async def test_plan_status_updated_when_all_changes_skipped():
+    """Test that plan status is correctly set to APPLIED when all changes are skipped."""
+
+    from app.models import AnalysisPlan, PlanStatus
+
+    plan_manager = PlanManager()
+
+    # Mock database session
+    db_mock = AsyncMock()
+
+    # Create a mock plan
+    plan = MagicMock(spec=AnalysisPlan)
+    plan.id = 1
+    plan.status = PlanStatus.REVIEWING
+    plan.applied_at = None
+
+    # Mock the count queries to simulate all changes being applied (due to skips)
+    db_mock.execute.side_effect = [
+        MagicMock(scalar=lambda: 2),  # Total changes
+        MagicMock(scalar=lambda: 2),  # Applied changes (including skipped)
+        MagicMock(scalar=lambda: 0),  # Approved changes (none left)
+        MagicMock(scalar=lambda: 0),  # Rejected changes
+        MagicMock(scalar=lambda: 0),  # Pending changes
+    ]
+
+    # Call the update method
+    await plan_manager._update_plan_status_async(plan, db_mock)
+
+    # Verify the plan was marked as APPLIED
+    assert plan.status == PlanStatus.APPLIED
+    assert plan.applied_at is not None
 
 
 if __name__ == "__main__":

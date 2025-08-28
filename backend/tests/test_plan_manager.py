@@ -731,7 +731,7 @@ class TestPlanExecution:
 
     @pytest.mark.asyncio
     async def test_apply_single_change_scene_not_found(self, test_async_session):
-        """Test applying a change when scene is not found."""
+        """Test applying a change when scene is not found - should mark as applied."""
         manager = PlanManager()
 
         # Create mock stash service that returns None
@@ -755,8 +755,9 @@ class TestPlanExecution:
         )
 
         assert result == "skipped"
-        # Check that change wasn't marked as applied
-        assert change.status != ChangeStatus.APPLIED
+        # Check that change IS marked as applied (so plan can be completed)
+        assert change.status == ChangeStatus.APPLIED
+        assert change.applied_at is not None
 
     @pytest.mark.asyncio
     async def test_prepare_studio_update(self, test_async_session):
