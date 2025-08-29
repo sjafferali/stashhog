@@ -25,10 +25,12 @@ This daemon addresses the need for automatic resource generation in Stash by:
 
 ### Step-by-Step Process
 
-1. **Check for Running Jobs**
-   - Queries the job system for any running or pending jobs
-   - If jobs are detected, skips the generation check and sleeps for `job_interval_seconds`
-   - This ensures generation doesn't interfere with other operations
+1. **Check for Running Jobs** ⚠️ **IMPORTANT: This daemon checks for ALL active jobs**
+   - Queries the job system for ANY running or pending jobs (all job types)
+   - If ANY jobs are detected (SYNC, ANALYSIS, APPLY_PLAN, etc.), skips the generation check entirely
+   - Sleeps for the full `job_interval_seconds` (default: 3600 seconds) before checking again
+   - This is the ONLY daemon that performs this system-wide job check
+   - Ensures generation doesn't interfere with any other operations in the system
 
 2. **Check for Scenes Missing Generated Attribute**
    - Queries the database for scenes where `generated=false`

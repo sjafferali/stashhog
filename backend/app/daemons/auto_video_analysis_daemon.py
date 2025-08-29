@@ -9,8 +9,7 @@ from sqlalchemy import func, select
 
 from app.core.database import AsyncSessionLocal
 from app.daemons.base import BaseDaemon
-from app.models import AnalysisPlan, Scene
-from app.models.analysis_plan import PlanStatus
+from app.models import Scene
 from app.models.daemon import DaemonJobAction, DaemonType, LogLevel
 from app.models.job import Job, JobStatus, JobType
 
@@ -23,13 +22,11 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
     1. Checks for scenes without video_analyzed=True
     2. Creates video tag analysis jobs in batches
     3. Monitors job completion
-    4. Automatically approves and applies generated plans
 
     Configuration:
         heartbeat_interval (int): Seconds between heartbeat updates (default: 30)
         job_interval_seconds (int): Seconds to sleep between analysis checks (default: 600)
         batch_size (int): Number of scenes to analyze per batch (default: 50)
-        auto_approve_plans (bool): Whether to automatically approve and apply plans (default: True)
     """
 
     daemon_type = DaemonType.AUTO_VIDEO_ANALYSIS_DAEMON
@@ -41,12 +38,10 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             "heartbeat_interval": 30,
             "job_interval_seconds": 600,
             "batch_size": 50,
-            "auto_approve_plans": True,
             "_descriptions": {
                 "heartbeat_interval": "Seconds between heartbeat updates to indicate daemon health",
                 "job_interval_seconds": "Seconds to wait between checking for scenes needing video analysis",
                 "batch_size": "Number of scenes to analyze in each batch",
-                "auto_approve_plans": "Whether to automatically approve and apply generated analysis plans",
             },
         }
 
@@ -54,7 +49,6 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
         """Initialize daemon-specific resources."""
         await super().on_start()
         self._monitored_jobs: Set[str] = set()
-        self._pending_plan_jobs: dict[str, int] = {}  # job_id -> plan_id mapping
         self._batch_counter = 0  # Track batch numbers across processing cycles
         self._initial_total_pending = (
             0  # Track initial total for consistent batch count
@@ -148,7 +142,6 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             "heartbeat_interval": self.config.get("heartbeat_interval", 30),
             "job_interval_seconds": self.config.get("job_interval_seconds", 600),
             "batch_size": self.config.get("batch_size", 50),
-            "auto_approve_plans": self.config.get("auto_approve_plans", True),
         }
 
     async def _check_and_analyze_scenes(self, config: dict):
@@ -312,15 +305,6 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         reason=reason,
                     )
 
-                    # Only handle completed analysis jobs for plan creation
-                    # APPLY_PLAN jobs should not trigger another apply
-                    if (
-                        job.status == JobStatus.COMPLETED.value
-                        and job.type == JobType.ANALYSIS.value
-                        and config["auto_approve_plans"]
-                    ):
-                        await self._handle_completed_analysis_job(job_id, job)
-
                     completed_jobs.add(job_id)
 
         # Remove completed jobs from monitoring
@@ -328,124 +312,3 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             self._monitored_jobs -= completed_jobs
             # Update last check time when jobs complete to start the interval timer
             self._last_check_time = time.time()
-
-    async def _handle_completed_analysis_job(self, job_id: str, job: Job):
-        """Handle a completed analysis job by checking for and applying any generated plan."""
-        try:
-            # Check if job generated a plan
-            if not job.result or not isinstance(job.result, dict):
-                await self.log(LogLevel.DEBUG, f"Job {job_id} has no result data")
-                return
-
-            plan_id = job.result.get("plan_id")
-            if not plan_id:
-                await self.log(LogLevel.DEBUG, f"Job {job_id} did not generate a plan")
-                return
-
-            # Convert plan_id to integer if it's a string
-            if isinstance(plan_id, str):
-                plan_id = int(plan_id)
-
-            await self.log(
-                LogLevel.INFO,
-                f"Job {job_id} generated plan {plan_id}, creating apply job",
-            )
-
-            # Check plan status
-            async with AsyncSessionLocal() as db:
-                plan = await db.get(AnalysisPlan, plan_id)
-                if not plan:
-                    await self.log(LogLevel.WARNING, f"Plan {plan_id} not found")
-                    return
-
-                # Check if plan has already been applied or is being applied
-                if plan.status in [PlanStatus.APPLIED, PlanStatus.REVIEWING]:
-                    await self.log(
-                        LogLevel.INFO,
-                        f"Plan {plan_id} already applied or being applied (status: {plan.status})",
-                    )
-                    return
-
-                # Check if there are any approved changes to apply
-                from sqlalchemy import func, or_, select
-
-                from app.models import PlanChange
-                from app.models.plan_change import ChangeStatus
-
-                # For auto_approve=True, we check for APPROVED and PENDING changes (not yet APPLIED)
-                count_query = select(func.count(PlanChange.id)).where(
-                    PlanChange.plan_id == plan_id,
-                    or_(
-                        PlanChange.status == ChangeStatus.APPROVED,
-                        PlanChange.status == ChangeStatus.PENDING,
-                    ),
-                )
-                count_result = await db.execute(count_query)
-                unapplied_changes = count_result.scalar_one()
-
-                if unapplied_changes == 0:
-                    await self.log(
-                        LogLevel.INFO,
-                        f"Plan {plan_id} has no unapplied changes to apply",
-                    )
-                    # Mark plan as applied if all changes have been processed
-                    plan.status = PlanStatus.APPLIED
-                    await db.commit()
-                    return
-
-            # Create apply plan job
-            await self._create_apply_plan_job(plan_id)
-
-        except Exception as e:
-            await self.log(
-                LogLevel.ERROR,
-                f"Failed to handle completed analysis job {job_id}: {str(e)}\n"
-                f"Stack trace:\n{traceback.format_exc()}",
-            )
-
-    async def _create_apply_plan_job(self, plan_id: int):
-        """Create a job to apply an analysis plan."""
-        try:
-            from app.core.dependencies import get_job_service
-
-            job_service = get_job_service()
-
-            # Create job metadata for applying plan
-            job_metadata = {
-                "plan_id": str(plan_id),
-                "auto_approve": True,
-                "created_by": "AUTO_VIDEO_ANALYSIS_DAEMON",
-            }
-
-            # Create job using job service
-            async with AsyncSessionLocal() as db:
-                job = await job_service.create_job(
-                    job_type=JobType.APPLY_PLAN,
-                    db=db,
-                    metadata=job_metadata,
-                )
-                await db.commit()
-                job_id = str(job.id)
-
-            await self.log(
-                LogLevel.INFO,
-                f"Created apply plan job {job_id} for plan {plan_id}",
-            )
-
-            # Track this job
-            await self.track_job_action(
-                job_id=job_id,
-                action=DaemonJobAction.LAUNCHED,
-                reason=f"Apply plan {plan_id}",
-            )
-
-            # Add to monitored jobs with plan association
-            self._monitored_jobs.add(job_id)
-            self._pending_plan_jobs[job_id] = plan_id
-
-        except Exception as e:
-            await self.log(
-                LogLevel.ERROR,
-                f"Failed to create apply plan job for plan {plan_id}: {str(e)}\n"
-                f"Stack trace:\n{traceback.format_exc()}",
-            )

@@ -23,7 +23,6 @@ class TestAutoVideoAnalysisDaemon:
             "heartbeat_interval": 1,
             "job_interval_seconds": 2,  # Short interval for testing
             "batch_size": 10,
-            "auto_approve_plans": True,
         }
         daemon.is_running = True
         # Mock the log method to prevent database writes

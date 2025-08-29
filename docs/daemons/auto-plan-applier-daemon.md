@@ -24,6 +24,9 @@ This daemon addresses the need for automated plan application by:
 
 ## How It Works
 
+### Job Checking Behavior
+**NOTE:** This daemon does NOT check for system-wide active jobs before processing. It will create and monitor its own APPLY_PLAN jobs regardless of other running jobs in the system. Plans are processed sequentially - the daemon waits for each apply job to complete before moving to the next plan.
+
 ### Step-by-Step Process
 
 1. **Check for Candidate Plans**

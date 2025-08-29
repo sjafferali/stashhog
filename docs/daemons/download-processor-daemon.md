@@ -6,6 +6,9 @@ The Download Processor Daemon automatically processes completed downloads from q
 
 ## Workflow
 
+### Job Checking Behavior
+**NOTE:** This daemon does NOT check for system-wide active jobs before processing. It will create and monitor its own PROCESS_DOWNLOADS and STASH_SCAN jobs regardless of other running jobs in the system. Jobs are chained sequentially - it waits for PROCESS_DOWNLOADS to complete before starting STASH_SCAN.
+
 1. **Check for Downloads**: Periodically checks qBittorrent for completed torrents with category 'xxx' that don't have the 'synced' tag
 2. **Process Downloads**: If downloads are found, launches a PROCESS_DOWNLOADS job that:
    - Links/copies torrent content to `/downloads/avideos/`

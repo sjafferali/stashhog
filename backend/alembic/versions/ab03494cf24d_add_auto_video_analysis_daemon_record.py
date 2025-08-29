@@ -27,7 +27,9 @@ def upgrade() -> None:
 
     # Insert auto video analysis daemon record
     daemon_id = str(uuid.uuid4())
-    config_json = '{"heartbeat_interval": 30, "job_interval_seconds": 600, "batch_size": 50, "auto_approve_plans": true}'
+    config_json = (
+        '{"heartbeat_interval": 30, "job_interval_seconds": 600, "batch_size": 50}'
+    )
 
     if dialect_name == "postgresql":
         op.execute(

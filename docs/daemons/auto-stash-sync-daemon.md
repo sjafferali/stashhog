@@ -21,6 +21,9 @@ This daemon addresses the need for keeping StashHog synchronized with Stash by:
 
 ## How It Works
 
+### Job Checking Behavior
+**NOTE:** This daemon does NOT check for system-wide active jobs before processing. It will create and monitor its own SYNC jobs regardless of other running jobs in the system. Each sync job is monitored to completion before checking for new pending scenes.
+
 ### Step-by-Step Process
 
 1. **Check for Pending Scenes**

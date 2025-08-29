@@ -2,14 +2,14 @@
 
 ## Overview
 
-The Auto Video Analysis Daemon is a background process that automatically detects and analyzes video content for scenes that haven't been processed yet. It uses AI-powered video analysis to detect tags and markers from video frames, then creates and applies analysis plans to update scene metadata.
+The Auto Video Analysis Daemon is a background process that automatically detects and analyzes video content for scenes that haven't been processed yet. It uses AI-powered video analysis to detect tags and markers from video frames and creates analysis plans for review.
 
 ## Purpose
 
 This daemon addresses the need for automated video content analysis by:
 - Continuously monitoring for scenes without video analysis
 - Processing scenes in efficient batches
-- Automatically applying detected tags and markers
+- Creating analysis plans with detected tags and markers
 - Reducing manual effort in scene categorization
 
 ## Configuration Options
@@ -19,9 +19,11 @@ This daemon addresses the need for automated video content analysis by:
 | `heartbeat_interval` | integer | 30 | Seconds between daemon heartbeat updates. Used for health monitoring. |
 | `job_interval_seconds` | integer | 600 | Seconds to sleep between checking for scenes needing analysis (10 minutes default). |
 | `batch_size` | integer | 50 | Number of scenes to analyze in each batch. Larger batches are more efficient but take longer to complete. |
-| `auto_approve_plans` | boolean | true | Whether to automatically approve and apply generated analysis plans. If false, plans will be created but require manual approval. |
 
 ## How It Works
+
+### Job Checking Behavior
+**NOTE:** This daemon does NOT check for system-wide active jobs before processing. It will create and monitor its own ANALYSIS jobs regardless of other running jobs in the system. The daemon uses time intervals to control when to create new jobs, not system job status.
 
 ### Step-by-Step Process
 
@@ -50,18 +52,7 @@ This daemon addresses the need for automated video content analysis by:
    - Waits for jobs to complete (COMPLETED, FAILED, or CANCELLED status)
    - Logs the final status of each job
 
-5. **Handle Analysis Results**
-   - If a job completes successfully and generates a plan:
-     - Retrieves the plan ID from the job results
-     - Checks if the plan has already been applied
-     - If `auto_approve_plans = true`, proceeds to apply the plan
-
-6. **Apply Analysis Plan**
-   - Creates an APPLY_PLAN job with auto-approval
-   - Monitors the apply job until completion
-   - Updates scene metadata with detected tags and markers
-
-7. **Sleep and Repeat**
+5. **Sleep and Repeat**
    - After processing all monitored jobs
    - Logs the count of scenes processed
    - Sleeps for `job_interval_seconds` before next check
@@ -73,7 +64,7 @@ The video analysis process:
 - Extracts frames from video files at configured intervals
 - Sends frames to an AI server for tag detection
 - Identifies content tags and scene markers with timestamps
-- Creates a structured plan of metadata changes
+- Creates a structured plan of metadata changes for manual review
 - Updates the scene's `video_analyzed` flag to prevent reprocessing
 
 ## Monitoring
@@ -115,8 +106,7 @@ The daemon provides several monitoring capabilities:
 {
   "heartbeat_interval": 30,
   "job_interval_seconds": 300,  // Check every 5 minutes
-  "batch_size": 100,            // Process 100 scenes at once
-  "auto_approve_plans": false   // Require manual approval
+  "batch_size": 100             // Process 100 scenes at once
 }
 ```
 
@@ -129,13 +119,12 @@ Check the daemon logs to see:
 - How many scenes are pending analysis
 - Current batch being processed
 - Job IDs for tracking
-- Completion status of analysis and apply jobs
+- Completion status of analysis jobs
 
 ## Performance Considerations
 
 - **Batch Size**: Larger batches (100-200) are more efficient but take longer to complete. Smaller batches (10-25) provide more frequent updates.
 - **Interval**: Shorter intervals increase responsiveness but add database load. Longer intervals reduce overhead but delay processing.
-- **Auto-approval**: Disabling auto-approval allows review of detected tags but requires manual intervention to apply changes.
 
 ## Dependencies
 
@@ -158,9 +147,9 @@ The daemon requires:
 - Review job logs for specific error messages
 
 ### Plans Not Being Applied
-- Ensure `auto_approve_plans` is set to `true`
-- Check for existing plans in PENDING status
-- Verify apply job creation in logs
+- Plans created by this daemon require manual review and approval
+- Check the Analysis Plans page in the UI to review and apply generated plans
+- Use the Auto Plan Applier Daemon if you want automatic plan application
 
 ### High Resource Usage
 - Reduce `batch_size` to process fewer scenes at once
