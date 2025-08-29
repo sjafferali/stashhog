@@ -124,6 +124,11 @@ class BaseDaemon(ABC):
             if daemon:
                 daemon.status = DaemonStatus.STOPPED.value
                 daemon.started_at = None
+                # Clear status tracking fields
+                setattr(daemon, "current_status", None)
+                setattr(daemon, "current_job_id", None)
+                setattr(daemon, "current_job_type", None)
+                setattr(daemon, "status_updated_at", None)
                 await db.commit()
 
         self.status = DaemonStatus.STOPPED
@@ -211,6 +216,52 @@ class BaseDaemon(ABC):
             if daemon:
                 daemon.last_heartbeat = datetime.now(timezone.utc)
                 await db.commit()
+
+    async def update_status(
+        self,
+        status_message: str,
+        job_id: Optional[str] = None,
+        job_type: Optional[str] = None,
+    ):
+        """
+        Update the daemon's current status and optionally track a job being monitored.
+
+        Args:
+            status_message: Human-readable description of what the daemon is doing
+            job_id: Optional ID of a job being monitored
+            job_type: Optional type of the job being monitored
+        """
+        async with AsyncSessionLocal() as db:
+            daemon = await db.get(Daemon, self.daemon_id)
+            if daemon:
+                setattr(daemon, "current_status", status_message)
+                setattr(daemon, "current_job_id", job_id)
+                setattr(daemon, "current_job_type", job_type)
+                status_updated_at = datetime.now(timezone.utc)
+                setattr(daemon, "status_updated_at", status_updated_at)
+                await db.commit()
+
+                # Broadcast status update via WebSocket
+                try:
+                    from app.services.websocket_manager import websocket_manager
+
+                    await websocket_manager.broadcast_daemon_status(
+                        daemon_id=str(self.daemon_id),
+                        status={
+                            "current_status": status_message,
+                            "current_job_id": job_id,
+                            "current_job_type": job_type,
+                            "status_updated_at": status_updated_at.isoformat(),
+                        },
+                    )
+                except Exception as e:
+                    # Log but don't fail if websocket broadcast fails
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.error(
+                        f"Failed to broadcast daemon status: {e}", exc_info=True
+                    )
 
     async def track_job_action(
         self, job_id: str, action: DaemonJobAction, reason: Optional[str] = None

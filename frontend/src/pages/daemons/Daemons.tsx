@@ -51,12 +51,20 @@ const Daemons: React.FC = () => {
         prev.map((d) => (d.id === message.daemon?.id ? message.daemon : d))
       );
     } else if (message.type === 'daemon_status') {
-      // Update daemon statistics
-      setStatistics((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(message.daemon_id, message.status);
-        return newMap;
-      });
+      // Update daemon's current status fields
+      setDaemons((prev) =>
+        prev.map((d) =>
+          d.id === message.daemon_id
+            ? {
+                ...d,
+                current_status: message.status?.current_status,
+                current_job_id: message.status?.current_job_id,
+                current_job_type: message.status?.current_job_type,
+                status_updated_at: message.status?.status_updated_at,
+              }
+            : d
+        )
+      );
     } else if (message.type === 'pong') {
       console.log('Daemons WebSocket connected');
     }

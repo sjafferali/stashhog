@@ -65,6 +65,12 @@ class Daemon(BaseModel):
     configuration = Column(JSONBType, nullable=True, default=dict)
     started_at = Column(DateTime(timezone=True), nullable=True)
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
+
+    # Status tracking fields
+    current_status = Column(String(500), nullable=True)
+    current_job_id = Column(String(36), nullable=True)
+    current_job_type = Column(String(100), nullable=True)
+    status_updated_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -97,6 +103,12 @@ class Daemon(BaseModel):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "last_heartbeat": (
                 self.last_heartbeat.isoformat() if self.last_heartbeat else None
+            ),
+            "current_status": self.current_status,
+            "current_job_id": self.current_job_id,
+            "current_job_type": self.current_job_type,
+            "status_updated_at": (
+                self.status_updated_at.isoformat() if self.status_updated_at else None
             ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

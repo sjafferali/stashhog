@@ -20,6 +20,10 @@ class DaemonResponse(BaseModel):
     configuration: Dict[str, Any]
     started_at: Optional[datetime]
     last_heartbeat: Optional[datetime]
+    current_status: Optional[str]
+    current_job_id: Optional[str]
+    current_job_type: Optional[str]
+    status_updated_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 

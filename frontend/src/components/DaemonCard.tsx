@@ -323,6 +323,48 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
           </Tag>
         </Space>
 
+        {/* Current Activity Status */}
+        {daemon.status === DaemonStatus.RUNNING && daemon.current_status && (
+          <Alert
+            message={
+              <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                <Text strong>Current Activity</Text>
+                <Text>{daemon.current_status}</Text>
+                {daemon.current_job_id && daemon.current_job_type && (
+                  <Space size={4}>
+                    <Tag color="blue" style={{ marginLeft: 0 }}>
+                      {daemon.current_job_type}
+                    </Tag>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => navigate(`/jobs/${daemon.current_job_id}`)}
+                      style={{ padding: 0, height: 'auto' }}
+                    >
+                      View Job →
+                    </Button>
+                  </Space>
+                )}
+                {daemon.status_updated_at && (
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    Updated{' '}
+                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
+                      addSuffix: true,
+                    })}
+                  </Text>
+                )}
+              </Space>
+            }
+            type="info"
+            showIcon={false}
+            style={{
+              marginTop: 8,
+              backgroundColor: '#f0f5ff',
+              border: '1px solid #d6e4ff',
+            }}
+          />
+        )}
+
         {/* Current Activity with Progress */}
         {statistics && statistics.current_activity && (
           <div>

@@ -254,7 +254,86 @@ await self.log(LogLevel.WARNING, "Queue is getting large")
 await self.log(LogLevel.ERROR, f"Failed to process: {error}")
 ```
 
-### 3. Heartbeat Management
+### 3. Status Reporting
+
+Report what your daemon is currently doing for real-time visibility in the UI:
+
+```python
+async def run(self):
+    while self.is_running:
+        # Report when checking for work
+        await self.update_status("Checking for pending items")
+        items = await self._get_items_to_process()
+        
+        if not items:
+            # Report when sleeping
+            await self.update_status(f"No items found, sleeping for {config['interval']} seconds")
+            await asyncio.sleep(config['interval'])
+            continue
+        
+        # Report when processing
+        await self.update_status(f"Processing {len(items)} items")
+        
+        for item in items:
+            # Report item-specific processing
+            await self.update_status(f"Processing item {item.id}")
+            
+            # If launching a job, include job details
+            job = await self._create_job(item)
+            await self.update_status(
+                f"Monitoring job for item {item.id}",
+                job_id=str(job.id),
+                job_type=job.type
+            )
+            
+            # Process the job...
+            await self._monitor_job(job.id)
+        
+        # Report completion
+        await self.update_status(f"Completed processing {len(items)} items")
+```
+
+**Best Practices for Status Reporting:**
+
+1. **Be Descriptive**: Clearly describe what the daemon is doing
+   ```python
+   # ✅ GOOD: Specific and informative
+   await self.update_status("Analyzing 50 scenes for video tags")
+   
+   # ❌ BAD: Too vague
+   await self.update_status("Working...")
+   ```
+
+2. **Update Before Long Operations**: Report status before operations that take time
+   ```python
+   await self.update_status("Fetching scenes from Stash API")
+   scenes = await fetch_scenes()  # May take several seconds
+   ```
+
+3. **Include Job Information**: When monitoring jobs, include job details
+   ```python
+   await self.update_status(
+       "Applying analysis plan ID 12345",
+       job_id=job_id,
+       job_type=JobType.APPLY_PLAN.value
+   )
+   ```
+
+4. **Report Sleep/Wait States**: Let users know when daemon is idle
+   ```python
+   await self.update_status(f"Sleeping for {interval} seconds")
+   await asyncio.sleep(interval)
+   ```
+
+5. **Clear Status on Stop**: Status is automatically cleared when daemon stops
+
+**Status Display in UI:**
+- Status updates appear in real-time on the Daemons page
+- Job links are provided when job_id and job_type are included
+- Updates are broadcast via WebSocket for instant visibility
+- Last update timestamp is shown to indicate freshness
+
+### 4. Heartbeat Management
 
 Update heartbeat regularly to indicate daemon health:
 

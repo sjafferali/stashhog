@@ -8,6 +8,10 @@ export interface Daemon {
   configuration: Record<string, unknown>;
   started_at?: string;
   last_heartbeat?: string;
+  current_status?: string;
+  current_job_id?: string;
+  current_job_type?: string;
+  status_updated_at?: string;
   created_at: string;
   updated_at: string;
 }
