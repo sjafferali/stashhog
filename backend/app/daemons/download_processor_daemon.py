@@ -133,7 +133,7 @@ class DownloadProcessorDaemon(BaseDaemon):
         # Return appropriate sleep duration
         if not self._monitored_jobs:
             await self.update_status(
-                f"No work found, sleeping for {config['job_interval_seconds']} seconds"
+                f"Sleeping for {config['job_interval_seconds']} seconds"
             )
         return 5 if self._monitored_jobs else int(config["job_interval_seconds"])
 

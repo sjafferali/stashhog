@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Tag,
@@ -72,6 +72,32 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
   const [activities, setActivities] = useState<DaemonActivity[]>([]);
   const [loadingErrors, setLoadingErrors] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+
+  // Add CSS animation for pulsing effect
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+    `;
+    const existing = document.head.querySelector('[data-daemon-card-styles]');
+    if (!existing) {
+      style.setAttribute('data-daemon-card-styles', 'true');
+      document.head.appendChild(style);
+    }
+    return () => {
+      // Cleanup handled by attribute check above
+    };
+  }, []);
 
   // Load errors when hovering over error badge
   const loadErrors = async () => {
@@ -217,16 +243,112 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
 
   const needsAttention = statistics && statistics.health_score < 60;
 
+  // Check if daemon is sleeping
+  const getSleepInfo = (status: string | undefined) => {
+    if (!status) return null;
+
+    const match = status.match(/sleeping for (\d+) seconds/i);
+    if (match) {
+      return {
+        duration: parseInt(match[1]),
+        isSleeping: true,
+      };
+    }
+    return { isSleeping: false };
+  };
+
+  const sleepInfo = getSleepInfo(daemon.current_status);
+
   const cardElement = (
     <Card
       title={
-        <Space>
-          {daemon.name}
-          {getStatusIcon(daemon.status)}
-          {isActivelyProcessing && (
-            <SyncOutlined spin style={{ color: '#1890ff' }} />
+        <div>
+          <Space>
+            {daemon.name}
+            {getStatusIcon(daemon.status)}
+            {isActivelyProcessing && (
+              <SyncOutlined spin style={{ color: '#1890ff' }} />
+            )}
+          </Space>
+          {/* Integrated status display */}
+          {daemon.status === DaemonStatus.RUNNING && daemon.current_status && (
+            <div
+              style={{
+                marginTop: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {sleepInfo?.isSleeping ? (
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: '#faad14',
+                    animation: 'pulse 2s ease-in-out infinite',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: '#52c41a',
+                    animation: 'pulse 1s ease-in-out infinite',
+                  }}
+                />
+              )}
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 'normal',
+                  lineHeight: 1,
+                }}
+              >
+                {daemon.current_status}
+              </Text>
+              {daemon.current_job_id && daemon.current_job_type && (
+                <Space size={4}>
+                  <Tag
+                    color="blue"
+                    style={{
+                      marginLeft: 0,
+                      fontSize: 11,
+                      lineHeight: '18px',
+                      padding: '0 6px',
+                    }}
+                  >
+                    {daemon.current_job_type}
+                  </Tag>
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => {
+                      void navigate(`/jobs/${daemon.current_job_id}`);
+                    }}
+                    style={{ padding: 0, height: 'auto', fontSize: 12 }}
+                  >
+                    View →
+                  </Button>
+                </Space>
+              )}
+              {daemon.status_updated_at && (
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 11, marginLeft: 'auto', opacity: 0.6 }}
+                >
+                  {formatDistanceToNow(new Date(daemon.status_updated_at), {
+                    addSuffix: true,
+                  })}
+                </Text>
+              )}
+            </div>
           )}
-        </Space>
+        </div>
       }
       extra={
         <Space>
@@ -322,69 +444,6 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
               .replace(/\b\w/g, (l) => l.toUpperCase())}
           </Tag>
         </Space>
-
-        {/* Current Activity Status */}
-        {daemon.status === DaemonStatus.RUNNING && daemon.current_status && (
-          <Alert
-            message={
-              <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                <Text strong>Current Activity</Text>
-                <Text>{daemon.current_status}</Text>
-                {daemon.current_job_id && daemon.current_job_type && (
-                  <Space size={4}>
-                    <Tag color="blue" style={{ marginLeft: 0 }}>
-                      {daemon.current_job_type}
-                    </Tag>
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => {
-                        void navigate(`/jobs/${daemon.current_job_id}`);
-                      }}
-                      style={{ padding: 0, height: 'auto' }}
-                    >
-                      View Job →
-                    </Button>
-                  </Space>
-                )}
-                {daemon.status_updated_at && (
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    Updated{' '}
-                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
-                      addSuffix: true,
-                    })}
-                  </Text>
-                )}
-              </Space>
-            }
-            type="info"
-            showIcon={false}
-            style={{
-              marginTop: 8,
-              backgroundColor: '#f0f5ff',
-              border: '1px solid #d6e4ff',
-            }}
-          />
-        )}
-
-        {/* Current Activity with Progress */}
-        {statistics && statistics.current_activity && (
-          <div>
-            <Text type="secondary">Current Activity:</Text>
-            <div style={{ marginTop: 4 }}>
-              <Text>{statistics.current_activity}</Text>
-              {statistics.current_progress !== null &&
-                statistics.current_progress !== undefined && (
-                  <Progress
-                    percent={Math.round(statistics.current_progress)}
-                    size="small"
-                    status="active"
-                    style={{ marginTop: 4 }}
-                  />
-                )}
-            </div>
-          </div>
-        )}
 
         {/* Processing Stats */}
         {statistics &&

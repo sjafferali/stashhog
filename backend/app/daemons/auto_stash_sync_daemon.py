@@ -104,7 +104,7 @@ class AutoStashSyncDaemon(BaseDaemon):
                         # Only sleep for the full interval if no job was created
                         if not self._monitored_jobs:
                             await self.update_status(
-                                f"No pending scenes, sleeping for {config['job_interval_seconds']} seconds"
+                                f"Sleeping for {config['job_interval_seconds']} seconds"
                             )
                             await asyncio.sleep(config["job_interval_seconds"])
                         else:
@@ -187,7 +187,7 @@ class AutoStashSyncDaemon(BaseDaemon):
                 if pending_scenes == 0:
                     await self.log(LogLevel.DEBUG, "No scenes pending sync from Stash")
                     await self.update_status(
-                        f"No pending scenes, sleeping for {config['job_interval_seconds']} seconds"
+                        f"Sleeping for {config['job_interval_seconds']} seconds"
                     )
                     return
 

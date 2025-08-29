@@ -105,7 +105,7 @@ class AutoStashGenerationDaemon(BaseDaemon):
                         f"All scenes have generated attribute set, sleeping for {config['job_interval_seconds']} seconds",
                     )
                     await self.update_status(
-                        f"All scenes generated, sleeping for {config['job_interval_seconds']} seconds"
+                        f"Sleeping for {config['job_interval_seconds']} seconds"
                     )
                     await self._sleep_with_heartbeat(
                         config["job_interval_seconds"], config["heartbeat_interval"]

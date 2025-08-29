@@ -115,7 +115,7 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 # Sleep for configured interval with heartbeat updates
                 if not self._monitored_jobs:
                     await self.update_status(
-                        f"No work found, sleeping for {config['job_interval_seconds']} seconds"
+                        f"Sleeping for {config['job_interval_seconds']} seconds"
                     )
                 await self._sleep_with_heartbeat(
                     config["job_interval_seconds"], config["heartbeat_interval"]

@@ -164,7 +164,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             if total_pending == 0:
                 await self.log(LogLevel.DEBUG, "No scenes pending video analysis")
                 await self.update_status(
-                    f"No scenes to analyze, sleeping for {config['job_interval_seconds']} seconds"
+                    f"Sleeping for {config['job_interval_seconds']} seconds"
                 )
                 # Reset counters when all scenes are processed
                 self._batch_counter = 0
