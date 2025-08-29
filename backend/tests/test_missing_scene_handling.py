@@ -178,6 +178,9 @@ async def test_daemon_skips_failed_plans():
     daemon.update_heartbeat = AsyncMock()
     daemon.is_running = True
 
+    # Mock on_start to prevent database access during initialization
+    daemon.on_start = AsyncMock()
+
     # Initialize daemon state without calling on_start() to avoid any database interaction
     daemon._monitored_jobs = set()
     daemon._job_to_plan_mapping = {}

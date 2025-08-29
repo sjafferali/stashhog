@@ -18,23 +18,50 @@ class TestAutoVideoAnalysisDaemon:
     @pytest.fixture
     async def daemon(self):
         """Create a test daemon instance."""
-        daemon = AutoVideoAnalysisDaemon(daemon_id=uuid4())
-        daemon.config = {
-            "heartbeat_interval": 1,
-            "job_interval_seconds": 2,  # Short interval for testing
-            "batch_size": 10,
-        }
-        daemon.is_running = True
-        # Mock the log method to prevent database writes
-        daemon.log = AsyncMock()
-        # Mock update_heartbeat to prevent database writes
-        daemon.update_heartbeat = AsyncMock()
-        await daemon.on_start()
+        daemon_id = uuid4()
+
+        # Mock the database access that happens during on_start()
+        mock_daemon_record = MagicMock()
+        mock_daemon_record.id = daemon_id
+        mock_daemon_record.status = "RUNNING"
+        mock_daemon_record.started_at = None
+
+        # Create mock database session
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=mock_daemon_record)
+        mock_db.commit = AsyncMock()
+
+        # Patch AsyncSessionLocal before creating daemon
+        with patch("app.daemons.base.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__.return_value = mock_db
+
+            daemon = AutoVideoAnalysisDaemon(daemon_id=daemon_id)
+            daemon.config = {
+                "heartbeat_interval": 1,
+                "job_interval_seconds": 2,  # Short interval for testing
+                "batch_size": 10,
+            }
+            daemon.is_running = True
+            # Mock the log method to prevent database writes
+            daemon.log = AsyncMock()
+            # Mock update_heartbeat to prevent database writes
+            daemon.update_heartbeat = AsyncMock()
+            # Mock track_activity to prevent database writes
+            daemon.track_activity = AsyncMock()
+            await daemon.on_start()
+
         return daemon
 
     @pytest.mark.asyncio
-    async def test_no_concurrent_jobs_when_job_running(self, daemon):
+    @patch("app.daemons.base.AsyncSessionLocal")
+    async def test_no_concurrent_jobs_when_job_running(self, mock_base_session, daemon):
         """Test that daemon won't check for new scenes while a job is running."""
+        # Mock the base session to prevent database access
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=None)
+        mock_db.commit = AsyncMock()
+        mock_base_session.return_value.__aenter__.return_value = mock_db
+
         job_service_mock = MagicMock()
         created_jobs = []
 
@@ -135,8 +162,17 @@ class TestAutoVideoAnalysisDaemon:
                 )
 
     @pytest.mark.asyncio
-    async def test_new_job_after_interval_when_previous_completes(self, daemon):
+    @patch("app.daemons.base.AsyncSessionLocal")
+    async def test_new_job_after_interval_when_previous_completes(
+        self, mock_base_session, daemon
+    ):
         """Test that daemon creates new job after interval when previous job completes."""
+        # Mock the base session to prevent database access
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=None)
+        mock_db.commit = AsyncMock()
+        mock_base_session.return_value.__aenter__.return_value = mock_db
+
         job_service_mock = MagicMock()
         created_jobs = []
 
