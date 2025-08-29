@@ -163,10 +163,17 @@ async def test_apply_plan_with_all_scenes_missing():
 
 
 @pytest.mark.asyncio
-async def test_daemon_skips_failed_plans():
+@patch("app.daemons.base.AsyncSessionLocal")
+async def test_daemon_skips_failed_plans(mock_base_session):
     """Test that the daemon doesn't retry failed plans."""
     from app.daemons.auto_plan_applier_daemon import AutoPlanApplierDaemon
     from app.models import PlanStatus
+
+    # Mock the base daemon's database access
+    mock_base_db = AsyncMock()
+    mock_base_db.get = AsyncMock(return_value=None)
+    mock_base_db.commit = AsyncMock()
+    mock_base_session.return_value.__aenter__.return_value = mock_base_db
 
     # Create daemon instance with valid UUID
     daemon = AutoPlanApplierDaemon(
@@ -176,6 +183,7 @@ async def test_daemon_skips_failed_plans():
     # Mock database-related methods to prevent actual database interaction
     daemon.log = AsyncMock()
     daemon.update_heartbeat = AsyncMock()
+    daemon.track_activity = AsyncMock()
     daemon.is_running = True
 
     # Mock on_start to prevent database access during initialization
