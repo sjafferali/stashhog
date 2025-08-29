@@ -101,6 +101,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                             f"No jobs running and {time_since_last_check:.1f}s since last check "
                             f"(>= {config['job_interval_seconds']}s interval), checking for scenes",
                         )
+                        await self.update_status(
+                            "Checking for scenes needing video analysis"
+                        )
                         await self._check_and_analyze_scenes(config)
                     else:
                         # Sleep for the remaining time until next check
@@ -111,6 +114,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                             LogLevel.DEBUG,
                             f"Waiting {remaining_sleep:.1f}s before next scene check",
                         )
+                        await self.update_status(
+                            f"Waiting {remaining_sleep:.0f}s before next scene check"
+                        )
                         await asyncio.sleep(
                             min(remaining_sleep, 1)
                         )  # Sleep in small increments
@@ -120,6 +126,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         LogLevel.DEBUG,
                         f"Monitoring {len(self._monitored_jobs)} active job(s), skipping scene check",
                     )
+                    # Status update handled in _check_monitored_jobs
                     await asyncio.sleep(1)
 
             except asyncio.CancelledError:
@@ -156,6 +163,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
 
             if total_pending == 0:
                 await self.log(LogLevel.DEBUG, "No scenes pending video analysis")
+                await self.update_status(
+                    f"No scenes to analyze, sleeping for {config['job_interval_seconds']} seconds"
+                )
                 # Reset counters when all scenes are processed
                 self._batch_counter = 0
                 self._initial_total_pending = 0
@@ -174,6 +184,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 LogLevel.INFO,
                 f"Found {total_pending} scenes pending video analysis",
             )
+            await self.update_status(f"Found {total_pending} scenes needing analysis")
 
             # Get batch of scenes to analyze
             batch_size = config["batch_size"]
@@ -198,6 +209,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 LogLevel.INFO,
                 f"Processing batch {self._batch_counter} of {total_batches} "
                 f"({len(scene_ids)} scenes)",
+            )
+            await self.update_status(
+                f"Processing batch {self._batch_counter} of {total_batches} ({len(scene_ids)} scenes)"
             )
 
             # Create video tag analysis job
@@ -244,6 +258,13 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 f"Total monitored jobs: {len(self._monitored_jobs) + 1}",
             )
 
+            # Update status with job information
+            await self.update_status(
+                f"Analyzing video tags for {len(scene_ids)} scenes",
+                job_id=job_id,
+                job_type=JobType.ANALYSIS.value,
+            )
+
             # Track this job
             await self.track_job_action(
                 job_id=job_id,
@@ -267,6 +288,20 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             return
 
         completed_jobs = set()
+
+        # Update status to show we're monitoring jobs
+        if len(self._monitored_jobs) == 1:
+            # Get the single job ID for status
+            job_id = next(iter(self._monitored_jobs))
+            await self.update_status(
+                "Waiting for video analysis to complete",
+                job_id=job_id,
+                job_type=JobType.ANALYSIS.value,
+            )
+        else:
+            await self.update_status(
+                f"Monitoring {len(self._monitored_jobs)} analysis jobs"
+            )
 
         async with AsyncSessionLocal() as db:
             # Create a copy to avoid "Set changed size during iteration" error
@@ -312,3 +347,7 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             self._monitored_jobs -= completed_jobs
             # Update last check time when jobs complete to start the interval timer
             self._last_check_time = time.time()
+
+            # Update status after job completion
+            if not self._monitored_jobs:
+                await self.update_status("Analysis completed, checking for more scenes")

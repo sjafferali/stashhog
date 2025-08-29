@@ -81,11 +81,15 @@ class AutoStashGenerationDaemon(BaseDaemon):
                     state["last_heartbeat_time"] = current_time
 
                 # Step 1: Check for running/pending jobs
+                await self.update_status("Checking for running/pending jobs")
                 has_running_jobs = await self._check_for_running_jobs()
                 if has_running_jobs:
                     await self.log(
                         LogLevel.INFO,
                         f"Jobs are running, skipping generation check and sleeping for {config['job_interval_seconds']} seconds",
+                    )
+                    await self.update_status(
+                        f"Jobs are running, sleeping for {config['job_interval_seconds']} seconds"
                     )
                     await self._sleep_with_heartbeat(
                         config["job_interval_seconds"], config["heartbeat_interval"]
@@ -93,11 +97,15 @@ class AutoStashGenerationDaemon(BaseDaemon):
                     continue
 
                 # Step 2: Check if any scenes are missing the generated attribute
+                await self.update_status("Checking for ungenerated scenes")
                 has_ungenerated_scenes = await self._check_for_ungenerated_scenes()
                 if not has_ungenerated_scenes:
                     await self.log(
                         LogLevel.DEBUG,
                         f"All scenes have generated attribute set, sleeping for {config['job_interval_seconds']} seconds",
+                    )
+                    await self.update_status(
+                        f"All scenes generated, sleeping for {config['job_interval_seconds']} seconds"
                     )
                     await self._sleep_with_heartbeat(
                         config["job_interval_seconds"], config["heartbeat_interval"]
@@ -105,12 +113,16 @@ class AutoStashGenerationDaemon(BaseDaemon):
                     continue
 
                 # Step 3: Start a Stash Generate Metadata job and monitor it
+                await self.update_status("Starting generation job")
                 await self._run_and_monitor_generation_job()
 
                 # Step 4: Sleep for configured interval
                 await self.log(
                     LogLevel.DEBUG,
                     f"Generation cycle complete, sleeping for {config['job_interval_seconds']} seconds",
+                )
+                await self.update_status(
+                    f"Generation cycle complete, sleeping for {config['job_interval_seconds']} seconds"
                 )
                 await self._sleep_with_heartbeat(
                     config["job_interval_seconds"], config["heartbeat_interval"]
@@ -227,6 +239,12 @@ class AutoStashGenerationDaemon(BaseDaemon):
                 f"Created Stash metadata generation job {job_id}",
             )
 
+            await self.update_status(
+                "Generating metadata",
+                job_id=str(job_id),
+                job_type=JobType.STASH_GENERATE.value,
+            )
+
             # Track this job
             await self.track_job_action(
                 job_id=job_id,
@@ -238,6 +256,12 @@ class AutoStashGenerationDaemon(BaseDaemon):
             job_cancelled = False
             config = self._load_config()
             last_heartbeat_time = time.time()
+
+            await self.update_status(
+                "Monitoring generation job",
+                job_id=str(job_id),
+                job_type=JobType.STASH_GENERATE.value,
+            )
 
             while self.is_running:
                 current_time = time.time()

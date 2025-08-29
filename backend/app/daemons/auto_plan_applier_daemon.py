@@ -99,10 +99,12 @@ class AutoPlanApplierDaemon(BaseDaemon):
                     state["last_heartbeat_time"] = current_time
 
                 # Check monitored jobs for completion
+                await self.update_status("Checking monitored jobs")
                 await self._check_monitored_jobs()
 
                 # Process plans if no jobs are being monitored
                 if not self._monitored_jobs:
+                    await self.update_status("Checking for plans to apply")
                     plans_processed = await self._process_plans(config)
                     if plans_processed > 0:
                         await self.log(
@@ -111,6 +113,10 @@ class AutoPlanApplierDaemon(BaseDaemon):
                         )
 
                 # Sleep for configured interval with heartbeat updates
+                if not self._monitored_jobs:
+                    await self.update_status(
+                        f"No work found, sleeping for {config['job_interval_seconds']} seconds"
+                    )
                 await self._sleep_with_heartbeat(
                     config["job_interval_seconds"], config["heartbeat_interval"]
                 )
@@ -152,6 +158,7 @@ class AutoPlanApplierDaemon(BaseDaemon):
 
             if not plans:
                 await self.log(LogLevel.DEBUG, "No plans in DRAFT or REVIEWING status")
+                await self.update_status("No plans in DRAFT or REVIEWING status")
                 return 0
 
             # Filter plans by prefix if configured
@@ -163,6 +170,9 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 await self.log(
                     LogLevel.DEBUG,
                     f"No plans matched prefix filter: {config['plan_prefix_filter']}",
+                )
+                await self.update_status(
+                    f"No plans matched prefix filter: {config['plan_prefix_filter']}"
                 )
                 return 0
 
@@ -204,6 +214,9 @@ class AutoPlanApplierDaemon(BaseDaemon):
                     # Mark as processed to avoid reprocessing
                     self._processed_plans.add(plan_id)
 
+                    await self.update_status(
+                        f"Applying plan {plan_id}", job_id=None, job_type=None
+                    )
                     job_id = await self._create_and_wait_for_job(
                         plan_id, config["auto_approve_all_changes"]
                     )
@@ -297,6 +310,10 @@ class AutoPlanApplierDaemon(BaseDaemon):
                 LogLevel.INFO,
                 f"Launching apply plan job {job_id} for plan {plan_id} "
                 f"(auto_approve={auto_approve})",
+            )
+
+            await self.update_status(
+                "Applying plan", job_id=str(job_id), job_type=JobType.APPLY_PLAN.value
             )
 
             # Track this job
@@ -421,6 +438,12 @@ class AutoPlanApplierDaemon(BaseDaemon):
         await self.log(
             LogLevel.INFO,
             f"Waiting for apply plan job {job_id} for plan {plan_id} to complete",
+        )
+
+        await self.update_status(
+            "Monitoring job completion",
+            job_id=str(job_id),
+            job_type=JobType.APPLY_PLAN.value,
         )
 
         config = self._load_config()

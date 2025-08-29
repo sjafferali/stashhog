@@ -107,6 +107,7 @@ class DownloadProcessorDaemon(BaseDaemon):
             Sleep duration in seconds before next iteration
         """
         # Check monitored jobs
+        await self.update_status("Checking monitored jobs")
         completed_job_result = await self._check_monitored_jobs()
 
         # If jobs are being monitored, check frequently
@@ -120,12 +121,20 @@ class DownloadProcessorDaemon(BaseDaemon):
         # If we just completed a cycle (all jobs finished), sleep for the full interval
         if self._just_completed_cycle:
             self._just_completed_cycle = False
+            await self.update_status(
+                f"Completed processing cycle, sleeping for {config['job_interval_seconds']} seconds"
+            )
             return int(config["job_interval_seconds"])
 
         # Check for new downloads to process
+        await self.update_status("Checking for downloads to process")
         await self._check_and_process_downloads(config)
 
         # Return appropriate sleep duration
+        if not self._monitored_jobs:
+            await self.update_status(
+                f"No work found, sleeping for {config['job_interval_seconds']} seconds"
+            )
         return 5 if self._monitored_jobs else int(config["job_interval_seconds"])
 
     async def _handle_completed_download_job(
@@ -172,6 +181,7 @@ class DownloadProcessorDaemon(BaseDaemon):
 
             if pending_count == 0:
                 await self.log(LogLevel.DEBUG, "No downloads pending processing")
+                await self.update_status("No downloads pending processing")
                 return
 
             await self.log(
@@ -214,6 +224,12 @@ class DownloadProcessorDaemon(BaseDaemon):
             await self.log(
                 LogLevel.INFO,
                 f"Launching process downloads job {job_id} for {pending_count} pending downloads",
+            )
+
+            await self.update_status(
+                "Processing downloads",
+                job_id=str(job_id),
+                job_type=JobType.PROCESS_DOWNLOADS.value,
             )
 
             # Track this job
@@ -268,6 +284,12 @@ class DownloadProcessorDaemon(BaseDaemon):
                 f"Launching Stash metadata scan job {job_id}",
             )
 
+            await self.update_status(
+                "Scanning metadata",
+                job_id=str(job_id),
+                job_type=JobType.STASH_SCAN.value,
+            )
+
             # Track this job
             await self.track_job_action(
                 job_id=job_id,
@@ -314,6 +336,11 @@ class DownloadProcessorDaemon(BaseDaemon):
                 await self.log(
                     LogLevel.DEBUG,
                     f"Monitoring job {job_id}: type={job.type}, status={job.status}",
+                )
+
+                # Update status for job monitoring
+                await self.update_status(
+                    "Monitoring job", job_id=str(job_id), job_type=str(job.type)
                 )
 
                 # Check if job has finished

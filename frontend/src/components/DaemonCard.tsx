@@ -338,7 +338,9 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                     <Button
                       type="link"
                       size="small"
-                      onClick={() => navigate(`/jobs/${daemon.current_job_id}`)}
+                      onClick={() => {
+                        void navigate(`/jobs/${daemon.current_job_id}`);
+                      }}
                       style={{ padding: 0, height: 'auto' }}
                     >
                       View Job →

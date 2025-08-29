@@ -97,9 +97,15 @@ class AutoStashSyncDaemon(BaseDaemon):
 
                     if time_since_last_job >= config["job_interval_seconds"]:
                         # Enough time has passed, check for pending scenes
+                        await self.update_status(
+                            "Checking for scenes to sync from Stash"
+                        )
                         await self._check_and_sync_scenes(config)
                         # Only sleep for the full interval if no job was created
                         if not self._monitored_jobs:
+                            await self.update_status(
+                                f"No pending scenes, sleeping for {config['job_interval_seconds']} seconds"
+                            )
                             await asyncio.sleep(config["job_interval_seconds"])
                         else:
                             # Job was created, check more frequently
@@ -113,6 +119,9 @@ class AutoStashSyncDaemon(BaseDaemon):
                             LogLevel.DEBUG,
                             f"Waiting {remaining_time:.1f}s before next sync check "
                             f"(last job completed {time_since_last_job:.1f}s ago)",
+                        )
+                        await self.update_status(
+                            f"Waiting {remaining_time:.0f}s before next sync check"
                         )
                         await asyncio.sleep(
                             min(remaining_time, 30)
@@ -177,12 +186,16 @@ class AutoStashSyncDaemon(BaseDaemon):
 
                 if pending_scenes == 0:
                     await self.log(LogLevel.DEBUG, "No scenes pending sync from Stash")
+                    await self.update_status(
+                        f"No pending scenes, sleeping for {config['job_interval_seconds']} seconds"
+                    )
                     return
 
                 await self.log(
                     LogLevel.INFO,
                     f"Found {pending_scenes} scenes pending sync from Stash",
                 )
+                await self.update_status(f"Found {pending_scenes} scenes needing sync")
 
                 # Create incremental sync job
                 await self._create_sync_job(pending_scenes)
@@ -221,6 +234,13 @@ class AutoStashSyncDaemon(BaseDaemon):
                 f"Created incremental sync job {job_id} for {pending_scenes} pending scenes",
             )
 
+            # Update status with job information
+            await self.update_status(
+                f"Syncing {pending_scenes} scenes from Stash",
+                job_id=job_id,
+                job_type=JobType.SYNC.value,
+            )
+
             # Track this job
             await self.track_job_action(
                 job_id=job_id,
@@ -244,6 +264,15 @@ class AutoStashSyncDaemon(BaseDaemon):
             return
 
         completed_jobs = set()
+
+        # Update status to show we're monitoring sync
+        if len(self._monitored_jobs) == 1:
+            job_id = next(iter(self._monitored_jobs))
+            await self.update_status(
+                "Waiting for sync to complete",
+                job_id=job_id,
+                job_type=JobType.SYNC.value,
+            )
 
         async with AsyncSessionLocal() as db:
             # Create a copy to avoid "Set changed size during iteration" error
@@ -282,6 +311,9 @@ class AutoStashSyncDaemon(BaseDaemon):
                             f"Executed incremental sync due to {pending_scenes} scenes that needed to be resynced. "
                             f"Job {job_id} completed successfully.",
                         )
+                        await self.update_status(
+                            f"Sync completed for {pending_scenes} scenes"
+                        )
                     elif job.status == JobStatus.CANCELLED.value:
                         await self.log(
                             LogLevel.WARNING,
@@ -312,3 +344,7 @@ class AutoStashSyncDaemon(BaseDaemon):
                 f"Removed {len(completed_jobs)} completed jobs from monitoring. "
                 f"Still monitoring {len(self._monitored_jobs)} jobs.",
             )
+
+            # Update status after job completion
+            if not self._monitored_jobs:
+                await self.update_status("Sync completed, checking for more scenes")
