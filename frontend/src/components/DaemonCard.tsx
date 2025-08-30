@@ -514,7 +514,7 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        navigate(`/jobs?job_id=${daemon.current_job_id}`);
+                        void navigate(`/jobs?job_id=${daemon.current_job_id}`);
                       }}
                       style={{
                         padding: 0,
