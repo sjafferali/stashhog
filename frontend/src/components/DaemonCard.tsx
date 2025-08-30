@@ -495,23 +495,7 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                 >
                   {daemon.current_status}
                 </Text>
-                {daemon.status_updated_at && (
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: 11,
-                      opacity: 0.6,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
-                      addSuffix: true,
-                    })}
-                  </Text>
-                )}
-              </div>
-              {daemon.current_job_id && daemon.current_job_type && (
-                <div style={{ marginTop: 4, paddingLeft: 16 }}>
+                {daemon.current_job_id && daemon.current_job_type && (
                   <Space size={6}>
                     <Tag
                       color="blue"
@@ -530,7 +514,7 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void navigate(`/jobs?job_id=${daemon.current_job_id}`);
+                        navigate(`/jobs?job_id=${daemon.current_job_id}`);
                       }}
                       style={{
                         padding: 0,
@@ -542,6 +526,30 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                       View →
                     </Button>
                   </Space>
+                )}
+              </div>
+              {daemon.status_updated_at && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingLeft: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 10,
+                      opacity: 0.5,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Updated{' '}
+                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
+                      addSuffix: true,
+                    })}
+                  </Text>
                 </div>
               )}
             </div>
