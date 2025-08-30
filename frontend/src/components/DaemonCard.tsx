@@ -6,7 +6,6 @@ import {
   Space,
   Switch,
   Tooltip,
-  Progress,
   Badge,
   Statistic,
   Row,
@@ -88,6 +87,9 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
           opacity: 1;
         }
       }
+      .daemon-status-text {
+        transition: opacity 0.3s ease-in-out;
+      }
     `;
     const existing = document.head.querySelector('[data-daemon-card-styles]');
     if (!existing) {
@@ -152,12 +154,6 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
       case DaemonStatus.ERROR:
         return 'error';
     }
-  };
-
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return '#52c41a';
-    if (score >= 60) return '#faad14';
-    return '#ff4d4f';
   };
 
   const getActivityIcon = (type: string) => {
@@ -241,8 +237,6 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
     statistics.current_activity !== 'Idle' &&
     daemon.status === DaemonStatus.RUNNING;
 
-  const needsAttention = statistics && statistics.health_score < 60;
-
   // Check if daemon is sleeping
   const getSleepInfo = (status: string | undefined) => {
     if (!status) return null;
@@ -278,6 +272,8 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
+                minHeight: 20,
+                width: '100%',
               }}
             >
               {sleepInfo?.isSleeping ? (
@@ -288,6 +284,7 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                     borderRadius: '50%',
                     backgroundColor: '#faad14',
                     animation: 'pulse 2s ease-in-out infinite',
+                    flexShrink: 0,
                   }}
                 />
               ) : (
@@ -298,19 +295,28 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                     borderRadius: '50%',
                     backgroundColor: '#52c41a',
                     animation: 'pulse 1s ease-in-out infinite',
+                    flexShrink: 0,
                   }}
                 />
               )}
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: 13,
-                  fontWeight: 'normal',
-                  lineHeight: 1,
-                }}
-              >
-                {daemon.current_status}
-              </Text>
+              <Tooltip title={daemon.current_status}>
+                <Text
+                  type="secondary"
+                  className="daemon-status-text"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 'normal',
+                    lineHeight: 1.2,
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: 'calc(100% - 200px)',
+                  }}
+                >
+                  {daemon.current_status}
+                </Text>
+              </Tooltip>
               {daemon.current_job_id && daemon.current_job_type && (
                 <Space size={4}>
                   <Tag
@@ -351,39 +357,23 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
         </div>
       }
       extra={
-        <Space>
-          {/* Health Score */}
-          {statistics && (
-            <Tooltip title="Health Score">
-              <Progress
-                type="circle"
-                percent={Math.round(statistics.health_score)}
-                width={40}
-                strokeColor={getHealthColor(statistics.health_score)}
-                format={(percent: number) => `${percent}`}
-              />
-            </Tooltip>
-          )}
-
-          {/* Error Badge */}
-          {statistics && statistics.error_count_24h > 0 && (
-            <Popover
-              content={errorContent}
-              title={null}
-              trigger="hover"
-              onOpenChange={(visible: boolean) => visible && loadErrors()}
+        statistics && statistics.error_count_24h > 0 ? (
+          <Popover
+            content={errorContent}
+            title={null}
+            trigger="hover"
+            onOpenChange={(visible: boolean) => visible && loadErrors()}
+          >
+            <Badge
+              count={statistics.error_count_24h}
+              style={{ backgroundColor: '#ff4d4f' }}
             >
-              <Badge
-                count={statistics.error_count_24h}
-                style={{ backgroundColor: '#ff4d4f' }}
-              >
-                <ExclamationCircleOutlined
-                  style={{ fontSize: 20, color: '#ff4d4f' }}
-                />
-              </Badge>
-            </Popover>
-          )}
-        </Space>
+              <ExclamationCircleOutlined
+                style={{ fontSize: 20, color: '#ff4d4f' }}
+              />
+            </Badge>
+          </Popover>
+        ) : null
       }
       actions={[
         daemon.status === DaemonStatus.STOPPED ? (
@@ -545,15 +535,6 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
       </Space>
     </Card>
   );
-
-  // Only wrap with Badge.Ribbon if needs attention
-  if (needsAttention) {
-    return (
-      <Badge.Ribbon text="Needs Attention" color="red">
-        {cardElement}
-      </Badge.Ribbon>
-    );
-  }
 
   return cardElement;
 };

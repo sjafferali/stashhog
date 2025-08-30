@@ -45,6 +45,7 @@ const Daemons: React.FC = () => {
   const handleWebSocketMessage = useCallback((data: unknown) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const message = data as any;
+
     if (message.type === 'daemon_update') {
       // Update daemon in the list
       setDaemons((prev) =>
@@ -60,18 +61,17 @@ const Daemons: React.FC = () => {
                 current_status: message.status?.current_status,
                 current_job_id: message.status?.current_job_id,
                 current_job_type: message.status?.current_job_type,
-                status_updated_at: message.status?.status_updated_at,
+                status_updated_at:
+                  message.status?.status_updated_at || new Date().toISOString(),
               }
             : d
         )
       );
-    } else if (message.type === 'pong') {
-      console.log('Daemons WebSocket connected');
     }
   }, []);
 
   const handleWebSocketOpen = useCallback(() => {
-    console.log('Daemons WebSocket opened');
+    // Connection established
   }, []);
 
   // WebSocket connection for real-time updates
@@ -87,6 +87,15 @@ const Daemons: React.FC = () => {
     }, 100);
     return () => clearTimeout(timer);
   }, [sendMessage]);
+
+  // Subscribe to all daemons for status updates when daemons are loaded
+  useEffect(() => {
+    if (daemons.length > 0) {
+      daemons.forEach((daemon) => {
+        sendMessage({ command: 'subscribe', daemon_id: daemon.id });
+      });
+    }
+  }, [daemons, sendMessage]);
 
   useEffect(() => {
     const loadData = async () => {
