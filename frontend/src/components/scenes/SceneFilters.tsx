@@ -179,10 +179,14 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                     option.label.toLowerCase().includes(input.toLowerCase())
                   )
                 }
-                options={performers.map((p) => ({
-                  label: p.name,
-                  value: String(p.id),
-                }))}
+                options={
+                  Array.isArray(performers)
+                    ? performers.map((p) => ({
+                        label: p.name,
+                        value: String(p.id),
+                      }))
+                    : []
+                }
                 suffixIcon={<UserOutlined />}
               />
             </Form.Item>
@@ -201,10 +205,14 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                     option.label.toLowerCase().includes(input.toLowerCase())
                   )
                 }
-                options={tags.map((t) => ({
-                  label: t.name,
-                  value: String(t.id),
-                }))}
+                options={
+                  Array.isArray(tags)
+                    ? tags.map((t) => ({
+                        label: t.name,
+                        value: String(t.id),
+                      }))
+                    : []
+                }
                 suffixIcon={<TagsOutlined />}
               />
             </Form.Item>
@@ -223,10 +231,14 @@ export const SceneFilters: React.FC<SceneFiltersProps> = ({
                     option.label.toLowerCase().includes(input.toLowerCase())
                   )
                 }
-                options={studios.map((s) => ({
-                  label: s.name,
-                  value: String(s.id),
-                }))}
+                options={
+                  Array.isArray(studios)
+                    ? studios.map((s) => ({
+                        label: s.name,
+                        value: String(s.id),
+                      }))
+                    : []
+                }
                 suffixIcon={<HomeOutlined />}
               />
             </Form.Item>

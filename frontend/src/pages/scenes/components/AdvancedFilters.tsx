@@ -50,8 +50,8 @@ export const AdvancedFilters: React.FC = () => {
     queryKey: ['performers'],
     queryFn: async () => {
       const response = await api.get('/entities/performers');
-      // The backend returns a direct array, not a paginated response
-      return response.data;
+      // The backend returns a paginated response with items array
+      return response.data?.items || [];
     },
   });
 
@@ -63,8 +63,8 @@ export const AdvancedFilters: React.FC = () => {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await api.get('/entities/tags');
-      // The backend returns a direct array, not a paginated response
-      return response.data;
+      // The backend returns a paginated response with items array
+      return response.data?.items || [];
     },
   });
 
@@ -76,8 +76,8 @@ export const AdvancedFilters: React.FC = () => {
     queryKey: ['studios'],
     queryFn: async () => {
       const response = await api.get('/entities/studios');
-      // The backend returns a direct array, not a paginated response
-      return response.data;
+      // The backend returns a paginated response with items array
+      return response.data?.items || [];
     },
   });
 
@@ -221,10 +221,12 @@ export const AdvancedFilters: React.FC = () => {
                     .includes(input.toLowerCase());
                 }}
                 options={
-                  performers.map((p) => ({
-                    label: p.name,
-                    value: p.id.toString(),
-                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                  (Array.isArray(performers)
+                    ? performers.map((p) => ({
+                        label: p.name,
+                        value: p.id.toString(),
+                      }))
+                    : []) as any
                 }
                 maxTagCount="responsive"
                 notFoundContent={
@@ -290,10 +292,12 @@ export const AdvancedFilters: React.FC = () => {
                         .includes(input.toLowerCase());
                     }}
                     options={
-                      tags.map((t) => ({
-                        label: t.name,
-                        value: t.id.toString(),
-                      })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                      (Array.isArray(tags)
+                        ? tags.map((t) => ({
+                            label: t.name,
+                            value: t.id.toString(),
+                          }))
+                        : []) as any
                     }
                     maxTagCount="responsive"
                     notFoundContent={
@@ -330,10 +334,12 @@ export const AdvancedFilters: React.FC = () => {
                         .includes(input.toLowerCase());
                     }}
                     options={
-                      tags.map((t) => ({
-                        label: t.name,
-                        value: t.id.toString(),
-                      })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                      (Array.isArray(tags)
+                        ? tags.map((t) => ({
+                            label: t.name,
+                            value: t.id.toString(),
+                          }))
+                        : []) as any
                     }
                     maxTagCount="responsive"
                     notFoundContent={
@@ -386,10 +392,12 @@ export const AdvancedFilters: React.FC = () => {
                     .includes(input.toLowerCase());
                 }}
                 options={
-                  studios.map((s) => ({
-                    label: s.name,
-                    value: s.id.toString(),
-                  })) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+                  (Array.isArray(studios)
+                    ? studios.map((s) => ({
+                        label: s.name,
+                        value: s.id.toString(),
+                      }))
+                    : []) as any
                 }
                 maxTagCount="responsive"
                 notFoundContent={
