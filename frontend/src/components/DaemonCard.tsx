@@ -441,20 +441,19 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
           />
         </Space>
 
-        {/* Status Section - moved to bottom with background */}
-        {daemon.status === DaemonStatus.RUNNING && daemon.current_status && (
-          <div
-            style={{
-              marginTop: 12,
-              marginLeft: -12,
-              marginRight: -12,
-              marginBottom: -12,
-              padding: 12,
-              backgroundColor: '#fafafa',
-              borderTop: '1px solid #f0f0f0',
-              borderRadius: '0 0 8px 8px',
-            }}
-          >
+        {/* Status Section - always rendered for consistent height */}
+        <div
+          style={{
+            marginTop: 12,
+            padding: 10,
+            backgroundColor: '#fafafa',
+            border: '1px solid #f0f0f0',
+            borderRadius: 4,
+            minHeight: 40,
+            overflow: 'hidden',
+          }}
+        >
+          {daemon.status === DaemonStatus.RUNNING && daemon.current_status ? (
             <div
               style={{
                 display: 'flex',
@@ -491,7 +490,11 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                 style={{
                   fontSize: 13,
                   flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
+                ellipsis={{ tooltip: daemon.current_status }}
               >
                 {daemon.current_status}
               </Text>
@@ -528,15 +531,53 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
                 </Space>
               )}
               {daemon.status_updated_at && (
-                <Text type="secondary" style={{ fontSize: 11, opacity: 0.6 }}>
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.6,
+                    flexShrink: 0,
+                  }}
+                >
                   {formatDistanceToNow(new Date(daemon.status_updated_at), {
                     addSuffix: true,
                   })}
                 </Text>
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: '#d9d9d9',
+                  flexShrink: 0,
+                }}
+              />
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 13,
+                  opacity: 0.6,
+                }}
+              >
+                {daemon.status === DaemonStatus.STOPPED
+                  ? 'Daemon stopped'
+                  : daemon.status === DaemonStatus.ERROR
+                    ? 'Daemon error'
+                    : 'No activity'}
+              </Text>
+            </div>
+          )}
+        </div>
       </Space>
     </Card>
   );
