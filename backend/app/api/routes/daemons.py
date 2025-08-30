@@ -258,15 +258,15 @@ async def _stop_single_daemon(
         try:
             await daemon_service.stop_daemon(daemon_id)
             logger.info(f"Stopped daemon {daemon.name} ({daemon_id})")
-            daemon.status = DaemonStatus.STOPPED
-            daemon.updated_at = datetime.now(timezone.utc)
+            setattr(daemon, "status", DaemonStatus.STOPPED.value)
+            setattr(daemon, "updated_at", datetime.now(timezone.utc))
             return True, None, True
         except Exception as e:
             logger.error(f"Failed to stop daemon {daemon.name}: {e}")
             return False, f"{daemon.name}: {str(e)}", False
     elif daemon.status == DaemonStatus.RUNNING:
-        daemon.status = DaemonStatus.STOPPED
-        daemon.updated_at = datetime.now(timezone.utc)
+        setattr(daemon, "status", DaemonStatus.STOPPED.value)
+        setattr(daemon, "updated_at", datetime.now(timezone.utc))
         logger.info(f"Updated stale status for daemon {daemon.name} ({daemon_id})")
         return True, None, True
     return False, None, False
@@ -280,6 +280,87 @@ async def _commit_and_broadcast(
         await db.commit()
         for daemon in daemons_to_update:
             await websocket_manager.broadcast_daemon_update(daemon.to_dict())
+
+
+@router.post("/start-all")
+async def start_all_daemons(db: AsyncSession = Depends(get_async_db)):
+    """Start all daemons that are not running and have auto_start enabled."""
+    try:
+        daemons = await daemon_service.get_all_daemons(db)
+        started_count = 0
+        errors = []
+        daemons_to_update = []
+
+        for daemon in daemons:
+            daemon_id = str(daemon.id)
+            # Only start daemons that are not running and have auto_start enabled
+            if daemon.status != DaemonStatus.RUNNING and daemon.auto_start:
+                try:
+                    await daemon_service.start_daemon(daemon_id)
+                    logger.info(f"Started daemon {daemon.name} ({daemon_id})")
+                    setattr(daemon, "status", DaemonStatus.RUNNING.value)
+                    setattr(daemon, "updated_at", datetime.now(timezone.utc))
+                    started_count += 1
+                    daemons_to_update.append(daemon)
+                except Exception as e:
+                    logger.error(f"Failed to start daemon {daemon.name}: {e}")
+                    errors.append(f"{daemon.name}: {str(e)}")
+
+        await _commit_and_broadcast(db, daemons_to_update)
+
+        if errors:
+            return {
+                "message": f"Started {started_count} daemons with some errors",
+                "started_count": started_count,
+                "errors": errors,
+            }
+        return {
+            "message": f"Successfully started {started_count} daemons",
+            "started_count": started_count,
+        }
+    except Exception as e:
+        logger.error(f"Failed to start all daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/restart-all")
+async def restart_all_daemons(db: AsyncSession = Depends(get_async_db)):
+    """Restart all running daemons."""
+    try:
+        daemons = await daemon_service.get_all_daemons(db)
+        restarted_count = 0
+        errors = []
+        daemons_to_update = []
+
+        for daemon in daemons:
+            daemon_id = str(daemon.id)
+            # Only restart daemons that are currently running
+            if daemon.status == DaemonStatus.RUNNING:
+                try:
+                    await daemon_service.restart_daemon(daemon_id)
+                    logger.info(f"Restarted daemon {daemon.name} ({daemon_id})")
+                    setattr(daemon, "updated_at", datetime.now(timezone.utc))
+                    restarted_count += 1
+                    daemons_to_update.append(daemon)
+                except Exception as e:
+                    logger.error(f"Failed to restart daemon {daemon.name}: {e}")
+                    errors.append(f"{daemon.name}: {str(e)}")
+
+        await _commit_and_broadcast(db, daemons_to_update)
+
+        if errors:
+            return {
+                "message": f"Restarted {restarted_count} daemons with some errors",
+                "restarted_count": restarted_count,
+                "errors": errors,
+            }
+        return {
+            "message": f"Successfully restarted {restarted_count} daemons",
+            "restarted_count": restarted_count,
+        }
+    except Exception as e:
+        logger.error(f"Failed to restart all daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/stop-all")

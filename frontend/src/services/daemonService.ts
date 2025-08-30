@@ -43,6 +43,26 @@ const daemonService = {
     return response.data;
   },
 
+  // Start all daemons with auto_start enabled
+  async startAllDaemons(): Promise<{
+    message: string;
+    started_count: number;
+    errors?: string[];
+  }> {
+    const response = await api.post('/daemons/start-all');
+    return response.data;
+  },
+
+  // Restart all running daemons
+  async restartAllDaemons(): Promise<{
+    message: string;
+    restarted_count: number;
+    errors?: string[];
+  }> {
+    const response = await api.post('/daemons/restart-all');
+    return response.data;
+  },
+
   // Stop all running daemons
   async stopAllDaemons(): Promise<{
     message: string;

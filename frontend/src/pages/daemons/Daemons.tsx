@@ -18,6 +18,8 @@ import {
   CodeOutlined,
   CopyOutlined,
   StopOutlined,
+  PlayCircleOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import daemonService from '@/services/daemonService';
 import { Daemon, DaemonStatistics, DaemonStatus } from '@/types/daemon';
@@ -40,6 +42,8 @@ const Daemons: React.FC = () => {
   const [selectedRawDataDaemon, setSelectedRawDataDaemon] =
     useState<Daemon | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
+  const [startingAll, setStartingAll] = useState(false);
+  const [restartingAll, setRestartingAll] = useState(false);
 
   // WebSocket message handler - memoized to prevent reconnections
   const handleWebSocketMessage = useCallback((data: unknown) => {
@@ -240,6 +244,98 @@ const Daemons: React.FC = () => {
     setRawDataModalVisible(true);
   };
 
+  const handleStartAll = async () => {
+    // Check if any daemons can be started (not running and auto_start is true)
+    const startableDaemons = daemons.filter(
+      (d) => d.status !== DaemonStatus.RUNNING && d.auto_start
+    );
+
+    if (startableDaemons.length === 0) {
+      void message.info(
+        'No daemons available to start (all running or auto-start disabled)'
+      );
+      return;
+    }
+
+    // Show confirmation modal
+    Modal.confirm({
+      title: 'Start All Daemons',
+      content: `Are you sure you want to start all ${startableDaemons.length} daemon(s) with auto-start enabled?`,
+      icon: <PlayCircleOutlined />,
+      okText: 'Start All',
+      okType: 'primary',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        setStartingAll(true);
+        try {
+          const result = await daemonService.startAllDaemons();
+
+          if (result.errors && result.errors.length > 0) {
+            void message.warning(
+              `Started ${result.started_count} daemon(s) with some errors`
+            );
+            console.error('Errors starting daemons:', result.errors);
+          } else {
+            void message.success(result.message);
+          }
+
+          // Reload daemons to update their status
+          await Promise.all([loadDaemons(), loadStatistics()]);
+        } catch (error) {
+          void message.error('Failed to start all daemons');
+          console.error(error);
+        } finally {
+          setStartingAll(false);
+        }
+      },
+    });
+  };
+
+  const handleRestartAll = async () => {
+    // Check if any daemons are running
+    const runningDaemons = daemons.filter(
+      (d) => d.status === DaemonStatus.RUNNING
+    );
+
+    if (runningDaemons.length === 0) {
+      void message.info('No daemons are currently running');
+      return;
+    }
+
+    // Show confirmation modal
+    Modal.confirm({
+      title: 'Restart All Daemons',
+      content: `Are you sure you want to restart all ${runningDaemons.length} running daemon(s)?`,
+      icon: <SyncOutlined />,
+      okText: 'Restart All',
+      okType: 'primary',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        setRestartingAll(true);
+        try {
+          const result = await daemonService.restartAllDaemons();
+
+          if (result.errors && result.errors.length > 0) {
+            void message.warning(
+              `Restarted ${result.restarted_count} daemon(s) with some errors`
+            );
+            console.error('Errors restarting daemons:', result.errors);
+          } else {
+            void message.success(result.message);
+          }
+
+          // Reload daemons to update their status
+          await Promise.all([loadDaemons(), loadStatistics()]);
+        } catch (error) {
+          void message.error('Failed to restart all daemons');
+          console.error(error);
+        } finally {
+          setRestartingAll(false);
+        }
+      },
+    });
+  };
+
   const handleStopAll = async () => {
     // Debug logging
     console.log('handleStopAll called');
@@ -315,6 +411,39 @@ const Daemons: React.FC = () => {
           </Col>
           <Col>
             <Space>
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                onClick={() => {
+                  handleStartAll().catch((error) => {
+                    console.error('Error in handleStartAll:', error);
+                  });
+                }}
+                loading={startingAll}
+                disabled={
+                  startingAll ||
+                  daemons.every(
+                    (d) => d.status === DaemonStatus.RUNNING || !d.auto_start
+                  )
+                }
+              >
+                Start All
+              </Button>
+              <Button
+                icon={<SyncOutlined />}
+                onClick={() => {
+                  handleRestartAll().catch((error) => {
+                    console.error('Error in handleRestartAll:', error);
+                  });
+                }}
+                loading={restartingAll}
+                disabled={
+                  restartingAll ||
+                  daemons.every((d) => d.status !== DaemonStatus.RUNNING)
+                }
+              >
+                Restart All
+              </Button>
               <Button
                 danger
                 icon={<StopOutlined />}
