@@ -226,7 +226,7 @@ export const AdvancedFilters: React.FC = () => {
                         label: p.name,
                         value: p.id.toString(),
                       }))
-                    : []) as any
+                    : []) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                 }
                 maxTagCount="responsive"
                 notFoundContent={
@@ -297,7 +297,7 @@ export const AdvancedFilters: React.FC = () => {
                             label: t.name,
                             value: t.id.toString(),
                           }))
-                        : []) as any
+                        : []) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                     }
                     maxTagCount="responsive"
                     notFoundContent={
@@ -339,7 +339,7 @@ export const AdvancedFilters: React.FC = () => {
                             label: t.name,
                             value: t.id.toString(),
                           }))
-                        : []) as any
+                        : []) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                     }
                     maxTagCount="responsive"
                     notFoundContent={
@@ -397,7 +397,7 @@ export const AdvancedFilters: React.FC = () => {
                         label: s.name,
                         value: s.id.toString(),
                       }))
-                    : []) as any
+                    : []) as any // eslint-disable-line @typescript-eslint/no-explicit-any
                 }
                 maxTagCount="responsive"
                 notFoundContent={

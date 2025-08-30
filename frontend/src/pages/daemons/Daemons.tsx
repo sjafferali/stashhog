@@ -241,10 +241,22 @@ const Daemons: React.FC = () => {
   };
 
   const handleStopAll = async () => {
+    // Debug logging
+    console.log('handleStopAll called');
+    console.log('Daemons array:', daemons);
+    console.log(
+      'Daemon statuses:',
+      daemons.map((d) => ({ name: d.name, status: d.status }))
+    );
+    console.log('DaemonStatus.RUNNING value:', DaemonStatus.RUNNING);
+
     // Check if any daemons are running
     const runningDaemons = daemons.filter(
       (d) => d.status === DaemonStatus.RUNNING
     );
+
+    console.log('Running daemons found:', runningDaemons.length);
+    console.log('Running daemons:', runningDaemons);
 
     if (runningDaemons.length === 0) {
       void message.info('No daemons are currently running');
