@@ -306,7 +306,11 @@ const Daemons: React.FC = () => {
               <Button
                 danger
                 icon={<StopOutlined />}
-                onClick={() => void handleStopAll()}
+                onClick={() => {
+                  handleStopAll().catch((error) => {
+                    console.error('Error in handleStopAll:', error);
+                  });
+                }}
                 loading={stoppingAll}
                 disabled={
                   stoppingAll ||

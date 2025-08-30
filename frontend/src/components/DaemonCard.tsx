@@ -264,93 +264,93 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
               <SyncOutlined spin style={{ color: '#1890ff' }} />
             )}
           </Space>
-          {/* Integrated status display */}
+          {/* Integrated status display - redesigned for better readability */}
           {daemon.status === DaemonStatus.RUNNING && daemon.current_status && (
-            <div
-              style={{
-                marginTop: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                minHeight: 20,
-                width: '100%',
-              }}
-            >
-              {sleepInfo?.isSleeping ? (
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: '#faad14',
-                    animation: 'pulse 2s ease-in-out infinite',
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: '#52c41a',
-                    animation: 'pulse 1s ease-in-out infinite',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <Tooltip title={daemon.current_status}>
+            <div style={{ marginTop: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 20,
+                }}
+              >
+                {sleepInfo?.isSleeping ? (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#faad14',
+                      animation: 'pulse 2s ease-in-out infinite',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#52c41a',
+                      animation: 'pulse 1s ease-in-out infinite',
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
                 <Text
                   type="secondary"
                   className="daemon-status-text"
                   style={{
                     fontSize: 13,
                     fontWeight: 'normal',
-                    lineHeight: 1.2,
+                    lineHeight: 1.3,
                     flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: 'calc(100% - 200px)',
                   }}
                 >
                   {daemon.current_status}
                 </Text>
-              </Tooltip>
+                {daemon.status_updated_at && (
+                  <Text type="secondary" style={{ fontSize: 11, opacity: 0.6 }}>
+                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
+                      addSuffix: true,
+                    })}
+                  </Text>
+                )}
+              </div>
               {daemon.current_job_id && daemon.current_job_type && (
-                <Space size={4}>
-                  <Tag
-                    color="blue"
-                    style={{
-                      marginLeft: 0,
-                      fontSize: 11,
-                      lineHeight: '18px',
-                      padding: '0 6px',
-                    }}
-                  >
-                    {daemon.current_job_type}
-                  </Tag>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => {
-                      void navigate(`/jobs/${daemon.current_job_id}`);
-                    }}
-                    style={{ padding: 0, height: 'auto', fontSize: 12 }}
-                  >
-                    View →
-                  </Button>
-                </Space>
-              )}
-              {daemon.status_updated_at && (
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 11, marginLeft: 'auto', opacity: 0.6 }}
-                >
-                  {formatDistanceToNow(new Date(daemon.status_updated_at), {
-                    addSuffix: true,
-                  })}
-                </Text>
+                <div style={{ marginTop: 4, paddingLeft: 16 }}>
+                  <Space size={6}>
+                    <Tag
+                      color="blue"
+                      style={{
+                        fontSize: 11,
+                        lineHeight: '18px',
+                        padding: '0 6px',
+                        margin: 0,
+                      }}
+                    >
+                      {daemon.current_job_type}
+                    </Tag>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void navigate(`/jobs?job_id=${daemon.current_job_id}`);
+                      }}
+                      style={{
+                        padding: 0,
+                        height: 'auto',
+                        fontSize: 12,
+                        color: '#1890ff',
+                      }}
+                    >
+                      View Job →
+                    </Button>
+                  </Space>
+                </div>
               )}
             </div>
           )}
