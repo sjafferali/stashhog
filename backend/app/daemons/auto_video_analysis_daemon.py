@@ -54,6 +54,9 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             0  # Track initial total for consistent batch count
         )
         self._last_check_time = 0.0  # Track when we last checked for new scenes
+        self._waiting_status_set = (
+            False  # Track if we've already set the waiting status
+        )
         await self.log(LogLevel.INFO, "Auto Video Analysis Daemon initialized")
 
     async def on_stop(self) -> None:
@@ -104,22 +107,32 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                         await self.update_status(
                             "Checking for scenes needing video analysis"
                         )
+                        # Reset the waiting status flag since we're now checking
+                        self._waiting_status_set = False
                         await self._check_and_analyze_scenes(config)
                     else:
                         # Sleep for the remaining time until next check
                         remaining_sleep = (
                             config["job_interval_seconds"] - time_since_last_check
                         )
-                        await self.log(
-                            LogLevel.DEBUG,
-                            f"Waiting {remaining_sleep:.1f}s before next scene check",
-                        )
-                        await self.update_status(
-                            f"Waiting {remaining_sleep:.0f}s before next scene check"
-                        )
-                        await asyncio.sleep(
-                            min(remaining_sleep, 1)
-                        )  # Sleep in small increments
+
+                        # Only update status if we haven't already set it for this wait period
+                        # Check if current status already indicates we're waiting
+                        if (
+                            not hasattr(self, "_waiting_status_set")
+                            or not self._waiting_status_set
+                        ):
+                            await self.log(
+                                LogLevel.DEBUG,
+                                f"Waiting {remaining_sleep:.1f}s before next scene check",
+                            )
+                            await self.update_status(
+                                f"Sleeping for {config['job_interval_seconds']} seconds"
+                            )
+                            self._waiting_status_set = True
+
+                        # Sleep in small increments to remain responsive to shutdown
+                        await asyncio.sleep(min(remaining_sleep, 1))
                 else:
                     # Sleep briefly while monitoring jobs
                     await self.log(
@@ -169,6 +182,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
                 # Reset counters when all scenes are processed
                 self._batch_counter = 0
                 self._initial_total_pending = 0
+                # CRITICAL: Update last check time to prevent rapid re-checking
+                self._last_check_time = time.time()
                 return
 
             # Initialize or update total pending tracking
@@ -347,6 +362,8 @@ class AutoVideoAnalysisDaemon(BaseDaemon):
             self._monitored_jobs -= completed_jobs
             # Update last check time when jobs complete to start the interval timer
             self._last_check_time = time.time()
+            # Reset the waiting status flag since we'll be checking for more scenes soon
+            self._waiting_status_set = False
 
             # Update status after job completion
             if not self._monitored_jobs:
