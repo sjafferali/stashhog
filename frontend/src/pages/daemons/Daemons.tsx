@@ -99,25 +99,24 @@ const Daemons: React.FC = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      await loadDaemons();
+      const daemonData = await loadDaemons();
+      // Load statistics only on initial load
+      if (daemonData && daemonData.length > 0) {
+        void loadStatistics(daemonData);
+      }
     };
     void loadData();
   }, []);
-
-  useEffect(() => {
-    if (daemons.length > 0) {
-      void loadStatistics(daemons);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daemons]);
 
   const loadDaemons = async () => {
     try {
       const data = await daemonService.getAllDaemons();
       setDaemons(data);
+      return data;
     } catch (error) {
       void message.error('Failed to load daemons');
       console.error(error);
+      return [];
     } finally {
       setLoading(false);
     }

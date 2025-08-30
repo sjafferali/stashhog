@@ -263,6 +263,9 @@ class BaseDaemon(ABC):
                         f"Failed to broadcast daemon status: {e}", exc_info=True
                     )
 
+        # Add artificial delay to prevent rapid status updates
+        await asyncio.sleep(1)
+
     async def track_job_action(
         self, job_id: str, action: DaemonJobAction, reason: Optional[str] = None
     ):
