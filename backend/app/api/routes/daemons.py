@@ -5,7 +5,7 @@ API routes for daemon management.
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
     APIRouter,
@@ -18,7 +18,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
-from app.models.daemon import DaemonStatus, LogLevel
+from app.models.daemon import Daemon, DaemonStatus, LogLevel
 from app.schemas.daemon import (
     DaemonHealthItem,
     DaemonHealthResponse,
@@ -248,42 +248,61 @@ async def restart_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _stop_single_daemon(
+    daemon, daemon_id: str
+) -> Tuple[bool, Optional[str], bool]:
+    """Process stopping a single daemon.
+    Returns: (stopped, error_msg, needs_update)
+    """
+    if daemon_service.is_daemon_running(daemon_id):
+        try:
+            await daemon_service.stop_daemon(daemon_id)
+            logger.info(f"Stopped daemon {daemon.name} ({daemon_id})")
+            daemon.status = DaemonStatus.STOPPED
+            daemon.updated_at = datetime.now(timezone.utc)
+            return True, None, True
+        except Exception as e:
+            logger.error(f"Failed to stop daemon {daemon.name}: {e}")
+            return False, f"{daemon.name}: {str(e)}", False
+    elif daemon.status == DaemonStatus.RUNNING:
+        daemon.status = DaemonStatus.STOPPED
+        daemon.updated_at = datetime.now(timezone.utc)
+        logger.info(f"Updated stale status for daemon {daemon.name} ({daemon_id})")
+        return True, None, True
+    return False, None, False
+
+
+async def _commit_and_broadcast(
+    db: AsyncSession, daemons_to_update: List[Daemon]
+) -> None:
+    """Commit changes and broadcast updates."""
+    if daemons_to_update:
+        await db.commit()
+        for daemon in daemons_to_update:
+            await websocket_manager.broadcast_daemon_update(daemon.to_dict())
+
+
 @router.post("/stop-all")
 async def stop_all_daemons(db: AsyncSession = Depends(get_async_db)):
     """Stop all running daemons."""
     try:
-        # Get all daemons
         daemons = await daemon_service.get_all_daemons(db)
-
         stopped_count = 0
         errors = []
+        daemons_to_update = []
 
         for daemon in daemons:
-            daemon_id = str(daemon.id)
-
-            # First, check if daemon is actually running in memory
-            if daemon_service.is_daemon_running(daemon_id):
-                try:
-                    await daemon_service.stop_daemon(daemon_id)
-                    stopped_count += 1
-                    logger.info(f"Stopped daemon {daemon.name} ({daemon_id})")
-
-                    # Broadcast status update for each daemon
-                    await websocket_manager.broadcast_daemon_update(daemon.to_dict())
-                except Exception as e:
-                    errors.append(f"{daemon.name}: {str(e)}")
-                    logger.error(f"Failed to stop daemon {daemon.name}: {e}")
-            # If daemon shows as RUNNING in DB but not in memory, update its status
-            elif daemon.status == DaemonStatus.RUNNING:
-                setattr(daemon, "status", DaemonStatus.STOPPED.value)
-                await db.commit()
+            stopped, error, needs_update = await _stop_single_daemon(
+                daemon, str(daemon.id)
+            )
+            if stopped:
                 stopped_count += 1
-                logger.info(
-                    f"Updated stale status for daemon {daemon.name} ({daemon_id})"
-                )
+            if error:
+                errors.append(error)
+            if needs_update:
+                daemons_to_update.append(daemon)
 
-                # Broadcast status update
-                await websocket_manager.broadcast_daemon_update(daemon.to_dict())
+        await _commit_and_broadcast(db, daemons_to_update)
 
         if errors:
             return {
@@ -291,7 +310,6 @@ async def stop_all_daemons(db: AsyncSession = Depends(get_async_db)):
                 "stopped_count": stopped_count,
                 "errors": errors,
             }
-
         return {
             "message": f"Successfully stopped {stopped_count} daemons",
             "stopped_count": stopped_count,
