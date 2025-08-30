@@ -449,100 +449,100 @@ const DaemonCard: React.FC<DaemonCardProps> = ({
             backgroundColor: '#fafafa',
             border: '1px solid #f0f0f0',
             borderRadius: 4,
-            minHeight: 40,
+            minHeight: 44,
             overflow: 'hidden',
           }}
         >
           {daemon.status === DaemonStatus.RUNNING && daemon.current_status ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              {sleepInfo?.isSleeping ? (
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: '#faad14',
-                    animation: 'pulse 2s ease-in-out infinite',
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    backgroundColor: '#52c41a',
-                    animation: 'pulse 1s ease-in-out infinite',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <Text
-                type="secondary"
-                className="daemon-status-text"
+            <div>
+              <div
                 style={{
-                  fontSize: 13,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
-                ellipsis={{ tooltip: daemon.current_status }}
               >
-                {daemon.current_status}
-              </Text>
-              {daemon.current_job_id && daemon.current_job_type && (
-                <Space size={6}>
-                  <Tag
-                    color="blue"
+                {sleepInfo?.isSleeping ? (
+                  <div
                     style={{
-                      fontSize: 11,
-                      lineHeight: '18px',
-                      padding: '0 6px',
-                      margin: 0,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#faad14',
+                      animation: 'pulse 2s ease-in-out infinite',
+                      flexShrink: 0,
                     }}
-                  >
-                    {daemon.current_job_type}
-                  </Tag>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void navigate(`/jobs?job_id=${daemon.current_job_id}`);
-                    }}
+                  />
+                ) : (
+                  <div
                     style={{
-                      padding: 0,
-                      height: 'auto',
-                      fontSize: 12,
-                      color: '#1890ff',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: '#52c41a',
+                      animation: 'pulse 1s ease-in-out infinite',
+                      flexShrink: 0,
                     }}
-                  >
-                    View →
-                  </Button>
-                </Space>
-              )}
-              {daemon.status_updated_at && (
+                  />
+                )}
                 <Text
                   type="secondary"
+                  className="daemon-status-text"
                   style={{
-                    fontSize: 11,
-                    opacity: 0.6,
-                    flexShrink: 0,
+                    fontSize: 13,
+                    flex: 1,
                   }}
                 >
-                  {formatDistanceToNow(new Date(daemon.status_updated_at), {
-                    addSuffix: true,
-                  })}
+                  {daemon.current_status}
                 </Text>
+                {daemon.status_updated_at && (
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      opacity: 0.6,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {formatDistanceToNow(new Date(daemon.status_updated_at), {
+                      addSuffix: true,
+                    })}
+                  </Text>
+                )}
+              </div>
+              {daemon.current_job_id && daemon.current_job_type && (
+                <div style={{ marginTop: 4, paddingLeft: 16 }}>
+                  <Space size={6}>
+                    <Tag
+                      color="blue"
+                      style={{
+                        fontSize: 11,
+                        lineHeight: '18px',
+                        padding: '0 6px',
+                        margin: 0,
+                      }}
+                    >
+                      {daemon.current_job_type}
+                    </Tag>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void navigate(`/jobs?job_id=${daemon.current_job_id}`);
+                      }}
+                      style={{
+                        padding: 0,
+                        height: 'auto',
+                        fontSize: 12,
+                        color: '#1890ff',
+                      }}
+                    >
+                      View →
+                    </Button>
+                  </Space>
+                </div>
               )}
             </div>
           ) : (

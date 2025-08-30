@@ -18,7 +18,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
-from app.models.daemon import LogLevel
+from app.models.daemon import DaemonStatus, LogLevel
 from app.schemas.daemon import (
     DaemonHealthItem,
     DaemonHealthResponse,
@@ -202,19 +202,31 @@ async def stop_daemon(daemon_id: str, db: AsyncSession = Depends(get_async_db)):
     if not daemon:
         raise HTTPException(status_code=404, detail="Daemon not found")
 
-    # Check if running
-    if not daemon_service.is_daemon_running(daemon_id):
-        raise HTTPException(status_code=400, detail="Daemon is not running")
+    # Check if daemon is running in memory
+    if daemon_service.is_daemon_running(daemon_id):
+        try:
+            await daemon_service.stop_daemon(daemon_id)
 
-    try:
-        await daemon_service.stop_daemon(daemon_id)
+            # Broadcast status update
+            await websocket_manager.broadcast_daemon_update(daemon.to_dict())
+
+            return {"message": f"Daemon {daemon.name} stopped successfully"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    # If daemon shows as RUNNING in DB but not in memory, update its status
+    elif daemon.status == DaemonStatus.RUNNING:
+        setattr(daemon, "status", DaemonStatus.STOPPED.value)
+        await db.commit()
+        logger.info(f"Updated stale status for daemon {daemon.name} ({daemon_id})")
 
         # Broadcast status update
         await websocket_manager.broadcast_daemon_update(daemon.to_dict())
 
-        return {"message": f"Daemon {daemon.name} stopped successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "message": f"Daemon {daemon.name} status corrected (was not actually running)"
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Daemon is not running")
 
 
 @router.post("/{daemon_id}/restart")
@@ -248,17 +260,30 @@ async def stop_all_daemons(db: AsyncSession = Depends(get_async_db)):
 
         for daemon in daemons:
             daemon_id = str(daemon.id)
-            # Check if daemon is running
+
+            # First, check if daemon is actually running in memory
             if daemon_service.is_daemon_running(daemon_id):
                 try:
                     await daemon_service.stop_daemon(daemon_id)
                     stopped_count += 1
+                    logger.info(f"Stopped daemon {daemon.name} ({daemon_id})")
 
                     # Broadcast status update for each daemon
                     await websocket_manager.broadcast_daemon_update(daemon.to_dict())
                 except Exception as e:
                     errors.append(f"{daemon.name}: {str(e)}")
                     logger.error(f"Failed to stop daemon {daemon.name}: {e}")
+            # If daemon shows as RUNNING in DB but not in memory, update its status
+            elif daemon.status == DaemonStatus.RUNNING:
+                setattr(daemon, "status", DaemonStatus.STOPPED.value)
+                await db.commit()
+                stopped_count += 1
+                logger.info(
+                    f"Updated stale status for daemon {daemon.name} ({daemon_id})"
+                )
+
+                # Broadcast status update
+                await websocket_manager.broadcast_daemon_update(daemon.to_dict())
 
         if errors:
             return {
